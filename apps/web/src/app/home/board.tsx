@@ -26,19 +26,19 @@ export type BoardCard = {
 };
 
 const COLUMNS = [
-  { status: "aberto", label: "Aberto" },
-  { status: "em_execucao", label: "Em execução" },
-  { status: "feito", label: "Feito · revisão" },
-  { status: "validado", label: "Validado" },
+  { status: "aberto", label: "Open" },
+  { status: "em_execucao", label: "In progress" },
+  { status: "feito", label: "Done · review" },
+  { status: "validado", label: "Validated" },
 ] as const;
 
 type ColumnStatus = (typeof COLUMNS)[number]["status"];
 
 const STATUS_LABEL: Record<ColumnStatus, string> = {
-  aberto: "aberto",
-  em_execucao: "em execução",
-  feito: "feito · revisão",
-  validado: "validado",
+  aberto: "open",
+  em_execucao: "in progress",
+  feito: "done · review",
+  validado: "validated",
 };
 
 const STATUS_CHIP: Record<ColumnStatus, string> = {
@@ -48,34 +48,34 @@ const STATUS_CHIP: Record<ColumnStatus, string> = {
   validado: "ok",
 };
 
-/** Microcopy dos estados vazios — briefing §4.2. */
+/** Empty-state microcopy (briefing §4.2). */
 function EmptyState({ status }: { status: ColumnStatus }) {
   if (status === "aberto") {
     return (
       <div className="empty-col">
-        Nada na fila. Crie um card ou peça ao agente: <i>registra isso como task</i>.
+        Nothing queued. Create a card or tell your agent: <i>register this as a task</i>.
       </div>
     );
   }
   if (status === "em_execucao") {
-    return <div className="empty-col">Nenhum agente trabalhando agora.</div>;
+    return <div className="empty-col">No agent working right now.</div>;
   }
   if (status === "feito") {
     return (
       <div className="empty-col">
-        Aqui chega o que o agente entregou — com evidência e custo.
+        This is where the agent&apos;s work lands, with evidence and cost.
       </div>
     );
   }
   return (
     <div className="empty-col">
-      O que passou pelo seu olho. Só você carimba aqui.
+      What passed your review. Only you stamp this column.
     </div>
   );
 }
 
 function Telemetry({ text }: { text: string }) {
-  // números em destaque, como no mockup (b em duração e custo)
+  // highlighted numbers, as in the mockup (bold on duration and cost)
   const parts = text.split(" · ");
   return (
     <span className="telemetry">
@@ -99,8 +99,8 @@ function Card({ card, corner, onOpen }: { card: BoardCard; corner: boolean; onOp
       <div className="id-row">
         <span className="cid">{card.shortId}</span>
         <span className={`tag ${card.tipo}`}>{card.tipo}</span>
-        {card.isExample ? <span className="selo">EXEMPLO</span> : null}
-        {card.status === "feito" ? <span className="review-chip">aguarda revisão</span> : null}
+        {card.isExample ? <span className="selo">EXAMPLE</span> : null}
+        {card.status === "feito" ? <span className="review-chip">awaiting review</span> : null}
       </div>
       <h4>{card.title}</h4>
       {card.mission ? <div className="mission">{card.mission}</div> : null}
@@ -108,20 +108,20 @@ function Card({ card, corner, onOpen }: { card: BoardCard; corner: boolean; onOp
       <div className="card-foot">
         {card.status === "aberto" ? (
           <span className="telemetry">
-            devolve → <b>{card.devolve}</b>
+            returns → <b>{card.devolve}</b>
           </span>
         ) : null}
         {card.status === "em_execucao" ? (
           <>
             <div className="exec-pulse">
-              <span className="dot-exec" /> {card.executor ?? "agente"}
+              <span className="dot-exec" /> {card.executor ?? "agent"}
               {card.elapsed ? ` · ${card.elapsed}` : ""}
             </div>
             {card.branch ? <span className="telemetry">{card.branch}</span> : null}
           </>
         ) : null}
         {card.status === "feito" || card.status === "validado" ? (
-          card.telemetry ? <Telemetry text={card.telemetry} /> : <span className="telemetry">sem telemetria</span>
+          card.telemetry ? <Telemetry text={card.telemetry} /> : <span className="telemetry">no telemetry</span>
         ) : null}
       </div>
     </div>
@@ -166,17 +166,17 @@ function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void
           className="d-textarea"
           autoFocus
           rows={3}
-          placeholder="O que ficou faltando? O agente lê este comentário no próximo claim."
+          placeholder="What's missing? The agent reads this comment on its next claim."
           value={comment}
           onChange={(e) => setComment(e.target.value)}
         />
         {err ? <p className="d-err">{err}</p> : null}
         <div className="d-actions-row">
           <button className="d-btn-sec" disabled={pending} onClick={() => { setReopening(false); setErr(null); }}>
-            Cancelar
+            Cancel
           </button>
           <button className="d-btn-pri" disabled={pending || !comment.trim()} onClick={reopen}>
-            {pending ? "Reabrindo…" : "Reabrir"}
+            {pending ? "Reopening…" : "Reopen"}
           </button>
         </div>
       </div>
@@ -188,10 +188,10 @@ function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void
       {err ? <p className="d-err">{err}</p> : null}
       <div className="d-actions-row">
         <button className="d-btn-sec" disabled={pending} onClick={() => setReopening(true)}>
-          Reabrir com comentário
+          Reopen with a comment
         </button>
         <button className="d-btn-pri" disabled={pending} onClick={validate}>
-          {pending ? "Validando…" : "Validar"}
+          {pending ? "Validating…" : "Validate"}
         </button>
       </div>
     </div>
@@ -202,7 +202,7 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
   return (
     <div className="ov" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="detail nebula-glass nebula-corners">
-        <button className="d-close" onClick={onClose} aria-label="Fechar">✕</button>
+        <button className="d-close" onClick={onClose} aria-label="Close">✕</button>
         <div className="d-head">
           <span>{card.shortId}</span>
           <span className={`tag ${card.tipo}`}>{card.tipo}</span>
@@ -210,20 +210,20 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
         </div>
         <h3>{card.title}</h3>
         <div className="d-sec">
-          <div className="lbl">O quê</div>
+          <div className="lbl">What</div>
           <p>{card.oQue}</p>
         </div>
         <div className="d-sec">
-          <div className="lbl">Por quê</div>
+          <div className="lbl">Why</div>
           <p>{card.porQue}</p>
         </div>
         <div className="d-sec">
-          <div className="lbl">Como confirmo</div>
+          <div className="lbl">How to confirm</div>
           <p>{card.comoConfirmo}</p>
         </div>
         <div className="d-sec d-grid">
           <div>
-            <div className="lbl">Missão</div>
+            <div className="lbl">Mission</div>
             <p>{card.mission ?? "—"}</p>
           </div>
           <div>
@@ -232,11 +232,11 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
           </div>
         </div>
         <div className="d-sec">
-          <div className="lbl">Papéis</div>
+          <div className="lbl">Roles</div>
           <div className="d-roles">
-            <span className="rl">origem <b>{card.origem}</b></span>
+            <span className="rl">origin <b>{card.origem}</b></span>
             <span className="rl">executor <b>{card.executor ?? "—"}</b></span>
-            <span className="rl">devolve para <b>{card.devolve}</b></span>
+            <span className="rl">returns to <b>{card.devolve}</b></span>
           </div>
         </div>
         <div className="d-sec d-grid">
@@ -246,14 +246,14 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
           </div>
           {card.telemetry ? (
             <div>
-              <div className="lbl">Telemetria</div>
+              <div className="lbl">Telemetry</div>
               <p className="d-tel">{card.telemetry}</p>
             </div>
           ) : null}
         </div>
         {card.handoff ? (
           <div className="d-sec">
-            <div className="lbl">Handoff do agente</div>
+            <div className="lbl">Agent handoff</div>
             <div className="d-evid">{card.handoff}</div>
           </div>
         ) : null}
