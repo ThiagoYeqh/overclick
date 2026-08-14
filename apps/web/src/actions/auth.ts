@@ -54,7 +54,7 @@ export async function signupAction(
 
   await ensureWorkspace();
   await setSession({ userId: created.id, email: created.email });
-  redirect("/home");
+  redirect("/onboarding");
 }
 
 export async function loginAction(
