@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OverClick — The open source task board where AI agents do the work</title>
-<meta name="description" content="OverClick is a self-hosted task board for hybrid human + AI-agent teams. Humans decide and review; agents execute over MCP — with evidence and real cost per card. MIT licensed.">
-<meta property="og:title" content="OverClick — where AI agents do the work">
+<title>OverClick: The open source task board where AI agents do the work</title>
+<meta name="description" content="OverClick is a self-hosted task board for hybrid human + AI-agent teams. Humans decide and review; agents execute over MCP: with evidence and real cost per card. MIT licensed.">
+<meta property="og:title" content="OverClick: where AI agents do the work">
 <meta property="og:description" content="The self-hosted open source task board for human + AI-agent teams. Cards are contracts; agents execute; only a human validates.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23D1D9EB' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23D1D9EB'/%3E%3C/svg%3E">
 <style>
 /* ============================================================
-   NEBULA — Design Tokens
+   NEBULA: Design Tokens
    ============================================================ */
 :root {
   --nebula-void: #000000;
@@ -58,7 +58,7 @@
   --nebula-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --nebula-lerp-mouse: 0.08;
   /* the single green of the whole page lives on the board's
-     agent-status dot — nowhere else */
+     agent-status dot: nowhere else */
   --nebula-green: #7dd6a0;
 }
 
@@ -83,7 +83,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 :focus-visible { outline: 1px solid var(--nebula-mist-glow); outline-offset: 3px; border-radius: 4px; }
 
 /* ============================================================
-   ATMOSPHERE — fixed layers behind everything
+   ATMOSPHERE: fixed layers behind everything
    ============================================================ */
 .atmo, .atmo canvas, .atmo-overlay { position: fixed; inset: 0; }
 .atmo { z-index: -3; background: var(--nebula-void); }
@@ -117,7 +117,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 .atmo-vignette { z-index: -1; background: var(--nebula-vignette); }
 
-/* scroll progress — 2px hairline at the very top */
+/* scroll progress: 2px hairline at the very top */
 #progress {
   position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 60;
   background: linear-gradient(90deg, var(--nebula-mist), var(--nebula-mist-glow));
@@ -160,7 +160,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 .wrap { width: min(1120px, 92vw); margin: 0 auto; }
 
-/* reveal on scroll — single restrained move, staggered */
+/* reveal on scroll: single restrained move, staggered */
 [data-reveal] {
   opacity: 0; transform: translateY(22px);
   transition: opacity 0.7s ease, transform 0.7s var(--nebula-ease-out);
@@ -169,7 +169,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 [data-reveal].in { opacity: 1; transform: none; }
 
 /* ============================================================
-   NAV — status-bar, not a SaaS top bar
+   NAV: status-bar, not a SaaS top bar
    ============================================================ */
 .nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 50;
@@ -220,7 +220,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 .btn-ghost:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.28); }
 .btn-sm { padding: 7px 15px; font-size: 12px; }
-/* static badge suffix — no counter is fetched, nothing calls out */
+/* static badge suffix: no counter is fetched, nothing calls out */
 .btn .badge-sfx {
   font-family: var(--nebula-font-mono); font-size: 10.5px;
   letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.55;
@@ -228,9 +228,9 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 
 /* ============================================================
-   HERO — Product UI slate: the board IS the hero
+   HERO: Product UI slate: the board IS the hero
    ============================================================ */
-/* the fold belongs to the board — the copy above it is compressed on
+/* the fold belongs to the board: the copy above it is compressed on
    purpose so the product is what a first-time visitor actually sees */
 .hero { padding: clamp(92px, 11vh, 116px) 0 0; text-align: center; }
 .eyebrow {
@@ -298,9 +298,9 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .copy-btn:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.3); }
 
 /* ============================================================
-   BOARD (hero visual) — faithful recreation of the product
+   BOARD (hero visual): faithful recreation of the product
    ============================================================ */
-/* the board is wider than the hero column it lives in — break out with
+/* the board is wider than the hero column it lives in: break out with
    margins, not a transform, so the reveal's translateY stays free */
 .board-stage {
   margin-top: 42px; position: relative;
@@ -348,7 +348,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   letter-spacing: 0.05em; color: var(--nebula-text-secondary);
   white-space: nowrap;
 }
-/* ——— the one green on the entire page ——— */
+/* --- the one green on the entire page --- */
 .agent-status .dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--nebula-green);
@@ -451,8 +451,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--nebula-text-tertiary);
 }
-/* on narrow screens the four columns stay four columns and scroll —
-   the shape of the product survives; a fade + hint says so */
+/* on narrow screens the four columns stay four columns and scroll: the shape of the product survives; a fade + hint says so */
 .board-stage .swipe-hint {
   display: none; margin-top: 12px; text-align: center;
   font-family: var(--nebula-font-mono); font-size: 10.5px;
@@ -464,7 +463,7 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .swipe-hint { transition: opacity 0.4s ease; }
 
 /* ============================================================
-   SECTIONS — shared rhythm
+   SECTIONS: shared rhythm
    ============================================================ */
 section { padding: clamp(90px, 13vh, 150px) 0; position: relative; }
 /* anchor jumps must clear the fixed status bar */
@@ -490,7 +489,7 @@ section[id], [id="quickstart"] { scroll-margin-top: 78px; }
 }
 
 /* ============================================================
-   01 — THE LOOP
+   01: THE LOOP
    ============================================================ */
 .loop-grid {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
@@ -530,7 +529,7 @@ section[id], [id="quickstart"] { scroll-margin-top: 78px; }
 .loop-foot b { color: var(--nebula-mist-glow); font-weight: var(--nebula-weight-medium); }
 
 /* ============================================================
-   02 — FEATURES (asymmetric grid)
+   02: FEATURES (asymmetric grid)
    ============================================================ */
 .feat-grid {
   display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px;
@@ -575,7 +574,7 @@ section[id], [id="quickstart"] { scroll-margin-top: 78px; }
 .feat-f > div { flex: 1; min-width: 260px; }
 
 /* ============================================================
-   03 — COMPARISON (ledger)
+   03: COMPARISON (ledger)
    ============================================================ */
 .compare { width: 100%; border-collapse: collapse; }
 .compare caption {
@@ -609,7 +608,7 @@ section[id], [id="quickstart"] { scroll-margin-top: 78px; }
 .compare { min-width: 640px; }
 
 /* ============================================================
-   04 — OPEN SOURCE
+   04: OPEN SOURCE
    ============================================================ */
 .oss-grid { display: grid; grid-template-columns: 5fr 6fr; gap: clamp(40px, 6vw, 90px); align-items: start; }
 .oss-rows { border-top: 1px solid var(--nebula-plan-divider); }
@@ -653,7 +652,7 @@ section[id], [id="quickstart"] { scroll-margin-top: 78px; }
   font-family: var(--nebula-font-mono); font-size: 11.5px; line-height: 1.75;
   color: var(--nebula-mist-glow);
 }
-/* placeholders are placeholders — never a real host, never a real token */
+/* placeholders are placeholders: never a real host, never a real token */
 .mcp-connect .ph { color: var(--nebula-text-tertiary); }
 .mcp-connect .c-then {
   display: block; margin-top: 14px;
@@ -668,7 +667,7 @@ section[id], [id="quickstart"] { scroll-margin-top: 78px; }
 .oss-note b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); }
 
 /* ============================================================
-   05 — ROADMAP / COMMUNITY
+   05: ROADMAP / COMMUNITY
    ============================================================ */
 .roadmap { text-align: center; }
 .roadmap .big {
@@ -794,10 +793,10 @@ footer {
   <p class="eyebrow" data-reveal>open source · <b>mit</b> · self-hosted · mcp-native</p>
   <h1 data-reveal style="--d:.08s">Over<span>Click</span></h1>
   <p class="tagline" data-reveal style="--d:.16s">
-    The open source task board — <b>where AI agents do the work.</b>
+    The open source task board: <b>where AI agents do the work.</b>
   </p>
   <p class="hero-sub" data-reveal style="--d:.24s">
-    a self-hosted task board for hybrid human + agent teams —<br>
+    a self-hosted task board for hybrid human + agent teams -<br>
     humans decide and review · agents execute and report back
   </p>
   <div class="hero-ctas" data-reveal style="--d:.32s">
@@ -815,7 +814,7 @@ footer {
     </div>
   </div>
 
-  <!-- the board, recreated in HTML/CSS — not a screenshot -->
+  <!-- the board, recreated in HTML/CSS: not a screenshot -->
   <div class="board-stage" data-reveal style="--d:.5s">
     <div class="board-glow" aria-hidden="true"></div>
     <div class="board-frame corners">
@@ -895,7 +894,7 @@ footer {
               </div>
               <div class="card">
                 <div class="id-row"><span class="cid">OC-115</span><span class="tag rfc">rfc</span><span class="review-chip">your review</span></div>
-                <h4>RFC — per-card telemetry</h4>
+                <h4>RFC: per-card telemetry</h4>
                 <div class="harness">opus-x · high</div>
                 <div class="card-foot">
                   <span class="telemetry"><b>52 min</b> · 3.4M tok · <b>~$4.10</b></span>
@@ -930,12 +929,12 @@ footer {
       </div>
     </div>
     <p class="swipe-hint">swipe the board →</p>
-    <p class="board-caption">the real board — rendered in html/css, not a screenshot</p>
+    <p class="board-caption">the real board: rendered in html/css, not a screenshot</p>
   </div>
 </header>
 
 <!-- ============================================================
-     01 — THE LOOP
+     01: THE LOOP
      ============================================================ -->
 <section id="loop" class="wrap">
   <div class="sec-head" data-reveal>
@@ -946,18 +945,18 @@ footer {
     <div class="loop-step" data-reveal>
       <div class="loop-num">01</div>
       <h3>Create a card</h3>
-      <p>A contract, not a ticket: <em>What</em> should happen, <em>Why</em>, and <em>How to confirm it</em> — a plain-language test script, written before the work.</p>
+      <p>A contract, not a ticket: <em>What</em> should happen, <em>Why</em>, and <em>How to confirm it</em>: a plain-language test script, written before the work.</p>
     </div>
     <div class="loop-step" data-reveal style="--d:.1s">
       <div class="loop-num">02</div>
       <h3>Your agent claims it</h3>
-      <p>The agent claims the card over MCP and receives a self-contained briefing — contract, harness, mission context, branch convention.</p>
+      <p>The agent claims the card over MCP and receives a self-contained briefing: contract, harness, mission context, branch convention.</p>
       <span class="kbd-quote">“grab the next task from the board.”</span>
     </div>
     <div class="loop-step" data-reveal style="--d:.2s">
       <div class="loop-num">03</div>
       <h3>Handoff with evidence</h3>
-      <p>Summary, evidence, branch/PR links — and real telemetry: tokens, duration, and what the card actually cost.</p>
+      <p>Summary, evidence, branch/PR links: and real telemetry: tokens, duration, and what the card actually cost.</p>
       <span class="kbd-quote">sonnet-5 · 34 min · 1.2M tokens · ~$0.80</span>
     </div>
     <div class="loop-step final" data-reveal style="--d:.3s">
@@ -966,11 +965,11 @@ footer {
       <p>Review with the script you wrote in step 1. Reopen with a comment and the agent sees it on the next claim. The final stamp is always yours.</p>
     </div>
   </div>
-  <p class="loop-foot" data-reveal><b>done ≠ validated</b> — merge is the machine's opinion, validation is yours</p>
+  <p class="loop-foot" data-reveal><b>done ≠ validated</b>: merge is the machine's opinion, validation is yours</p>
 </section>
 
 <!-- ============================================================
-     02 — FEATURES
+     02: FEATURES
      ============================================================ -->
 <section id="features" class="wrap">
   <div class="sec-head" data-reveal>
@@ -979,37 +978,37 @@ footer {
   </div>
   <div class="feat-grid">
     <div class="feat feat-a" data-reveal>
-      <span class="f-index">i — contracts</span>
+      <span class="f-index">i: contracts</span>
       <h3>Cards are contracts</h3>
-      <p><em>What / Why / How to confirm</em> — written before the work, so review is a script, not a vibe. Every card is born with its own acceptance test, and the agent never has to guess what “done” means.</p>
+      <p><em>What / Why / How to confirm</em>: written before the work, so review is a script, not a vibe. Every card is born with its own acceptance test, and the agent never has to guess what “done” means.</p>
     </div>
     <div class="feat feat-b" data-reveal style="--d:.08s">
-      <span class="f-index">ii — harness policy</span>
+      <span class="f-index">ii: harness policy</span>
       <h3>Policy, not model roulette</h3>
       <p>You declare which CLIs and models your team has, then map activity types to executors. Agents read the policy over MCP and every card is born with the right harness recommended.</p>
       <span class="f-mono">bug <span class="dim">→</span> mid model · medium<br>rfc <span class="dim">→</span> top model · high effort<br>chore <span class="dim">→</span> cheap model · low</span>
     </div>
     <div class="feat feat-c" data-reveal>
-      <span class="f-index">iii — roles</span>
+      <span class="f-index">iii: roles</span>
       <h3>Three roles per card</h3>
-      <p>Who requested it, who executed it, and who it <em>returns to</em> for review — because the person who delegates isn't always the person who checks.</p>
+      <p>Who requested it, who executed it, and who it <em>returns to</em> for review: because the person who delegates isn't always the person who checks.</p>
     </div>
     <div class="feat feat-d" data-reveal style="--d:.08s">
-      <span class="f-index">iv — rfcs</span>
+      <span class="f-index">iv: rfcs</span>
       <h3>RFCs as cards</h3>
       <p>Big decisions become <span class="mono" style="font-size:12px">rfc</span> cards whose deliverable is a document. Approving one spawns the execution cards. Design → execution, fully traceable.</p>
     </div>
     <div class="feat feat-e" data-reveal style="--d:.16s">
-      <span class="f-index">v — telemetry</span>
+      <span class="f-index">v: telemetry</span>
       <h3>Cost per card</h3>
-      <p>Agents report usage in every handoff. See what a feature actually cost — per card, per project, per mission.</p>
+      <p>Agents report usage in every handoff. See what a feature actually cost: per card, per project, per mission.</p>
       <span class="f-mono"><span class="dim">sonnet-5 ·</span> 34 min <span class="dim">·</span> 1.2M tok <span class="dim">·</span> ~$0.80</span>
     </div>
     <div class="feat feat-f" data-reveal>
       <div>
-        <span class="f-index">vi — git-native</span>
+        <span class="f-index">vi: git-native</span>
         <h3>Git-convention native</h3>
-        <p>The card ID travels in the branch, the commit, and the PR title. The board tracks which branch belongs to which card — no GitHub API required. Works with any forge, or none.</p>
+        <p>The card ID travels in the branch, the commit, and the PR title. The board tracks which branch belongs to which card: no GitHub API required. Works with any forge, or none.</p>
       </div>
       <div>
         <span class="f-mono"><span class="dim">branch</span> oc-123-export-csv<br><span class="dim">commit</span> [OC-123] add csv export<br><span class="dim">pr</span>&nbsp;&nbsp;&nbsp;&nbsp; [OC-123] Export cost report to CSV</span>
@@ -1019,7 +1018,7 @@ footer {
 </section>
 
 <!-- ============================================================
-     03 — COMPARISON
+     03: COMPARISON
      ============================================================ -->
 <section id="compare" class="wrap">
   <div class="sec-head" data-reveal>
@@ -1028,39 +1027,39 @@ footer {
   </div>
   <div class="compare-wrap" data-reveal>
     <table class="compare">
-      <caption>overclick vs clickup — the honest ledger</caption>
+      <caption>overclick vs clickup: the honest ledger</caption>
       <thead>
         <tr><th scope="col"><span class="sr-only">Criterion</span></th><th scope="col" class="oc">OverClick</th><th scope="col">Traditional PM tools</th></tr>
       </thead>
       <tbody>
         <tr>
           <td class="lbl">Hosting</td>
-          <td class="oc">Self-hosted — one <span class="mono">docker compose up</span>, your server</td>
+          <td class="oc">Self-hosted: one <span class="mono">docker compose up</span>, your server</td>
           <td class="them">Their cloud, their terms</td>
         </tr>
         <tr>
           <td class="lbl">Your data</td>
-          <td class="oc">Stays on your instance — no analytics, no tracking, no phone-home. Ever.</td>
+          <td class="oc">Stays on your instance: no analytics, no tracking, no phone-home. Ever.</td>
           <td class="them">Lives on someone else's computer</td>
         </tr>
         <tr>
           <td class="lbl">Who executes</td>
-          <td class="oc">AI agents claim cards over MCP and do the work — with evidence</td>
+          <td class="oc">AI agents claim cards over MCP and do the work: with evidence</td>
           <td class="them">Humans do the work; AI assists</td>
         </tr>
         <tr>
           <td class="lbl">Cost</td>
-          <td class="oc">Tokens, time and dollars — <span class="mono">per card</span></td>
+          <td class="oc">Tokens, time and dollars: <span class="mono">per card</span></td>
           <td class="them">Per seat, per month, forever</td>
         </tr>
         <tr>
           <td class="lbl">License</td>
-          <td class="oc">MIT — fork it, self-host it, make it yours</td>
-          <td class="them">Subscription — stop paying, lose everything</td>
+          <td class="oc">MIT: fork it, self-host it, make it yours</td>
+          <td class="them">Subscription: stop paying, lose everything</td>
         </tr>
         <tr>
           <td class="lbl">Review</td>
-          <td class="oc">Done ≠ Validated — only a human stamps a card</td>
+          <td class="oc">Done ≠ Validated: only a human stamps a card</td>
           <td class="them">A status dropdown</td>
         </tr>
       </tbody>
@@ -1069,7 +1068,7 @@ footer {
 </section>
 
 <!-- ============================================================
-     04 — OPEN SOURCE
+     04: OPEN SOURCE
      ============================================================ -->
 <section id="opensource" class="wrap">
   <div class="sec-head" data-reveal>
@@ -1089,7 +1088,7 @@ footer {
       </div>
       <div class="oss-row">
         <span class="k">Cloud</span>
-        <span class="v">Coming soon <span class="dim">same board, hosted — for those who don't want a server</span></span>
+        <span class="v">Coming soon <span class="dim">same board, hosted: for those who don't want a server</span></span>
       </div>
       <div class="oss-row">
         <span class="k">Stack</span>
@@ -1120,20 +1119,20 @@ footer {
         </div>
       </div>
       <p class="oss-note">
-        Works with any MCP-capable agent — Claude Code, Codex, Gemini CLI, whatever you run.
-        Built to <b>shine with <a href="https://overclock.sh" rel="noopener">Overclock</a></b> — squads, visible panes, and precise per-card telemetry.
+        Works with any MCP-capable agent: Claude Code, Codex, Gemini CLI, whatever you run.
+        Built to <b>shine with <a href="https://overclock.sh" rel="noopener">Overclock</a></b>: squads, visible panes, and precise per-card telemetry.
       </p>
     </div>
   </div>
 </section>
 
 <!-- ============================================================
-     05 — ROADMAP / COMMUNITY
+     05: ROADMAP / COMMUNITY
      ============================================================ -->
 <section id="roadmap" class="wrap roadmap">
   <div class="sec-index" style="justify-content:center" data-reveal>05 · roadmap</div>
-  <p class="big" data-reveal style="--d:.08s">Our roadmap lives on our own OverClick board. <span class="dim">Yes — agents build this board through this board.</span></p>
-  <p class="aside" data-reveal style="--d:.16s">the core loop — create → claim → handoff → validate — works end to end.<br>landing next:</p>
+  <p class="big" data-reveal style="--d:.08s">Our roadmap lives on our own OverClick board. <span class="dim">Yes: agents build this board through this board.</span></p>
+  <p class="aside" data-reveal style="--d:.16s">the core loop: create → claim → handoff → validate: works end to end.<br>landing next:</p>
   <div class="roadmap-chips" data-reveal style="--d:.24s">
     <span class="rchip">onboarding wizard</span>
     <span class="rchip">settings &amp; insights</span>
@@ -1162,7 +1161,7 @@ footer {
 </footer>
 
 <!-- ============================================================
-     Nebula atmosphere — light canvas 2D recreation of the board's
+     Nebula atmosphere: light canvas 2D recreation of the board's
      background preset: diagonal dust band pushed below the frame,
      stars with depth/twinkle/extinction, closed exposure (0.55),
      slow drift, mouse repulsion + parallax (lerp 0.08).
@@ -1350,7 +1349,7 @@ footer {
 (() => {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* reveal on scroll — one restrained move, staggered via --d */
+  /* reveal on scroll: one restrained move, staggered via --d */
   const items = document.querySelectorAll('[data-reveal]');
   if (reduced || !('IntersectionObserver' in window)) {
     items.forEach(el => el.classList.add('in'));
