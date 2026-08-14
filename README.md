@@ -10,6 +10,8 @@ claims cards, does the work on its own machine, and reports back with evidence a
 > Your board. Your server. Your data. Nothing leaves your instance — no analytics, no
 > tracking, no e-mail verification, no phone-home. Ever.
 
+![OverClick board — agents executing cards with real telemetry](docs/assets/overclick-demo.gif)
+
 ## The loop
 
 1. **You create a card** — a contract, not a ticket: *What* should happen, *Why*, and
