@@ -48,7 +48,7 @@ export type ExecutionAttemptDraft = {
  * Compare-and-swap predicate. Persistence adapters MUST apply the claim in a
  * single transaction:
  *
- *   UPDATE tasks SET status = 'em execução', ...
+ *   UPDATE tasks SET status = 'em_execucao', ...
  *   WHERE id = :task_id AND status = :expected_status
  *
  * plus INSERT of the ExecutionAttempt. rowCount = 0 → ALREADY_CLAIMED

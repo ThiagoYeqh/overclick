@@ -11,9 +11,9 @@ describe("seed payload (spec §6 onboarding)", () => {
     expect(EXAMPLE_CARD.isExample).toBe(true);
   });
 
-  it("example card has the full contract: O quê / Por quê / Como confirmo", () => {
+  it("example card has the full contract: what / why / how to confirm", () => {
     expect(EXAMPLE_CARD.oQue.length).toBeGreaterThan(20);
     expect(EXAMPLE_CARD.porQue.length).toBeGreaterThan(10);
-    expect(EXAMPLE_CARD.comoConfirmo).toMatch(/Validar/);
+    expect(EXAMPLE_CARD.comoConfirmo).toMatch(/Validate/);
   });
 });

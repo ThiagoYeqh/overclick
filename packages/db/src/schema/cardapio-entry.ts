@@ -1,7 +1,7 @@
 import { index, pgTable, text, unique, uuid } from "drizzle-orm/pg-core";
 import { workspace } from "./workspace";
 
-/** Per-workspace cardápio policy: activity type → CLI · model · effort. No skills. */
+/** Per-workspace cardapio policy: activity type → CLI · model · effort. No skills. */
 export const cardapioEntry = pgTable(
   "cardapio_entry",
   {
