@@ -133,27 +133,24 @@ export function reviewerToColumns(reviewer: Reviewer | undefined): {
 export function harnessFromDb(raw: DbHarness | null | undefined): Harness | null {
   if (!raw?.model) return null;
   return {
+    ...(raw.cli ? { cli: raw.cli } : {}),
     model: raw.model,
     effort: raw.effort ?? "medium",
-    skills: raw.skills ?? [],
-    ...(raw.agent ? { agent: raw.agent } : {}),
   };
 }
 
 export function harnessToDb(
   harness: {
+    cli?: string | null;
     model: string | null;
     effort: Harness["effort"] | null;
-    skills: string[];
-    agent?: string;
   } | null,
 ): DbHarness | null {
   if (!harness) return null;
   return {
+    cli: harness.cli ?? null,
     model: harness.model,
     effort: harness.effort,
-    skills: harness.skills,
-    agent: harness.agent ?? null,
   };
 }
 
@@ -221,7 +218,6 @@ export function cardapioFromWorkspace(cardapio: Cardapio): McpCardapio {
   ): McpCardapio["bug"] => ({
     model_tier: stored?.modelTier ?? fallback.model_tier,
     effort: stored?.effort ?? fallback.effort,
-    skills: stored?.skills ?? fallback.skills,
   });
   return {
     ...DEFAULT_CARDAPIO,

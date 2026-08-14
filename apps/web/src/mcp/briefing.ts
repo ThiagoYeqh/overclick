@@ -12,10 +12,9 @@ export function renderBriefingMarkdown(input: {
 
   const harness = task.harness
     ? [
+        task.harness.cli ? `- CLI: ${task.harness.cli}` : null,
         `- modelo: ${task.harness.model}`,
         `- effort: ${task.harness.effort}`,
-        `- skills: ${task.harness.skills.length ? task.harness.skills.join(", ") : "—"}`,
-        task.harness.agent ? `- agent: ${task.harness.agent}` : null,
       ]
         .filter(Boolean)
         .join("\n")

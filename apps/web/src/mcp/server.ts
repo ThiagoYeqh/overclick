@@ -24,7 +24,9 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
     "Entrega o resultado: resumo, evidências, artefatos, usage. Status → feito.",
   branch_register: "Grava a branch criada no card.",
   harness_recommend:
-    "Recomenda o harness (modelo · effort · skills) a partir do cardápio × executores.",
+    "Lookup da política do cardápio: tipo → CLI · modelo · effort.",
+  harness_list:
+    "Política inteira do workspace (tipo → CLI · modelo · effort) e os executores configurados.",
 };
 
 function inputSchemaFor(name: McpToolName) {

@@ -1,6 +1,8 @@
 import {
   canNestUnder,
+  cardapioEntry,
   executionAttempt,
+  factoryCardapioPolicy,
   handoff,
   mission,
   nextShortId,
@@ -19,8 +21,10 @@ import {
   ok,
   recommendHarness,
   toolContracts,
+  type CardapioPolicyEntry,
   type CardapioTaskType,
   type CardStatus,
+  type EffortLevel,
   type Harness,
   type McpToolName,
   type Result,
@@ -31,7 +35,6 @@ import {
 import { and, asc, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { renderBriefingMarkdown } from "./briefing";
 import {
-  cardapioFromWorkspace,
   decodeExecutor,
   encodeExecutor,
   executorsFromWorkspace,
@@ -102,6 +105,9 @@ export async function invokeTool(
         ctx,
         parsed.data as Parameters<typeof harnessRecommend>[2],
       );
+      break;
+    case "harness_list":
+      value = await harnessList(db, ctx);
       break;
     default: {
       const _never: never = name;
@@ -741,6 +747,38 @@ async function harnessRecommend(
   return rec.value;
 }
 
+async function harnessList(db: McpDatabase, ctx: AuthContext) {
+  const [ws] = await db
+    .select()
+    .from(workspace)
+    .where(eq(workspace.id, ctx.workspaceId))
+    .limit(1);
+  if (!ws) {
+    return err("NOT_FOUND", "Workspace do token não encontrado.");
+  }
+  const policy = await loadPolicy(db, ctx.workspaceId);
+  return {
+    policy: policy.length > 0 ? policy : factoryCardapioPolicy(),
+    executors: ws.executors,
+  };
+}
+
+async function loadPolicy(
+  db: McpDatabase,
+  workspaceId: string,
+): Promise<CardapioPolicyEntry[]> {
+  const rows = await db
+    .select()
+    .from(cardapioEntry)
+    .where(eq(cardapioEntry.workspaceId, workspaceId));
+  return rows.map((row) => ({
+    type: row.activityType,
+    cli: row.cli,
+    model: row.model,
+    effort: row.effort as EffortLevel,
+  }));
+}
+
 async function recommendFor(
   db: McpDatabase,
   workspaceId: string,
@@ -755,17 +793,17 @@ async function recommendFor(
   if (!ws) {
     return err("NOT_FOUND", "Workspace do token não encontrado.");
   }
+  const policy = await loadPolicy(db, workspaceId);
   return recommendHarness({
     type,
     executors: executorsFromWorkspace(ws.executors),
-    cardapio: cardapioFromWorkspace(ws.cardapio),
+    policy,
     ...(explicit
       ? {
           explicit: {
             model: explicit.model,
             effort: explicit.effort,
-            skills: explicit.skills,
-            agent: explicit.agent,
+            ...(explicit.cli ? { cli: explicit.cli } : {}),
           },
         }
       : {}),

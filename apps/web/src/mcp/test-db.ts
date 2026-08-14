@@ -1,13 +1,14 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import {
+  cardapioEntry,
+  factoryCardapioPolicy,
   mcpToken,
   mission,
   project,
   workspace,
-  type Cardapio,
   type ExecutorConfig,
 } from "@agent-board/db";
 import { drizzle } from "drizzle-orm/pglite";
@@ -16,10 +17,7 @@ import { generateTokenSecret, hashToken } from "./token";
 import type { McpDatabase } from "./types";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const MIGRATION_SQL = resolve(
-  here,
-  "../../../../packages/db/drizzle/0000_robust_wild_pack.sql",
-);
+const MIGRATIONS_DIR = resolve(here, "../../../../packages/db/drizzle");
 
 export type TestWorld = {
   db: McpDatabase;
@@ -34,30 +32,6 @@ export type TestWorld = {
   secondTokenId: string;
 };
 
-const TEST_CARDAPIO: Cardapio = {
-  bug: {
-    model: "sonnet-5",
-    modelTier: "mid",
-    effort: "medium",
-    skills: ["qa-fix-protocol"],
-    agent: null,
-  },
-  feature: {
-    model: "sonnet-5",
-    modelTier: "mid",
-    effort: "medium",
-    skills: ["ui-ux-pro-max"],
-    agent: null,
-  },
-  rfc: {
-    model: "opus-4-8",
-    modelTier: "top",
-    effort: "high",
-    skills: [],
-    agent: null,
-  },
-};
-
 const TEST_EXECUTORS: ExecutorConfig[] = [
   {
     id: "claude-code",
@@ -69,10 +43,15 @@ const TEST_EXECUTORS: ExecutorConfig[] = [
 
 export async function createTestWorld(): Promise<TestWorld> {
   const client = new PGlite();
-  const sql = readFileSync(MIGRATION_SQL, "utf8");
-  for (const statement of sql.split("--> statement-breakpoint")) {
-    const trimmed = statement.trim();
-    if (trimmed) await client.exec(trimmed);
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+  for (const file of files) {
+    const sql = readFileSync(resolve(MIGRATIONS_DIR, file), "utf8");
+    for (const statement of sql.split("--> statement-breakpoint")) {
+      const trimmed = statement.trim();
+      if (trimmed) await client.exec(trimmed);
+    }
   }
 
   const db = drizzle(client, { schema }) as unknown as McpDatabase;
@@ -82,10 +61,19 @@ export async function createTestWorld(): Promise<TestWorld> {
     .values({
       name: "OverClick Test",
       executors: TEST_EXECUTORS,
-      cardapio: TEST_CARDAPIO,
     })
     .returning({ id: workspace.id });
   if (!ws) throw new Error("failed to insert workspace");
+
+  await db.insert(cardapioEntry).values(
+    factoryCardapioPolicy().map((row) => ({
+      workspaceId: ws.id,
+      activityType: row.type,
+      cli: row.cli,
+      model: row.model,
+      effort: row.effort,
+    })),
+  );
 
   const [proj] = await db
     .insert(project)

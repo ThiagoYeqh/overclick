@@ -17,7 +17,7 @@ const task: Task = {
   o_que: "O login volta a autenticar.",
   por_que: "Ninguém entra.",
   como_confirmo: [{ step: "abre /login", expected: "entra na home" }],
-  harness: { model: "sonnet-5", effort: "medium", skills: ["qa-fix-protocol"] },
+  harness: { cli: "claude-code", model: "sonnet-5", effort: "medium" },
   origem: { cli: "overclock", session_id: "sess_torre" },
   mode: "solo",
   devolve_para: { kind: "workspace_queue" },
@@ -48,7 +48,9 @@ describe("self-contained briefing markdown", () => {
     expect(md).toContain("abre /login");
     expect(md).toContain("entra na home");
     expect(md).toContain("sonnet-5");
-    expect(md).toContain("qa-fix-protocol");
+    expect(md).toContain("claude-code");
+    expect(md).not.toContain("qa-fix-protocol");
+    expect(md).not.toMatch(/skills/i);
     expect(md).toContain("Fechar o loop MCP.");
     expect(md).toContain("O board é a fonte de verdade do trabalho.");
     expect(md).toContain(convention.branch);

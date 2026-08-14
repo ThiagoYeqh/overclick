@@ -9,5 +9,5 @@ export type AuthContext = {
 /** Postgres or PGlite drizzle client — the query surface the tools use. */
 export type McpDatabase = Pick<
   Database,
-  "select" | "insert" | "update" | "transaction"
+  "select" | "insert" | "update" | "delete" | "transaction"
 >;

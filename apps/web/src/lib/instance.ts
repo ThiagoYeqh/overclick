@@ -1,6 +1,8 @@
 import {
   DEFAULT_CARDAPIO,
   KNOWN_EXECUTORS,
+  cardapioEntry,
+  factoryCardapioPolicy,
   user,
   workspace,
 } from "@agent-board/db";
@@ -29,5 +31,18 @@ export async function ensureWorkspace(): Promise<{ id: string }> {
     .returning({ id: workspace.id });
 
   if (!created) throw new Error("failed to create workspace");
+
+  await db()
+    .insert(cardapioEntry)
+    .values(
+      factoryCardapioPolicy().map((row) => ({
+        workspaceId: created.id,
+        activityType: row.type,
+        cli: row.cli,
+        model: row.model,
+        effort: row.effort,
+      })),
+    );
+
   return created;
 }
