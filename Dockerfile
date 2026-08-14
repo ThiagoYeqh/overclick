@@ -15,6 +15,7 @@ COPY package.json pnpm-lock.yaml .npmrc ./
 COPY pnpm-workspace.docker.yaml pnpm-workspace.yaml
 COPY apps/web/package.json apps/web/package.json
 COPY packages/db/package.json packages/db/package.json
+COPY packages/mcp-core/package.json packages/mcp-core/package.json
 
 # Only this image's packages. Sibling workspace folders stay out of the context.
 # Lockfile also lists sibling workspace packages this image does not ship.
@@ -22,6 +23,7 @@ RUN pnpm install --no-frozen-lockfile --filter @agent-board/web...
 
 COPY apps/web apps/web
 COPY packages/db packages/db
+COPY packages/mcp-core packages/mcp-core
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

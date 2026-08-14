@@ -1,5 +1,5 @@
-# Image ships only the web app and the db package.
-# packages/mcp-core is owned by another worker and is not copied into the image.
+# Image ships the web app plus the packages it imports at runtime.
 packages:
   - "apps/web"
   - "packages/db"
+  - "packages/mcp-core"
