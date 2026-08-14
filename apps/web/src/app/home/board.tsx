@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { type FormEvent, useCallback, useEffect, useState, useTransition } from "react";
 import { reopenTaskAction, validateTaskAction } from "../../actions/review";
+import { createBoardTaskAction } from "../../actions/tasks";
 
 export type BoardCard = {
   id: string;
@@ -263,11 +264,101 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
   );
 }
 
+function CreateCardModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const input = Object.fromEntries(new FormData(form));
+
+    start(async () => {
+      setErr(null);
+      const result = await createBoardTaskAction(input);
+      if (!result.ok) {
+        setErr(result.error);
+        return;
+      }
+      form.reset();
+      onClose();
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="ov" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="detail create-detail nebula-glass nebula-corners">
+        <button className="d-close" onClick={onClose} aria-label="Close">✕</button>
+        <div className="d-head">
+          <span>NEW CARD</span>
+          <span className="d-status">contract</span>
+        </div>
+        <h3>Create a card</h3>
+        <p className="create-sub">
+          Write the contract before the agent starts: what changes, why it matters, and how a human confirms it.
+        </p>
+        <form className="create-form" onSubmit={submit}>
+          <div className="field">
+            <label>Title</label>
+            <input className="input" name="title" maxLength={200} autoFocus required />
+          </div>
+          <div className="create-grid">
+            <div className="field">
+              <label>Type</label>
+              <select className="input" name="type" defaultValue="feature">
+                <option value="feature">Feature</option>
+                <option value="bug">Bug</option>
+                <option value="rfc">RFC</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Priority</label>
+              <select className="input" name="priority" defaultValue="media">
+                <option value="urgente">Urgent</option>
+                <option value="alta">High</option>
+                <option value="media">Medium</option>
+                <option value="baixa">Low</option>
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <label>What</label>
+            <textarea className="input create-textarea" name="what" rows={3} required />
+          </div>
+          <div className="field">
+            <label>Why</label>
+            <textarea className="input create-textarea" name="why" rows={3} required />
+          </div>
+          <div className="field">
+            <label>How to confirm</label>
+            <textarea className="input create-textarea" name="howToConfirm" rows={3} required />
+          </div>
+          {err ? <p className="d-err">{err}</p> : null}
+          <div className="d-actions-row create-actions">
+            <button className="d-btn-sec" type="button" disabled={pending} onClick={onClose}>
+              Cancel
+            </button>
+            <button className="d-btn-pri" type="submit" disabled={pending}>
+              {pending ? "Creating…" : "Create card"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function Board({ cards }: { cards: BoardCard[] }) {
   const [open, setOpen] = useState<BoardCard | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const onKey = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") setOpen(null);
+    if (e.key === "Escape") {
+      setOpen(null);
+      setCreating(false);
+    }
   }, []);
   useEffect(() => {
     document.addEventListener("keydown", onKey);
@@ -276,6 +367,15 @@ export function Board({ cards }: { cards: BoardCard[] }) {
 
   return (
     <>
+      <div className="board-tools">
+        <div>
+          <div className="board-tools-title">Cards</div>
+          <div className="board-tools-sub">Create contracts for agents, then validate the result.</div>
+        </div>
+        <button className="btn-new" type="button" onClick={() => setCreating(true)}>
+          + New card
+        </button>
+      </div>
       <div className="board">
         {COLUMNS.map((col) => {
           const list = cards.filter((c) => c.status === col.status);
@@ -303,6 +403,7 @@ export function Board({ cards }: { cards: BoardCard[] }) {
         })}
       </div>
       {open ? <Detail card={open} onClose={() => setOpen(null)} /> : null}
+      {creating ? <CreateCardModal onClose={() => setCreating(false)} /> : null}
     </>
   );
 }
