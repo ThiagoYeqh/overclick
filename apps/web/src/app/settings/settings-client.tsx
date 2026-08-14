@@ -27,25 +27,25 @@ type TokenRow = {
 };
 
 const TABS = [
-  { id: "exec", label: "Executores" },
-  { id: "policy", label: "Cardápio" },
-  { id: "tokens", label: "Tokens MCP" },
+  { id: "exec", label: "Executors" },
+  { id: "policy", label: "Harness policy" },
+  { id: "tokens", label: "MCP tokens" },
 ] as const;
 
 const EFFORTS = ["low", "medium", "high"] as const;
 
 function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
 }
 function fmtLastUse(iso: string | null): string {
-  if (!iso) return "nunca usado";
+  if (!iso) return "never used";
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (m < 1) return "agora mesmo";
-  if (m < 60) return `há ${m} min`;
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
   const h = Math.round(m / 60);
-  if (h < 24) return `há ${h} h`;
+  if (h < 24) return `${h} h ago`;
   const d = Math.round(h / 24);
-  return d === 1 ? "ontem" : `há ${d} d`;
+  return d === 1 ? "yesterday" : `${d} d ago`;
 }
 
 export function SettingsClient({
@@ -69,17 +69,17 @@ export function SettingsClient({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // ---- executores
+  // ---- executors
   const [sel, setSel] = useState<ExecutorSelection>(executors);
   const saveExec = () =>
     start(async () => {
       setErr(null); setMsg(null);
       const r = await saveExecutorsAction(sel);
       if (!r.ok) setErr(r.error);
-      else { setMsg("Executores salvos."); router.refresh(); }
+      else { setMsg("Executors saved."); router.refresh(); }
     });
 
-  // ---- cardápio
+  // ---- harness policy (cardapio)
   const [rows, setRows] = useState<CardapioRow[]>(cardapio);
   const cliOptions = [
     ...Object.keys(sel.enabled).map((id) => ({
@@ -87,7 +87,7 @@ export function SettingsClient({
       label: EXECUTOR_CATALOG.find((d) => d.id === id)?.label ?? id,
     })),
     ...(sel.customEnabled
-      ? [{ id: CUSTOM_EXECUTOR_ID, label: sel.customName.trim() || "Personalizada" }]
+      ? [{ id: CUSTOM_EXECUTOR_ID, label: sel.customName.trim() || "Custom" }]
       : []),
   ];
   const modelsFor = (cli: string | null): string[] => {
@@ -95,7 +95,7 @@ export function SettingsClient({
       const all = cliOptions.flatMap((o) => sel.enabled[o.id] ?? []);
       return [...new Set(all)];
     }
-    if (cli === CUSTOM_EXECUTOR_ID) return ["mcp-genérico"];
+    if (cli === CUSTOM_EXECUTOR_ID) return ["generic-mcp"];
     return sel.enabled[cli]?.length
       ? sel.enabled[cli]
       : (EXECUTOR_CATALOG.find((d) => d.id === cli)?.models ?? []);
@@ -116,7 +116,7 @@ export function SettingsClient({
       setErr(null); setMsg(null);
       const r = await saveCardapioAction(rows as CardapioInput[]);
       if (!r.ok) setErr(r.error);
-      else { setMsg("Cardápio salvo — o agente já consulta a nova política."); router.refresh(); }
+      else { setMsg("Policy saved. The agent already reads the new one."); router.refresh(); }
     });
 
   // ---- tokens
@@ -126,7 +126,7 @@ export function SettingsClient({
   const genToken = () =>
     start(async () => {
       setErr(null); setMsg(null);
-      const r = await createTokenAction(newLabel || "token sem nome");
+      const r = await createTokenAction(newLabel || "unnamed token");
       if (!r.ok) return setErr(r.error);
       setFresh({ secret: r.secret });
       setNewLabel("");
@@ -147,7 +147,7 @@ export function SettingsClient({
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch { /* clipboard indisponível */ }
+    } catch { /* clipboard unavailable */ }
   };
 
   return (
@@ -161,8 +161,8 @@ export function SettingsClient({
           <a className="btn-ghost" href="/home">← Board</a>
         </div>
 
-        <h1>Configurações</h1>
-        <p className="page-sub">Executores, política de harness e acesso MCP desta instância.</p>
+        <h1>Settings</h1>
+        <p className="page-sub">Executors, harness policy, and MCP access for this instance.</p>
 
         <div className="settabs">
           {TABS.map((t) => (
@@ -175,25 +175,25 @@ export function SettingsClient({
         {err ? <p className="werr">{err}</p> : null}
         {msg ? <p className="wok">{msg}</p> : null}
 
-        {/* ---- EXECUTORES ---- */}
+        {/* ---- EXECUTORS ---- */}
         <div className={`tabpane${tab === "exec" ? " active" : ""}`}>
           <ExecutorsGrid value={sel} onChange={setSel} />
           <div className="hint">
-            <b>Os executores marcados aqui alimentam o Cardápio.</b> A política de
-            harness da aba ao lado só oferece as CLIs que estiverem ligadas.
+            <b>The executors checked here feed the harness policy.</b> The policy
+            tab next door only offers the CLIs that are turned on.
           </div>
           <div className="save-row">
             <button className="btn-new" disabled={pending} onClick={saveExec}>
-              {pending ? "Salvando…" : "Salvar executores"}
+              {pending ? "Saving…" : "Save executors"}
             </button>
           </div>
         </div>
 
-        {/* ---- CARDÁPIO ---- */}
+        {/* ---- HARNESS POLICY ---- */}
         <div className={`tabpane${tab === "policy" ? " active" : ""}`}>
           <table className="policy">
             <thead>
-              <tr><th>Tipo de atividade</th><th>CLI</th><th>Modelo</th><th>Effort</th></tr>
+              <tr><th>Activity type</th><th>CLI</th><th>Model</th><th>Effort</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => {
@@ -204,7 +204,7 @@ export function SettingsClient({
                     <td className="act">{meta.label}<small>{meta.hint}</small></td>
                     <td>
                       <select className="sel" value={r.cli ?? ""} onChange={(e) => setRow(i, { cli: e.target.value || null })}>
-                        <option value="">— sem preferência —</option>
+                        <option value="">no preference</option>
                         {cliOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                       </select>
                     </td>
@@ -226,11 +226,11 @@ export function SettingsClient({
             </tbody>
           </table>
           <div className="policy-note">
-            o agente consulta esta política via <b>harness_list</b> · a recomendação de cada card nasce daqui
+            the agent reads this policy via <b>harness_list</b> · each card&apos;s recommendation is born here
           </div>
           <div className="save-row">
             <button className="btn-new" disabled={pending} onClick={savePolicy}>
-              {pending ? "Salvando…" : "Salvar cardápio"}
+              {pending ? "Saving…" : "Save policy"}
             </button>
           </div>
         </div>
@@ -239,17 +239,17 @@ export function SettingsClient({
         <div className={`tabpane${tab === "tokens" ? " active" : ""}`}>
           <div className="tok-list">
             {tokens.length === 0 ? (
-              <div className="empty-col">Nenhum token ainda. Gere um para conectar o primeiro agente.</div>
+              <div className="empty-col">No tokens yet. Generate one to connect your first agent.</div>
             ) : (
               tokens.map((t) => (
                 <div key={t.id} className={`tok${t.revoked ? " revoked" : ""}`}>
                   <div className="meta">
                     <div className="label">{t.label}</div>
-                    <div className="sub">criado em {fmtDate(t.createdAt)} · {t.revoked ? "revogado" : fmtLastUse(t.lastUsedAt)}</div>
+                    <div className="sub">created {fmtDate(t.createdAt)} · {t.revoked ? "revoked" : fmtLastUse(t.lastUsedAt)}</div>
                   </div>
                   <span className="val">{t.masked}</span>
                   <button className="btn-rev" disabled={pending || t.revoked} onClick={() => revoke(t.id)}>
-                    {t.revoked ? "Revogado" : "Revogar"}
+                    {t.revoked ? "Revoked" : "Revoke"}
                   </button>
                 </div>
               ))
@@ -258,10 +258,10 @@ export function SettingsClient({
 
           {fresh ? (
             <div className="fresh-tok">
-              <div className="lbl">Token criado. Ele aparece uma vez só.</div>
+              <div className="lbl">Token created. It is shown only once.</div>
               <div className="cmd">{fresh.secret}
                 <button className={`copy${copied ? " ok" : ""}`} onClick={copyFresh}>
-                  {copied ? "Copiado" : "Copiar comando"}
+                  {copied ? "Copied" : "Copy command"}
                 </button>
               </div>
             </div>
@@ -271,23 +271,23 @@ export function SettingsClient({
             <input
               className="input"
               style={{ maxWidth: 320 }}
-              placeholder="nome do token (ex.: Codex — CI)"
+              placeholder="token name (e.g. Codex CI)"
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
             />
             <button className="btn-new" disabled={pending} onClick={genToken}>
-              {pending ? "Gerando…" : "+ Gerar token"}
+              {pending ? "Generating…" : "+ Generate token"}
             </button>
           </div>
 
-          <div className="sec-cap">conectar um agente</div>
+          <div className="sec-cap">connect an agent</div>
           <div className="cmd">
 {`claude mcp add --transport http overclick \\
   http://${host}/mcp \\
   --header "Authorization: Bearer ocb_••••••••••••"`}
           </div>
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
-            o token completo aparece uma única vez, na hora da geração · aqui ele fica sempre mascarado
+            the full token is shown only once, at generation time · here it stays masked
           </div>
         </div>
       </div>

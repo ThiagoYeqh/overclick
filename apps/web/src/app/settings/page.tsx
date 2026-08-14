@@ -29,8 +29,8 @@ export default async function SettingsPage() {
     .from(cardapioEntry)
     .where(eq(cardapioEntry.workspaceId, ws.id));
 
-  // A tabela mostra sempre todos os tipos: o que já está gravado sobrescreve
-  // a política de fábrica, o resto aparece com o padrão que o agente já usa.
+  // The table always shows every type: what is already stored overrides the
+  // factory policy, the rest shows the default the agent already uses.
   const stored = new Map(entries.map((e) => [e.activityType, e]));
   const cardapioRows = factoryCardapioPolicy().map((f) => {
     const row = stored.get(f.type);
@@ -55,7 +55,7 @@ export default async function SettingsPage() {
     .where(eq(mcpToken.workspaceId, ws.id))
     .orderBy(desc(mcpToken.createdAt));
 
-  const host = (await headers()).get("host") ?? "<seu-host>";
+  const host = (await headers()).get("host") ?? "<your-host>";
 
   return (
     <div className="nb nebula-surface">
