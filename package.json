@@ -1,0 +1,21 @@
+{
+  "name": "agent-board",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Self-hosted board for hybrid human+agent teams. Data never leaves the server.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @agent-board/web dev",
+    "build": "pnpm -r --if-present build",
+    "start": "pnpm --filter @agent-board/web start",
+    "test": "pnpm -r --if-present test",
+    "db:generate": "pnpm --filter @agent-board/db generate",
+    "db:migrate": "pnpm --filter @agent-board/db migrate",
+    "db:seed": "pnpm --filter @agent-board/db seed",
+    "lint": "pnpm -r --if-present lint"
+  }
+}
