@@ -3,6 +3,8 @@
 # dependencies
 node_modules/
 .pnpm-store/
+package-lock.json
+npm-shrinkwrap.json
 
 # next.js
 .next/
