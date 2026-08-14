@@ -289,6 +289,30 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .btn-ghost .badge { color: var(--nebula-dust-core); font-weight: 600; }
 .nb .pill { cursor: default; }
 
+/* ---------- insights ---------- */
+.nb .insights-page { position: relative; z-index: 2; max-width: 1020px; margin: 76px auto 0; }
+.nb .insights-eyebrow {
+  margin-bottom: 8px; font-family: var(--nebula-font-mono); font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--nebula-mist-light);
+}
+.nb .insights-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--nebula-space-4); margin-top: 26px; }
+.nb .insights-metric { min-height: 170px; padding: 19px; display: flex; flex-direction: column; }
+.nb .insights-metric p {
+  font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--nebula-text-tertiary);
+}
+.nb .insights-metric strong { margin: 18px 0 8px; font-size: 26px; font-weight: var(--nebula-weight-medium); letter-spacing: -.03em; }
+.nb .insights-metric span { margin-top: auto; font-size: 11.5px; line-height: 1.45; color: var(--nebula-text-secondary); }
+.nb .insights-note {
+  margin-top: 20px; padding: 12px 14px; border-left: 2px solid var(--nebula-mist);
+  background: rgba(16,18,22,.6); color: var(--nebula-text-secondary); font-size: 12px;
+}
+@media (max-width: 850px) { .nb .insights-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) {
+  .nb .insights-page { margin-top: 36px; }
+  .nb .insights-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- board ---------- */
 .nb .board-tools {
   display: flex; align-items: center; justify-content: space-between; gap: var(--nebula-space-4);

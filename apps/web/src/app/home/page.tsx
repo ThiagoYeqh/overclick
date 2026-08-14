@@ -153,6 +153,9 @@ export default async function HomePage() {
           <span className={`dot${running === 0 ? " idle" : ""}`} />
           {running > 0 ? `${running} in progress` : "no agent running"}
         </div>
+        <a className="btn-ghost" href="/insights">
+          Insights
+        </a>
         <a className="btn-ghost" href="/settings">
           Settings
         </a>
