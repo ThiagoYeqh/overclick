@@ -1,0 +1,32 @@
+# Self-hosted image. No analytics, no external fonts, no phone-home.
+FROM node:22-bookworm-slim
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000 \
+    PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+COPY package.json pnpm-lock.yaml .npmrc ./
+COPY pnpm-workspace.docker.yaml pnpm-workspace.yaml
+COPY apps/web/package.json apps/web/package.json
+COPY packages/db/package.json packages/db/package.json
+
+# Only this image's packages. Sibling workspace folders stay out of the context.
+# Lockfile also lists sibling workspace packages this image does not ship.
+RUN pnpm install --no-frozen-lockfile --filter @agent-board/web...
+
+COPY apps/web apps/web
+COPY packages/db packages/db
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENV NODE_ENV=production
+RUN pnpm --filter @agent-board/web build
+
+EXPOSE 3000
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -1,0 +1,35 @@
+# One command: docker compose up --build
+# Data stays in this compose project. Nothing phones home.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentboard
+      POSTGRES_PASSWORD: agentboard
+      POSTGRES_DB: agentboard
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentboard -d agentboard"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://agentboard:agentboard@postgres:5432/agentboard
+      AUTH_SECRET: local-dev-only-change-me-32chars-min
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
