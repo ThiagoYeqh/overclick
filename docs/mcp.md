@@ -1,33 +1,35 @@
-# MCP — OverClick
+# MCP · OverClick
 
-O board expõe as 11 tools do MVP em **streamable HTTP** no mesmo processo do app.
+The board exposes the 11 MVP tools over **streamable HTTP**, served by the same app process.
 
-## Conectar
+## Connect
 
-Substitua o host e cole o token gerado na UI (ele só aparece inteiro uma vez):
+Replace the host and paste the token generated in the UI (it is shown in full only once):
 
 ```bash
-claude mcp add --transport http overclick http://<seu-host>/mcp \
+claude mcp add --transport http overclick http://<your-host>/mcp \
   --header "Authorization: Bearer agb_live_••••••••••••"
 ```
 
-Outros clientes HTTP (Codex, Gemini CLI, Overclock) usam o mesmo URL e o mesmo header `Authorization: Bearer …`.
+Other HTTP clients (Codex, Gemini CLI, Overclock) use the same URL and the same
+`Authorization: Bearer ...` header.
 
-O workspace é resolvido pelo token. Token revogado ou ausente → **HTTP 401**.
+The workspace is resolved from the token. Revoked or missing token → **HTTP 401**.
 
 ## Tools
 
-| Tool | Faz |
+| Tool | What it does |
 |---|---|
-| `mission_list` / `mission_get` | missões e o contexto para o prompt |
-| `task_list` | fila (projeto, status, prioridade, `awaiting_review_by`) |
-| `task_get` | briefing md autocontido (contrato + harness + missão + branch) |
-| `task_create` | cria o card (missão declarada, `mode` solo\|team, origem) |
-| `task_claim` | status → `em_execucao`; segundo claim → `ALREADY_CLAIMED` |
-| `task_update` | progresso, comentário ou `revisado` |
-| `handoff_submit` | resultado + usage; status → `feito`; roteia para `devolve_para` |
-| `branch_register` | grava a branch no card |
-| `harness_recommend` | lookup da política (tipo → CLI · modelo · effort) |
-| `harness_list` | política inteira + executores configurados |
+| `mission_list` / `mission_get` | missions and the context to inject into the prompt |
+| `task_list` | the queue (project, status, priority, `awaiting_review_by`) |
+| `task_get` | self-contained md briefing (contract + harness + mission + branch) |
+| `task_create` | creates the card (declared mission, `mode` solo\|team, origin) |
+| `task_claim` | status → `in_progress`; a second claim → `ALREADY_CLAIMED` |
+| `task_update` | progress, comment, or the `reviewed` mark |
+| `handoff_submit` | result + usage; status → `done`; routed to the card's reviewer |
+| `branch_register` | records the branch on the card |
+| `harness_recommend` | policy lookup (activity type → CLI · model · effort) |
+| `harness_list` | the whole policy + configured executors |
 
-`task_claim` e `task_get` devolvem o briefing — o executor não precisa de outra fonte de contexto.
+`task_claim` and `task_get` return the briefing. The executor needs no other source of
+context.
