@@ -1,0 +1,418 @@
+/* ============================================================
+   NEBULA — Design Tokens
+   Adaptado de overclock-bench/standalone/kimi/tokens.css.
+   Base compartilhada: board (/home) hoje, login/setup depois.
+   ============================================================ */
+
+:root {
+  /* ---------- Cor: base ---------- */
+  --nebula-void: #000000;
+
+  /* ---------- Cor: névoa ---------- */
+  --nebula-mist-deep:  #738094;
+  --nebula-mist:       #858FA3;
+  --nebula-mist-light: #8C96AB;
+  --nebula-mist-glow:  #D1D9EB;
+
+  /* ---------- Cor: poeira ---------- */
+  --nebula-dust-edge:  #8C99AD;
+  --nebula-dust-core:  #F2F7FF;
+
+  /* ---------- Cor: estrelas ---------- */
+  --nebula-star:       #CCD4E6;
+  --nebula-star-far:   #5C6473;
+
+  /* ---------- Cor: texto ---------- */
+  --nebula-text-primary:   #FFFFFF;
+  --nebula-text-secondary: rgba(255, 255, 255, 0.65);
+  --nebula-text-tertiary:  rgba(255, 255, 255, 0.45);
+  --nebula-text-glow:      rgba(255, 255, 255, 0.15);
+
+  /* ---------- Tipografia ---------- */
+  --nebula-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --nebula-font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+
+  --nebula-text-display: clamp(48px, 9vw, 88px);
+  --nebula-text-caption: clamp(14px, 2.2vw, 18px);
+
+  --nebula-weight-medium: 500;
+  --nebula-weight-light:  300;
+
+  --nebula-tracking-tight: -0.02em;
+  --nebula-tracking-wide:   0.06em;
+
+  --nebula-leading-none: 1;
+
+  /* ---------- Espaçamento ---------- */
+  --nebula-space-1: 4px;
+  --nebula-space-2: 8px;
+  --nebula-space-3: 12px;
+  --nebula-space-4: 16px;
+  --nebula-space-6: 24px;
+  --nebula-space-8: 32px;
+  --nebula-space-caption-gap: 10px;
+
+  /* ---------- Efeitos ---------- */
+  --nebula-glow-text: 0 0 40px var(--nebula-text-glow);
+  --nebula-blur-bokeh-near: 2px;
+  --nebula-blur-bokeh-far:  8px;
+  --nebula-grain-opacity: 0.36;
+  --nebula-vignette: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.6) 100%);
+
+  /* ---------- Glass ---------- */
+  --nebula-glass-bg: rgba(16, 18, 22, 0.72);
+  --nebula-glass-border: rgba(255, 255, 255, 0.08);
+  --nebula-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --nebula-glass-blur: 18px;
+  --nebula-glass-radius: 16px;
+  --nebula-glass-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    var(--nebula-glass-highlight);
+
+  /* ---------- Cantos ---------- */
+  --nebula-corner-size: 14px;
+  --nebula-corner-width: 2px;
+  --nebula-corner-color: rgba(255, 255, 255, 0.25);
+  --nebula-corner-offset: 10px;
+
+  /* ---------- Plan card ---------- */
+  --nebula-plan-bg: #0e1013;
+  --nebula-plan-border: rgba(255, 255, 255, 0.09);
+  --nebula-plan-radius: 22px;
+  --nebula-plan-glow: radial-gradient(ellipse 90% 45% at 68% -12%, rgba(140, 150, 171, 0.16), transparent 70%);
+  --nebula-plan-divider: rgba(255, 255, 255, 0.05);
+  --nebula-icon: #aab2bd;
+
+  /* ---------- Promo banner ---------- */
+  --nebula-banner-bg: #0a0c10;
+  --nebula-banner-border: rgba(255, 255, 255, 0.1);
+  --nebula-banner-radius: 18px;
+  --nebula-btn-light-bg: #ffffff;
+  --nebula-btn-light-text: #0a0c10;
+
+  /* ---------- Botão de conta ---------- */
+  --nebula-btn-account-bg: rgba(18, 18, 20, 0.55);
+  --nebula-btn-account-border: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.22),
+    rgba(196, 120, 90, 0.55) 45%,
+    rgba(255, 255, 255, 0.12)
+  );
+  --nebula-btn-account-radius: 999px;
+  --nebula-btn-account-blur: 12px;
+
+  /* ---------- Opacidade ---------- */
+  --nebula-alpha-mist:  0.62;
+  --nebula-alpha-dust:  0.15;
+  --nebula-alpha-star:  1;
+
+  /* ---------- Motion ---------- */
+  --nebula-duration-blink: 1s;
+  --nebula-duration-drift: 12s;
+  --nebula-duration-flow:  26s;
+  --nebula-ease-atmosphere: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --nebula-ease-cursor:     steps(1, end);
+  --nebula-lerp-mouse: 0.08;
+}
+
+/* ---------- Utilitários ---------- */
+.nebula-surface {
+  background: var(--nebula-void);
+  color: var(--nebula-text-primary);
+  font-family: var(--nebula-font-sans);
+}
+.nebula-display {
+  font-size: var(--nebula-text-display);
+  font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight);
+  text-shadow: var(--nebula-glow-text);
+}
+.nebula-caption {
+  font-family: var(--nebula-font-mono);
+  font-size: var(--nebula-text-caption);
+  font-weight: var(--nebula-weight-light);
+  letter-spacing: var(--nebula-tracking-wide);
+  color: var(--nebula-text-secondary);
+}
+.nebula-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: rgba(255, 255, 255, 0.7);
+  animation: nebula-blink var(--nebula-duration-blink) var(--nebula-ease-cursor) infinite;
+}
+@keyframes nebula-blink { 50% { opacity: 0; } }
+
+.nebula-glass {
+  background: var(--nebula-glass-bg);
+  border: 1px solid var(--nebula-glass-border);
+  border-radius: var(--nebula-glass-radius);
+  box-shadow: var(--nebula-glass-shadow);
+  backdrop-filter: blur(var(--nebula-glass-blur));
+  -webkit-backdrop-filter: blur(var(--nebula-glass-blur));
+}
+.nebula-glass-fade {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 38%;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  mask-image: linear-gradient(to bottom, transparent, black 70%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 70%);
+}
+.nebula-glass-fade::after {
+  content: "";
+  position: absolute;
+  inset: 30% 0 0 0;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  mask-image: linear-gradient(to bottom, transparent, black 80%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 80%);
+}
+.nebula-corners { position: relative; }
+.nebula-corners::before {
+  content: "";
+  position: absolute;
+  inset: var(--nebula-corner-offset);
+  pointer-events: none;
+  background:
+    linear-gradient(var(--nebula-corner-color), var(--nebula-corner-color)) left top / var(--nebula-corner-size) var(--nebula-corner-width),
+    linear-gradient(var(--nebula-corner-color), var(--nebula-corner-color)) left top / var(--nebula-corner-width) var(--nebula-corner-size),
+    linear-gradient(var(--nebula-corner-color), var(--nebula-corner-color)) right top / var(--nebula-corner-size) var(--nebula-corner-width),
+    linear-gradient(var(--nebula-corner-color), var(--nebula-corner-color)) right top / var(--nebula-corner-width) var(--nebula-corner-size),
+    linear-gradient(var(--nebula-corner-color), var(--nebula-corner-color)) left bottom / var(--nebula-corner-size) var(--nebula-corner-width),
+    linear-gradient(var(--nebula-corner-color), var(--nebula-corner-color)) left bottom / var(--nebula-corner-width) var(--nebula-corner-size),
+    linear-gradient(var(--nebula-corner-color), var(--nebula-corner-color)) right bottom / var(--nebula-corner-size) var(--nebula-corner-width),
+    linear-gradient(var(--nebula-corner-color), var(--nebula-corner-color)) right bottom / var(--nebula-corner-width) var(--nebula-corner-size);
+  background-repeat: no-repeat;
+}
+
+/* ============================================================
+   ATMOSFERA — camadas fixas atrás da UI.
+   O canvas 2D é montado pelo componente <NebulaAtmosphere/>;
+   estas camadas CSS (drift 12s/26s + grain + vignette) são o
+   reforço e o fallback.
+   ============================================================ */
+.atmo, .atmo canvas, .atmo-overlay { position: fixed; inset: 0; }
+.atmo { z-index: -3; background: var(--nebula-void); }
+.atmo canvas { width: 100%; height: 100%; display: block; }
+.atmo-overlay { pointer-events: none; }
+
+.atmo-mist {
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 70% 38% at 62% 18%, rgba(140, 150, 171, 0.10), transparent 70%),
+    radial-gradient(ellipse 55% 30% at 30% 78%, rgba(115, 128, 148, 0.07), transparent 70%);
+  animation: nebula-drift-a var(--nebula-duration-drift) var(--nebula-ease-atmosphere) infinite alternate;
+}
+.atmo-veil {
+  z-index: -2;
+  background: radial-gradient(ellipse 90% 50% at 50% 110%, rgba(133, 143, 163, 0.06), transparent 65%);
+  animation: nebula-drift-b var(--nebula-duration-flow) var(--nebula-ease-atmosphere) infinite alternate;
+}
+@keyframes nebula-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-3.5vw, 2vh, 0) scale(1.06); }
+}
+@keyframes nebula-drift-b {
+  from { transform: translate3d(0, 0, 0); opacity: 0.7; }
+  to   { transform: translate3d(2.5vw, -3vh, 0); opacity: 1; }
+}
+.atmo-grain {
+  z-index: -1;
+  opacity: calc(var(--nebula-grain-opacity) * 0.22);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+.atmo-vignette { z-index: -1; background: var(--nebula-vignette); }
+
+@media (prefers-reduced-motion: reduce) {
+  .atmo-mist, .atmo-veil { animation: none; }
+}
+
+/* ============================================================
+   HOME / BOARD — componentes sobre os tokens.
+   Escopo: tudo sob .nb para não vazar para login/setup.
+   ============================================================ */
+body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
+.shell:has(.nb) { max-width: none; }
+
+.nb {
+  position: relative;
+  min-height: 100vh;
+  padding: 28px 32px 60px;
+  overflow-x: hidden;
+  color: var(--nebula-text-primary);
+  font-family: var(--nebula-font-sans);
+}
+
+/* ---------- top bar ---------- */
+.nb .topbar {
+  display: flex; align-items: center; gap: var(--nebula-space-4);
+  padding: var(--nebula-space-3) 18px; margin-bottom: 22px;
+}
+.nb .logo {
+  font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight);
+  font-size: 15px;
+  text-shadow: var(--nebula-glow-text);
+}
+.nb .logo span { color: var(--nebula-mist); }
+.nb .crumb {
+  font-family: var(--nebula-font-mono); font-size: 12px;
+  color: var(--nebula-text-secondary); letter-spacing: 0.04em;
+}
+.nb .crumb b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); }
+.nb .spacer { flex: 1; }
+/* o globals.css legado estiliza <form> como painel — na home ele é inline */
+.nb form { display: inline; background: none; border: none; padding: 0; gap: 0; }
+.nb .agent-status {
+  display: flex; align-items: center; gap: var(--nebula-space-2);
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: 0.05em; color: var(--nebula-text-secondary);
+}
+.nb .agent-status .dot { width: 7px; height: 7px; border-radius: 50%; background: #7dd6a0; box-shadow: 0 0 8px rgba(125,214,160,0.6); }
+.nb .agent-status .dot.idle { background: var(--nebula-star-far); box-shadow: none; }
+.nb .btn-ghost {
+  background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
+  border: 1px solid var(--nebula-glass-border);
+  border-radius: 999px; font-size: 12px;
+  padding: 7px 14px; cursor: pointer;
+  backdrop-filter: blur(var(--nebula-btn-account-blur));
+  -webkit-backdrop-filter: blur(var(--nebula-btn-account-blur));
+  transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
+}
+.nb .btn-ghost:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.25); }
+.nb .btn-ghost .badge { color: var(--nebula-dust-core); font-weight: 600; }
+.nb .pill { cursor: default; }
+
+/* ---------- board ---------- */
+.nb .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--nebula-space-4); }
+.nb .col-head {
+  display: flex; align-items: baseline; gap: var(--nebula-space-2);
+  padding: 2px 6px 10px;
+  font-family: var(--nebula-font-mono); font-size: 11.5px;
+  letter-spacing: var(--nebula-tracking-wide);
+  text-transform: uppercase; color: var(--nebula-text-secondary);
+}
+.nb .col-head .count { color: var(--nebula-text-tertiary); }
+.nb .col { display: flex; flex-direction: column; gap: var(--nebula-space-3); min-height: 300px; }
+
+.nb .empty-col {
+  border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--nebula-glass-radius);
+  padding: 22px 16px; font-size: 11.5px; color: var(--nebula-text-tertiary);
+  line-height: 1.55; text-align: center;
+}
+.nb .empty-col i { font-style: italic; }
+
+.nb .card {
+  padding: 14px 15px 12px; position: relative; cursor: pointer;
+  transition:
+    transform 0.35s var(--nebula-ease-atmosphere),
+    border-color 0.35s var(--nebula-ease-atmosphere),
+    box-shadow 0.35s var(--nebula-ease-atmosphere);
+}
+.nb .card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), var(--nebula-glass-highlight);
+}
+.nb .card .id-row { display: flex; align-items: center; gap: var(--nebula-space-2); margin-bottom: 7px; }
+.nb .card .cid {
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  color: var(--nebula-text-tertiary); letter-spacing: 0.05em;
+}
+.nb .selo {
+  font-family: var(--nebula-font-mono); font-size: 8.5px; letter-spacing: 0.08em;
+  color: var(--nebula-text-tertiary); border: 1px solid var(--nebula-glass-border);
+  border-radius: 999px; padding: 1px 7px;
+}
+.nb .tag {
+  font-family: var(--nebula-font-mono); font-size: 10px;
+  letter-spacing: var(--nebula-tracking-wide); text-transform: uppercase;
+  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  padding: 2px 8px; color: var(--nebula-text-secondary);
+}
+.nb .tag.bug { color: #e8a1a1; border-color: rgba(232,161,161,0.25); }
+.nb .tag.rfc { color: var(--nebula-mist-glow); border-color: rgba(209,217,235,0.25); }
+.nb .tag.feature { color: #a9c7e8; border-color: rgba(169,199,232,0.22); }
+.nb .card h4 { font-size: 13.5px; font-weight: var(--nebula-weight-medium); line-height: 1.35; margin-bottom: var(--nebula-space-2); }
+.nb .mission { font-size: 11px; color: var(--nebula-text-tertiary); margin-bottom: 9px; }
+.nb .mission::before { content: "◆ "; color: var(--nebula-star-far); font-size: 8px; }
+.nb .harness {
+  font-family: var(--nebula-font-mono); font-size: 10.5px; letter-spacing: 0.03em;
+  color: var(--nebula-mist-light); background: rgba(133,143,163,0.08);
+  border: 1px solid rgba(133,143,163,0.15); border-radius: 8px; padding: 4px 8px;
+  display: inline-block; margin-bottom: 4px;
+}
+.nb .card-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  border-top: 1px solid var(--nebula-plan-divider); margin-top: 9px; padding-top: var(--nebula-space-2);
+  font-family: var(--nebula-font-mono); font-size: 10.5px; color: var(--nebula-text-tertiary);
+}
+
+/* pulse dos executores */
+.nb .exec-pulse {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--nebula-font-mono); font-size: 10.5px; color: #a9c7e8;
+}
+.nb .exec-pulse .dot-exec {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #a9c7e8; box-shadow: 0 0 8px rgba(169,199,232,0.7);
+  animation: nebula-exec-pulse 1.6s var(--nebula-ease-atmosphere) infinite;
+}
+@keyframes nebula-exec-pulse {
+  50% { opacity: 0.3; box-shadow: 0 0 2px rgba(169,199,232,0.3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb .exec-pulse .dot-exec { animation: none; }
+}
+
+.nb .telemetry {
+  font-family: var(--nebula-font-mono); font-size: 10.5px;
+  color: var(--nebula-text-tertiary); letter-spacing: 0.02em;
+}
+.nb .telemetry b { color: var(--nebula-text-secondary); font-weight: var(--nebula-weight-medium); }
+.nb .review-chip {
+  font-family: var(--nebula-font-mono); font-size: 10px; color: #ffd9a0;
+  border: 1px solid rgba(255,217,160,0.25); border-radius: 999px; padding: 2px 8px;
+}
+.nb .card.dim { opacity: 0.65; }
+
+/* ---------- progressive blur no rodapé do viewport ---------- */
+.nb .viewport-fade { position: fixed; height: 15vh; z-index: 5; }
+
+/* ---------- detalhe do card (overlay client-side) ---------- */
+.nb .ov { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 48px 20px;
+  animation: nb-ov-in .18s ease-out; }
+@keyframes nb-ov-in { from { opacity: 0 } to { opacity: 1 } }
+.nb .detail { width: 700px; max-width: 96vw; padding: 26px 30px 24px; position: relative;
+  animation: nb-d-in .22s cubic-bezier(.2,.8,.2,1); }
+@keyframes nb-d-in { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } }
+.nb .d-close { position: absolute; top: 16px; right: 18px; background: none; border: 1px solid var(--nebula-glass-border);
+  border-radius: 999px; width: 28px; height: 28px; color: var(--nebula-text-secondary); cursor: pointer; font-size: 13px; }
+.nb .d-head { display: flex; align-items: center; gap: 9px; margin-bottom: 8px;
+  font-family: var(--nebula-font-mono); font-size: 11.5px; color: var(--nebula-text-tertiary); }
+.nb .d-status { font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase;
+  border: 1px solid var(--nebula-glass-border); border-radius: 999px; padding: 2px 9px; color: var(--nebula-text-secondary); }
+.nb .d-status.exec { color: #a9c7e8; border-color: rgba(169,199,232,.3); }
+.nb .d-status.feito { color: #ffd9a0; border-color: rgba(255,217,160,.3); }
+.nb .d-status.ok { color: #7dd6a0; border-color: rgba(125,214,160,.3); }
+.nb .detail h3 { font-size: 19px; font-weight: var(--nebula-weight-medium); letter-spacing: -0.01em; margin-bottom: 18px; }
+.nb .d-sec { border-top: 1px solid var(--nebula-plan-divider); padding: 13px 0; }
+.nb .d-sec .lbl { font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--nebula-text-tertiary); margin-bottom: 6px; }
+.nb .d-sec p { font-size: 12.5px; color: var(--nebula-text-secondary); line-height: 1.55; white-space: pre-line; }
+.nb .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 26px; }
+.nb .d-mono { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-mist-light); }
+.nb .d-roles { display: flex; gap: 18px; flex-wrap: wrap; }
+.nb .d-roles .rl { font-size: 12px; color: var(--nebula-text-secondary); }
+.nb .d-roles .rl b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); }
+.nb .d-evid { background: rgba(8,10,13,.6); border: 1px solid var(--nebula-glass-border); border-radius: 10px;
+  padding: 10px 13px; font-size: 12px; color: var(--nebula-text-secondary); line-height: 1.55; }
+.nb .d-tel { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-secondary); letter-spacing: .02em; }
