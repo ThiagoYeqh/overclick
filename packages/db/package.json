@@ -16,12 +16,12 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.44.7",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "tsx": "^4.19.4"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
     "drizzle-kit": "^0.31.4",
-    "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"
   }
