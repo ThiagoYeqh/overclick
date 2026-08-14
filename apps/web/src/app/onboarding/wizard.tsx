@@ -22,7 +22,7 @@ const CMD_TABS = [
   { id: "claude-code", label: "Claude Code" },
   { id: "codex", label: "Codex" },
   { id: "gemini-cli", label: "Gemini" },
-  { id: "outro", label: "Outro" },
+  { id: "outro", label: "Other" },
 ] as const;
 
 function commandFor(cli: string, baseUrl: string, secret: string): string {
@@ -35,7 +35,7 @@ function commandFor(cli: string, baseUrl: string, secret: string): string {
     case "gemini-cli":
       return `gemini mcp add --transport http overclick ${baseUrl} \\\n  ${header}`;
     default:
-      return `# MCP HTTP genérico\n# url:    ${baseUrl}\n# header: Authorization: Bearer ${secret}`;
+      return `# generic MCP over HTTP\n# url:    ${baseUrl}\n# header: Authorization: Bearer ${secret}`;
   }
 }
 
@@ -74,7 +74,7 @@ export function Wizard({
   const execCount = Object.keys(sel.enabled).length + (sel.customEnabled ? 1 : 0);
 
   // ---- T3
-  const [label, setLabel] = useState("Claude Code — esta máquina");
+  const [label, setLabel] = useState("Claude Code on this machine");
   const [tab, setTab] = useState<string>("claude-code");
   const [token, setToken] = useState<{ id: string; secret: string } | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -92,10 +92,10 @@ export function Wizard({
       const r = await pollTokenAction(token.id);
       if (r.used && !stopped) setConnected(true);
     };
-    // O passo pede para o usuário sair daqui e colar o comando no terminal —
-    // com a aba em segundo plano o Chrome estrangula o setInterval (chega a
-    // 1x/min). Conferimos de novo assim que ele volta, para o indicador já
-    // estar aceso quando ele olhar.
+    // This step asks the user to leave and paste the command in a terminal;
+    // with the tab in the background Chrome throttles setInterval (down to
+    // 1x/min). We check again as soon as they come back, so the indicator is
+    // already lit when they look.
     const onVisible = () => {
       if (document.visibilityState === "visible") void check();
     };
@@ -120,7 +120,7 @@ export function Wizard({
         setStep(2);
       } else if (step === 2) {
         if (execCount === 0) {
-          return setErr("Marque ao menos uma CLI. Sem executor o board não sai do lugar.");
+          return setErr("Check at least one CLI. Without an executor the board goes nowhere.");
         }
         const r = await saveExecutorsAction(sel);
         if (!r.ok) return setErr(r.error);
@@ -145,7 +145,7 @@ export function Wizard({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* clipboard indisponível — o texto fica selecionável */
+      /* clipboard unavailable; the text stays selectable */
     }
   };
 
@@ -161,18 +161,18 @@ export function Wizard({
       <div className="stage">
         <div className="panel wizard">
           <div className="steps-ind">
-            <span className={step === 1 ? "cur" : step > 1 ? "done" : ""}>01 · projeto</span>
-            <span className={step === 2 ? "cur" : step > 2 ? "done" : ""}>02 · executores</span>
-            <span className={step === 3 ? "cur" : ""}>03 · agente</span>
+            <span className={step === 1 ? "cur" : step > 1 ? "done" : ""}>01 · project</span>
+            <span className={step === 2 ? "cur" : step > 2 ? "done" : ""}>02 · executors</span>
+            <span className={step === 3 ? "cur" : ""}>03 · agent</span>
           </div>
 
-          {/* T1 — projeto */}
+          {/* T1: project */}
           <div className={`wstep${step === 1 ? " active" : ""}`}>
-            <h2>Primeiro, qual projeto vocês vão tocar?</h2>
-            <p className="sub">Um projeto ↔ um repositório. Dá pra criar outros depois.</p>
+            <h2>First, which project are you working on?</h2>
+            <p className="sub">One project ↔ one repository. You can create more later.</p>
             <div className="grid2">
               <div className="field">
-                <label>Nome do projeto</label>
+                <label>Project name</label>
                 <input
                   className="input"
                   value={name}
@@ -185,18 +185,18 @@ export function Wizard({
               </div>
               <div className="field">
                 <label>
-                  URL do repositório <span className="opt">opcional</span>
+                  Repository URL <span className="opt">optional</span>
                 </label>
                 <input
                   className="input mono"
                   value={repo}
-                  placeholder="github.com/voce/repo"
+                  placeholder="github.com/you/repo"
                   onChange={(e) => setRepo(e.target.value)}
                 />
               </div>
             </div>
             <div className="field" style={{ maxWidth: 180 }}>
-              <label>Prefixo de ID</label>
+              <label>ID prefix</label>
               <input
                 className="input mono"
                 value={prefix}
@@ -210,30 +210,30 @@ export function Wizard({
               />
             </div>
             <div className={`preview${prefix.length >= 2 ? "" : " ghost"}`}>
-              <span className="cap">convenção deste projeto</span>
-              Seus cards vão se chamar <b>{prefix || "…"}-{nextNumber}</b>,{" "}
-              <b>{prefix || "…"}-{nextNumber + 1}</b>… e as branches,{" "}
-              <b>{(prefix || "…").toLowerCase()}-{nextNumber}-nome-do-card</b>.
+              <span className="cap">this project&apos;s convention</span>
+              Your cards will be named <b>{prefix || "…"}-{nextNumber}</b>,{" "}
+              <b>{prefix || "…"}-{nextNumber + 1}</b>… and branches,{" "}
+              <b>{(prefix || "…").toLowerCase()}-{nextNumber}-card-name</b>.
             </div>
           </div>
 
-          {/* T2 — executores */}
+          {/* T2: executors */}
           <div className={`wstep${step === 2 ? " active" : ""}`}>
-            <h2>Quem executa os cards?</h2>
-            <p className="sub">Marque as CLIs que o time já usa. Dá pra mudar depois em Configurações.</p>
+            <h2>Who runs the cards?</h2>
+            <p className="sub">Check the CLIs your team already uses. You can change this later in Settings.</p>
             <ExecutorsGrid value={sel} onChange={setSel} />
             <div className="hint">
-              <b>Sem nenhum executor marcado, o board é só um quadro bonito.</b> Um
-              agente conectado é o que faz o card sair do lugar.
+              <b>With no executor checked, the board is just a pretty wall.</b> A
+              connected agent is what moves cards.
             </div>
           </div>
 
-          {/* T3 — conectar agente */}
+          {/* T3: connect the agent */}
           <div className={`wstep${step === 3 ? " active" : ""}`}>
-            <h2>Agora conecta seu agente.</h2>
-            <p className="sub">Um comando no terminal e o board deixa de ser um quadro e vira um contrato de trabalho.</p>
+            <h2>Now connect your agent.</h2>
+            <p className="sub">One command in your terminal and the board stops being a wall and becomes a work contract.</p>
             <div className="field" style={{ maxWidth: 420 }}>
-              <label>Nome deste token</label>
+              <label>Token name</label>
               <input
                 className="input"
                 value={label}
@@ -243,7 +243,7 @@ export function Wizard({
             </div>
             {!token ? (
               <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genToken}>
-                {pending ? "Gerando…" : "Gerar token"}
+                {pending ? "Generating…" : "Generate token"}
               </button>
             ) : (
               <>
@@ -261,26 +261,26 @@ export function Wizard({
                 <div className="cmd">
                   {commandFor(tab, baseUrl, revealed ? token.secret : maskedSecret)}
                   <button className={`copy${copied ? " ok" : ""}`} onClick={copyCmd}>
-                    {copied ? "Copiado" : "Copiar"}
+                    {copied ? "Copied" : "Copy"}
                   </button>
                 </div>
                 <div className="tok-note">
-                  o token aparece uma única vez · guarde no gerenciador de segredos ·{" "}
+                  the token is shown only once · store it in your secrets manager ·{" "}
                   <span className="reveal" onClick={() => setRevealed(!revealed)}>
-                    {revealed ? "ocultar" : "revelar"}
+                    {revealed ? "hide" : "reveal"}
                   </span>
                 </div>
                 <div className={`conn${connected ? " lit" : ""}`}>
                   <div className="l1">
                     <span className={`pip${connected ? " green" : ""}`} />
-                    <span>{connected ? "Agente conectado." : "Aguardando primeira conexão…"}</span>
+                    <span>{connected ? "Agent connected." : "Waiting for the first connection…"}</span>
                   </div>
                   <div className="l2">
                     {connected
-                      ? `${label} · agora mesmo`
-                      : "Cole o comando no seu terminal. Eu fico de olho."}
+                      ? `${label} · just now`
+                      : "Paste the command in your terminal. I'll keep watch."}
                   </div>
-                  <div className="cap">{connected ? "PRIMEIRA CHAMADA ✓" : "POLLING · 2s ⟳"}</div>
+                  <div className="cap">{connected ? "FIRST CALL ✓" : "POLLING · 2s ⟳"}</div>
                 </div>
               </>
             )}
@@ -294,12 +294,12 @@ export function Wizard({
             </div>
             <div className="wbtns">
               <button className="btn-back" disabled={step === 1 || pending} onClick={() => setStep(step - 1)}>
-                ‹ Voltar
+                ‹ Back
               </button>
               <div>
                 {step === 3 ? (
                   <span className="skip" onClick={() => router.push("/home")}>
-                    Configurar depois
+                    Configure later
                   </span>
                 ) : null}
                 <button
@@ -307,7 +307,7 @@ export function Wizard({
                   disabled={pending || (step === 3 && !connected)}
                   onClick={goNext}
                 >
-                  {step === 3 ? (connected ? "Ver meu board ›" : "Terminar") : "Próximo ›"}
+                  {step === 3 ? (connected ? "See my board ›" : "Finish") : "Next ›"}
                 </button>
               </div>
             </div>
