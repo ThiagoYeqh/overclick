@@ -153,6 +153,9 @@ export default async function HomePage() {
           <span className={`dot${running === 0 ? " idle" : ""}`} />
           {running > 0 ? `${running} em execução` : "nenhum agente executando"}
         </div>
+        <a className="btn-ghost" href="/settings">
+          Configurações
+        </a>
         <form action={logoutAction}>
           <button className="btn-ghost" type="submit">
             Sair
