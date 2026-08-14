@@ -93,8 +93,8 @@ export async function invokeTool(
     case "task_update":
       value = await taskUpdate(db, ctx, parsed.data as Parameters<typeof taskUpdate>[2]);
       break;
-    case "handoff_submit":
-      value = await handoffSubmit(db, ctx, parsed.data as Parameters<typeof handoffSubmit>[2]);
+    case "task_deliver":
+      value = await taskDeliver(db, ctx, parsed.data as Parameters<typeof taskDeliver>[2]);
       break;
     case "branch_register":
       value = await branchRegister(db, ctx, parsed.data as Parameters<typeof branchRegister>[2]);
@@ -593,7 +593,7 @@ async function taskUpdate(
   };
 }
 
-async function handoffSubmit(
+async function taskDeliver(
   db: McpDatabase,
   ctx: AuthContext,
   input: {

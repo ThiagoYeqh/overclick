@@ -1,5 +1,5 @@
 import {
-  HandoffSubmitOutputSchema,
+  TaskDeliverOutputSchema,
   HarnessRecommendOutputSchema,
   MissionListOutputSchema,
   TaskCreateOutputSchema,
@@ -85,13 +85,13 @@ describe("MCP tool edge cases against a test db", () => {
     });
     expect(claimed.ok).toBe(true);
 
-    const submitted = await invokeTool(world.db, ctx(), "handoff_submit", {
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
       task_id: card.id,
       summary: "pronto para ler",
     });
     expect(submitted.ok).toBe(true);
     if (!submitted.ok) return;
-    const handoff = HandoffSubmitOutputSchema.parse(submitted.value);
+    const handoff = TaskDeliverOutputSchema.parse(submitted.value);
     expect(handoff.telemetry_incomplete).toBe(true);
     expect(handoff.task.status).toBe("feito");
   });
@@ -111,7 +111,7 @@ describe("MCP tool edge cases against a test db", () => {
     if (!created.ok) return;
     const card = TaskCreateOutputSchema.parse(created.value).task;
 
-    const submitted = await invokeTool(world.db, ctx(), "handoff_submit", {
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
       task_id: card.id,
       summary: "cedo demais",
     });
@@ -160,7 +160,7 @@ describe("MCP tool edge cases against a test db", () => {
     expect(branched.ok).toBe(true);
 
     await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
-    await invokeTool(world.db, ctx(), "handoff_submit", {
+    await invokeTool(world.db, ctx(), "task_deliver", {
       task_id: card.id,
       summary: "feito",
     });

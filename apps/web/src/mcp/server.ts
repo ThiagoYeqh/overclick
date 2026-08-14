@@ -20,7 +20,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   task_claim:
     "Pega o card (status → em execução), cria ExecutionAttempt e devolve o briefing.",
   task_update: "Registra progresso, comentário ou marca revisado (revisor agente).",
-  handoff_submit:
+  task_deliver:
     "Entrega o resultado: resumo, evidências, artefatos, usage. Status → feito.",
   branch_register: "Grava a branch criada no card.",
   harness_recommend:

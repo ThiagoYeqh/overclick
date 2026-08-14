@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  HandoffSubmitInputSchema,
+  TaskDeliverInputSchema,
   MCP_TOOL_NAMES,
   TaskCreateInputSchema,
   toolContracts,
@@ -16,7 +16,7 @@ describe("MCP tool contracts", () => {
       "task_create",
       "task_claim",
       "task_update",
-      "handoff_submit",
+      "task_deliver",
       "branch_register",
       "harness_recommend",
       "harness_list",
@@ -150,9 +150,9 @@ describe("task_create canonical flow", () => {
   });
 });
 
-describe("handoff_submit usage and artifacts", () => {
+describe("task_deliver usage and artifacts", () => {
   it("accepts a handoff without usage (telemetry incomplete)", () => {
-    const parsed = HandoffSubmitInputSchema.parse({
+    const parsed = TaskDeliverInputSchema.parse({
       task_id: "OC-1",
       summary: "RFC pronto para ler.",
       evidence: [{ text: "documento anexado" }],
@@ -169,7 +169,7 @@ describe("handoff_submit usage and artifacts", () => {
   });
 
   it("accepts the full usage block (tokens in/out/cache, cost, duration, turns)", () => {
-    const parsed = HandoffSubmitInputSchema.parse({
+    const parsed = TaskDeliverInputSchema.parse({
       task_id: "OC-1",
       summary: "corrigido",
       evidence: [{ url: "https://example.com/pr/12" }],

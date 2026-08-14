@@ -68,7 +68,7 @@ Then, in your terminal: *"grab the next task from the board."* Watch the example
 ## MCP surface
 
 11 tools: `mission_list` · `mission_get` · `task_list` · `task_get` · `task_create` ·
-`task_claim` · `task_update` · `handoff_submit` · `branch_register` · `harness_recommend`
+`task_claim` · `task_update` · `task_deliver` · `branch_register` · `harness_recommend`
 · `harness_list`. Streamable HTTP, bearer tokens, atomic claims, typed errors. See
 [`docs/mcp.md`](docs/mcp.md).
 

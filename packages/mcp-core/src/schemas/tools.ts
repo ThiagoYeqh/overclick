@@ -154,7 +154,7 @@ export const TaskUpdateOutputSchema = z.object({
   task: TaskSchema,
 });
 
-export const HandoffSubmitInputSchema = z.object({
+export const TaskDeliverInputSchema = z.object({
   task_id: z.string().min(1),
   summary: z.string().min(1),
   evidence: z.array(EvidenceSchema).default([]),
@@ -164,7 +164,7 @@ export const HandoffSubmitInputSchema = z.object({
   usage: UsageSchema.optional(),
 });
 
-export const HandoffSubmitOutputSchema = z.object({
+export const TaskDeliverOutputSchema = z.object({
   task: TaskSchema,
   handoff: HandoffSchema,
   telemetry_incomplete: z.boolean(),
@@ -232,7 +232,7 @@ export const MCP_TOOL_NAMES = [
   "task_create",
   "task_claim",
   "task_update",
-  "handoff_submit",
+  "task_deliver",
   "branch_register",
   "harness_recommend",
   "harness_list",
@@ -269,9 +269,9 @@ export const toolContracts = {
     input: TaskUpdateInputSchema,
     output: TaskUpdateOutputSchema,
   },
-  handoff_submit: {
-    input: HandoffSubmitInputSchema,
-    output: HandoffSubmitOutputSchema,
+  task_deliver: {
+    input: TaskDeliverInputSchema,
+    output: TaskDeliverOutputSchema,
   },
   branch_register: {
     input: BranchRegisterInputSchema,
@@ -292,8 +292,8 @@ export type TaskCreateOutput = z.infer<typeof TaskCreateOutputSchema>;
 export type TaskClaimInput = z.infer<typeof TaskClaimInputSchema>;
 export type TaskClaimOutput = z.infer<typeof TaskClaimOutputSchema>;
 export type TaskUpdateInput = z.infer<typeof TaskUpdateInputSchema>;
-export type HandoffSubmitInput = z.infer<typeof HandoffSubmitInputSchema>;
-export type HandoffSubmitOutput = z.infer<typeof HandoffSubmitOutputSchema>;
+export type TaskDeliverInput = z.infer<typeof TaskDeliverInputSchema>;
+export type TaskDeliverOutput = z.infer<typeof TaskDeliverOutputSchema>;
 export type MissionListInput = z.infer<typeof MissionListInputSchema>;
 export type MissionGetInput = z.infer<typeof MissionGetInputSchema>;
 export type TaskListInput = z.infer<typeof TaskListInputSchema>;
