@@ -15,6 +15,10 @@ import {
   EXECUTOR_CATALOG,
   cardapioLabel,
 } from "../../lib/executors";
+import {
+  buildMcpConnectCommand,
+  mcpClientFromExecutorId,
+} from "../../lib/mcp-command";
 
 type CardapioRow = { activityType: string; cli: string | null; model: string | null; effort: string };
 type TokenRow = {
@@ -30,6 +34,13 @@ const TABS = [
   { id: "exec", label: "Executores" },
   { id: "policy", label: "Cardápio" },
   { id: "tokens", label: "Tokens MCP" },
+] as const;
+
+const CONNECT_CLIENTS = [
+  { id: "claude-code", label: "Claude Code" },
+  { id: "codex", label: "Codex" },
+  { id: "gemini-cli", label: "Gemini" },
+  { id: "generic", label: "Outro" },
 ] as const;
 
 const EFFORTS = ["low", "medium", "high"] as const;
@@ -122,6 +133,7 @@ export function SettingsClient({
   // ---- tokens
   const [newLabel, setNewLabel] = useState("");
   const [fresh, setFresh] = useState<{ secret: string } | null>(null);
+  const [connectClient, setConnectClient] = useState<string>("claude-code");
   const [copied, setCopied] = useState(false);
   const genToken = () =>
     start(async () => {
@@ -143,12 +155,21 @@ export function SettingsClient({
     if (!fresh) return;
     try {
       await navigator.clipboard.writeText(
-        `claude mcp add --transport http overclick \\\n  http://${host}/mcp \\\n  --header "Authorization: Bearer ${fresh.secret}"`,
+        buildMcpConnectCommand({
+          client: mcpClientFromExecutorId(connectClient),
+          baseUrl: `http://${host}/mcp`,
+          token: fresh.secret,
+        }),
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch { /* clipboard indisponível */ }
   };
+  const maskedCommand = buildMcpConnectCommand({
+    client: mcpClientFromExecutorId(connectClient),
+    baseUrl: `http://${host}/mcp`,
+    token: "ocb_••••••••••••",
+  });
 
   return (
     <>
@@ -259,7 +280,13 @@ export function SettingsClient({
           {fresh ? (
             <div className="fresh-tok">
               <div className="lbl">Token criado. Ele aparece uma vez só.</div>
-              <div className="cmd">{fresh.secret}
+              <div className="cmd">{
+                buildMcpConnectCommand({
+                  client: mcpClientFromExecutorId(connectClient),
+                  baseUrl: `http://${host}/mcp`,
+                  token: fresh.secret,
+                })
+              }
                 <button className={`copy${copied ? " ok" : ""}`} onClick={copyFresh}>
                   {copied ? "Copiado" : "Copiar comando"}
                 </button>
@@ -281,10 +308,19 @@ export function SettingsClient({
           </div>
 
           <div className="sec-cap">conectar um agente</div>
+          <div className="settabs compact">
+            {CONNECT_CLIENTS.map((client) => (
+              <span
+                key={client.id}
+                className={connectClient === client.id ? "on" : ""}
+                onClick={() => setConnectClient(client.id)}
+              >
+                {client.label}
+              </span>
+            ))}
+          </div>
           <div className="cmd">
-{`claude mcp add --transport http overclick \\
-  http://${host}/mcp \\
-  --header "Authorization: Bearer ocb_••••••••••••"`}
+            {maskedCommand}
           </div>
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
             o token completo aparece uma única vez, na hora da geração · aqui ele fica sempre mascarado

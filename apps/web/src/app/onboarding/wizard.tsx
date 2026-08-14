@@ -10,6 +10,10 @@ import {
   ExecutorsGrid,
   type ExecutorSelection,
 } from "../../components/executors-grid";
+import {
+  buildMcpConnectCommand,
+  mcpClientFromExecutorId,
+} from "../../lib/mcp-command";
 
 type ProjectData = {
   name: string;
@@ -24,20 +28,6 @@ const CMD_TABS = [
   { id: "gemini-cli", label: "Gemini" },
   { id: "outro", label: "Outro" },
 ] as const;
-
-function commandFor(cli: string, baseUrl: string, secret: string): string {
-  const header = `--header "Authorization: Bearer ${secret}"`;
-  switch (cli) {
-    case "claude-code":
-      return `claude mcp add --transport http overclick \\\n  ${baseUrl} \\\n  ${header}`;
-    case "codex":
-      return `codex mcp add overclick --url ${baseUrl} \\\n  ${header}`;
-    case "gemini-cli":
-      return `gemini mcp add --transport http overclick ${baseUrl} \\\n  ${header}`;
-    default:
-      return `# MCP HTTP genérico\n# url:    ${baseUrl}\n# header: Authorization: Bearer ${secret}`;
-  }
-}
 
 export function Wizard({
   host,
@@ -141,7 +131,13 @@ export function Wizard({
   const copyCmd = async () => {
     if (!token) return;
     try {
-      await navigator.clipboard.writeText(commandFor(tab, baseUrl, token.secret));
+      await navigator.clipboard.writeText(
+        buildMcpConnectCommand({
+          client: mcpClientFromExecutorId(tab),
+          baseUrl,
+          token: token.secret,
+        }),
+      );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -259,7 +255,11 @@ export function Wizard({
                   ))}
                 </div>
                 <div className="cmd">
-                  {commandFor(tab, baseUrl, revealed ? token.secret : maskedSecret)}
+                  {buildMcpConnectCommand({
+                    client: mcpClientFromExecutorId(tab),
+                    baseUrl,
+                    token: revealed ? token.secret : maskedSecret,
+                  })}
                   <button className={`copy${copied ? " ok" : ""}`} onClick={copyCmd}>
                     {copied ? "Copiado" : "Copiar"}
                   </button>
