@@ -1,6 +1,6 @@
 # MCP — OverClick
 
-O board expõe as 10 tools do MVP em **streamable HTTP** no mesmo processo do app.
+O board expõe as 11 tools do MVP em **streamable HTTP** no mesmo processo do app.
 
 ## Conectar
 
@@ -27,6 +27,7 @@ O workspace é resolvido pelo token. Token revogado ou ausente → **HTTP 401**.
 | `task_update` | progresso, comentário ou `revisado` |
 | `handoff_submit` | resultado + usage; status → `feito`; roteia para `devolve_para` |
 | `branch_register` | grava a branch no card |
-| `harness_recommend` | cardápio × executores configurados |
+| `harness_recommend` | lookup da política (tipo → CLI · modelo · effort) |
+| `harness_list` | política inteira + executores configurados |
 
 `task_claim` e `task_get` devolvem o briefing — o executor não precisa de outra fonte de contexto.
