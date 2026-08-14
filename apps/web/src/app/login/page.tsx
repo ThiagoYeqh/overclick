@@ -16,10 +16,10 @@ export default async function LoginPage() {
   return (
     <>
       <p className="brand">self-hosted · open source · mit</p>
-      <h1>Bem-vindo de volta.</h1>
-      <p className="sub">Entre com a conta admin desta instância local.</p>
+      <h1>Welcome back.</h1>
+      <p className="sub">Sign in with this local instance&apos;s admin account.</p>
       <LoginForm />
-      <p className="foot">v0.1.0 · instância local · nenhum dado enviado para fora</p>
+      <p className="foot">v0.1.0 · local instance · no data sent anywhere</p>
     </>
   );
 }

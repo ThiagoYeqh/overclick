@@ -9,12 +9,12 @@ export default function ErrorPage({
 
   return (
     <>
-      <p className="brand">instância local</p>
-      <h1>{missingDb ? "Falta o banco." : "Algo quebrou aqui."}</h1>
+      <p className="brand">local instance</p>
+      <h1>{missingDb ? "The database is missing." : "Something broke here."}</h1>
       <p className="sub">
         {missingDb
-          ? "Defina DATABASE_URL apontando para o Postgres desta instância. Nada é enviado para fora."
-          : "O erro ficou neste servidor. Não há telemetria — olhe os logs do container."}
+          ? "Set DATABASE_URL pointing to this instance's Postgres. Nothing is sent anywhere."
+          : "The error stayed on this server. There is no telemetry, check the container logs."}
       </p>
     </>
   );

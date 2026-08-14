@@ -23,7 +23,7 @@ export function SetupForm() {
   return (
     <form action={action}>
       <label>
-        E-mail
+        Email
         <input
           name="email"
           type="email"
@@ -35,7 +35,7 @@ export function SetupForm() {
         />
       </label>
       <label>
-        Senha
+        Password
         <input
           name="password"
           type="password"
@@ -47,7 +47,7 @@ export function SetupForm() {
         />
       </label>
       <label>
-        Confirmar senha
+        Confirm password
         <input
           name="confirm"
           type="password"
@@ -60,7 +60,7 @@ export function SetupForm() {
       </label>
       {state?.error ? <p className="error">{state.error}</p> : null}
       <button type="submit" disabled={!valid || pending}>
-        {pending ? "Criando…" : "Criar conta e continuar"}
+        {pending ? "Creating…" : "Create account and continue"}
       </button>
     </form>
   );
