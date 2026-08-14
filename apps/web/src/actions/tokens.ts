@@ -12,16 +12,16 @@ export type CreateTokenResult =
   | { ok: true; id: string; secret: string }
   | { ok: false; error: string };
 
-/** Gera token MCP real. O segredo só é retornado nesta resposta — uma vez. */
+/** Generates a real MCP token. The secret is only returned in this response, once. */
 export async function createTokenAction(label: string): Promise<CreateTokenResult> {
   const session = await getSession();
-  if (!session) return { ok: false, error: "Sessão expirada. Entre de novo." };
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
 
   const ws = await db().query.workspace.findFirst();
-  if (!ws) return { ok: false, error: "Workspace não encontrado." };
+  if (!ws) return { ok: false, error: "Workspace not found." };
 
   const name = label.trim();
-  if (!name) return { ok: false, error: "Dá um nome pro token (ex.: Claude Code — esta máquina)." };
+  if (!name) return { ok: false, error: "Give the token a name (e.g. Claude Code on this machine)." };
 
   const secret = generateTokenSecret();
   try {
@@ -35,20 +35,20 @@ export async function createTokenAction(label: string): Promise<CreateTokenResul
         createdByUserId: session.userId,
       })
       .returning({ id: mcpToken.id });
-    if (!row) return { ok: false, error: "Não deu para criar o token." };
+    if (!row) return { ok: false, error: "Could not create the token." };
     revalidatePath("/settings");
     return { ok: true, id: row.id, secret };
   } catch {
-    return { ok: false, error: "Já existe um token com esse nome." };
+    return { ok: false, error: "A token with that name already exists." };
   }
 }
 
 export async function revokeTokenAction(tokenId: string): Promise<ActionResult> {
   const session = await getSession();
-  if (!session) return { ok: false, error: "Sessão expirada. Entre de novo." };
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
 
   const ws = await db().query.workspace.findFirst();
-  if (!ws) return { ok: false, error: "Workspace não encontrado." };
+  if (!ws) return { ok: false, error: "Workspace not found." };
 
   await db()
     .update(mcpToken)
@@ -58,7 +58,7 @@ export async function revokeTokenAction(tokenId: string): Promise<ActionResult> 
   return { ok: true };
 }
 
-/** Polling do indicador "aguardando primeira conexão" (wizard T3). */
+/** Polling for the "waiting for the first connection" indicator (wizard T3). */
 export async function pollTokenAction(
   tokenId: string,
 ): Promise<{ used: boolean; usedAt: string | null }> {

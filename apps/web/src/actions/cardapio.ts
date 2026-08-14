@@ -16,17 +16,17 @@ export type CardapioInput = {
 
 const EFFORTS = new Set(["low", "medium", "high"]);
 
-/** Upsert da policy real (cardapio_entry) por tipo de atividade. */
+/** Upsert of the real policy (cardapio_entry) by activity type. */
 export async function saveCardapioAction(entries: CardapioInput[]): Promise<ActionResult> {
   const session = await getSession();
-  if (!session) return { ok: false, error: "Sessão expirada. Entre de novo." };
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
 
   const ws = await db().query.workspace.findFirst();
-  if (!ws) return { ok: false, error: "Workspace não encontrado." };
+  if (!ws) return { ok: false, error: "Workspace not found." };
 
   for (const e of entries) {
     if (!e.activityType || !EFFORTS.has(e.effort)) {
-      return { ok: false, error: "Linha de cardápio inválida." };
+      return { ok: false, error: "Invalid policy row." };
     }
   }
 

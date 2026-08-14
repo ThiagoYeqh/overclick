@@ -1,4 +1,4 @@
-/** Catálogo de CLIs executoras — compartilhado entre onboarding (T2) e /settings. */
+/** Catalog of executor CLIs, shared between onboarding (T2) and /settings. */
 export type ExecutorDef = {
   id: string;
   label: string;
@@ -18,22 +18,22 @@ export const EXECUTOR_CATALOG: readonly ExecutorDef[] = [
   { id: "muse-code", label: "Muse Code", models: ["mimo-v2.5-pro", "mimo-omni"] },
 ];
 
-/** id do executor customizado ("+ Personalizar") — conecta via MCP genérico. */
+/** Id of the custom executor ("+ Customize"), which connects via generic MCP. */
 export const CUSTOM_EXECUTOR_ID = "generic-mcp";
 
-/** Seleção da grid de executores (onboarding T2 e /settings). */
+/** Selection state of the executors grid (onboarding T2 and /settings). */
 export type ExecutorSelection = {
-  /** ids habilitados → modelos marcados */
+  /** enabled ids → checked models */
   enabled: Record<string, string[]>;
   customEnabled: boolean;
   customName: string;
 };
 
 /**
- * Estado inicial da grid a partir do ExecutorConfig[] persistido no workspace.
- * Mora aqui, e não no componente, porque as páginas de servidor (/onboarding e
- * /settings) chamam esta função — de dentro de um módulo "use client" o React
- * recusa a chamada.
+ * Initial grid state from the ExecutorConfig[] persisted on the workspace.
+ * Lives here, not in the component, because the server pages (/onboarding and
+ * /settings) call this function, and React refuses the call from inside a
+ * "use client" module.
  */
 export function selectionFromConfig(
   config: readonly {
@@ -57,18 +57,21 @@ export function selectionFromConfig(
       enabled[row.id] = row.models.length ? [...row.models] : [def.models[0] ?? "auto"];
     }
   }
+  // "Outro (MCP genérico)" is the pt-BR factory label kept for workspaces
+  // seeded before the English-only pass.
+  const FACTORY_CUSTOM_LABELS = ["Other (generic MCP)", "Outro (MCP genérico)"];
   const custom = config.find((r) => r.id === CUSTOM_EXECUTOR_ID);
-  if (custom?.label && custom.label !== "Outro (MCP genérico)") customName = custom.label;
+  if (custom?.label && !FACTORY_CUSTOM_LABELS.includes(custom.label)) customName = custom.label;
   return { enabled, customEnabled, customName };
 }
 
-/** Rótulos pt-BR dos tipos de atividade do cardápio (tipos reais do mcp-core). */
+/** Display labels for the cardapio activity types (real mcp-core types). */
 export const CARDAPIO_LABELS: Record<string, { label: string; hint: string }> = {
-  bug: { label: "Bug", hint: "correção localizada, repro → patch" },
-  feature: { label: "Feature / UI", hint: "tela nova, componente, fluxo" },
-  rfc: { label: "RFC", hint: "documento de decisão" },
-  architecture: { label: "Arquitetura", hint: "decisão de design, plano escrito" },
-  mechanical: { label: "Mecânico / relatório", hint: "renomear, exportar, varrer logs" },
+  bug: { label: "Bug", hint: "localized fix, repro → patch" },
+  feature: { label: "Feature / UI", hint: "new screen, component, flow" },
+  rfc: { label: "RFC", hint: "decision document" },
+  architecture: { label: "Architecture", hint: "design decision, written plan" },
+  mechanical: { label: "Mechanical / report", hint: "rename, export, sweep logs" },
 };
 
 export function cardapioLabel(type: string): { label: string; hint: string } {

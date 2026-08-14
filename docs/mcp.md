@@ -37,7 +37,7 @@ The workspace is resolved from the token. Revoked or missing token → **HTTP 40
 | `task_create` | creates the card (declared mission, `mode` solo\|team, origin) |
 | `task_claim` | status → `in_progress`; a second claim → `ALREADY_CLAIMED` |
 | `task_update` | progress, comment, or the `reviewed` mark |
-| `handoff_submit` | result + usage; status → `done`; routed to the card's reviewer |
+| `task_deliver` | result + usage; status → `done`; routed to the card's reviewer |
 | `branch_register` | records the branch on the card |
 | `harness_recommend` | policy lookup (activity type → CLI · model · effort) |
 | `harness_list` | the whole policy + configured executors |

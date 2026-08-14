@@ -16,13 +16,13 @@ export const EXAMPLE_PROJECT = {
 
 export const EXAMPLE_CARD = {
   shortId: "AGB-1",
-  title: "Peça ao seu agente para pegar esta task",
+  title: "Ask your agent to pick up this task",
   oQue:
-    'Você vai pedir, no terminal, "pega a próxima task do board". O agente faz task_claim, este card desliza para em execução, e ao terminar volta como feito.',
+    'You will type, in your terminal, "pick up the next task from the board". The agent calls task_claim, this card slides to in progress, and when it finishes it comes back as done.',
   porQue:
-    "Pra você ver o loop inteiro antes de confiar um trabalho de verdade a ele.",
+    "So you see the whole loop before trusting it with real work.",
   comoConfirmo:
-    '1) No terminal, digite "pega a próxima task do board". 2) Este card muda de coluna sozinho. 3) Ao terminar, ele aparece em feito com resumo e telemetria. 4) Você clica em Validar.',
+    '1) In your terminal, type "pick up the next task from the board". 2) This card changes column on its own. 3) When it finishes, it shows up in done with a summary and telemetry. 4) You click Validate.',
   tipo: "feature" as const,
   status: "aberto" as const,
   isExample: true,

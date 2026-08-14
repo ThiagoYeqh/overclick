@@ -20,8 +20,8 @@ export default async function OnboardingPage({
   const ws = await db().query.workspace.findFirst();
   if (!ws) redirect("/setup");
 
-  // Instância já configurada (um agente já conectou de verdade) pula o
-  // wizard. Deep link ?step=N reabre para ajustes.
+  // An already-configured instance (an agent really connected once) skips the
+  // wizard. Deep link ?step=N reopens it for adjustments.
   const sp = await searchParams;
   const usedToken = await db().query.mcpToken.findFirst({
     where: and(eq(mcpToken.workspaceId, ws.id), eq(mcpToken.revoked, false)),
@@ -32,7 +32,7 @@ export default async function OnboardingPage({
   const proj = await db().query.project.findFirst({
     where: eq(project.workspaceId, ws.id),
   });
-  const host = (await headers()).get("host") ?? "<seu-host>";
+  const host = (await headers()).get("host") ?? "<your-host>";
 
   const rawStep = Number(Array.isArray(sp.step) ? sp.step[0] : sp.step);
   const initialStep = rawStep >= 1 && rawStep <= 3 ? Math.floor(rawStep) : 1;

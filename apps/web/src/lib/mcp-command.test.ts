@@ -43,7 +43,7 @@ describe("buildMcpConnectCommand", () => {
       }),
     ).toBe(
       [
-        "# MCP HTTP genérico",
+        "# generic MCP over HTTP",
         "# url:    http://localhost:3000/mcp",
         "# header: Authorization: Bearer ocb_live_secret",
       ].join("\n"),

@@ -16,13 +16,13 @@ export default async function SetupPage() {
   return (
     <>
       <p className="brand">self-hosted · open source · mit</p>
-      <h1>Seu board acabou de subir.</h1>
+      <h1>Your board just came up.</h1>
       <p className="sub">
-        Crie a conta admin desta instância. Ela fica no seu banco — nada sai
-        daqui.
+        Create this instance&apos;s admin account. It lives in your database,
+        nothing leaves this server.
       </p>
       <SetupForm />
-      <p className="foot">v0.1.0 · instância local · nenhum dado enviado para fora</p>
+      <p className="foot">v0.1.0 · local instance · no data sent anywhere</p>
     </>
   );
 }

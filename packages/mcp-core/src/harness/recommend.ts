@@ -61,7 +61,7 @@ export type RecommendInput = {
   };
 };
 
-/** One declared row of the workspace cardápio: activity type → CLI · model · effort. */
+/** One declared row of the workspace cardapio: activity type → CLI · model · effort. */
 export type CardapioPolicyEntry = {
   type: string;
   cli: string | null;

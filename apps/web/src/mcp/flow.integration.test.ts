@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
-  HandoffSubmitOutputSchema,
+  TaskDeliverOutputSchema,
   MCP_TOOL_NAMES,
   TaskClaimOutputSchema,
   TaskCreateOutputSchema,
@@ -119,7 +119,7 @@ describe("MCP end-to-end against a test db", () => {
 
       const handoff = parseTool(
         await client.callTool({
-          name: "handoff_submit",
+          name: "task_deliver",
           arguments: {
             task_id: created.task.id,
             summary: "Login autenticando de novo.",
@@ -143,7 +143,7 @@ describe("MCP end-to-end against a test db", () => {
             },
           },
         }),
-        HandoffSubmitOutputSchema,
+        TaskDeliverOutputSchema,
       );
       expect(handoff.task.status).toBe("feito");
       expect(handoff.telemetry_incomplete).toBe(false);

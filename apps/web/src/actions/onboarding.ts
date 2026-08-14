@@ -13,20 +13,20 @@ export type ProjectInput = {
   prefix: string;
 };
 
-/** Wizard T1: cria ou atualiza o primeiro projeto do workspace. */
+/** Wizard T1: creates or updates the workspace's first project. */
 export async function saveProjectAction(input: ProjectInput): Promise<ActionResult> {
   const session = await getSession();
-  if (!session) return { ok: false, error: "Sessão expirada. Entre de novo." };
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
 
   const ws = await db().query.workspace.findFirst();
-  if (!ws) return { ok: false, error: "Workspace não encontrado." };
+  if (!ws) return { ok: false, error: "Workspace not found." };
 
   const name = input.name.trim();
-  if (!name) return { ok: false, error: "Dá um nome pro projeto — pode ser o nome do repo." };
+  if (!name) return { ok: false, error: "Give the project a name. The repo name works." };
 
   const prefix = input.prefix.trim().toUpperCase();
   if (!isValidPrefix(prefix)) {
-    return { ok: false, error: "Prefixo de 2 a 4 caracteres, letras e números (ex.: AGB)." };
+    return { ok: false, error: "Prefix of 2 to 4 characters, letters and numbers (e.g. AGB)." };
   }
   const repoUrl = input.repoUrl.trim() || null;
 
@@ -49,7 +49,7 @@ export async function saveProjectAction(input: ProjectInput): Promise<ActionResu
       });
     }
   } catch {
-    return { ok: false, error: "Já existe um projeto com esse prefixo. Tenta outro." };
+    return { ok: false, error: "A project with that prefix already exists. Try another." };
   }
   revalidatePath("/onboarding");
   revalidatePath("/home");

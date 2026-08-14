@@ -18,7 +18,7 @@ function fmtDurationMs(ms: number): string {
 
 function fmtTokens(n: number): string {
   if (n >= 1_000_000) {
-    const v = (n / 1_000_000).toFixed(1).replace(".", ",").replace(",0", "");
+    const v = (n / 1_000_000).toFixed(1).replace(".0", "");
     return `${v}M tok`;
   }
   if (n >= 1_000) return `${Math.round(n / 1_000)}k tok`;
@@ -27,14 +27,14 @@ function fmtTokens(n: number): string {
 
 function fmtElapsed(from: Date): string {
   const m = Math.max(1, Math.round((Date.now() - from.getTime()) / 60000));
-  if (m < 60) return `há ${m} min`;
+  if (m < 60) return `${m} min ago`;
   const h = Math.round(m / 60);
-  if (h < 24) return `há ${h} h`;
-  return `há ${Math.round(h / 24)} d`;
+  if (h < 24) return `${h} h ago`;
+  return `${Math.round(h / 24)} d ago`;
 }
 
 function fmtDate(d: Date): string {
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  return d.toLocaleDateString("en-US", { day: "2-digit", month: "2-digit" });
 }
 
 type TaskRow = Awaited<ReturnType<typeof loadTasks>>[number];
@@ -60,10 +60,10 @@ function toBoardCard(t: TaskRow): BoardCard {
 
   const devolve =
     t.devolveParaKind === "human"
-      ? (t.reviewer?.email ?? "humano")
+      ? (t.reviewer?.email ?? "human")
       : t.devolveParaKind === "agent"
-        ? (t.devolveParaAgentRef ?? "agente")
-        : "fila do workspace";
+        ? (t.devolveParaAgentRef ?? "agent")
+        : "workspace queue";
 
   const origem = t.createdBy?.email ?? t.origin?.agent ?? t.origin?.cli ?? "board";
 
@@ -94,7 +94,7 @@ function toBoardCard(t: TaskRow): BoardCard {
     if (u.costUsd != null) parts.push(`~US$ ${u.costUsd.toFixed(2)}`);
     telemetry = parts.join(" · ") || null;
   }
-  if (telemetry && t.telemetryIncomplete) telemetry += " · telemetria incompleta";
+  if (telemetry && t.telemetryIncomplete) telemetry += " · telemetry incomplete";
 
   return {
     id: t.id,
@@ -147,18 +147,18 @@ export default async function HomePage() {
         </div>
         <div className="spacer" />
         <span className="btn-ghost pill">
-          Minha revisão <span className="badge">{review}</span>
+          My review <span className="badge">{review}</span>
         </span>
         <div className="agent-status">
           <span className={`dot${running === 0 ? " idle" : ""}`} />
-          {running > 0 ? `${running} em execução` : "nenhum agente executando"}
+          {running > 0 ? `${running} in progress` : "no agent running"}
         </div>
         <a className="btn-ghost" href="/settings">
-          Configurações
+          Settings
         </a>
         <form action={logoutAction}>
           <button className="btn-ghost" type="submit">
-            Sair
+            Log out
           </button>
         </form>
       </div>

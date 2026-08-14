@@ -12,7 +12,7 @@ export function LoginForm() {
   return (
     <form action={action}>
       <label>
-        E-mail
+        Email
         <input
           name="email"
           type="email"
@@ -22,7 +22,7 @@ export function LoginForm() {
         />
       </label>
       <label>
-        Senha
+        Password
         <input
           name="password"
           type="password"
@@ -32,7 +32,7 @@ export function LoginForm() {
       </label>
       {state?.error ? <p className="error">{state.error}</p> : null}
       <button type="submit" disabled={pending}>
-        {pending ? "Entrando…" : "Entrar"}
+        {pending ? "Signing in…" : "Sign in"}
       </button>
     </form>
   );

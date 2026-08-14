@@ -31,7 +31,7 @@ export function buildMcpConnectCommand(input: {
       ].join("\n");
     case "generic":
       return [
-        "# MCP HTTP genérico",
+        "# generic MCP over HTTP",
         `# url:    ${input.baseUrl}`,
         `# header: Authorization: Bearer ${input.token}`,
       ].join("\n");

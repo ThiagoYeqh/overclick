@@ -25,5 +25,5 @@ export const KNOWN_EXECUTORS: ExecutorConfig[] = [
   { id: "gemini-cli", label: "Gemini CLI", enabled: false, models: [] },
   { id: "cursor", label: "Cursor", enabled: false, models: [] },
   { id: "aider", label: "Aider", enabled: false, models: [] },
-  { id: "generic-mcp", label: "Outro (MCP genérico)", enabled: false, models: [] },
+  { id: "generic-mcp", label: "Other (generic MCP)", enabled: false, models: [] },
 ];
