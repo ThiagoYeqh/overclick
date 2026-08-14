@@ -28,6 +28,8 @@ COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENV NODE_ENV=production
+# mcp-core resolves to dist/ (see its package exports); build it before the app.
+RUN pnpm --filter @agent-board/mcp-core build
 RUN pnpm --filter @agent-board/web build
 
 EXPOSE 3000

@@ -16,4 +16,3 @@ node_modules
 !.env.example
 *.log
 .DS_Store
-packages/mcp-core
