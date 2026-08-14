@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { reopenTaskAction, validateTaskAction } from "../../actions/review";
 
 export type BoardCard = {
   id: string;
@@ -126,6 +128,76 @@ function Card({ card, corner, onOpen }: { card: BoardCard; corner: boolean; onOp
   );
 }
 
+function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [reopening, setReopening] = useState(false);
+  const [comment, setComment] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  if (card.status !== "feito") return null;
+
+  const validate = () =>
+    start(async () => {
+      setErr(null);
+      const r = await validateTaskAction(card.id);
+      if (!r.ok) setErr(r.error);
+      else {
+        onClose();
+        router.refresh();
+      }
+    });
+
+  const reopen = () =>
+    start(async () => {
+      setErr(null);
+      const r = await reopenTaskAction(card.id, comment);
+      if (!r.ok) setErr(r.error);
+      else {
+        onClose();
+        router.refresh();
+      }
+    });
+
+  if (reopening) {
+    return (
+      <div className="d-actions d-actions-reopen">
+        <textarea
+          className="d-textarea"
+          autoFocus
+          rows={3}
+          placeholder="O que ficou faltando? O agente lê este comentário no próximo claim."
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+        {err ? <p className="d-err">{err}</p> : null}
+        <div className="d-actions-row">
+          <button className="d-btn-sec" disabled={pending} onClick={() => { setReopening(false); setErr(null); }}>
+            Cancelar
+          </button>
+          <button className="d-btn-pri" disabled={pending || !comment.trim()} onClick={reopen}>
+            {pending ? "Reabrindo…" : "Reabrir"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="d-actions">
+      {err ? <p className="d-err">{err}</p> : null}
+      <div className="d-actions-row">
+        <button className="d-btn-sec" disabled={pending} onClick={() => setReopening(true)}>
+          Reabrir com comentário
+        </button>
+        <button className="d-btn-pri" disabled={pending} onClick={validate}>
+          {pending ? "Validando…" : "Validar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
   return (
     <div className="ov" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -185,6 +257,7 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
             <div className="d-evid">{card.handoff}</div>
           </div>
         ) : null}
+        <DetailActions card={card} onClose={onClose} />
       </div>
     </div>
   );
