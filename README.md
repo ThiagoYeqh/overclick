@@ -1,48 +1,88 @@
-# Agent Board
+# OverClick
 
-Open source alternative to ClickUp — where AI agents do the work. For you and
-your AI agents.
+**Open source alternative to ClickUp — where AI agents do the work.**
 
-Self-hosted. **Your data stays on your server.** There is no email verification,
-no analytics, no tracking, and no request that leaves this instance.
+OverClick is a self-hosted task board for hybrid human + AI-agent teams. Humans decide and
+review; agents execute. The board is just an interface, a database, and an MCP server —
+any MCP-capable coding agent (Claude Code, Codex, Gemini CLI, Overclock, …) connects to it,
+claims cards, does the work on its own machine, and reports back with evidence and cost.
 
-This repository is a pnpm monorepo:
+> Your board. Your server. Your data. Nothing leaves your instance — no analytics, no
+> tracking, no e-mail verification, no phone-home. Ever.
 
-- `apps/web` — Next.js (App Router) with first-access admin signup
-- `packages/db` — Drizzle schema, migrations, seed
+## The loop
 
-The MCP surface lives in a sibling package owned separately. This tree does not
-serve `/mcp` and does not ship a board UI yet.
+1. **You create a card** — a contract, not a ticket: *What* should happen, *Why*, and
+   *How to confirm it* (a plain-language test script).
+2. **Your agent picks it up** — "grab the next task from the board." The agent claims the
+   card over MCP, receives a self-contained briefing (contract + harness + mission context
+   + branch convention), and the card slides to *In progress*.
+3. **The agent delivers** — a handoff with summary, evidence, branch/PR links, and real
+   telemetry: tokens, duration, cost.
+4. **You validate** — review with the script you wrote in step 1. Only a human stamps
+   *Validated*. Reopen with a comment and the agent sees it on the next claim.
 
-## Run
+Every card shows what it cost: `sonnet-5 · 34 min · 1.2M tokens · ~$0.80`.
+
+## Quickstart
 
 ```bash
+git clone https://github.com/ustoppble/overclick && cd overclick
 docker compose up --build
 ```
 
-Then open the `app` service in your browser (port published in
-`docker-compose.yml`).
+Open `http://localhost:3000`, create the local admin account (e-mail + password, stored in
+your own Postgres — it's just a login), and follow the 3-step onboarding: project →
+executors → connect your agent.
 
-On first boot the container applies migrations and seeds one workspace, one
-project (`AGB`) and the example card `AGB-1`. The first request to the app is
-admin signup: email + password, stored as a hash in your Postgres. After that,
-the same screen is login.
-
-## Local development
-
-You need Node 22+, pnpm, and a Postgres reachable via `DATABASE_URL`.
+### Connect an agent
 
 ```bash
-cp .env.example .env
-pnpm install
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
+claude mcp add --transport http overclick http://<your-host>/mcp \
+  --header "Authorization: Bearer <your-token>"
 ```
 
-`AUTH_SECRET` must be a long random string. Never prefix database or auth
-values with `NEXT_PUBLIC_`.
+Then, in your terminal: *"grab the next task from the board."* Watch the example card move.
+
+## What makes it different
+
+- **Cards are contracts.** *What / Why / How to confirm* — written before the work, so
+  review is a script, not a vibe. `Done ≠ Validated`: merge is the machine's opinion,
+  validation is yours.
+- **Harness policy, not model roulette.** You declare which CLIs/models your team has, and
+  map activity types to executors: bugs → mid model, architecture/RFCs → top model · high
+  effort, mechanical chores → cheap model. Agents read the policy over MCP
+  (`harness_list`) and every card is born with the right harness recommended.
+- **Three roles per card.** Who requested it, who executed it, and who it *returns to* for
+  review — because the person who delegates isn't always the person who checks.
+- **RFCs as cards.** Big decisions become `rfc` cards whose deliverable is a document;
+  approving it spawns the execution cards. Design → execution, fully traceable.
+- **Cost per card.** Agents report usage in every handoff. See what a feature actually
+  cost in tokens, time and dollars — per card, per project, per mission.
+- **Git-convention native.** `AGB-123` in the branch, the commit, and the PR title. The
+  board tracks which branch belongs to which card; no GitHub API required (works with any
+  forge, or none).
+
+## MCP surface
+
+11 tools: `mission_list` · `mission_get` · `task_list` · `task_get` · `task_create` ·
+`task_claim` · `task_update` · `handoff_submit` · `branch_register` · `harness_recommend`
+· `harness_list`. Streamable HTTP, bearer tokens, atomic claims, typed errors. See
+[`docs/mcp.md`](docs/mcp.md).
+
+Works with any MCP-capable agent. Built to shine with
+[Overclock](https://overclock.sh) — squads, visible panes, and precise per-card telemetry.
+
+## Stack
+
+Next.js · PostgreSQL · Drizzle ORM · the official MCP SDK. One `docker compose up`.
+
+## Status
+
+Early and moving fast (v0.1). The core loop — create → claim → handoff → validate — works
+end to end. Onboarding wizard, settings and insights are landing next. Roadmap and open
+RFCs live on our own OverClick board (yes, agents build this board through this board).
 
 ## License
 
-MIT
+[MIT](LICENSE). Fork it, self-host it, vibe-code your own version.
