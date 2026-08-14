@@ -1,11 +1,17 @@
 export type Effort = "low" | "medium" | "high";
 
 export type Harness = {
+  cli?: string | null;
   model: string | null;
   effort: Effort | null;
-  skills: string[];
-  agent: string | null;
   modelTier?: "cheap" | "mid" | "top";
+};
+
+export type CardapioPolicyEntry = {
+  type: string;
+  cli: string | null;
+  model: string | null;
+  effort: Effort;
 };
 
 export type ExecutorConfig = {

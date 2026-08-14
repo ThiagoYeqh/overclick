@@ -13,3 +13,4 @@ export {
   isValidPassword,
 } from "./first-access";
 export { canNestUnder } from "./subtask";
+export { factoryCardapioPolicy } from "./cardapio";

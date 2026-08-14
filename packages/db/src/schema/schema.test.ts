@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getTableColumns, getTableName } from "drizzle-orm";
 import {
+  cardapioEntry,
   executionAttempt,
   handoff,
   mcpToken,
@@ -27,6 +28,21 @@ describe("complete schema from spec §3", () => {
     expect(getTableName(handoff)).toBe("handoff");
     expect(getTableName(mcpToken)).toBe("mcp_token");
     expect(getTableName(taskComment)).toBe("task_comment");
+    expect(getTableName(cardapioEntry)).toBe("cardapio_entry");
+  });
+
+  it("cardapio_entry is type → CLI · model · effort with no skills column", () => {
+    expect(columnNames(cardapioEntry)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "workspaceId",
+        "activityType",
+        "cli",
+        "model",
+        "effort",
+      ]),
+    );
+    expect(columnNames(cardapioEntry)).not.toContain("skills");
   });
 
   it("workspace holds name, executor config and cardápio", () => {

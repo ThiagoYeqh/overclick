@@ -59,6 +59,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@agent-board/mcp-core':
+        specifier: workspace:*
+        version: link:../mcp-core
       drizzle-orm:
         specifier: ^0.44.7
         version: 0.44.7(@electric-sql/pglite@0.3.16)(postgres@3.4.9)

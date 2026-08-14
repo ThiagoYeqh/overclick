@@ -30,7 +30,5 @@ export const EXAMPLE_CARD = {
     model: null,
     modelTier: "mid",
     effort: "medium",
-    skills: [],
-    agent: null,
   } satisfies Harness,
 };

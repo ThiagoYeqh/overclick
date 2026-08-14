@@ -4,20 +4,16 @@ const mid: Harness = {
   model: null,
   modelTier: "mid",
   effort: "medium",
-  skills: [],
-  agent: null,
 };
 
-/** Factory cardápio: destilado da matriz B1–B6 (spec §3.2). */
+/** Legacy jsonb default on workspace.cardapio (MCP policy lives in cardapio_entry). */
 export const DEFAULT_CARDAPIO: Cardapio = {
-  bug: { ...mid, skills: ["fix"] },
+  bug: { ...mid },
   feature: { ...mid },
   rfc: {
     model: null,
     modelTier: "top",
     effort: "high",
-    skills: [],
-    agent: null,
   },
 };
 

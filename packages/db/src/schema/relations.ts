@@ -8,11 +8,20 @@ import { taskComment } from "./task-comment";
 import { task } from "./task";
 import { user } from "./user";
 import { workspace } from "./workspace";
+import { cardapioEntry } from "./cardapio-entry";
 
 export const workspaceRelations = relations(workspace, ({ many }) => ({
   missions: many(mission),
   projects: many(project),
   mcpTokens: many(mcpToken),
+  cardapioEntries: many(cardapioEntry),
+}));
+
+export const cardapioEntryRelations = relations(cardapioEntry, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [cardapioEntry.workspaceId],
+    references: [workspace.id],
+  }),
 }));
 
 export const missionRelations = relations(mission, ({ one, many }) => ({

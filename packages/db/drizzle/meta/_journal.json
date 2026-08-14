@@ -8,6 +8,13 @@
       "when": 1786736055647,
       "tag": "0000_robust_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786739440495,
+      "tag": "0001_chemical_legion",
+      "breakpoints": true
     }
   ]
 }
