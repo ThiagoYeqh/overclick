@@ -1,0 +1,55 @@
+export type Effort = "low" | "medium" | "high";
+
+export type Harness = {
+  model: string | null;
+  effort: Effort | null;
+  skills: string[];
+  agent: string | null;
+  modelTier?: "cheap" | "mid" | "top";
+};
+
+export type ExecutorConfig = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  models: string[];
+};
+
+export type Cardapio = {
+  feature: Harness;
+  bug: Harness;
+  rfc: Harness;
+};
+
+export type TaskOrigin = {
+  paneId?: string;
+  sessionId?: string;
+  agent?: string;
+  cli?: string;
+};
+
+export type HandoffEvidence = {
+  kind: "text" | "link";
+  value: string;
+};
+
+export type HandoffArtifact = {
+  name: string;
+  mime?: string;
+  content: string;
+};
+
+export type UsageReport = {
+  tokensIn?: number;
+  tokensOut?: number;
+  tokensCache?: number;
+  costUsd?: number;
+  durationMs?: number;
+  turns?: number;
+};
+
+export type TaskType = "feature" | "bug" | "rfc";
+export type TaskPriority = "urgente" | "alta" | "media" | "baixa";
+export type ReviewerKind = "human" | "agent" | "workspace_queue";
+export type ExecutionMode = "solo" | "team";
+export type MissionStatus = "ativa" | "pausada" | "concluida";
