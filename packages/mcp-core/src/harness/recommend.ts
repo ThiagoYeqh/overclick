@@ -18,7 +18,6 @@ export type CardapioTaskType = (typeof CARDAPIO_TASK_TYPES)[number];
 export type CardapioEntry = {
   model_tier: ModelTier;
   effort: EffortLevel;
-  skills: string[];
 };
 
 export type Cardapio = Record<CardapioTaskType, CardapioEntry>;
@@ -33,15 +32,13 @@ export type ConfiguredExecutor = {
   id: string;
   cli: string;
   models: string[];
-  skills?: string[];
   agents?: string[];
 };
 
 export type Harness = {
+  cli: string | null;
   model: string | null;
   effort: EffortLevel;
-  skills: string[];
-  agent?: string;
 };
 
 export type MatchedExecutor = {
@@ -55,12 +52,21 @@ export type RecommendInput = {
   executors: readonly ConfiguredExecutor[];
   cardapio?: Cardapio;
   catalog?: readonly ModelInfo[];
+  /** Stored workspace policy. When set, recommend is a lookup (factory fallback). */
+  policy?: readonly CardapioPolicyEntry[];
   explicit?: {
+    cli?: string;
     model: string;
     effort: EffortLevel;
-    skills: string[];
-    agent?: string;
   };
+};
+
+/** One declared row of the workspace cardápio: activity type → CLI · model · effort. */
+export type CardapioPolicyEntry = {
+  type: string;
+  cli: string | null;
+  model: string | null;
+  effort: EffortLevel;
 };
 
 export type RecommendResult = {
@@ -80,27 +86,22 @@ export const DEFAULT_CARDAPIO: Cardapio = {
   bug: {
     model_tier: "mid",
     effort: "medium",
-    skills: ["qa-fix-protocol"],
   },
   feature: {
     model_tier: "mid",
     effort: "medium",
-    skills: ["ui-ux-pro-max"],
   },
   rfc: {
     model_tier: "top",
     effort: "high",
-    skills: [],
   },
   architecture: {
     model_tier: "top",
     effort: "high",
-    skills: [],
   },
   mechanical: {
     model_tier: "cheap",
     effort: "low",
-    skills: [],
   },
 };
 
@@ -177,30 +178,88 @@ function findByModelName(
   return null;
 }
 
+function catalogModelForTier(
+  tier: ModelTier,
+  catalog: readonly ModelInfo[] = DEFAULT_MODEL_CATALOG,
+): string | null {
+  return catalog.find((model) => model.tier === tier)?.id ?? null;
+}
+
+/**
+ * Factory seed of the explicit policy table, distilled from DEFAULT_CARDAPIO × catalog.
+ * CLI is null until the user picks an executor; model is the catalog id for that tier.
+ */
+export const FACTORY_CARDAPIO_POLICY: readonly CardapioPolicyEntry[] =
+  CARDAPIO_TASK_TYPES.map((type) => {
+    const entry = DEFAULT_CARDAPIO[type];
+    return {
+      type,
+      cli: null,
+      model: catalogModelForTier(entry.model_tier),
+      effort: entry.effort,
+    };
+  });
+
+export function lookupCardapioPolicy(
+  policy: readonly CardapioPolicyEntry[] | null | undefined,
+  type: string,
+): CardapioPolicyEntry {
+  const stored = policy?.find((row) => row.type === type);
+  if (stored) {
+    return { ...stored };
+  }
+  const factory = FACTORY_CARDAPIO_POLICY.find((row) => row.type === type);
+  if (factory) {
+    return { ...factory };
+  }
+  const fallback = DEFAULT_CARDAPIO[type as CardapioTaskType] ?? DEFAULT_CARDAPIO.feature;
+  return {
+    type,
+    cli: null,
+    model: catalogModelForTier(fallback.model_tier),
+    effort: fallback.effort,
+  };
+}
+
+function matchPolicyExecutor(
+  executors: readonly ConfiguredExecutor[],
+  entry: CardapioPolicyEntry,
+): MatchedExecutor | null {
+  if (!entry.model) return null;
+  if (entry.cli) {
+    const needleCli = normalize(entry.cli);
+    for (const executor of executors) {
+      if (normalize(executor.cli) !== needleCli && normalize(executor.id) !== needleCli) {
+        continue;
+      }
+      const model = executor.models.find((name) => normalize(name) === normalize(entry.model!));
+      if (model) {
+        return { id: executor.id, cli: executor.cli, model };
+      }
+    }
+  }
+  return findByModelName(executors, entry.model);
+}
+
 export function recommendHarness(
   input: RecommendInput,
 ): Result<RecommendResult> {
-  const cardapio = input.cardapio ?? DEFAULT_CARDAPIO;
   const catalog = input.catalog ?? DEFAULT_MODEL_CATALOG;
-  const entry = cardapio[input.type];
-  if (!entry) {
-    return err(
-      "INVALID_ARGUMENT",
-      `Tipo de task desconhecido para o cardápio: ${String(input.type)}`,
-    );
-  }
 
   if (input.explicit) {
     const matched = findByModelName(input.executors, input.explicit.model);
     const available = matched !== null;
+    const tier =
+      resolveModelTier(input.explicit.model, catalog) ??
+      DEFAULT_CARDAPIO[input.type]?.model_tier ??
+      "mid";
     return ok({
       harness: {
+        cli: input.explicit.cli ?? matched?.cli ?? null,
         model: input.explicit.model,
         effort: input.explicit.effort,
-        skills: [...input.explicit.skills],
-        ...(input.explicit.agent ? { agent: input.explicit.agent } : {}),
       },
-      model_tier: resolveModelTier(input.explicit.model, catalog) ?? entry.model_tier,
+      model_tier: tier,
       available,
       source: "explicit",
       matched_executor: matched,
@@ -212,12 +271,46 @@ export function recommendHarness(
     });
   }
 
+  if (input.policy) {
+    const entry = lookupCardapioPolicy(input.policy, input.type);
+    const matched = matchPolicyExecutor(input.executors, entry);
+    const tier =
+      (entry.model ? resolveModelTier(entry.model, catalog) : null) ??
+      DEFAULT_CARDAPIO[input.type]?.model_tier ??
+      "mid";
+    return ok({
+      harness: {
+        cli: entry.cli,
+        model: entry.model,
+        effort: entry.effort,
+      },
+      model_tier: tier,
+      available: Boolean(entry.model) && matched !== null,
+      source: "cardapio",
+      matched_executor: matched,
+      ...(entry.model && !matched
+        ? {
+            divergence: `Modelo da política '${entry.model}' não está nos executores configurados.`,
+          }
+        : {}),
+    });
+  }
+
+  const cardapio = input.cardapio ?? DEFAULT_CARDAPIO;
+  const entry = cardapio[input.type];
+  if (!entry) {
+    return err(
+      "INVALID_ARGUMENT",
+      `Tipo de task desconhecido para o cardápio: ${String(input.type)}`,
+    );
+  }
+
   const matched = findByTier(input.executors, entry.model_tier, catalog);
   return ok({
     harness: {
+      cli: matched?.cli ?? null,
       model: matched?.model ?? null,
       effort: entry.effort,
-      skills: [...entry.skills],
     },
     model_tier: entry.model_tier,
     available: matched !== null,

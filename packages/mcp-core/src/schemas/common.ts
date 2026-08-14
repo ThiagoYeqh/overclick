@@ -81,10 +81,9 @@ export const DEFAULT_REVIEWER = {
 } as const;
 
 export const HarnessSchema = z.object({
+  cli: z.string().min(1).optional(),
   model: z.string().min(1),
   effort: EffortSchema,
-  skills: z.array(z.string().min(1)).default([]),
-  agent: z.string().min(1).optional(),
 });
 
 export const UsageSchema = z.object({

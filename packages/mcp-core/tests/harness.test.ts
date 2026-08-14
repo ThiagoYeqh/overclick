@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  CARDAPIO_TASK_TYPES,
   DEFAULT_CARDAPIO,
+  FACTORY_CARDAPIO_POLICY,
+  lookupCardapioPolicy,
   recommendHarness,
   type ConfiguredExecutor,
 } from "../src/index.js";
@@ -19,11 +22,10 @@ const mixedExecutors: ConfiguredExecutor[] = [
 ];
 
 describe("default cardápio matrix", () => {
-  it("seeds bug → mid model · medium + fix skill", () => {
+  it("seeds bug → mid model · medium", () => {
     expect(DEFAULT_CARDAPIO.bug).toEqual({
       model_tier: "mid",
       effort: "medium",
-      skills: ["qa-fix-protocol"],
     });
   });
 
@@ -42,7 +44,61 @@ describe("default cardápio matrix", () => {
     expect(DEFAULT_CARDAPIO.mechanical).toEqual({
       model_tier: "cheap",
       effort: "low",
-      skills: [],
+    });
+  });
+});
+
+describe("factory cardápio policy (explicit table)", () => {
+  it("seeds one row per activity type with CLI · model · effort and no skills", () => {
+    expect(FACTORY_CARDAPIO_POLICY.map((row) => row.type)).toEqual([
+      ...CARDAPIO_TASK_TYPES,
+    ]);
+    expect(FACTORY_CARDAPIO_POLICY.find((row) => row.type === "bug")).toEqual({
+      type: "bug",
+      cli: null,
+      model: "sonnet-5",
+      effort: "medium",
+    });
+    expect(FACTORY_CARDAPIO_POLICY[0]).not.toHaveProperty("skills");
+    expect(FACTORY_CARDAPIO_POLICY.find((row) => row.type === "rfc")).toMatchObject({
+      model: "opus-4-8",
+      effort: "high",
+      cli: null,
+    });
+    expect(FACTORY_CARDAPIO_POLICY.find((row) => row.type === "mechanical")).toMatchObject({
+      model: "haiku-4",
+      effort: "low",
+    });
+  });
+
+  it("looks up a stored row and falls back to factory when the type is missing", () => {
+    const edited = lookupCardapioPolicy(
+      [
+        {
+          type: "bug",
+          cli: "codex",
+          model: "gpt-5",
+          effort: "high",
+        },
+      ],
+      "bug",
+    );
+    expect(edited).toEqual({
+      type: "bug",
+      cli: "codex",
+      model: "gpt-5",
+      effort: "high",
+    });
+
+    const fallback = lookupCardapioPolicy(
+      [{ type: "bug", cli: null, model: "gpt-4.1", effort: "low" }],
+      "mechanical",
+    );
+    expect(fallback).toEqual({
+      type: "mechanical",
+      cli: null,
+      model: "haiku-4",
+      effort: "low",
     });
   });
 });
@@ -59,7 +115,7 @@ describe("harness recommendation (cardápio × executors)", () => {
     expect(result.value.available).toBe(true);
     expect(result.value.harness.model).toBe("sonnet-5");
     expect(result.value.harness.effort).toBe("medium");
-    expect(result.value.harness.skills).toEqual(["qa-fix-protocol"]);
+    expect(result.value.harness).not.toHaveProperty("skills");
     expect(result.value.model_tier).toBe("mid");
     expect(result.value.matched_executor).toEqual({
       id: "cli-overclock",
@@ -123,8 +179,7 @@ describe("harness recommendation (cardápio × executors)", () => {
       explicit: {
         model: "opus-4-8",
         effort: "high",
-        skills: ["systematic-debugging"],
-        agent: "qa-swarm-worker",
+        cli: "overclock",
       },
     });
     expect(result.ok).toBe(true);
@@ -140,7 +195,7 @@ describe("harness recommendation (cardápio × executors)", () => {
     const result = recommendHarness({
       type: "bug",
       executors: mixedExecutors,
-      explicit: { model: "mystery-model", effort: "medium", skills: [] },
+      explicit: { model: "mystery-model", effort: "medium" },
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -155,7 +210,7 @@ describe("harness recommendation (cardápio × executors)", () => {
       executors: mixedExecutors,
       cardapio: {
         ...DEFAULT_CARDAPIO,
-        bug: { model_tier: "top", effort: "high", skills: ["qa-fix-protocol"] },
+        bug: { model_tier: "top", effort: "high" },
       },
     });
     expect(result.ok).toBe(true);
@@ -173,5 +228,57 @@ describe("harness recommendation (cardápio × executors)", () => {
     if (!result.ok) return;
     expect(result.value.available).toBe(true);
     expect(result.value.harness.model).toBe("sonnet");
+  });
+});
+
+describe("harness recommendation as stored-policy lookup", () => {
+  it("returns the stored policy row, not a tier heuristic", () => {
+    const result = recommendHarness({
+      type: "bug",
+      executors: mixedExecutors,
+      policy: [
+        {
+          type: "bug",
+          cli: "codex",
+          model: "gpt-5",
+          effort: "high",
+        },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.source).toBe("cardapio");
+    expect(result.value.harness).toEqual({
+      cli: "codex",
+      model: "gpt-5",
+      effort: "high",
+    });
+    expect(result.value.harness).not.toHaveProperty("skills");
+    expect(result.value.matched_executor).toEqual({
+      id: "cli-codex",
+      cli: "codex",
+      model: "gpt-5",
+    });
+  });
+
+  it("falls back to factory defaults when the type is missing from the stored policy", () => {
+    const result = recommendHarness({
+      type: "mechanical",
+      executors: mixedExecutors,
+      policy: [
+        {
+          type: "bug",
+          cli: "codex",
+          model: "gpt-5",
+          effort: "low",
+        },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.harness.model).toBe("haiku-4");
+    expect(result.value.harness.effort).toBe("low");
+    expect(result.value.harness.cli).toBeNull();
+    expect(result.value.harness).not.toHaveProperty("skills");
   });
 });

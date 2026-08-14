@@ -7,7 +7,7 @@ import {
 } from "../src/index.js";
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 10 tools", () => {
+  it("exports input and output schemas for all 11 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "mission_list",
       "mission_get",
@@ -19,6 +19,7 @@ describe("MCP tool contracts", () => {
       "handoff_submit",
       "branch_register",
       "harness_recommend",
+      "harness_list",
     ]);
     for (const name of MCP_TOOL_NAMES) {
       expect(toolContracts[name].input).toBeDefined();
@@ -95,7 +96,6 @@ describe("task_create canonical flow", () => {
       harness: {
         model: "opus-4-8",
         effort: "high",
-        skills: [],
       },
       subtasks: [
         {
@@ -107,7 +107,7 @@ describe("task_create canonical flow", () => {
           title: "Escrever o RFC",
           scope: "documento markdown",
           boundary: "sem código de produto",
-          harness: { model: "opus-4-8", effort: "high", skills: [] },
+          harness: { model: "opus-4-8", effort: "high" },
         },
       ],
       origem,

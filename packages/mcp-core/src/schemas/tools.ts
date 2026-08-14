@@ -186,10 +186,9 @@ export const HarnessRecommendInputSchema = z.object({
 
 export const HarnessRecommendOutputSchema = z.object({
   harness: z.object({
+    cli: z.string().min(1).nullable(),
     model: z.string().min(1).nullable(),
     effort: EffortSchema,
-    skills: z.array(z.string()),
-    agent: z.string().optional(),
   }),
   model_tier: z.enum(["top", "mid", "cheap"]),
   available: z.boolean(),
@@ -204,6 +203,27 @@ export const HarnessRecommendOutputSchema = z.object({
   divergence: z.string().optional(),
 });
 
+export const CardapioPolicyEntrySchema = z.object({
+  type: z.string().min(1),
+  cli: z.string().min(1).nullable(),
+  model: z.string().min(1).nullable(),
+  effort: EffortSchema,
+});
+
+export const HarnessListInputSchema = z.object({});
+
+export const HarnessListOutputSchema = z.object({
+  policy: z.array(CardapioPolicyEntrySchema),
+  executors: z.array(
+    z.object({
+      id: z.string().min(1),
+      label: z.string().min(1),
+      enabled: z.boolean(),
+      models: z.array(z.string()),
+    }),
+  ),
+});
+
 export const MCP_TOOL_NAMES = [
   "mission_list",
   "mission_get",
@@ -215,6 +235,7 @@ export const MCP_TOOL_NAMES = [
   "handoff_submit",
   "branch_register",
   "harness_recommend",
+  "harness_list",
 ] as const;
 
 export type McpToolName = (typeof MCP_TOOL_NAMES)[number];
@@ -260,6 +281,10 @@ export const toolContracts = {
     input: HarnessRecommendInputSchema,
     output: HarnessRecommendOutputSchema,
   },
+  harness_list: {
+    input: HarnessListInputSchema,
+    output: HarnessListOutputSchema,
+  },
 } as const;
 
 export type TaskCreateInput = z.infer<typeof TaskCreateInputSchema>;
@@ -275,3 +300,6 @@ export type TaskListInput = z.infer<typeof TaskListInputSchema>;
 export type TaskGetInput = z.infer<typeof TaskGetInputSchema>;
 export type BranchRegisterInput = z.infer<typeof BranchRegisterInputSchema>;
 export type HarnessRecommendInput = z.infer<typeof HarnessRecommendInputSchema>;
+export type HarnessListInput = z.infer<typeof HarnessListInputSchema>;
+export type HarnessListOutput = z.infer<typeof HarnessListOutputSchema>;
+export type CardapioPolicyEntryContract = z.infer<typeof CardapioPolicyEntrySchema>;
