@@ -1,0 +1,196 @@
+import { describe, expect, it } from "vitest";
+import {
+  HandoffSubmitInputSchema,
+  MCP_TOOL_NAMES,
+  TaskCreateInputSchema,
+  toolContracts,
+} from "../src/index.js";
+
+describe("MCP tool contracts", () => {
+  it("exports input and output schemas for all 10 tools", () => {
+    expect(MCP_TOOL_NAMES).toEqual([
+      "mission_list",
+      "mission_get",
+      "task_list",
+      "task_get",
+      "task_create",
+      "task_claim",
+      "task_update",
+      "handoff_submit",
+      "branch_register",
+      "harness_recommend",
+    ]);
+    for (const name of MCP_TOOL_NAMES) {
+      expect(toolContracts[name].input).toBeDefined();
+      expect(toolContracts[name].output).toBeDefined();
+    }
+  });
+});
+
+describe("task_create canonical flow", () => {
+  const origem = {
+    pane_id: "pane_1",
+    session_id: "sess_torre",
+    agent: "oc-chef",
+    cli: "overclock",
+    reportado_por: "Laschuk · ao vivo",
+  };
+
+  it("accepts a solo card with mission declared by the caller", () => {
+    const parsed = TaskCreateInputSchema.parse({
+      mission: "miss_north",
+      project_id: "proj_1",
+      title: "Corrige login",
+      type: "bug",
+      o_que: "O login volta a autenticar.",
+      por_que: "Ninguém entra.",
+      como_confirmo: [
+        { step: "abre /login", expected: "entra na home" },
+      ],
+      mode: "solo",
+      origem,
+    });
+    expect(parsed.mission).toBe("miss_north");
+    expect(parsed.mode).toBe("solo");
+    expect("workspace_id" in parsed).toBe(false);
+  });
+
+  it("allows a card without mission (born loose)", () => {
+    const parsed = TaskCreateInputSchema.parse({
+      project_id: "proj_1",
+      title: "Solto",
+      type: "feature",
+      o_que: "Nasce sem missão.",
+      por_que: "O board não adivinha.",
+      como_confirmo: [{ step: "abre o card", expected: "missão vazia" }],
+      origem,
+    });
+    expect(parsed.mission).toBeUndefined();
+  });
+
+  it("requires subtask payloads in team mode", () => {
+    const result = TaskCreateInputSchema.safeParse({
+      project_id: "proj_1",
+      title: "Time",
+      type: "rfc",
+      o_que: "Quebrar o RFC.",
+      por_que: "Grande demais.",
+      como_confirmo: [{ step: "lê o plano", expected: "há fatias" }],
+      mode: "team",
+      origem,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts team mode with scoped subtasks and optional per-child harness", () => {
+    const parsed = TaskCreateInputSchema.parse({
+      project_id: "proj_1",
+      title: "RFC de auth",
+      type: "rfc",
+      o_que: "Desenhar auth.",
+      por_que: "Precisamos de um contrato.",
+      como_confirmo: [{ step: "lê o RFC", expected: "aprovável" }],
+      mode: "team",
+      devolve_para: { kind: "agent", session_id: "sess_torre" },
+      harness: {
+        model: "opus-4-8",
+        effort: "high",
+        skills: [],
+      },
+      subtasks: [
+        {
+          title: "Pesquisar opções",
+          scope: "levantar 3 abordagens",
+          boundary: "não implementar",
+        },
+        {
+          title: "Escrever o RFC",
+          scope: "documento markdown",
+          boundary: "sem código de produto",
+          harness: { model: "opus-4-8", effort: "high", skills: [] },
+        },
+      ],
+      origem,
+    });
+    expect(parsed.subtasks).toHaveLength(2);
+    expect(parsed.devolve_para).toEqual({
+      kind: "agent",
+      session_id: "sess_torre",
+    });
+  });
+
+  it("rejects subtasks in solo mode", () => {
+    const result = TaskCreateInputSchema.safeParse({
+      project_id: "proj_1",
+      title: "Solo",
+      type: "bug",
+      o_que: "Um card.",
+      por_que: "Só um.",
+      como_confirmo: [{ step: "existe", expected: "um card" }],
+      mode: "solo",
+      subtasks: [
+        { title: "não", scope: "x", boundary: "y" },
+      ],
+      origem,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("requires origem identity from the caller", () => {
+    const result = TaskCreateInputSchema.safeParse({
+      project_id: "proj_1",
+      title: "Sem origem",
+      type: "bug",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem: {},
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("handoff_submit usage and artifacts", () => {
+  it("accepts a handoff without usage (telemetry incomplete)", () => {
+    const parsed = HandoffSubmitInputSchema.parse({
+      task_id: "OC-1",
+      summary: "RFC pronto para ler.",
+      evidence: [{ text: "documento anexado" }],
+      artifacts: [
+        {
+          kind: "rfc_markdown",
+          name: "docs/rfcs/OC-1.md",
+          markdown: "# RFC\n\nProposta.",
+        },
+      ],
+    });
+    expect(parsed.usage).toBeUndefined();
+    expect(parsed.artifacts?.[0]?.kind).toBe("rfc_markdown");
+  });
+
+  it("accepts the full usage block (tokens in/out/cache, cost, duration, turns)", () => {
+    const parsed = HandoffSubmitInputSchema.parse({
+      task_id: "OC-1",
+      summary: "corrigido",
+      evidence: [{ url: "https://example.com/pr/12" }],
+      branch: "oc-1-corrige-login",
+      pull_request_url: "https://example.com/pr/12",
+      usage: {
+        tokens_in: 12000,
+        tokens_out: 3400,
+        tokens_cache: 8000,
+        cost_usd: 0.8,
+        duration_ms: 34 * 60 * 1000,
+        turns: 11,
+      },
+    });
+    expect(parsed.usage).toEqual({
+      tokens_in: 12000,
+      tokens_out: 3400,
+      tokens_cache: 8000,
+      cost_usd: 0.8,
+      duration_ms: 34 * 60 * 1000,
+      turns: 11,
+    });
+  });
+});
