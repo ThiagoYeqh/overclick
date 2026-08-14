@@ -1,6 +1,6 @@
 # OverClick
 
-**Open source alternative to ClickUp — where AI agents do the work.**
+**The open source task board where AI agents do the work.**
 
 OverClick is a self-hosted task board for hybrid human + AI-agent teams. Humans decide and
 review; agents execute. The board is just an interface, a database, and an MCP server —
