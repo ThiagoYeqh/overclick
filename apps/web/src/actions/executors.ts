@@ -11,15 +11,15 @@ import {
   type ExecutorSelection,
 } from "../lib/executors";
 
-/** Persiste a seleção de executores na config do workspace (jsonb). */
+/** Persists the executor selection into the workspace config (jsonb). */
 export async function saveExecutorsAction(
   sel: ExecutorSelection,
 ): Promise<ActionResult> {
   const session = await getSession();
-  if (!session) return { ok: false, error: "Sessão expirada. Entre de novo." };
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
 
   const ws = await db().query.workspace.findFirst();
-  if (!ws) return { ok: false, error: "Workspace não encontrado." };
+  if (!ws) return { ok: false, error: "Workspace not found." };
 
   const config: ExecutorConfig[] = EXECUTOR_CATALOG.map((d) => ({
     id: d.id,
@@ -29,7 +29,7 @@ export async function saveExecutorsAction(
   }));
   config.push({
     id: CUSTOM_EXECUTOR_ID,
-    label: sel.customName.trim() || "Personalizada",
+    label: sel.customName.trim() || "Custom",
     enabled: sel.customEnabled,
     models: [],
   });

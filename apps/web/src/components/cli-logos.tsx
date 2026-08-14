@@ -1,4 +1,4 @@
-/** Logos SVG inline das CLIs (offline, fiéis ao mockup aprovado). Server-safe. */
+/** Inline SVG logos for the CLIs (offline, faithful to the approved mockup). Server-safe. */
 export function CliLogo({ id }: { id: string }) {
   switch (id) {
     case "claude-code":

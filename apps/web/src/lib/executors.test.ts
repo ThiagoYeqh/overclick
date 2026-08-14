@@ -6,8 +6,8 @@ import {
   selectionFromConfig,
 } from "./executors";
 
-describe("catálogo de executores", () => {
-  it("traz as 10 CLIs do onboarding, sem ids repetidos", () => {
+describe("executor catalog", () => {
+  it("ships the 10 onboarding CLIs, no repeated ids", () => {
     expect(EXECUTOR_CATALOG).toHaveLength(10);
     expect(new Set(EXECUTOR_CATALOG.map((d) => d.id)).size).toBe(10);
     expect(EXECUTOR_CATALOG.every((d) => d.models.length > 0)).toBe(true);
@@ -15,7 +15,7 @@ describe("catálogo de executores", () => {
 });
 
 describe("selectionFromConfig", () => {
-  it("ignora executores desligados e os que não estão no catálogo", () => {
+  it("ignores disabled executors and ones missing from the catalog", () => {
     const sel = selectionFromConfig([
       { id: "claude-code", label: "Claude Code", enabled: true, models: ["fable-5"] },
       { id: "codex", label: "Codex", enabled: false, models: ["gpt-5.6-sol"] },
@@ -24,30 +24,32 @@ describe("selectionFromConfig", () => {
     expect(sel.enabled).toEqual({ "claude-code": ["fable-5"] });
   });
 
-  it("cai no primeiro modelo do catálogo quando o config veio sem modelo", () => {
+  it("falls back to the catalog's first model when the config came without one", () => {
     const sel = selectionFromConfig([
       { id: "grok", label: "Grok", enabled: true, models: [] },
     ]);
     expect(sel.enabled.grok).toEqual(["grok-4"]);
   });
 
-  it("reconhece a CLI personalizada e guarda o nome dado pelo usuário", () => {
+  it("recognizes the custom CLI and keeps the user-given name", () => {
     const sel = selectionFromConfig([
-      { id: CUSTOM_EXECUTOR_ID, label: "Nosso agente interno", enabled: true, models: [] },
+      { id: CUSTOM_EXECUTOR_ID, label: "Our internal agent", enabled: true, models: [] },
     ]);
     expect(sel.customEnabled).toBe(true);
-    expect(sel.customName).toBe("Nosso agente interno");
+    expect(sel.customName).toBe("Our internal agent");
   });
 
-  it("não trata o rótulo de fábrica do MCP genérico como nome escolhido", () => {
-    const sel = selectionFromConfig([
-      { id: CUSTOM_EXECUTOR_ID, label: "Outro (MCP genérico)", enabled: true, models: [] },
-    ]);
-    expect(sel.customEnabled).toBe(true);
-    expect(sel.customName).toBe("");
+  it("does not treat the generic MCP factory label as a chosen name", () => {
+    for (const label of ["Other (generic MCP)", "Outro (MCP genérico)"]) {
+      const sel = selectionFromConfig([
+        { id: CUSTOM_EXECUTOR_ID, label, enabled: true, models: [] },
+      ]);
+      expect(sel.customEnabled).toBe(true);
+      expect(sel.customName).toBe("");
+    }
   });
 
-  it("não vaza a referência do array de modelos do config", () => {
+  it("does not leak the config's models array reference", () => {
     const models = ["fable-5"];
     const sel = selectionFromConfig([
       { id: "claude-code", label: "Claude Code", enabled: true, models },
@@ -58,8 +60,8 @@ describe("selectionFromConfig", () => {
 });
 
 describe("cardapioLabel", () => {
-  it("traduz os tipos conhecidos e devolve o próprio tipo quando não conhece", () => {
+  it("labels the known types and returns the type itself when unknown", () => {
     expect(cardapioLabel("bug").label).toBe("Bug");
-    expect(cardapioLabel("desconhecido")).toEqual({ label: "desconhecido", hint: "" });
+    expect(cardapioLabel("unknown")).toEqual({ label: "unknown", hint: "" });
   });
 });

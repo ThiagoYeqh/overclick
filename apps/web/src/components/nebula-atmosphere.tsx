@@ -3,12 +3,12 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Atmosfera Nebula — canvas 2D leve (sem dependências), fiel ao preset
- * "fundo" do nebula-atmosfera.js: faixa de poeira diagonal deslocada para
- * baixo, estrelas com profundidade/twinkle/extinção, exposição fechada,
- * parallax com lerp 0.08 e repulsão de mouse. Pausa com a aba oculta e
- * congela em prefers-reduced-motion. As camadas CSS (.atmo-*) ficam no
- * nebula.css e servem de reforço/fallback.
+ * Nebula atmosphere: lightweight 2D canvas (no dependencies), faithful to
+ * the "background" preset of nebula-atmosfera.js: diagonal dust band shifted
+ * down, stars with depth/twinkle/extinction, closed exposure, parallax with
+ * lerp 0.08 and mouse repulsion. Pauses when the tab is hidden and freezes
+ * under prefers-reduced-motion. The CSS layers (.atmo-*) live in nebula.css
+ * as reinforcement/fallback.
  */
 export function NebulaAtmosphere() {
   const canvasRef = useRef<HTMLCanvasElement>(null);

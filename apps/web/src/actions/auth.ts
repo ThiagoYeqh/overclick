@@ -28,18 +28,18 @@ export async function signupAction(
   const confirm = String(formData.get("confirm") ?? "");
 
   if (!isValidEmail(email)) {
-    return { error: "Use um e-mail válido. Ele só identifica a conta local." };
+    return { error: "Use a valid email. It only identifies the local account." };
   }
   if (!isValidPassword(password)) {
-    return { error: "A senha precisa ter pelo menos 8 caracteres." };
+    return { error: "The password needs at least 8 characters." };
   }
   if (password !== confirm) {
-    return { error: "As senhas não batem." };
+    return { error: "The passwords don't match." };
   }
 
   const existing = await countUsers();
   if (!canCreateFirstAdmin(existing)) {
-    return { error: "Esta instância já tem um admin. Entre com a conta existente." };
+    return { error: "This instance already has an admin. Sign in with the existing account." };
   }
 
   const passwordHash = await hashPassword(password);
@@ -49,7 +49,7 @@ export async function signupAction(
     .returning({ id: user.id, email: user.email });
 
   if (!created) {
-    return { error: "Não deu para criar a conta." };
+    return { error: "Could not create the account." };
   }
 
   await ensureWorkspace();
@@ -65,7 +65,7 @@ export async function loginAction(
   const password = String(formData.get("password") ?? "");
 
   if (!isValidEmail(email) || !password) {
-    return { error: "E-mail ou senha inválidos." };
+    return { error: "Invalid email or password." };
   }
 
   const [found] = await db()
@@ -75,7 +75,7 @@ export async function loginAction(
     .limit(1);
 
   if (!found || !(await verifyPassword(password, found.passwordHash))) {
-    return { error: "E-mail ou senha inválidos." };
+    return { error: "Invalid email or password." };
   }
 
   await setSession({ userId: found.id, email: found.email });

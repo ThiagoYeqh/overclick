@@ -7,13 +7,13 @@ import { EXECUTOR_CATALOG, type ExecutorSelection } from "../lib/executors";
 export type { ExecutorSelection };
 
 /**
- * Grid de executores (mockup onboarding-v5 / settings): 10 CLIs com logos,
- * chips de modelos expansíveis ao marcar, e o card "+ Personalizar"
- * tracejado (MCP genérico). Controlado pelo pai via value/onChange.
+ * Executors grid (onboarding-v5 / settings mockup): 10 CLIs with logos,
+ * model chips that expand on check, and the dashed "+ Customize" card
+ * (generic MCP). Controlled by the parent via value/onChange.
  *
- * onChange é um setState do React: as alterações são sempre funcionais, senão
- * dois cliques no mesmo tick (marcar a CLI e um modelo, por exemplo) leem o
- * mesmo `value` e o segundo apaga o primeiro.
+ * onChange is a React setState: updates are always functional, otherwise
+ * two clicks in the same tick (checking the CLI and a model, for example)
+ * read the same `value` and the second wipes the first.
  */
 export function ExecutorsGrid({
   value,
@@ -86,13 +86,13 @@ export function ExecutorsGrid({
       >
         <div className="row">
           <div className="logo">+</div>
-          <div className="name">Personalizar</div>
+          <div className="name">Customize</div>
           <div className="check">✓</div>
         </div>
         <div className="models">
           <input
             className="input mono"
-            placeholder="nome da CLI / agente"
+            placeholder="CLI / agent name"
             value={value.customName}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => {
@@ -101,8 +101,8 @@ export function ExecutorsGrid({
             }}
           />
           <span className="note">
-            conecta via MCP genérico — pode não reportar custo e tempo (“telemetria
-            incompleta”)
+            connects via generic MCP and may not report cost and time (&ldquo;telemetry
+            incomplete&rdquo;)
           </span>
         </div>
       </div>
