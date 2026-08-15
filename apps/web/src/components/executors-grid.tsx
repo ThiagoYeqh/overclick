@@ -1,8 +1,13 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { CliLogo } from "./cli-logos";
-import { EXECUTOR_CATALOG, type ExecutorSelection } from "../lib/executors";
+import {
+  EXECUTOR_CATALOG,
+  addModelToSelection,
+  removeModelFromSelection,
+  type ExecutorSelection,
+} from "../lib/executors";
 
 export type { ExecutorSelection };
 
@@ -22,6 +27,13 @@ export function ExecutorsGrid({
   value: ExecutorSelection;
   onChange: Dispatch<SetStateAction<ExecutorSelection>>;
 }) {
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const commitDraft = (id: string) => {
+    const draft = drafts[id] ?? "";
+    if (!draft.trim()) return;
+    onChange((prev) => addModelToSelection(prev, id, draft));
+    setDrafts((prev) => ({ ...prev, [id]: "" }));
+  };
   const toggleExec = (id: string, models: readonly string[]) => {
     onChange((prev) => {
       const enabled = { ...prev.enabled };
@@ -48,11 +60,12 @@ export function ExecutorsGrid({
       {EXECUTOR_CATALOG.map((def) => {
         const on = def.id in value.enabled;
         const selected = value.enabled[def.id] ?? [];
+        const models = value.models[def.id] ?? def.models;
         return (
           <div
             key={def.id}
             className={`exec${on ? " on" : ""}`}
-            onClick={() => toggleExec(def.id, def.models)}
+            onClick={() => toggleExec(def.id, models)}
           >
             <div className="row">
               <div className="logo">
@@ -62,7 +75,7 @@ export function ExecutorsGrid({
               <div className="check">✓</div>
             </div>
             <div className="models">
-              {def.models.map((m) => (
+              {models.map((m) => (
                 <span
                   key={m}
                   className={`mchip${selected.includes(m) ? " on" : ""}`}
@@ -72,8 +85,35 @@ export function ExecutorsGrid({
                   }}
                 >
                   {m}
+                  <span
+                    className="x"
+                    title="Remove model"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChange((prev) => removeModelFromSelection(prev, def.id, m));
+                    }}
+                  >
+                    ×
+                  </span>
                 </span>
               ))}
+              <input
+                className="mchip-add"
+                placeholder="+ model"
+                value={drafts[def.id] ?? ""}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  const draft = e.target.value;
+                  setDrafts((prev) => ({ ...prev, [def.id]: draft }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitDraft(def.id);
+                  }
+                }}
+                onBlur={() => commitDraft(def.id)}
+              />
             </div>
           </div>
         );

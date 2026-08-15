@@ -98,7 +98,7 @@ export function SettingsClient({
     if (cli === CUSTOM_EXECUTOR_ID) return ["generic-mcp"];
     return sel.enabled[cli]?.length
       ? sel.enabled[cli]
-      : (EXECUTOR_CATALOG.find((d) => d.id === cli)?.models ?? []);
+      : (sel.models[cli] ?? EXECUTOR_CATALOG.find((d) => d.id === cli)?.models ?? []);
   };
   const setRow = (i: number, patch: Partial<CardapioRow>) => {
     setRows(rows.map((r, j) => {

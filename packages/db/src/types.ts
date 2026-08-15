@@ -19,6 +19,12 @@ export type ExecutorConfig = {
   label: string;
   enabled: boolean;
   models: string[];
+  /**
+   * Editable model list for this CLI. The built-in catalog is only the initial
+   * suggestion; users add and remove models as free text. Absent on configs
+   * saved before this field existed.
+   */
+  catalog?: string[];
 };
 
 export type Cardapio = {

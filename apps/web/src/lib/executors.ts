@@ -41,6 +41,12 @@ export const CUSTOM_EXECUTOR_ID = "generic-mcp";
 export type ExecutorSelection = {
   /** enabled ids → checked models */
   enabled: Record<string, string[]>;
+  /**
+   * Editable model list per CLI id. Seeded from the built-in catalog, which is
+   * only the initial suggestion; the user adds and removes entries as free text
+   * and the list persists in the workspace config.
+   */
+  models: Record<string, string[]>;
   customEnabled: boolean;
   customName: string;
 };
@@ -57,20 +63,32 @@ export function selectionFromConfig(
     label?: string;
     enabled: boolean;
     models: string[];
+    catalog?: string[];
   }[],
 ): ExecutorSelection {
   const enabled: Record<string, string[]> = {};
+  const models: Record<string, string[]> = {};
+  for (const def of EXECUTOR_CATALOG) {
+    models[def.id] = [...def.models];
+  }
   let customEnabled = false;
   let customName = "";
   for (const row of config) {
-    if (!row.enabled) continue;
     if (row.id === CUSTOM_EXECUTOR_ID) {
-      customEnabled = true;
+      if (row.enabled) customEnabled = true;
       continue;
     }
-    const def = EXECUTOR_CATALOG.find((d) => d.id === row.id);
-    if (def) {
-      enabled[row.id] = row.models.length ? [...row.models] : [def.models[0] ?? "auto"];
+    if (!EXECUTOR_CATALOG.some((d) => d.id === row.id)) continue;
+    // A persisted catalog wins, even when it dropped built-in suggestions.
+    // Configs saved before the field existed keep the suggestion plus any
+    // checked models the user typed in elsewhere.
+    models[row.id] = row.catalog
+      ? [...row.catalog]
+      : [...new Set([...(models[row.id] ?? []), ...row.models])];
+    if (row.enabled) {
+      enabled[row.id] = row.models.length
+        ? [...row.models]
+        : [models[row.id]?.[0] ?? "auto"];
     }
   }
   // "Outro (MCP genérico)" is the pt-BR factory label kept for workspaces
@@ -78,7 +96,45 @@ export function selectionFromConfig(
   const FACTORY_CUSTOM_LABELS = ["Other (generic MCP)", "Outro (MCP genérico)"];
   const custom = config.find((r) => r.id === CUSTOM_EXECUTOR_ID);
   if (custom?.label && !FACTORY_CUSTOM_LABELS.includes(custom.label)) customName = custom.label;
-  return { enabled, customEnabled, customName };
+  return { enabled, models, customEnabled, customName };
+}
+
+/**
+ * Adds a free-text model to one CLI's editable list. Trims the input, ignores
+ * empties and duplicates, and checks the model when the CLI is already on.
+ */
+export function addModelToSelection(
+  sel: ExecutorSelection,
+  execId: string,
+  raw: string,
+): ExecutorSelection {
+  const model = raw.trim();
+  if (!model) return sel;
+  const list = sel.models[execId] ?? [];
+  const models = list.includes(model)
+    ? sel.models
+    : { ...sel.models, [execId]: [...list, model] };
+  const checked = sel.enabled[execId];
+  const enabled =
+    checked && !checked.includes(model)
+      ? { ...sel.enabled, [execId]: [...checked, model] }
+      : sel.enabled;
+  return { ...sel, models, enabled };
+}
+
+/** Removes a model from one CLI's editable list and unchecks it. */
+export function removeModelFromSelection(
+  sel: ExecutorSelection,
+  execId: string,
+  model: string,
+): ExecutorSelection {
+  const list = sel.models[execId] ?? [];
+  const models = { ...sel.models, [execId]: list.filter((m) => m !== model) };
+  const checked = sel.enabled[execId];
+  const enabled = checked
+    ? { ...sel.enabled, [execId]: checked.filter((m) => m !== model) }
+    : sel.enabled;
+  return { ...sel, models, enabled };
 }
 
 /** Display labels for the cardapio activity types (real mcp-core types). */

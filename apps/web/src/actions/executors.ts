@@ -21,12 +21,20 @@ export async function saveExecutorsAction(
   const ws = await db().query.workspace.findFirst();
   if (!ws) return { ok: false, error: "Workspace not found." };
 
-  const config: ExecutorConfig[] = EXECUTOR_CATALOG.map((d) => ({
-    id: d.id,
-    label: d.label,
-    enabled: d.id in sel.enabled,
-    models: sel.enabled[d.id] ?? [],
-  }));
+  const config: ExecutorConfig[] = EXECUTOR_CATALOG.map((d) => {
+    const catalog = [
+      ...new Set(
+        (sel.models?.[d.id] ?? d.models).map((m) => m.trim()).filter(Boolean),
+      ),
+    ];
+    return {
+      id: d.id,
+      label: d.label,
+      enabled: d.id in sel.enabled,
+      models: (sel.enabled[d.id] ?? []).filter((m) => catalog.includes(m)),
+      catalog,
+    };
+  });
   config.push({
     id: CUSTOM_EXECUTOR_ID,
     label: sel.customName.trim() || "Custom",
