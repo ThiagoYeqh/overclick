@@ -19,7 +19,8 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
     "Cria um card. Workspace vem do token. Missão declarada pelo caller. mode solo|team.",
   task_claim:
     "Pega o card (status → em execução), cria ExecutionAttempt e devolve o briefing.",
-  task_update: "Registra progresso, comentário ou marca revisado (revisor agente).",
+  task_update:
+    "Registra progresso, comentário, marca revisado ou reclassifica o harness do card.",
   task_deliver:
     "Entrega o resultado: resumo, evidências, artefatos, usage. Status → feito.",
   task_delete:

@@ -312,6 +312,77 @@ describe("MCP tool edge cases against a test db", () => {
     expect(handoffRows).toHaveLength(0);
   });
 
+  it("reclassifies the card harness via task_update, validated against executors", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Card para reclassificar",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const updated = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      harness: { cli: "claude-code", model: "haiku-4", effort: "low" },
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const out = TaskUpdateOutputSchema.parse(updated.value);
+    expect(out.task.harness).toEqual({
+      cli: "claude-code",
+      model: "haiku-4",
+      effort: "low",
+    });
+
+    const fetched = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(fetched.ok).toBe(true);
+    if (!fetched.ok) return;
+    const got = fetched.value as { task: { harness: unknown } };
+    expect(got.task.harness).toEqual({
+      cli: "claude-code",
+      model: "haiku-4",
+      effort: "low",
+    });
+  });
+
+  it("rejects a harness whose model is not on any configured executor", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Harness inválido",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const badModel = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      harness: { model: "gpt-9-ultra", effort: "high" },
+    });
+    expect(badModel.ok).toBe(false);
+    if (!badModel.ok) expect(badModel.error.code).toBe("INVALID_ARGUMENT");
+
+    const badCli = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      harness: { cli: "codex", model: "haiku-4", effort: "low" },
+    });
+    expect(badCli.ok).toBe(false);
+    if (!badCli.ok) expect(badCli.error.code).toBe("INVALID_ARGUMENT");
+  });
+
   it("returns NOT_FOUND when deleting a card that does not exist", async () => {
     world = await createTestWorld();
     const deleted = await invokeTool(world.db, ctx(), "task_delete", {

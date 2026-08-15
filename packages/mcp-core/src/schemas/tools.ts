@@ -141,13 +141,16 @@ export const TaskUpdateInputSchema = z
     comment: z.string().min(1).optional(),
     progress: z.string().min(1).optional(),
     revisado: z.boolean().optional(),
+    /** Reclassifies the card. Validated against the configured executors. */
+    harness: HarnessSchema.optional(),
   })
   .refine(
     (value) =>
       value.comment !== undefined ||
       value.progress !== undefined ||
-      value.revisado !== undefined,
-    { message: "informe comment, progress ou revisado" },
+      value.revisado !== undefined ||
+      value.harness !== undefined,
+    { message: "informe comment, progress, revisado ou harness" },
   );
 
 export const TaskUpdateOutputSchema = z.object({

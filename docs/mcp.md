@@ -25,7 +25,7 @@ The workspace is resolved from the token. Revoked or missing token → **HTTP 40
 | `task_get` | self-contained md briefing (contract + harness + mission + branch) |
 | `task_create` | creates the card (declared mission, `mode` solo\|team, origin) |
 | `task_claim` | status → `in_progress`; a second claim → `ALREADY_CLAIMED` |
-| `task_update` | progress, comment, or the `reviewed` mark |
+| `task_update` | progress, comment, the `reviewed` mark, or a new `harness` (validated against executors) |
 | `task_deliver` | result + usage; status → `done`; routed to the card's reviewer |
 | `task_delete` | hard delete: removes the card plus attempts, handoffs and subtasks (irreversible) |
 | `branch_register` | records the branch on the card |

@@ -553,6 +553,7 @@ async function taskUpdate(
     comment?: string;
     progress?: string;
     revisado?: boolean;
+    harness?: Harness;
   },
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
@@ -561,6 +562,20 @@ async function taskUpdate(
   }
 
   let nextRow = found.row;
+  if (input.harness) {
+    const resolved = await resolveHarnessAgainstExecutors(
+      db,
+      ctx.workspaceId,
+      input.harness,
+    );
+    if (!resolved.ok) return resolved;
+    const [updated] = await db
+      .update(task)
+      .set({ harness: harnessToDb(resolved.value) })
+      .where(eq(task.id, nextRow.id))
+      .returning();
+    if (updated) nextRow = updated;
+  }
   if (input.revisado === true) {
     const transition = applyTransition(
       {
@@ -594,6 +609,59 @@ async function taskUpdate(
       reopenComment: await latestReopenComment(db, nextRow),
     }),
   };
+}
+
+/**
+ * Resolves a caller-provided harness against the workspace's enabled
+ * executors: the model must exist on one of them, and when a CLI is named it
+ * must be that CLI. Returns the harness with the CLI filled from the match.
+ */
+async function resolveHarnessAgainstExecutors(
+  db: McpDatabase,
+  workspaceId: string,
+  input: Harness,
+): Promise<Result<{ cli: string | null; model: string; effort: Harness["effort"] }>> {
+  const [ws] = await db
+    .select()
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+  if (!ws) {
+    return err("NOT_FOUND", "Workspace do token não encontrado.");
+  }
+  const executors = executorsFromWorkspace(ws.executors);
+  const needleModel = input.model.trim().toLowerCase();
+  const needleCli = input.cli?.trim().toLowerCase();
+
+  const candidates = needleCli
+    ? executors.filter(
+        (item) =>
+          item.id.trim().toLowerCase() === needleCli ||
+          item.cli.trim().toLowerCase() === needleCli,
+      )
+    : executors;
+  if (needleCli && candidates.length === 0) {
+    return err(
+      "INVALID_ARGUMENT",
+      `CLI '${input.cli}' não está nos executores configurados.`,
+    );
+  }
+  const matched = candidates.find((item) =>
+    item.models.some((model) => model.trim().toLowerCase() === needleModel),
+  );
+  if (!matched) {
+    return err(
+      "INVALID_ARGUMENT",
+      needleCli
+        ? `Modelo '${input.model}' não está configurado no executor '${input.cli}'.`
+        : `Modelo '${input.model}' não está nos executores configurados.`,
+    );
+  }
+  return ok({
+    cli: input.cli ?? matched.cli,
+    model: input.model,
+    effort: input.effort,
+  });
 }
 
 async function taskDeliver(
