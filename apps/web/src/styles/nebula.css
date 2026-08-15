@@ -667,3 +667,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .d-textarea:focus { border-color: rgba(209,217,235,.35); }
 .nb .d-err { color: #e8a1a1; font-size: 12px; margin: 0 0 8px; }
+
+/* ---- update banner + updates tab (AGB-18) ---- */
+.nb .update-banner { margin: 0 0 18px; padding: 14px 18px; border: 1px solid var(--nebula-plan-divider); border-radius: 10px; }
+.nb .update-banner .ub-head { display: flex; align-items: center; gap: 14px; }
+.nb .update-banner .ub-head a { color: var(--nebula-mist-glow); font-size: 12px; }
+.nb .update-banner .ub-notes { margin: 10px 0 0; padding: 10px 12px; max-height: 140px; overflow: auto; font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-secondary); white-space: pre-wrap; border: 1px solid var(--nebula-plan-divider); border-radius: 8px; }
+.nb .update-banner .ub-cmd { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--nebula-text-secondary); }
+.nb .update-banner .ub-cmd code { font-family: var(--nebula-font-mono); color: var(--nebula-mist-light); }
+.nb .upd-toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }

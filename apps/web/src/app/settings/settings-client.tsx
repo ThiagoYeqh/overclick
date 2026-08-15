@@ -6,6 +6,7 @@ import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
 import { addSeenExecutorAction, saveExecutorsAction } from "../../actions/executors";
 import { saveLanguageAction } from "../../actions/language";
 import { createTokenAction, revokeTokenAction } from "../../actions/tokens";
+import { saveUpdateCheckAction } from "../../actions/updates";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import {
   ExecutorsGrid,
@@ -55,6 +56,7 @@ export function SettingsClient({
   cardapio,
   tokens,
   lang,
+  updateCheckEnabled,
 }: {
   host: string;
   workspaceName: string;
@@ -64,6 +66,7 @@ export function SettingsClient({
   cardapio: CardapioRow[];
   tokens: TokenRow[];
   lang: string;
+  updateCheckEnabled: boolean;
 }) {
   const t = dict(lang);
   const dateLocale = lang === "pt-BR" ? "pt-BR" : "en-US";
@@ -78,7 +81,18 @@ export function SettingsClient({
     { id: "policy", label: t.settings.tabPolicy },
     { id: "tokens", label: t.settings.tabTokens },
     { id: "language", label: t.settings.tabLanguage },
+    { id: "updates", label: t.updates.tabUpdates },
   ];
+
+  // ---- update check (opt-in, off by default)
+  const [updCheck, setUpdCheck] = useState(updateCheckEnabled);
+  const saveUpd = () =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      const r = await saveUpdateCheckAction(updCheck);
+      if (!r.ok) setErr(r.error);
+      else { setMsg(t.updates.checkSaved); router.refresh(); }
+    });
 
   // ---- language
   const [langSel, setLangSel] = useState(lang);
@@ -386,6 +400,26 @@ export function SettingsClient({
           <div className="save-row">
             <button className="btn-new" disabled={pending} onClick={saveLang}>
               {pending ? t.settings.saving : t.settings.saveLanguage}
+            </button>
+          </div>
+        </div>
+
+        {/* ---- UPDATES ---- */}
+        <div className={`tabpane${tab === "updates" ? " active" : ""}`}>
+          <label className="upd-toggle">
+            <input
+              type="checkbox"
+              checked={updCheck}
+              onChange={(e) => setUpdCheck(e.target.checked)}
+            />
+            <span>{t.updates.checkLabel}</span>
+          </label>
+          <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
+            {t.updates.checkNote}
+          </div>
+          <div className="save-row">
+            <button className="btn-new" disabled={pending} onClick={saveUpd}>
+              {pending ? t.settings.saving : t.updates.saveCheck}
             </button>
           </div>
         </div>

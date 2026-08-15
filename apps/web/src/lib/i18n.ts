@@ -163,6 +163,21 @@ const en = {
     architecture: { label: "Architecture", hint: "design decision, written plan" },
     mechanical: { label: "Mechanical / report", hint: "rename, export, sweep logs" },
   } as Record<string, { label: string; hint: string }>,
+  updates: {
+    tabUpdates: "Updates",
+    checkLabel: "Check GitHub Releases for updates",
+    checkNote:
+      "Off by default. When on, the board makes a single request to api.github.com to read the latest release tag and notes. Nothing about you or your instance is ever sent.",
+    saveCheck: "Save",
+    checkSaved: "Update check saved.",
+    newVersion: (v: string) => `Version ${v} is available.`,
+    releaseNotes: "release notes",
+    updateBtn: "Update",
+    updateRequested:
+      "Update requested. The helper is pulling the new image and recreating the app.",
+    runOnServer: "Run this on the server:",
+    dismiss: "Dismiss",
+  },
   auth: {
     brand: "self-hosted · open source · mit",
     foot: "local instance · no data sent anywhere",
@@ -334,6 +349,21 @@ const ptBR: Dict = {
     rfc: { label: "RFC", hint: "documento de decisão" },
     architecture: { label: "Arquitetura", hint: "decisão de design, plano escrito" },
     mechanical: { label: "Mecânico / relatório", hint: "rename, export, varrer logs" },
+  },
+  updates: {
+    tabUpdates: "Atualizações",
+    checkLabel: "Conferir novas versões no GitHub Releases",
+    checkNote:
+      "Desligado por padrão. Quando ligado, o board faz uma única requisição a api.github.com para ler a tag e as notas da última release. Nada sobre você ou sua instância é enviado, nunca.",
+    saveCheck: "Salvar",
+    checkSaved: "Verificação de atualização salva.",
+    newVersion: (v: string) => `Versão ${v} disponível.`,
+    releaseNotes: "notas da release",
+    updateBtn: "Atualizar",
+    updateRequested:
+      "Atualização solicitada. O helper está baixando a nova imagem e recriando o app.",
+    runOnServer: "Rode isto no servidor:",
+    dismiss: "Fechar",
   },
   auth: {
     brand: "self-hosted · open source · mit",

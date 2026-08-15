@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { project, task, workspace } from "@agent-board/db";
 import { logoutAction } from "../../actions/auth";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
+import { UpdateBanner } from "../../components/update-banner";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
+import { checkForUpdate, updateHelperDir } from "../../lib/updates";
 import { parseComoConfirmo } from "../../mcp/map";
 import { Board, type BoardCard } from "./board";
 
@@ -140,6 +142,8 @@ export default async function HomePage() {
   if (!proj) redirect("/setup");
 
   const t = dict(ws.language);
+  // Opt-in only: with the toggle off this instance makes zero outbound calls.
+  const release = ws.updateCheckEnabled ? await checkForUpdate() : null;
   const rows = await loadTasks(proj.id);
   const cards = rows.map((row) => toBoardCard(row, t));
   const running = cards.filter((c) => c.status === "em_execucao").length;
@@ -173,6 +177,16 @@ export default async function HomePage() {
           </button>
         </form>
       </div>
+
+      {release ? (
+        <UpdateBanner
+          version={release.version}
+          changelog={release.changelog}
+          url={release.url}
+          helper={Boolean(updateHelperDir())}
+          lang={ws.language}
+        />
+      ) : null}
 
       <Board cards={cards} lang={ws.language} />
 

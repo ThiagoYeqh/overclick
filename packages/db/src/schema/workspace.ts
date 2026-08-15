@@ -1,4 +1,4 @@
-import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { DEFAULT_CARDAPIO, KNOWN_EXECUTORS } from "../defaults";
 import type { Cardapio, ExecutorConfig, SeenExecutor } from "../types";
 
@@ -7,6 +7,11 @@ export const workspace = pgTable("workspace", {
   name: text("name").notNull(),
   /** UI language for this workspace. English default, pt-BR first translation. */
   language: text("language").notNull().default("en"),
+  /**
+   * Opt-in update check against GitHub Releases. OFF by default: the zero
+   * phone-home promise means no outbound request unless the owner turns it on.
+   */
+  updateCheckEnabled: boolean("update_check_enabled").notNull().default(false),
   executors: jsonb("executors")
     .$type<ExecutorConfig[]>()
     .notNull()

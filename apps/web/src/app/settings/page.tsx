@@ -75,6 +75,7 @@ export default async function SettingsPage() {
         projectName={proj?.name ?? ws.name}
         executors={selectionFromConfig(ws.executors)}
         lang={ws.language}
+        updateCheckEnabled={ws.updateCheckEnabled}
         seenSuggestions={seenSuggestions}
         cardapio={cardapioRows}
         tokens={tokens.map((t) => ({

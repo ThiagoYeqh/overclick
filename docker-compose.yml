@@ -18,6 +18,7 @@ services:
     restart: unless-stopped
 
   app:
+    image: ghcr.io/ustoppble/overclick:latest
     build: .
     depends_on:
       postgres:
@@ -27,9 +28,40 @@ services:
       AUTH_SECRET: local-dev-only-change-me-32chars-min
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_ENV: production
+      UPDATE_TRIGGER_DIR: /update-trigger
+    volumes:
+      - update-trigger:/update-trigger
     ports:
       - "3000:3000"
     restart: unless-stopped
 
+  # Optional one-click updater. Enable with:
+  #   docker compose --profile updater up -d
+  # It watches for the trigger file the Update button writes, then pulls the
+  # new image and recreates the app. It needs the docker socket, which is why
+  # it stays behind an explicit profile. Without it the Update button shows
+  # the copy-paste command instead.
+  updater:
+    image: docker:27-cli
+    profiles: ["updater"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - update-trigger:/trigger
+      - ./:/workspace
+    working_dir: /workspace
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          if [ -f /trigger/update-requested ]; then
+            rm -f /trigger/update-requested
+            docker compose pull app && docker compose up -d app
+          fi
+          sleep 5
+        done
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  update-trigger:
