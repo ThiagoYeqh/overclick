@@ -60,6 +60,14 @@ export type UsageReport = {
   turns?: number;
 };
 
+/** One ticked How-to-confirm step during human validation of a done card. */
+export type ValidationTick = {
+  index: number;
+  byUserId: string;
+  byEmail: string;
+  at: string;
+};
+
 export type TaskType = "feature" | "bug" | "rfc";
 export type TaskPriority = "urgente" | "alta" | "media" | "baixa";
 export type ReviewerKind = "human" | "agent" | "workspace_queue";

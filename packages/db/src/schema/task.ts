@@ -8,7 +8,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { Harness, TaskOrigin } from "../types";
+import type { Harness, TaskOrigin, ValidationTick } from "../types";
 import {
   executionModeEnum,
   reviewerKindEnum,
@@ -56,6 +56,10 @@ export const task = pgTable(
   origin: jsonb("origin").$type<TaskOrigin>(),
   mode: executionModeEnum("mode").notNull().default("solo"),
   telemetryIncomplete: boolean("telemetry_incomplete").notNull().default(false),
+  validationTicks: jsonb("validation_ticks")
+    .$type<ValidationTick[]>()
+    .notNull()
+    .default([]),
   isExample: boolean("is_example").notNull().default(false),
   claimedAt: timestamp("claimed_at", { withTimezone: true }),
   claimedByExecutor: text("claimed_by_executor"),

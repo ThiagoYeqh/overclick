@@ -27,6 +27,7 @@ The workspace is resolved from the token. Revoked or missing token → **HTTP 40
 | `task_claim` | status → `in_progress`; a second claim → `ALREADY_CLAIMED` |
 | `task_update` | progress, comment, the `reviewed` mark, or a new `harness` (validated against executors) |
 | `task_deliver` | result + usage; status → `done`; routed to the card's reviewer |
+| | optional `how_to_verify`: a URL, command or screenshot reference the reviewer opens first. It is shown on top of the validation panel in the Done detail ("For checking, open"). |
 | `task_delete` | hard delete: removes the card plus attempts, handoffs and subtasks (irreversible) |
 | `branch_register` | records the branch on the card |
 | `harness_recommend` | policy lookup (activity type → CLI · model · effort) |

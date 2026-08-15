@@ -210,6 +210,7 @@ export const HandoffSchema = z.object({
   task_id: z.string().min(1),
   attempt_id: z.string().min(1).optional(),
   summary: z.string().min(1),
+  how_to_verify: z.string().min(1).nullable(),
   evidence: z.array(EvidenceSchema),
   artifacts: z.array(ArtifactSchema),
   branch: z.string().min(1).nullable(),

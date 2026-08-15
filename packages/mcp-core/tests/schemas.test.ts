@@ -169,6 +169,30 @@ describe("task_deliver usage and artifacts", () => {
     expect(parsed.artifacts?.[0]?.kind).toBe("rfc_markdown");
   });
 
+  it("accepts an optional how_to_verify entry point for lay validation", () => {
+    const parsed = TaskDeliverInputSchema.parse({
+      task_id: "OC-1",
+      summary: "pronto",
+      how_to_verify: "http://localhost:3300/home, open the card in Done",
+    });
+    expect(parsed.how_to_verify).toBe(
+      "http://localhost:3300/home, open the card in Done",
+    );
+
+    const without = TaskDeliverInputSchema.parse({
+      task_id: "OC-1",
+      summary: "pronto",
+    });
+    expect(without.how_to_verify).toBeUndefined();
+
+    const empty = TaskDeliverInputSchema.safeParse({
+      task_id: "OC-1",
+      summary: "pronto",
+      how_to_verify: "",
+    });
+    expect(empty.success).toBe(false);
+  });
+
   it("accepts the full usage block (tokens in/out/cache, cost, duration, turns)", () => {
     const parsed = TaskDeliverInputSchema.parse({
       task_id: "OC-1",

@@ -100,6 +100,55 @@ describe("MCP tool edge cases against a test db", () => {
     expect(handoff.task.status).toBe("feito");
   });
 
+  it("persists how_to_verify on the handoff and restarts validation ticks", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Painel de validação",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "Validação leiga.",
+      como_confirmo: [{ step: "abre a home", expected: "board carrega" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    expect(claimed.ok).toBe(true);
+
+    // Leftover ticks from a previous review round must not survive a redelivery.
+    await world.db
+      .update(task)
+      .set({
+        validationTicks: [
+          { index: 0, byUserId: "u1", byEmail: "a@b.c", at: new Date().toISOString() },
+        ],
+      })
+      .where(eq(task.id, card.id));
+
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "pronto",
+      how_to_verify: "http://localhost:3300/home",
+    });
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const delivered = TaskDeliverOutputSchema.parse(submitted.value);
+    expect(delivered.handoff.how_to_verify).toBe("http://localhost:3300/home");
+
+    const [row] = await world.db.select().from(task).where(eq(task.id, card.id));
+    expect(row?.validationTicks).toEqual([]);
+    const [saved] = await world.db
+      .select()
+      .from(handoff)
+      .where(eq(handoff.taskId, card.id));
+    expect(saved?.howToVerify).toBe("http://localhost:3300/home");
+  });
+
   it("rejects handoff from aberto via the state machine", async () => {
     world = await createTestWorld();
     const created = await invokeTool(world.db, ctx(), "task_create", {

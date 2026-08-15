@@ -5,6 +5,7 @@ import { logoutAction } from "../../actions/auth";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
+import { parseComoConfirmo } from "../../mcp/map";
 import { Board, type BoardCard } from "./board";
 
 export const dynamic = "force-dynamic";
@@ -105,7 +106,12 @@ function toBoardCard(t: TaskRow): BoardCard {
     isExample: t.isExample,
     oQue: t.oQue,
     porQue: t.porQue,
-    comoConfirmo: t.comoConfirmo,
+    comoConfirmo: parseComoConfirmo(t.comoConfirmo),
+    validationTicks: t.validationTicks.map((tick) => ({
+      index: tick.index,
+      byEmail: tick.byEmail,
+      at: tick.at,
+    })),
     mission: t.mission?.title ?? null,
     harness,
     devolve,
@@ -115,6 +121,7 @@ function toBoardCard(t: TaskRow): BoardCard {
     branch: t.branch ?? latestHandoff?.branch ?? null,
     telemetry,
     handoff: latestHandoff?.summary ?? null,
+    howToVerify: latestHandoff?.howToVerify ?? null,
   };
 }
 

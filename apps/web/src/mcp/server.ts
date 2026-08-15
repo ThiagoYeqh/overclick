@@ -22,7 +22,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   task_update:
     "Registra progresso, comentário, marca revisado ou reclassifica o harness do card.",
   task_deliver:
-    "Entrega o resultado: resumo, evidências, artefatos, usage. Status → feito.",
+    "Entrega o resultado: resumo, evidências, artefatos, usage. how_to_verify (URL ou comando) abre o painel de validação leiga. Status → feito.",
   task_delete:
     "Hard delete: remove o card com attempts, handoffs e subtasks em cascata. Irreversível.",
   branch_register: "Grava a branch criada no card.",

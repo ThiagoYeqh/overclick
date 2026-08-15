@@ -2,7 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { reopenTaskAction, validateTaskAction } from "../../actions/review";
+import {
+  reopenTaskAction,
+  tickValidationStepAction,
+  validateTaskAction,
+} from "../../actions/review";
+
+export type ConfirmStep = { step: string; expected: string };
+export type ValidationTickView = { index: number; byEmail: string; at: string };
 
 export type BoardCard = {
   id: string;
@@ -13,7 +20,9 @@ export type BoardCard = {
   isExample: boolean;
   oQue: string;
   porQue: string;
-  comoConfirmo: string;
+  comoConfirmo: ConfirmStep[];
+  validationTicks: ValidationTickView[];
+  howToVerify: string | null;
   mission: string | null;
   harness: string | null;
   devolve: string;
@@ -128,7 +137,94 @@ function Card({ card, corner, onOpen }: { card: BoardCard; corner: boolean; onOp
   );
 }
 
-function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void }) {
+function fmtTickWhen(at: string): string {
+  const d = new Date(at);
+  return d.toLocaleString("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * The How-to-confirm contract. Read-only list before delivery; on a done card
+ * each step is a checkbox the reviewer ticks while following the script.
+ */
+function ConfirmChecklist({
+  card,
+  ticks,
+  onToggle,
+  disabled,
+}: {
+  card: BoardCard;
+  ticks: ValidationTickView[];
+  onToggle?: (index: number, checked: boolean) => void;
+  disabled?: boolean;
+}) {
+  const interactive = Boolean(onToggle);
+  const showTicks = card.status === "feito" || card.status === "validado";
+  return (
+    <div className="d-checklist">
+      {card.comoConfirmo.map((step, index) => {
+        const tick = showTicks ? ticks.find((t) => t.index === index) : undefined;
+        return (
+          <label
+            key={index}
+            className={`d-check-row${tick ? " ticked" : ""}${interactive ? " interactive" : ""}`}
+          >
+            {showTicks ? (
+              <input
+                type="checkbox"
+                checked={Boolean(tick)}
+                disabled={!interactive || disabled}
+                onChange={(e) => onToggle?.(index, e.target.checked)}
+              />
+            ) : (
+              <span className="d-check-num">{index + 1}</span>
+            )}
+            <span className="d-check-body">
+              <span className="d-check-step">{step.step}</span>
+              <span className="d-check-expected">expected: {step.expected}</span>
+              {tick ? (
+                <span className="d-check-meta">
+                  checked by {tick.byEmail} · {fmtTickWhen(tick.at)}
+                </span>
+              ) : null}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+/** "For checking, open..." — the agent's entry point for lay validation. */
+function HowToVerify({ value }: { value: string }) {
+  const isUrl = /^https?:\/\//.test(value.trim());
+  return (
+    <div className="d-verify">
+      <span className="d-verify-lbl">For checking, open</span>
+      {isUrl ? (
+        <a href={value} target="_blank" rel="noreferrer" className="d-verify-value">
+          {value}
+        </a>
+      ) : (
+        <span className="d-verify-value d-mono">{value}</span>
+      )}
+    </div>
+  );
+}
+
+function DetailActions({
+  card,
+  allTicked,
+  onClose,
+}: {
+  card: BoardCard;
+  allTicked: boolean;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [reopening, setReopening] = useState(false);
@@ -137,10 +233,10 @@ function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void
 
   if (card.status !== "feito") return null;
 
-  const validate = () =>
+  const validate = (override: boolean) =>
     start(async () => {
       setErr(null);
-      const r = await validateTaskAction(card.id);
+      const r = await validateTaskAction(card.id, { override });
       if (!r.ok) setErr(r.error);
       else {
         onClose();
@@ -187,10 +283,25 @@ function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void
     <div className="d-actions">
       {err ? <p className="d-err">{err}</p> : null}
       <div className="d-actions-row">
+        {!allTicked ? (
+          <button
+            className="d-btn-ghost"
+            disabled={pending}
+            onClick={() => validate(true)}
+            title="Skips the checklist. The ticks stay as they are."
+          >
+            validate anyway
+          </button>
+        ) : null}
         <button className="d-btn-sec" disabled={pending} onClick={() => setReopening(true)}>
           Reopen with a comment
         </button>
-        <button className="d-btn-pri" disabled={pending} onClick={validate}>
+        <button
+          className="d-btn-pri"
+          disabled={pending || !allTicked}
+          title={allTicked ? undefined : "Check every step of How to confirm first."}
+          onClick={() => validate(false)}
+        >
           {pending ? "Validating…" : "Validate"}
         </button>
       </div>
@@ -199,6 +310,39 @@ function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void
 }
 
 function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
+  const router = useRouter();
+  const [, start] = useTransition();
+  const [ticks, setTicks] = useState<ValidationTickView[]>(card.validationTicks);
+  const [tickErr, setTickErr] = useState<string | null>(null);
+
+  const reviewing = card.status === "feito";
+  const allTicked = card.comoConfirmo.every((_, index) =>
+    ticks.some((t) => t.index === index),
+  );
+
+  const toggleTick = (index: number, checked: boolean) => {
+    const previous = ticks;
+    setTickErr(null);
+    // Optimistic: the server records the real who/when on refresh.
+    setTicks(
+      checked
+        ? [
+            ...previous.filter((t) => t.index !== index),
+            { index, byEmail: "you", at: new Date().toISOString() },
+          ]
+        : previous.filter((t) => t.index !== index),
+    );
+    start(async () => {
+      const r = await tickValidationStepAction(card.id, index, checked);
+      if (!r.ok) {
+        setTicks(previous);
+        setTickErr(r.error);
+      } else {
+        router.refresh();
+      }
+    });
+  };
+
   return (
     <div className="ov" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="detail nebula-glass nebula-corners">
@@ -218,8 +362,18 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
           <p>{card.porQue}</p>
         </div>
         <div className="d-sec">
-          <div className="lbl">How to confirm</div>
-          <p>{card.comoConfirmo}</p>
+          <div className="lbl">{reviewing ? "Validation · How to confirm" : "How to confirm"}</div>
+          {reviewing && card.howToVerify ? <HowToVerify value={card.howToVerify} /> : null}
+          {card.comoConfirmo.length === 0 ? (
+            <p>—</p>
+          ) : (
+            <ConfirmChecklist
+              card={card}
+              ticks={ticks}
+              onToggle={reviewing ? toggleTick : undefined}
+            />
+          )}
+          {tickErr ? <p className="d-err">{tickErr}</p> : null}
         </div>
         <div className="d-sec d-grid">
           <div>
@@ -257,7 +411,7 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
             <div className="d-evid">{card.handoff}</div>
           </div>
         ) : null}
-        <DetailActions card={card} onClose={onClose} />
+        <DetailActions card={card} allTicked={allTicked} onClose={onClose} />
       </div>
     </div>
   );

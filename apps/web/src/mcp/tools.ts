@@ -670,6 +670,7 @@ async function taskDeliver(
   input: {
     task_id: string;
     summary: string;
+    how_to_verify?: string;
     evidence: Array<{ text?: string; url?: string }>;
     artifacts: unknown[];
     branch?: string;
@@ -731,6 +732,7 @@ async function taskDeliver(
         taskId: found.row.id,
         attemptId: openAttempt?.id ?? null,
         summary: input.summary,
+        howToVerify: input.how_to_verify ?? null,
         evidences: input.evidence as never,
         artifacts: input.artifacts as never,
         branch: input.branch ?? found.row.branch,
@@ -748,6 +750,8 @@ async function taskDeliver(
         branch: input.branch ?? found.row.branch,
         prUrl: input.pull_request_url ?? found.row.prUrl,
         telemetryIncomplete: incomplete,
+        // A fresh delivery restarts lay validation from zero.
+        validationTicks: [],
       })
       .where(eq(task.id, found.row.id))
       .returning();
@@ -771,6 +775,7 @@ async function taskDeliver(
       task_id: persisted.value.saved.taskId,
       attempt_id: persisted.value.saved.attemptId ?? undefined,
       summary: persisted.value.saved.summary,
+      how_to_verify: persisted.value.saved.howToVerify,
       evidence: input.evidence,
       artifacts: input.artifacts,
       branch: persisted.value.saved.branch,

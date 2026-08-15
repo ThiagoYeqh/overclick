@@ -26,6 +26,7 @@ export const handoff = pgTable(
     .$type<HandoffArtifact[]>()
     .notNull()
     .default([]),
+  howToVerify: text("how_to_verify"),
   branch: text("branch"),
   prUrl: text("pr_url"),
   usage: jsonb("usage").$type<UsageReport>(),

@@ -160,6 +160,12 @@ export const TaskUpdateOutputSchema = z.object({
 export const TaskDeliverInputSchema = z.object({
   task_id: z.string().min(1),
   summary: z.string().min(1),
+  /**
+   * Lay validation entry point: a URL, command or screenshot reference the
+   * reviewer opens first ("For checking, open..."). Shown on top of the
+   * validation panel in the board's Done detail.
+   */
+  how_to_verify: z.string().min(1).optional(),
   evidence: z.array(EvidenceSchema).default([]),
   artifacts: z.array(ArtifactSchema).default([]),
   branch: z.string().min(1).optional(),
