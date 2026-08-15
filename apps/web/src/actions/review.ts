@@ -1,11 +1,12 @@
 "use server";
 
-import { canTransition, task, taskComment } from "@agent-board/db";
+import { canTransition, task } from "@agent-board/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
 import type { ActionResult } from "../lib/action-result";
+import { reopenTask } from "./review-core";
 
 /** feito → validado (signed-in human only). */
 export async function validateTaskAction(taskId: string): Promise<ActionResult> {
@@ -34,23 +35,12 @@ export async function reopenTaskAction(
   const session = await getSession();
   if (!session) return { ok: false, error: "Session expired. Sign in again." };
 
-  const body = comment.trim();
-  if (!body) {
-    return { ok: false, error: "Describe what's missing. The agent reads it on its next claim." };
-  }
-
-  const row = await db().query.task.findFirst({ where: eq(task.id, taskId) });
-  if (!row) return { ok: false, error: "Card not found." };
-  if (!canTransition(row.status, "aberto", "human", { hasComment: true })) {
-    return { ok: false, error: "You can only reopen a card that is in done." };
-  }
-
-  await db().insert(taskComment).values({
+  const result = await reopenTask({
+    database: db(),
     taskId,
-    authorUserId: session.userId,
-    body,
+    comment,
+    userId: session.userId,
   });
-  await db().update(task).set({ status: "aberto" }).where(eq(task.id, taskId));
-  revalidatePath("/home");
-  return { ok: true };
+  if (result.ok) revalidatePath("/home");
+  return result;
 }
