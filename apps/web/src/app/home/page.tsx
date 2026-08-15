@@ -5,6 +5,7 @@ import { logoutAction } from "../../actions/auth";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
+import { dict, type Dict } from "../../lib/i18n";
 import { parseComoConfirmo } from "../../mcp/map";
 import { Board, type BoardCard } from "./board";
 
@@ -26,12 +27,12 @@ function fmtTokens(n: number): string {
   return `${n} tok`;
 }
 
-function fmtElapsed(from: Date): string {
+function fmtElapsed(from: Date, t: Dict): string {
   const m = Math.max(1, Math.round((Date.now() - from.getTime()) / 60000));
-  if (m < 60) return `${m} min ago`;
+  if (m < 60) return t.board.minAgo(m);
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
-  return `${Math.round(h / 24)} d ago`;
+  if (h < 24) return t.board.hAgo(h);
+  return t.board.dAgo(Math.round(h / 24));
 }
 
 function fmtDate(d: Date): string {
@@ -54,7 +55,7 @@ async function loadTasks(projectId: string) {
   });
 }
 
-function toBoardCard(t: TaskRow): BoardCard {
+function toBoardCard(t: TaskRow, tr: Dict): BoardCard {
   const h = t.harness;
   const harness =
     [h?.model ?? h?.modelTier, h?.effort].filter(Boolean).join(" · ") || null;
@@ -95,7 +96,9 @@ function toBoardCard(t: TaskRow): BoardCard {
     if (u.costUsd != null) parts.push(`~US$ ${u.costUsd.toFixed(2)}`);
     telemetry = parts.join(" · ") || null;
   }
-  if (telemetry && t.telemetryIncomplete) telemetry += " · telemetry incomplete";
+  if (telemetry && t.telemetryIncomplete) {
+    telemetry += ` · ${tr.board.telemetryIncomplete}`;
+  }
 
   return {
     id: t.id,
@@ -117,7 +120,7 @@ function toBoardCard(t: TaskRow): BoardCard {
     devolve,
     origem: `${origem} · ${fmtDate(t.createdAt)}`,
     executor: t.claimedByExecutor ?? latestAttempt?.executor ?? null,
-    elapsed: t.claimedAt ? fmtElapsed(t.claimedAt) : null,
+    elapsed: t.claimedAt ? fmtElapsed(t.claimedAt, tr) : null,
     branch: t.branch ?? latestHandoff?.branch ?? null,
     telemetry,
     handoff: latestHandoff?.summary ?? null,
@@ -136,8 +139,9 @@ export default async function HomePage() {
   });
   if (!proj) redirect("/setup");
 
+  const t = dict(ws.language);
   const rows = await loadTasks(proj.id);
-  const cards = rows.map(toBoardCard);
+  const cards = rows.map((row) => toBoardCard(row, t));
   const running = cards.filter((c) => c.status === "em_execucao").length;
   const review = cards.filter((c) => c.status === "feito").length;
 
@@ -154,23 +158,23 @@ export default async function HomePage() {
         </div>
         <div className="spacer" />
         <span className="btn-ghost pill">
-          My review <span className="badge">{review}</span>
+          {t.board.myReview} <span className="badge">{review}</span>
         </span>
         <div className="agent-status">
           <span className={`dot${running === 0 ? " idle" : ""}`} />
-          {running > 0 ? `${running} in progress` : "no agent running"}
+          {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
         </div>
         <a className="btn-ghost" href="/settings">
-          Settings
+          {t.board.settings}
         </a>
         <form action={logoutAction}>
           <button className="btn-ghost" type="submit">
-            Log out
+            {t.board.logout}
           </button>
         </form>
       </div>
 
-      <Board cards={cards} />
+      <Board cards={cards} lang={ws.language} />
 
       <div className="nebula-glass-fade viewport-fade" aria-hidden="true" />
     </div>

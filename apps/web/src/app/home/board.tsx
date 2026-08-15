@@ -7,6 +7,7 @@ import {
   tickValidationStepAction,
   validateTaskAction,
 } from "../../actions/review";
+import { dict, type Dict } from "../../lib/i18n";
 
 export type ConfirmStep = { step: string; expected: string };
 export type ValidationTickView = { index: number; byEmail: string; at: string };
@@ -34,21 +35,27 @@ export type BoardCard = {
   handoff: string | null;
 };
 
-const COLUMNS = [
-  { status: "aberto", label: "Open" },
-  { status: "em_execucao", label: "In progress" },
-  { status: "feito", label: "Done · review" },
-  { status: "validado", label: "Validated" },
-] as const;
+const COLUMN_STATUSES = ["aberto", "em_execucao", "feito", "validado"] as const;
 
-type ColumnStatus = (typeof COLUMNS)[number]["status"];
+type ColumnStatus = (typeof COLUMN_STATUSES)[number];
 
-const STATUS_LABEL: Record<ColumnStatus, string> = {
-  aberto: "open",
-  em_execucao: "in progress",
-  feito: "done · review",
-  validado: "validated",
-};
+function columnLabels(t: Dict): Record<ColumnStatus, string> {
+  return {
+    aberto: t.board.colOpen,
+    em_execucao: t.board.colInProgress,
+    feito: t.board.colDone,
+    validado: t.board.colValidated,
+  };
+}
+
+function statusLabels(t: Dict): Record<ColumnStatus, string> {
+  return {
+    aberto: t.board.statusOpen,
+    em_execucao: t.board.statusInProgress,
+    feito: t.board.statusDone,
+    validado: t.board.statusValidated,
+  };
+}
 
 const STATUS_CHIP: Record<ColumnStatus, string> = {
   aberto: "",
@@ -58,29 +65,23 @@ const STATUS_CHIP: Record<ColumnStatus, string> = {
 };
 
 /** Empty-state microcopy (briefing §4.2). */
-function EmptyState({ status }: { status: ColumnStatus }) {
+function EmptyState({ status, t }: { status: ColumnStatus; t: Dict }) {
   if (status === "aberto") {
     return (
       <div className="empty-col">
-        Nothing queued. Create a card or tell your agent: <i>register this as a task</i>.
+        {t.board.emptyOpenBefore}
+        <i>{t.board.emptyOpenCmd}</i>
+        {t.board.emptyOpenAfter}
       </div>
     );
   }
   if (status === "em_execucao") {
-    return <div className="empty-col">No agent working right now.</div>;
+    return <div className="empty-col">{t.board.emptyInProgress}</div>;
   }
   if (status === "feito") {
-    return (
-      <div className="empty-col">
-        This is where the agent&apos;s work lands, with evidence and cost.
-      </div>
-    );
+    return <div className="empty-col">{t.board.emptyDone}</div>;
   }
-  return (
-    <div className="empty-col">
-      What passed your review. Only you stamp this column.
-    </div>
-  );
+  return <div className="empty-col">{t.board.emptyValidated}</div>;
 }
 
 function Telemetry({ text }: { text: string }) {
@@ -98,7 +99,17 @@ function Telemetry({ text }: { text: string }) {
   );
 }
 
-function Card({ card, corner, onOpen }: { card: BoardCard; corner: boolean; onOpen: (c: BoardCard) => void }) {
+function Card({
+  card,
+  corner,
+  onOpen,
+  t,
+}: {
+  card: BoardCard;
+  corner: boolean;
+  onOpen: (c: BoardCard) => void;
+  t: Dict;
+}) {
   const dim = card.status === "validado";
   return (
     <div
@@ -108,8 +119,10 @@ function Card({ card, corner, onOpen }: { card: BoardCard; corner: boolean; onOp
       <div className="id-row">
         <span className="cid">{card.shortId}</span>
         <span className={`tag ${card.tipo}`}>{card.tipo}</span>
-        {card.isExample ? <span className="selo">EXAMPLE</span> : null}
-        {card.status === "feito" ? <span className="review-chip">awaiting review</span> : null}
+        {card.isExample ? <span className="selo">{t.board.example}</span> : null}
+        {card.status === "feito" ? (
+          <span className="review-chip">{t.board.awaitingReview}</span>
+        ) : null}
       </div>
       <h4>{card.title}</h4>
       {card.mission ? <div className="mission">{card.mission}</div> : null}
@@ -117,20 +130,24 @@ function Card({ card, corner, onOpen }: { card: BoardCard; corner: boolean; onOp
       <div className="card-foot">
         {card.status === "aberto" ? (
           <span className="telemetry">
-            returns → <b>{card.devolve}</b>
+            {t.board.returnsTo} <b>{card.devolve}</b>
           </span>
         ) : null}
         {card.status === "em_execucao" ? (
           <>
             <div className="exec-pulse">
-              <span className="dot-exec" /> {card.executor ?? "agent"}
+              <span className="dot-exec" /> {card.executor ?? t.board.agent}
               {card.elapsed ? ` · ${card.elapsed}` : ""}
             </div>
             {card.branch ? <span className="telemetry">{card.branch}</span> : null}
           </>
         ) : null}
         {card.status === "feito" || card.status === "validado" ? (
-          card.telemetry ? <Telemetry text={card.telemetry} /> : <span className="telemetry">no telemetry</span>
+          card.telemetry ? (
+            <Telemetry text={card.telemetry} />
+          ) : (
+            <span className="telemetry">{t.board.noTelemetry}</span>
+          )
         ) : null}
       </div>
     </div>
@@ -156,11 +173,13 @@ function ConfirmChecklist({
   ticks,
   onToggle,
   disabled,
+  t,
 }: {
   card: BoardCard;
   ticks: ValidationTickView[];
   onToggle?: (index: number, checked: boolean) => void;
   disabled?: boolean;
+  t: Dict;
 }) {
   const interactive = Boolean(onToggle);
   const showTicks = card.status === "feito" || card.status === "validado";
@@ -185,10 +204,12 @@ function ConfirmChecklist({
             )}
             <span className="d-check-body">
               <span className="d-check-step">{step.step}</span>
-              <span className="d-check-expected">expected: {step.expected}</span>
+              <span className="d-check-expected">
+                {t.detail.expected} {step.expected}
+              </span>
               {tick ? (
                 <span className="d-check-meta">
-                  checked by {tick.byEmail} · {fmtTickWhen(tick.at)}
+                  {t.detail.checkedBy} {tick.byEmail} · {fmtTickWhen(tick.at)}
                 </span>
               ) : null}
             </span>
@@ -199,12 +220,12 @@ function ConfirmChecklist({
   );
 }
 
-/** "For checking, open..." — the agent's entry point for lay validation. */
-function HowToVerify({ value }: { value: string }) {
+/** "For checking, open...": the agent's entry point for lay validation. */
+function HowToVerify({ value, t }: { value: string; t: Dict }) {
   const isUrl = /^https?:\/\//.test(value.trim());
   return (
     <div className="d-verify">
-      <span className="d-verify-lbl">For checking, open</span>
+      <span className="d-verify-lbl">{t.detail.forCheckingOpen}</span>
       {isUrl ? (
         <a href={value} target="_blank" rel="noreferrer" className="d-verify-value">
           {value}
@@ -220,10 +241,12 @@ function DetailActions({
   card,
   allTicked,
   onClose,
+  t,
 }: {
   card: BoardCard;
   allTicked: boolean;
   onClose: () => void;
+  t: Dict;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -262,17 +285,17 @@ function DetailActions({
           className="d-textarea"
           autoFocus
           rows={3}
-          placeholder="What's missing? The agent reads this comment on its next claim."
+          placeholder={t.detail.reopenPlaceholder}
           value={comment}
           onChange={(e) => setComment(e.target.value)}
         />
         {err ? <p className="d-err">{err}</p> : null}
         <div className="d-actions-row">
           <button className="d-btn-sec" disabled={pending} onClick={() => { setReopening(false); setErr(null); }}>
-            Cancel
+            {t.detail.cancel}
           </button>
           <button className="d-btn-pri" disabled={pending || !comment.trim()} onClick={reopen}>
-            {pending ? "Reopening…" : "Reopen"}
+            {pending ? t.detail.reopening : t.detail.reopen}
           </button>
         </div>
       </div>
@@ -288,28 +311,28 @@ function DetailActions({
             className="d-btn-ghost"
             disabled={pending}
             onClick={() => validate(true)}
-            title="Skips the checklist. The ticks stay as they are."
+            title={t.detail.validateAnywayTitle}
           >
-            validate anyway
+            {t.detail.validateAnyway}
           </button>
         ) : null}
         <button className="d-btn-sec" disabled={pending} onClick={() => setReopening(true)}>
-          Reopen with a comment
+          {t.detail.reopenWithComment}
         </button>
         <button
           className="d-btn-pri"
           disabled={pending || !allTicked}
-          title={allTicked ? undefined : "Check every step of How to confirm first."}
+          title={allTicked ? undefined : t.detail.validateDisabledTitle}
           onClick={() => validate(false)}
         >
-          {pending ? "Validating…" : "Validate"}
+          {pending ? t.detail.validating : t.detail.validate}
         </button>
       </div>
     </div>
   );
 }
 
-function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
+function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t: Dict }) {
   const router = useRouter();
   const [, start] = useTransition();
   const [ticks, setTicks] = useState<ValidationTickView[]>(card.validationTicks);
@@ -350,20 +373,24 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
         <div className="d-head">
           <span>{card.shortId}</span>
           <span className={`tag ${card.tipo}`}>{card.tipo}</span>
-          <span className={`d-status ${STATUS_CHIP[card.status]}`}>{STATUS_LABEL[card.status]}</span>
+          <span className={`d-status ${STATUS_CHIP[card.status]}`}>
+            {statusLabels(t)[card.status]}
+          </span>
         </div>
         <h3>{card.title}</h3>
         <div className="d-sec">
-          <div className="lbl">What</div>
+          <div className="lbl">{t.detail.what}</div>
           <p>{card.oQue}</p>
         </div>
         <div className="d-sec">
-          <div className="lbl">Why</div>
+          <div className="lbl">{t.detail.why}</div>
           <p>{card.porQue}</p>
         </div>
         <div className="d-sec">
-          <div className="lbl">{reviewing ? "Validation · How to confirm" : "How to confirm"}</div>
-          {reviewing && card.howToVerify ? <HowToVerify value={card.howToVerify} /> : null}
+          <div className="lbl">
+            {reviewing ? t.detail.validationHowToConfirm : t.detail.howToConfirm}
+          </div>
+          {reviewing && card.howToVerify ? <HowToVerify value={card.howToVerify} t={t} /> : null}
           {card.comoConfirmo.length === 0 ? (
             <p>—</p>
           ) : (
@@ -371,53 +398,56 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
               card={card}
               ticks={ticks}
               onToggle={reviewing ? toggleTick : undefined}
+              t={t}
             />
           )}
           {tickErr ? <p className="d-err">{tickErr}</p> : null}
         </div>
         <div className="d-sec d-grid">
           <div>
-            <div className="lbl">Mission</div>
+            <div className="lbl">{t.detail.mission}</div>
             <p>{card.mission ?? "—"}</p>
           </div>
           <div>
-            <div className="lbl">Harness</div>
+            <div className="lbl">{t.detail.harness}</div>
             <p className="d-mono">{card.harness ?? "—"}</p>
           </div>
         </div>
         <div className="d-sec">
-          <div className="lbl">Roles</div>
+          <div className="lbl">{t.detail.roles}</div>
           <div className="d-roles">
-            <span className="rl">origin <b>{card.origem}</b></span>
-            <span className="rl">executor <b>{card.executor ?? "—"}</b></span>
-            <span className="rl">returns to <b>{card.devolve}</b></span>
+            <span className="rl">{t.detail.origin} <b>{card.origem}</b></span>
+            <span className="rl">{t.detail.executor} <b>{card.executor ?? "—"}</b></span>
+            <span className="rl">{t.board.returnsTo} <b>{card.devolve}</b></span>
           </div>
         </div>
         <div className="d-sec d-grid">
           <div>
-            <div className="lbl">Branch</div>
+            <div className="lbl">{t.detail.branch}</div>
             <p className="d-mono">{card.branch ?? "—"}</p>
           </div>
           {card.telemetry ? (
             <div>
-              <div className="lbl">Telemetry</div>
+              <div className="lbl">{t.detail.telemetry}</div>
               <p className="d-tel">{card.telemetry}</p>
             </div>
           ) : null}
         </div>
         {card.handoff ? (
           <div className="d-sec">
-            <div className="lbl">Agent handoff</div>
+            <div className="lbl">{t.detail.agentHandoff}</div>
             <div className="d-evid">{card.handoff}</div>
           </div>
         ) : null}
-        <DetailActions card={card} allTicked={allTicked} onClose={onClose} />
+        <DetailActions card={card} allTicked={allTicked} onClose={onClose} t={t} />
       </div>
     </div>
   );
 }
 
-export function Board({ cards }: { cards: BoardCard[] }) {
+export function Board({ cards, lang }: { cards: BoardCard[]; lang: string }) {
+  const t = dict(lang);
+  const colLabel = columnLabels(t);
   const [open, setOpen] = useState<BoardCard | null>(null);
 
   const onKey = useCallback((e: KeyboardEvent) => {
@@ -431,23 +461,24 @@ export function Board({ cards }: { cards: BoardCard[] }) {
   return (
     <>
       <div className="board">
-        {COLUMNS.map((col) => {
-          const list = cards.filter((c) => c.status === col.status);
+        {COLUMN_STATUSES.map((status) => {
+          const list = cards.filter((c) => c.status === status);
           return (
-            <div key={col.status}>
+            <div key={status}>
               <div className="col-head">
-                {col.label} <span className="count">{list.length}</span>
+                {colLabel[status]} <span className="count">{list.length}</span>
               </div>
               <div className="col">
                 {list.length === 0 ? (
-                  <EmptyState status={col.status} />
+                  <EmptyState status={status} t={t} />
                 ) : (
                   list.map((card, i) => (
                     <Card
                       key={card.id}
                       card={card}
-                      corner={col.status === "em_execucao" && i === 0}
+                      corner={status === "em_execucao" && i === 0}
                       onOpen={setOpen}
+                      t={t}
                     />
                   ))
                 )}
@@ -456,7 +487,7 @@ export function Board({ cards }: { cards: BoardCard[] }) {
           );
         })}
       </div>
-      {open ? <Detail card={open} onClose={() => setOpen(null)} /> : null}
+      {open ? <Detail card={open} onClose={() => setOpen(null)} t={t} /> : null}
     </>
   );
 }

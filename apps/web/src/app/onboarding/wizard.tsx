@@ -10,6 +10,7 @@ import {
   ExecutorsGrid,
   type ExecutorSelection,
 } from "../../components/executors-grid";
+import { dict } from "../../lib/i18n";
 
 type ProjectData = {
   name: string;
@@ -44,12 +45,15 @@ export function Wizard({
   initialStep,
   project,
   executors,
+  lang,
 }: {
   host: string;
   initialStep: number;
   project: ProjectData | null;
   executors: ExecutorSelection;
+  lang: string;
 }) {
+  const t = dict(lang);
   const router = useRouter();
   const [step, setStep] = useState(initialStep);
   const [pending, start] = useTransition();
@@ -120,7 +124,7 @@ export function Wizard({
         setStep(2);
       } else if (step === 2) {
         if (execCount === 0) {
-          return setErr("Check at least one CLI. Without an executor the board goes nowhere.");
+          return setErr(t.wizard.t2Error);
         }
         const r = await saveExecutorsAction(sel);
         if (!r.ok) return setErr(r.error);
@@ -161,18 +165,18 @@ export function Wizard({
       <div className="stage">
         <div className="panel wizard">
           <div className="steps-ind">
-            <span className={step === 1 ? "cur" : step > 1 ? "done" : ""}>01 · project</span>
-            <span className={step === 2 ? "cur" : step > 2 ? "done" : ""}>02 · executors</span>
-            <span className={step === 3 ? "cur" : ""}>03 · agent</span>
+            <span className={step === 1 ? "cur" : step > 1 ? "done" : ""}>{t.wizard.stepProject}</span>
+            <span className={step === 2 ? "cur" : step > 2 ? "done" : ""}>{t.wizard.stepExecutors}</span>
+            <span className={step === 3 ? "cur" : ""}>{t.wizard.stepAgent}</span>
           </div>
 
           {/* T1: project */}
           <div className={`wstep${step === 1 ? " active" : ""}`}>
-            <h2>First, which project are you working on?</h2>
-            <p className="sub">One project ↔ one repository. You can create more later.</p>
+            <h2>{t.wizard.t1Title}</h2>
+            <p className="sub">{t.wizard.t1Sub}</p>
             <div className="grid2">
               <div className="field">
-                <label>Project name</label>
+                <label>{t.wizard.projectName}</label>
                 <input
                   className="input"
                   value={name}
@@ -185,7 +189,7 @@ export function Wizard({
               </div>
               <div className="field">
                 <label>
-                  Repository URL <span className="opt">optional</span>
+                  {t.wizard.repoUrl} <span className="opt">{t.wizard.optional}</span>
                 </label>
                 <input
                   className="input mono"
@@ -196,7 +200,7 @@ export function Wizard({
               </div>
             </div>
             <div className="field" style={{ maxWidth: 180 }}>
-              <label>ID prefix</label>
+              <label>{t.wizard.idPrefix}</label>
               <input
                 className="input mono"
                 value={prefix}
@@ -210,30 +214,29 @@ export function Wizard({
               />
             </div>
             <div className={`preview${prefix.length >= 2 ? "" : " ghost"}`}>
-              <span className="cap">this project&apos;s convention</span>
-              Your cards will be named <b>{prefix || "…"}-{nextNumber}</b>,{" "}
-              <b>{prefix || "…"}-{nextNumber + 1}</b>… and branches,{" "}
+              <span className="cap">{t.wizard.previewCap}</span>
+              {t.wizard.previewCards} <b>{prefix || "…"}-{nextNumber}</b>,{" "}
+              <b>{prefix || "…"}-{nextNumber + 1}</b>… {t.wizard.previewBranches}{" "}
               <b>{(prefix || "…").toLowerCase()}-{nextNumber}-card-name</b>.
             </div>
           </div>
 
           {/* T2: executors */}
           <div className={`wstep${step === 2 ? " active" : ""}`}>
-            <h2>Who runs the cards?</h2>
-            <p className="sub">Check the CLIs your team already uses. You can change this later in Settings.</p>
+            <h2>{t.wizard.t2Title}</h2>
+            <p className="sub">{t.wizard.t2Sub}</p>
             <ExecutorsGrid value={sel} onChange={setSel} />
             <div className="hint">
-              <b>With no executor checked, the board is just a pretty wall.</b> A
-              connected agent is what moves cards.
+              <b>{t.wizard.t2HintStrong}</b> {t.wizard.t2Hint}
             </div>
           </div>
 
           {/* T3: connect the agent */}
           <div className={`wstep${step === 3 ? " active" : ""}`}>
-            <h2>Now connect your agent.</h2>
-            <p className="sub">One command in your terminal and the board stops being a wall and becomes a work contract.</p>
+            <h2>{t.wizard.t3Title}</h2>
+            <p className="sub">{t.wizard.t3Sub}</p>
             <div className="field" style={{ maxWidth: 420 }}>
-              <label>Token name</label>
+              <label>{t.wizard.tokenName}</label>
               <input
                 className="input"
                 value={label}
@@ -243,44 +246,42 @@ export function Wizard({
             </div>
             {!token ? (
               <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genToken}>
-                {pending ? "Generating…" : "Generate token"}
+                {pending ? t.wizard.generating : t.wizard.generateToken}
               </button>
             ) : (
               <>
                 <div className="tabs">
-                  {CMD_TABS.map((t) => (
+                  {CMD_TABS.map((c) => (
                     <span
-                      key={t.id}
-                      className={tab === t.id ? "on" : ""}
-                      onClick={() => setTab(t.id)}
+                      key={c.id}
+                      className={tab === c.id ? "on" : ""}
+                      onClick={() => setTab(c.id)}
                     >
-                      {t.label}
+                      {c.label}
                     </span>
                   ))}
                 </div>
                 <div className="cmd">
                   {commandFor(tab, baseUrl, revealed ? token.secret : maskedSecret)}
                   <button className={`copy${copied ? " ok" : ""}`} onClick={copyCmd}>
-                    {copied ? "Copied" : "Copy"}
+                    {copied ? t.wizard.copied : t.wizard.copy}
                   </button>
                 </div>
                 <div className="tok-note">
-                  the token is shown only once · store it in your secrets manager ·{" "}
+                  {t.wizard.tokNote}{" "}
                   <span className="reveal" onClick={() => setRevealed(!revealed)}>
-                    {revealed ? "hide" : "reveal"}
+                    {revealed ? t.wizard.hide : t.wizard.reveal}
                   </span>
                 </div>
                 <div className={`conn${connected ? " lit" : ""}`}>
                   <div className="l1">
                     <span className={`pip${connected ? " green" : ""}`} />
-                    <span>{connected ? "Agent connected." : "Waiting for the first connection…"}</span>
+                    <span>{connected ? t.wizard.connected : t.wizard.waiting}</span>
                   </div>
                   <div className="l2">
-                    {connected
-                      ? `${label} · just now`
-                      : "Paste the command in your terminal. I'll keep watch."}
+                    {connected ? `${label} · ${t.wizard.justNow}` : t.wizard.pasteCmd}
                   </div>
-                  <div className="cap">{connected ? "FIRST CALL ✓" : "POLLING · 2s ⟳"}</div>
+                  <div className="cap">{connected ? t.wizard.firstCall : t.wizard.polling}</div>
                 </div>
               </>
             )}
@@ -294,12 +295,12 @@ export function Wizard({
             </div>
             <div className="wbtns">
               <button className="btn-back" disabled={step === 1 || pending} onClick={() => setStep(step - 1)}>
-                ‹ Back
+                {t.wizard.back}
               </button>
               <div>
                 {step === 3 ? (
                   <span className="skip" onClick={() => router.push("/home")}>
-                    Configure later
+                    {t.wizard.configureLater}
                   </span>
                 ) : null}
                 <button
@@ -307,7 +308,7 @@ export function Wizard({
                   disabled={pending || (step === 3 && !connected)}
                   onClick={goNext}
                 >
-                  {step === 3 ? (connected ? "See my board ›" : "Finish") : "Next ›"}
+                  {step === 3 ? (connected ? t.wizard.seeMyBoard : t.wizard.finish) : t.wizard.next}
                 </button>
               </div>
             </div>

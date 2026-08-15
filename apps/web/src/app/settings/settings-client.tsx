@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
 import { addSeenExecutorAction, saveExecutorsAction } from "../../actions/executors";
+import { saveLanguageAction } from "../../actions/language";
 import { createTokenAction, revokeTokenAction } from "../../actions/tokens";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import {
@@ -16,6 +17,7 @@ import {
   cardapioLabel,
   resolveCatalogCli,
 } from "../../lib/executors";
+import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
 
 type CardapioRow = { activityType: string; cli: string | null; model: string | null; effort: string };
 type SeenSuggestion = { cli: string; model: string; count: number; lastSeenAt: string };
@@ -28,26 +30,20 @@ type TokenRow = {
   lastUsedAt: string | null;
 };
 
-const TABS = [
-  { id: "exec", label: "Executors" },
-  { id: "policy", label: "Harness policy" },
-  { id: "tokens", label: "MCP tokens" },
-] as const;
-
 const EFFORTS = ["low", "medium", "high"] as const;
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
+function fmtDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" });
 }
-function fmtLastUse(iso: string | null): string {
-  if (!iso) return "never used";
+function fmtLastUse(iso: string | null, t: Dict): string {
+  if (!iso) return t.settings.neverUsed;
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m} min ago`;
+  if (m < 1) return t.settings.justNow;
+  if (m < 60) return t.board.minAgo(m);
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
+  if (h < 24) return t.board.hAgo(h);
   const d = Math.round(h / 24);
-  return d === 1 ? "yesterday" : `${d} d ago`;
+  return d === 1 ? t.settings.yesterday : t.board.dAgo(d);
 }
 
 export function SettingsClient({
@@ -58,6 +54,7 @@ export function SettingsClient({
   seenSuggestions,
   cardapio,
   tokens,
+  lang,
 }: {
   host: string;
   workspaceName: string;
@@ -66,12 +63,32 @@ export function SettingsClient({
   seenSuggestions: SeenSuggestion[];
   cardapio: CardapioRow[];
   tokens: TokenRow[];
+  lang: string;
 }) {
+  const t = dict(lang);
+  const dateLocale = lang === "pt-BR" ? "pt-BR" : "en-US";
   const router = useRouter();
   const [tab, setTab] = useState<string>("exec");
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  const tabs = [
+    { id: "exec", label: t.settings.tabExecutors },
+    { id: "policy", label: t.settings.tabPolicy },
+    { id: "tokens", label: t.settings.tabTokens },
+    { id: "language", label: t.settings.tabLanguage },
+  ];
+
+  // ---- language
+  const [langSel, setLangSel] = useState(lang);
+  const saveLang = () =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      const r = await saveLanguageAction(langSel);
+      if (!r.ok) setErr(r.error);
+      else { setMsg(dict(langSel).settings.langSaved); router.refresh(); }
+    });
 
   // ---- executors
   const [sel, setSel] = useState<ExecutorSelection>(executors);
@@ -81,7 +98,7 @@ export function SettingsClient({
       setErr(null); setMsg(null);
       const r = await saveExecutorsAction(sel);
       if (!r.ok) setErr(r.error);
-      else { setMsg("Executors saved."); router.refresh(); }
+      else { setMsg(t.settings.execSaved); router.refresh(); }
     });
   const addSeen = (s: SeenSuggestion) =>
     start(async () => {
@@ -107,7 +124,7 @@ export function SettingsClient({
             : { ...prev.labels, [targetId]: s.cli },
         }));
         setAdded((prev) => [...prev, `${s.cli}·${s.model}`]);
-        setMsg(`${s.cli} · ${s.model} added to the executors and the policy selects.`);
+        setMsg(t.settings.addedMsg(s.cli, s.model));
         router.refresh();
       }
     });
@@ -149,7 +166,7 @@ export function SettingsClient({
       setErr(null); setMsg(null);
       const r = await saveCardapioAction(rows as CardapioInput[]);
       if (!r.ok) setErr(r.error);
-      else { setMsg("Policy saved. The agent already reads the new one."); router.refresh(); }
+      else { setMsg(t.settings.policySaved); router.refresh(); }
     });
 
   // ---- tokens
@@ -191,16 +208,16 @@ export function SettingsClient({
           <div className="logo">over<span>click</span></div>
           <div className="crumb">{workspaceName} / <b>{projectName}</b></div>
           <div className="spacer" />
-          <a className="btn-ghost" href="/home">← Board</a>
+          <a className="btn-ghost" href="/home">{t.settings.backToBoard}</a>
         </div>
 
-        <h1>Settings</h1>
-        <p className="page-sub">Executors, harness policy, and MCP access for this instance.</p>
+        <h1>{t.settings.title}</h1>
+        <p className="page-sub">{t.settings.sub}</p>
 
         <div className="settabs">
-          {TABS.map((t) => (
-            <span key={t.id} className={tab === t.id ? "on" : ""} onClick={() => { setTab(t.id); setErr(null); setMsg(null); }}>
-              {t.label}
+          {tabs.map((tb) => (
+            <span key={tb.id} className={tab === tb.id ? "on" : ""} onClick={() => { setTab(tb.id); setErr(null); setMsg(null); }}>
+              {tb.label}
             </span>
           ))}
         </div>
@@ -212,41 +229,34 @@ export function SettingsClient({
         <div className={`tabpane${tab === "exec" ? " active" : ""}`}>
           {seenSuggestions.filter((s) => !added.includes(`${s.cli}·${s.model}`)).length > 0 ? (
             <div className="seen-sugg">
-              <div className="sec-cap">seen in real connections</div>
+              <div className="sec-cap">{t.settings.seenCap}</div>
               <div className="seen-row">
                 {seenSuggestions
                   .filter((s) => !added.includes(`${s.cli}·${s.model}`))
                   .map((s) => (
                     <span key={`${s.cli}·${s.model}`} className="seen-chip">
                       <b>{s.cli}</b> · {s.model}
-                      <small>
-                        {s.count === 1 ? "1 connection" : `${s.count} connections`}
-                      </small>
+                      <small>{t.settings.connections(s.count)}</small>
                       <button
                         className="seen-add"
                         disabled={pending}
                         onClick={() => addSeen(s)}
                       >
-                        add
+                        {t.settings.add}
                       </button>
                     </span>
                   ))}
               </div>
-              <div className="seen-note">
-                An agent claimed or delivered with this cli and model, but the
-                config does not list it yet. Add puts it in the grid and in the
-                policy selects.
-              </div>
+              <div className="seen-note">{t.settings.seenNote}</div>
             </div>
           ) : null}
           <ExecutorsGrid value={sel} onChange={setSel} />
           <div className="hint">
-            <b>The executors checked here feed the harness policy.</b> The policy
-            tab next door only offers the CLIs that are turned on.
+            <b>{t.settings.execHintStrong}</b> {t.settings.execHint}
           </div>
           <div className="save-row">
             <button className="btn-new" disabled={pending} onClick={saveExec}>
-              {pending ? "Saving…" : "Save executors"}
+              {pending ? t.settings.saving : t.settings.saveExecutors}
             </button>
           </div>
         </div>
@@ -255,18 +265,18 @@ export function SettingsClient({
         <div className={`tabpane${tab === "policy" ? " active" : ""}`}>
           <table className="policy">
             <thead>
-              <tr><th>Activity type</th><th>CLI</th><th>Model</th><th>Effort</th></tr>
+              <tr><th>{t.settings.thActivity}</th><th>{t.settings.thCli}</th><th>{t.settings.thModel}</th><th>{t.settings.thEffort}</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => {
-                const meta = cardapioLabel(r.activityType);
+                const meta = t.cardapio[r.activityType] ?? cardapioLabel(r.activityType);
                 const models = modelsFor(r.cli);
                 return (
                   <tr key={r.activityType}>
                     <td className="act">{meta.label}<small>{meta.hint}</small></td>
                     <td>
                       <select className="sel" value={r.cli ?? ""} onChange={(e) => setRow(i, { cli: e.target.value || null })}>
-                        <option value="">no preference</option>
+                        <option value="">{t.settings.noPreference}</option>
                         {cliOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                       </select>
                     </td>
@@ -288,11 +298,11 @@ export function SettingsClient({
             </tbody>
           </table>
           <div className="policy-note">
-            the agent reads this policy via <b>harness_list</b> · each card&apos;s recommendation is born here
+            {t.settings.policyNote} <b>harness_list</b> {t.settings.policyNoteAfter}
           </div>
           <div className="save-row">
             <button className="btn-new" disabled={pending} onClick={savePolicy}>
-              {pending ? "Saving…" : "Save policy"}
+              {pending ? t.settings.saving : t.settings.savePolicy}
             </button>
           </div>
         </div>
@@ -301,17 +311,20 @@ export function SettingsClient({
         <div className={`tabpane${tab === "tokens" ? " active" : ""}`}>
           <div className="tok-list">
             {tokens.length === 0 ? (
-              <div className="empty-col">No tokens yet. Generate one to connect your first agent.</div>
+              <div className="empty-col">{t.settings.tokensEmpty}</div>
             ) : (
-              tokens.map((t) => (
-                <div key={t.id} className={`tok${t.revoked ? " revoked" : ""}`}>
+              tokens.map((tok) => (
+                <div key={tok.id} className={`tok${tok.revoked ? " revoked" : ""}`}>
                   <div className="meta">
-                    <div className="label">{t.label}</div>
-                    <div className="sub">created {fmtDate(t.createdAt)} · {t.revoked ? "revoked" : fmtLastUse(t.lastUsedAt)}</div>
+                    <div className="label">{tok.label}</div>
+                    <div className="sub">
+                      {t.settings.created} {fmtDate(tok.createdAt, dateLocale)} ·{" "}
+                      {tok.revoked ? t.settings.revoked : fmtLastUse(tok.lastUsedAt, t)}
+                    </div>
                   </div>
-                  <span className="val">{t.masked}</span>
-                  <button className="btn-rev" disabled={pending || t.revoked} onClick={() => revoke(t.id)}>
-                    {t.revoked ? "Revoked" : "Revoke"}
+                  <span className="val">{tok.masked}</span>
+                  <button className="btn-rev" disabled={pending || tok.revoked} onClick={() => revoke(tok.id)}>
+                    {tok.revoked ? t.settings.revoked : t.settings.revoke}
                   </button>
                 </div>
               ))
@@ -320,10 +333,10 @@ export function SettingsClient({
 
           {fresh ? (
             <div className="fresh-tok">
-              <div className="lbl">Token created. It is shown only once.</div>
+              <div className="lbl">{t.settings.freshToken}</div>
               <div className="cmd">{fresh.secret}
                 <button className={`copy${copied ? " ok" : ""}`} onClick={copyFresh}>
-                  {copied ? "Copied" : "Copy command"}
+                  {copied ? t.wizard.copied : t.settings.copyCommand}
                 </button>
               </div>
             </div>
@@ -333,23 +346,47 @@ export function SettingsClient({
             <input
               className="input"
               style={{ maxWidth: 320 }}
-              placeholder="token name (e.g. Codex CI)"
+              placeholder={t.settings.tokenPlaceholder}
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
             />
             <button className="btn-new" disabled={pending} onClick={genToken}>
-              {pending ? "Generating…" : "+ Generate token"}
+              {pending ? t.wizard.generating : t.settings.generateTokenBtn}
             </button>
           </div>
 
-          <div className="sec-cap">connect an agent</div>
+          <div className="sec-cap">{t.settings.connectAgent}</div>
           <div className="cmd">
 {`claude mcp add --transport http overclick \\
   http://${host}/mcp \\
   --header "Authorization: Bearer ocb_••••••••••••"`}
           </div>
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
-            the full token is shown only once, at generation time · here it stays masked
+            {t.settings.maskedNote}
+          </div>
+        </div>
+
+        {/* ---- LANGUAGE ---- */}
+        <div className={`tabpane${tab === "language" ? " active" : ""}`}>
+          <div className="field" style={{ maxWidth: 320 }}>
+            <label>{t.settings.langLabel}</label>
+            <select
+              className="sel"
+              value={langSel}
+              onChange={(e) => setLangSel(e.target.value)}
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>{l.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
+            {t.settings.langNote}
+          </div>
+          <div className="save-row">
+            <button className="btn-new" disabled={pending} onClick={saveLang}>
+              {pending ? t.settings.saving : t.settings.saveLanguage}
+            </button>
           </div>
         </div>
       </div>

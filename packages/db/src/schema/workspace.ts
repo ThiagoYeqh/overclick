@@ -5,6 +5,8 @@ import type { Cardapio, ExecutorConfig, SeenExecutor } from "../types";
 export const workspace = pgTable("workspace", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  /** UI language for this workspace. English default, pt-BR first translation. */
+  language: text("language").notNull().default("en"),
   executors: jsonb("executors")
     .$type<ExecutorConfig[]>()
     .notNull()
