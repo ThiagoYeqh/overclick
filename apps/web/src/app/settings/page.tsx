@@ -9,7 +9,7 @@ import {
 } from "@agent-board/db";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
-import { selectionFromConfig } from "../../lib/executors";
+import { isPairInConfig, selectionFromConfig } from "../../lib/executors";
 import { SettingsClient } from "./settings-client";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +57,16 @@ export default async function SettingsPage() {
 
   const host = (await headers()).get("host") ?? "<your-host>";
 
+  // Pairs observed on real connections that the config still does not cover.
+  const seenSuggestions = ws.seenExecutors
+    .filter((s) => !isPairInConfig(ws.executors, s.cli, s.model))
+    .map((s) => ({
+      cli: s.cli,
+      model: s.model,
+      count: s.count,
+      lastSeenAt: s.lastSeenAt,
+    }));
+
   return (
     <div className="nb nebula-surface">
       <SettingsClient
@@ -64,6 +74,7 @@ export default async function SettingsPage() {
         workspaceName={ws.name}
         projectName={proj?.name ?? ws.name}
         executors={selectionFromConfig(ws.executors)}
+        seenSuggestions={seenSuggestions}
         cardapio={cardapioRows}
         tokens={tokens.map((t) => ({
           id: t.id,

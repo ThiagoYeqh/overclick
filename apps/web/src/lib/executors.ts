@@ -37,6 +37,44 @@ export const EXECUTOR_CATALOG: readonly ExecutorDef[] = [
 /** Id of the custom executor ("+ Customize"), which connects via generic MCP. */
 export const CUSTOM_EXECUTOR_ID = "generic-mcp";
 
+/**
+ * Names agents actually send on claim/deliver mapped to catalog ids. The MCP
+ * executor field carries the binary name ("claude"), not the catalog id.
+ */
+const CLI_ALIASES: Record<string, string> = {
+  claude: "claude-code",
+  gemini: "gemini-cli",
+  copilot: "github-copilot",
+};
+
+/** Resolves a connection's cli name to a catalog id, or null when unknown. */
+export function resolveCatalogCli(cli: string): string | null {
+  const needle = cli.trim().toLowerCase();
+  if (!needle) return null;
+  if (EXECUTOR_CATALOG.some((d) => d.id === needle)) return needle;
+  return CLI_ALIASES[needle] ?? null;
+}
+
+/**
+ * True when the cli/model pair is actively configured: an enabled executor
+ * whose checked models include the model. Alias-aware on the cli.
+ */
+export function isPairInConfig(
+  config: readonly { id: string; enabled: boolean; models: string[] }[],
+  cli: string,
+  model: string,
+): boolean {
+  const needleModel = model.trim().toLowerCase();
+  const needleCli = cli.trim().toLowerCase();
+  const resolved = resolveCatalogCli(needleCli);
+  return config.some(
+    (row) =>
+      row.enabled &&
+      (row.id.toLowerCase() === needleCli || row.id === resolved) &&
+      row.models.some((m) => m.trim().toLowerCase() === needleModel),
+  );
+}
+
 /** Selection state of the executors grid (onboarding T2 and /settings). */
 export type ExecutorSelection = {
   /** enabled ids → checked models */
@@ -47,6 +85,11 @@ export type ExecutorSelection = {
    * and the list persists in the workspace config.
    */
   models: Record<string, string[]>;
+  /**
+   * Display labels for executors learned from real connections (ids outside
+   * the built-in catalog). Catalog CLIs keep their catalog label.
+   */
+  labels: Record<string, string>;
   customEnabled: boolean;
   customName: string;
 };
@@ -68,6 +111,7 @@ export function selectionFromConfig(
 ): ExecutorSelection {
   const enabled: Record<string, string[]> = {};
   const models: Record<string, string[]> = {};
+  const labels: Record<string, string> = {};
   for (const def of EXECUTOR_CATALOG) {
     models[def.id] = [...def.models];
   }
@@ -78,7 +122,12 @@ export function selectionFromConfig(
       if (row.enabled) customEnabled = true;
       continue;
     }
-    if (!EXECUTOR_CATALOG.some((d) => d.id === row.id)) continue;
+    // Ids outside the built-in catalog are executors learned from real
+    // connections; they render in the grid with their persisted label.
+    if (!EXECUTOR_CATALOG.some((d) => d.id === row.id)) {
+      if (row.models.length === 0 && !row.catalog?.length) continue;
+      labels[row.id] = row.label ?? row.id;
+    }
     // A persisted catalog wins, even when it dropped built-in suggestions.
     // Configs saved before the field existed keep the suggestion plus any
     // checked models the user typed in elsewhere.
@@ -96,7 +145,18 @@ export function selectionFromConfig(
   const FACTORY_CUSTOM_LABELS = ["Other (generic MCP)", "Outro (MCP genérico)"];
   const custom = config.find((r) => r.id === CUSTOM_EXECUTOR_ID);
   if (custom?.label && !FACTORY_CUSTOM_LABELS.includes(custom.label)) customName = custom.label;
-  return { enabled, models, customEnabled, customName };
+  return { enabled, models, labels, customEnabled, customName };
+}
+
+/** Grid defs for executors learned from real connections (non-catalog ids). */
+export function learnedExecutorDefs(sel: ExecutorSelection): ExecutorDef[] {
+  return Object.keys(sel.labels)
+    .filter((id) => !EXECUTOR_CATALOG.some((d) => d.id === id))
+    .map((id) => ({
+      id,
+      label: sel.labels[id] ?? id,
+      models: sel.models[id] ?? [],
+    }));
 }
 
 /**

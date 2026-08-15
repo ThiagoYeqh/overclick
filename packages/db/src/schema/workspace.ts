@@ -1,6 +1,6 @@
 import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { DEFAULT_CARDAPIO, KNOWN_EXECUTORS } from "../defaults";
-import type { Cardapio, ExecutorConfig } from "../types";
+import type { Cardapio, ExecutorConfig, SeenExecutor } from "../types";
 
 export const workspace = pgTable("workspace", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -9,6 +9,10 @@ export const workspace = pgTable("workspace", {
     .$type<ExecutorConfig[]>()
     .notNull()
     .default(KNOWN_EXECUTORS),
+  seenExecutors: jsonb("seen_executors")
+    .$type<SeenExecutor[]>()
+    .notNull()
+    .default([]),
   cardapio: jsonb("cardapio")
     .$type<Cardapio>()
     .notNull()

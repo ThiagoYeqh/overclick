@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
-import { saveExecutorsAction } from "../../actions/executors";
+import { addSeenExecutorAction, saveExecutorsAction } from "../../actions/executors";
 import { createTokenAction, revokeTokenAction } from "../../actions/tokens";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import {
@@ -14,9 +14,11 @@ import {
   CUSTOM_EXECUTOR_ID,
   EXECUTOR_CATALOG,
   cardapioLabel,
+  resolveCatalogCli,
 } from "../../lib/executors";
 
 type CardapioRow = { activityType: string; cli: string | null; model: string | null; effort: string };
+type SeenSuggestion = { cli: string; model: string; count: number; lastSeenAt: string };
 type TokenRow = {
   id: string;
   label: string;
@@ -53,6 +55,7 @@ export function SettingsClient({
   workspaceName,
   projectName,
   executors,
+  seenSuggestions,
   cardapio,
   tokens,
 }: {
@@ -60,6 +63,7 @@ export function SettingsClient({
   workspaceName: string;
   projectName: string;
   executors: ExecutorSelection;
+  seenSuggestions: SeenSuggestion[];
   cardapio: CardapioRow[];
   tokens: TokenRow[];
 }) {
@@ -71,6 +75,7 @@ export function SettingsClient({
 
   // ---- executors
   const [sel, setSel] = useState<ExecutorSelection>(executors);
+  const [added, setAdded] = useState<string[]>([]);
   const saveExec = () =>
     start(async () => {
       setErr(null); setMsg(null);
@@ -78,13 +83,41 @@ export function SettingsClient({
       if (!r.ok) setErr(r.error);
       else { setMsg("Executors saved."); router.refresh(); }
     });
+  const addSeen = (s: SeenSuggestion) =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      const r = await addSeenExecutorAction(s.cli, s.model);
+      if (!r.ok) setErr(r.error);
+      else {
+        const targetId = resolveCatalogCli(s.cli) ?? s.cli.toLowerCase();
+        // Mirror the server change locally so the grid and the policy
+        // selects pick the pair up without a reload.
+        setSel((prev) => ({
+          ...prev,
+          models: {
+            ...prev.models,
+            [targetId]: [...new Set([...(prev.models[targetId] ?? []), s.model])],
+          },
+          enabled: {
+            ...prev.enabled,
+            [targetId]: [...new Set([...(prev.enabled[targetId] ?? []), s.model])],
+          },
+          labels: EXECUTOR_CATALOG.some((d) => d.id === targetId)
+            ? prev.labels
+            : { ...prev.labels, [targetId]: s.cli },
+        }));
+        setAdded((prev) => [...prev, `${s.cli}·${s.model}`]);
+        setMsg(`${s.cli} · ${s.model} added to the executors and the policy selects.`);
+        router.refresh();
+      }
+    });
 
   // ---- harness policy (cardapio)
   const [rows, setRows] = useState<CardapioRow[]>(cardapio);
   const cliOptions = [
     ...Object.keys(sel.enabled).map((id) => ({
       id,
-      label: EXECUTOR_CATALOG.find((d) => d.id === id)?.label ?? id,
+      label: EXECUTOR_CATALOG.find((d) => d.id === id)?.label ?? sel.labels[id] ?? id,
     })),
     ...(sel.customEnabled
       ? [{ id: CUSTOM_EXECUTOR_ID, label: sel.customName.trim() || "Custom" }]
@@ -177,6 +210,35 @@ export function SettingsClient({
 
         {/* ---- EXECUTORS ---- */}
         <div className={`tabpane${tab === "exec" ? " active" : ""}`}>
+          {seenSuggestions.filter((s) => !added.includes(`${s.cli}·${s.model}`)).length > 0 ? (
+            <div className="seen-sugg">
+              <div className="sec-cap">seen in real connections</div>
+              <div className="seen-row">
+                {seenSuggestions
+                  .filter((s) => !added.includes(`${s.cli}·${s.model}`))
+                  .map((s) => (
+                    <span key={`${s.cli}·${s.model}`} className="seen-chip">
+                      <b>{s.cli}</b> · {s.model}
+                      <small>
+                        {s.count === 1 ? "1 connection" : `${s.count} connections`}
+                      </small>
+                      <button
+                        className="seen-add"
+                        disabled={pending}
+                        onClick={() => addSeen(s)}
+                      >
+                        add
+                      </button>
+                    </span>
+                  ))}
+              </div>
+              <div className="seen-note">
+                An agent claimed or delivered with this cli and model, but the
+                config does not list it yet. Add puts it in the grid and in the
+                policy selects.
+              </div>
+            </div>
+          ) : null}
           <ExecutorsGrid value={sel} onChange={setSel} />
           <div className="hint">
             <b>The executors checked here feed the harness policy.</b> The policy

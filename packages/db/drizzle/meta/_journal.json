@@ -22,6 +22,13 @@
       "when": 1786818841652,
       "tag": "0002_cheerful_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786819520115,
+      "tag": "0003_marvelous_calypso",
+      "breakpoints": true
     }
   ]
 }

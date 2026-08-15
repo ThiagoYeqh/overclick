@@ -7,7 +7,7 @@ import {
   TaskListOutputSchema,
   TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
-import { executionAttempt, handoff, mission, task } from "@agent-board/db";
+import { executionAttempt, handoff, mission, task, workspace } from "@agent-board/db";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
@@ -147,6 +147,67 @@ describe("MCP tool edge cases against a test db", () => {
       .from(handoff)
       .where(eq(handoff.taskId, card.id));
     expect(saved?.howToVerify).toBe("http://localhost:3300/home");
+  });
+
+  it("learns cli/model pairs outside the config from claims and delivers", async () => {
+    world = await createTestWorld();
+    const seen = async () => {
+      const [ws] = await world.db
+        .select()
+        .from(workspace)
+        .where(eq(workspace.id, world.workspaceId));
+      return ws?.seenExecutors ?? [];
+    };
+    const mkCard = async (title: string) => {
+      const created = await invokeTool(world.db, ctx(), "task_create", {
+        project_id: world.projectId,
+        title,
+        type: "feature",
+        o_que: "x",
+        por_que: "y",
+        como_confirmo: [{ step: "a", expected: "b" }],
+        origem,
+      });
+      expect(created.ok).toBe(true);
+      if (!created.ok) throw new Error("create failed");
+      return TaskCreateOutputSchema.parse(created.value).task;
+    };
+
+    // Config pair (claude aliases to claude-code, sonnet-5 configured): not learned.
+    const known = await mkCard("Known pair");
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: known.id,
+      executor: { cli: "claude", model: "sonnet-5" },
+    });
+    expect(await seen()).toEqual([]);
+
+    // Unknown model: learned on claim, bumped on a second claim and on deliver.
+    const a = await mkCard("Unknown pair A");
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: a.id,
+      executor: { cli: "claude", model: "claude-fable-5" },
+    });
+    let rows = await seen();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ cli: "claude", model: "claude-fable-5", count: 1 });
+
+    const b = await mkCard("Unknown pair B");
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: b.id,
+      executor: { cli: "claude", model: "claude-fable-5" },
+    });
+    rows = await seen();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.count).toBe(2);
+
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: a.id,
+      summary: "done",
+    });
+    expect(submitted.ok).toBe(true);
+    rows = await seen();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.count).toBe(3);
   });
 
   it("rejects handoff from aberto via the state machine", async () => {

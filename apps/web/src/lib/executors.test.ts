@@ -4,7 +4,10 @@ import {
   EXECUTOR_CATALOG,
   addModelToSelection,
   cardapioLabel,
+  isPairInConfig,
+  learnedExecutorDefs,
   removeModelFromSelection,
+  resolveCatalogCli,
   selectionFromConfig,
 } from "./executors";
 
@@ -17,13 +20,25 @@ describe("executor catalog", () => {
 });
 
 describe("selectionFromConfig", () => {
-  it("ignores disabled executors and ones missing from the catalog", () => {
+  it("ignores disabled executors and empty non-catalog entries", () => {
     const sel = selectionFromConfig([
       { id: "claude-code", label: "Claude Code", enabled: true, models: ["fable-5"] },
       { id: "codex", label: "Codex", enabled: false, models: ["gpt-5.6-sol"] },
       { id: "aider", label: "Aider", enabled: true, models: [] },
     ]);
     expect(sel.enabled).toEqual({ "claude-code": ["fable-5"] });
+    expect(sel.labels).toEqual({});
+  });
+
+  it("keeps executors learned from real connections and their labels", () => {
+    const sel = selectionFromConfig([
+      { id: "aider", label: "aider", enabled: true, models: ["aider-pro"], catalog: ["aider-pro"] },
+    ]);
+    expect(sel.enabled.aider).toEqual(["aider-pro"]);
+    expect(sel.labels.aider).toBe("aider");
+    expect(learnedExecutorDefs(sel)).toEqual([
+      { id: "aider", label: "aider", models: ["aider-pro"] },
+    ]);
   });
 
   it("falls back to the catalog's first model when the config came without one", () => {
@@ -104,6 +119,28 @@ describe("editable model catalog", () => {
     const removed = removeModelFromSelection(base, "grok", "grok-4.6");
     expect(removed.models.grok).not.toContain("grok-4.6");
     expect(removed.enabled.grok).toEqual(["grok-4.5"]);
+  });
+});
+
+describe("learning executors from connections", () => {
+  it("resolves the names agents actually send to catalog ids", () => {
+    expect(resolveCatalogCli("claude")).toBe("claude-code");
+    expect(resolveCatalogCli("Claude-Code")).toBe("claude-code");
+    expect(resolveCatalogCli("gemini")).toBe("gemini-cli");
+    expect(resolveCatalogCli("codex")).toBe("codex");
+    expect(resolveCatalogCli("some-new-cli")).toBeNull();
+    expect(resolveCatalogCli("  ")).toBeNull();
+  });
+
+  it("isPairInConfig matches enabled executors, alias-aware and case-insensitive", () => {
+    const config = [
+      { id: "claude-code", enabled: true, models: ["sonnet-5"] },
+      { id: "codex", enabled: false, models: ["gpt-5.6-sol"] },
+    ];
+    expect(isPairInConfig(config, "claude", "sonnet-5")).toBe(true);
+    expect(isPairInConfig(config, "claude-code", "Sonnet-5")).toBe(true);
+    expect(isPairInConfig(config, "claude", "claude-fable-5")).toBe(false);
+    expect(isPairInConfig(config, "codex", "gpt-5.6-sol")).toBe(false);
   });
 });
 

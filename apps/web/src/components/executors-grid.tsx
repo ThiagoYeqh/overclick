@@ -5,6 +5,7 @@ import { CliLogo } from "./cli-logos";
 import {
   EXECUTOR_CATALOG,
   addModelToSelection,
+  learnedExecutorDefs,
   removeModelFromSelection,
   type ExecutorSelection,
 } from "../lib/executors";
@@ -57,7 +58,7 @@ export function ExecutorsGrid({
 
   return (
     <div className="exec-grid">
-      {EXECUTOR_CATALOG.map((def) => {
+      {[...EXECUTOR_CATALOG, ...learnedExecutorDefs(value)].map((def) => {
         const on = def.id in value.enabled;
         const selected = value.enabled[def.id] ?? [];
         const models = value.models[def.id] ?? def.models;

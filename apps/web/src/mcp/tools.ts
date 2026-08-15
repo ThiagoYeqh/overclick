@@ -33,6 +33,7 @@ import {
   type Usage,
 } from "@agent-board/mcp-core";
 import { and, asc, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { isPairInConfig } from "../lib/executors";
 import { renderBriefingMarkdown } from "./briefing";
 import {
   decodeExecutor,
@@ -502,6 +503,11 @@ async function taskClaim(
 
   if (!claimed.ok) return claimed;
 
+  await recordSeenExecutor(db, ctx.workspaceId, {
+    cli: input.executor?.cli,
+    model: input.executor?.model,
+  });
+
   const payload = await assembleTaskPayload(
     db,
     claimed.value.updated,
@@ -543,6 +549,47 @@ async function taskClaim(
     branch_convention: payload.branch_convention,
     ...(divergence ? { harness_divergence: divergence } : {}),
   };
+}
+
+/**
+ * Learns executors from real connections: a claim or deliver whose cli/model
+ * pair is outside the active workspace config records the occurrence, and
+ * Settings offers it as a one-click suggestion.
+ */
+async function recordSeenExecutor(
+  db: McpDatabase,
+  workspaceId: string,
+  executor: { cli?: string; model?: string },
+): Promise<void> {
+  const cli = executor.cli?.trim();
+  const model = executor.model?.trim();
+  if (!cli || !model) return;
+
+  const [ws] = await db
+    .select()
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+  if (!ws) return;
+  if (isPairInConfig(ws.executors, cli, model)) return;
+
+  const now = new Date().toISOString();
+  const seen = [...ws.seenExecutors];
+  const match = seen.find(
+    (s) =>
+      s.cli.trim().toLowerCase() === cli.toLowerCase() &&
+      s.model.trim().toLowerCase() === model.toLowerCase(),
+  );
+  if (match) {
+    match.lastSeenAt = now;
+    match.count += 1;
+  } else {
+    seen.push({ cli, model, firstSeenAt: now, lastSeenAt: now, count: 1 });
+  }
+  await db
+    .update(workspace)
+    .set({ seenExecutors: seen })
+    .where(eq(workspace.id, workspaceId));
 }
 
 async function taskUpdate(
@@ -763,10 +810,17 @@ async function taskDeliver(
       saved,
       incomplete,
       routedTo: reviewerFromRow(updated),
+      attemptExecutor: openAttempt
+        ? decodeExecutor(openAttempt.executor, openAttempt.model)
+        : null,
     });
   });
 
   if (!persisted.ok) return persisted;
+
+  if (persisted.value.attemptExecutor) {
+    await recordSeenExecutor(db, ctx.workspaceId, persisted.value.attemptExecutor);
+  }
 
   return {
     task: mapTask(persisted.value.updated, persisted.value.proj),

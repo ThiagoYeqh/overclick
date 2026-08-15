@@ -60,6 +60,18 @@ export type UsageReport = {
   turns?: number;
 };
 
+/**
+ * A cli/model pair observed on a real claim or deliver that is not part of the
+ * workspace executor config. Settings offers it as a one-click suggestion.
+ */
+export type SeenExecutor = {
+  cli: string;
+  model: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  count: number;
+};
+
 /** One ticked How-to-confirm step during human validation of a done card. */
 export type ValidationTick = {
   index: number;

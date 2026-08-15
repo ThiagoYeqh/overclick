@@ -485,6 +485,18 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .preview b { color: var(--nebula-mist-glow); font-weight: 500; }
 
 /* executores (grid de CLIs) */
+.nb .seen-sugg { margin-bottom: 18px; }
+.nb .seen-sugg .sec-cap { margin-top: 0; }
+.nb .seen-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.nb .seen-chip { display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(125,214,160,.06); border: 1px solid rgba(125,214,160,.25); border-radius: 999px;
+  padding: 6px 8px 6px 14px; font-size: 12px; color: var(--nebula-text-primary); }
+.nb .seen-chip b { font-weight: var(--nebula-weight-medium); }
+.nb .seen-chip small { font-family: var(--nebula-font-mono); font-size: 10px; color: var(--nebula-text-tertiary); }
+.nb .seen-add { background: #fff; border: none; border-radius: 999px; color: #0a0c10;
+  font-size: 11.5px; font-weight: 500; padding: 4px 12px; cursor: pointer; }
+.nb .seen-add:disabled { opacity: .4; cursor: not-allowed; }
+.nb .seen-note { font-size: 11.5px; color: var(--nebula-text-tertiary); margin-top: 8px; line-height: 1.5; }
 .nb .exec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .nb .exec {
   background: var(--nebula-plan-bg); border: 1px solid var(--nebula-glass-border); border-radius: 14px; padding: 13px 14px;
