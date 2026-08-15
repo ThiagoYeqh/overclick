@@ -69,8 +69,15 @@ export const TaskListOutputSchema = z.object({
   tasks: z.array(TaskSummarySchema),
 });
 
+const TaskIdSchema = z
+  .string()
+  .min(1)
+  .describe(
+    "Task uuid or workspace short id (e.g. AGB-5, OVK-5.4). Resolved in the token workspace.",
+  );
+
 export const TaskGetInputSchema = z.object({
-  task_id: z.string().min(1),
+  task_id: TaskIdSchema,
 });
 
 export const TaskGetOutputSchema = z.object({
@@ -126,7 +133,7 @@ export const TaskCreateOutputSchema = z.object({
 });
 
 export const TaskClaimInputSchema = z.object({
-  task_id: z.string().min(1),
+  task_id: TaskIdSchema,
   force: z.boolean().optional(),
   executor: z
     .object({
@@ -154,7 +161,7 @@ export const TaskClaimOutputSchema = z.object({
 
 export const TaskUpdateInputSchema = z
   .object({
-    task_id: z.string().min(1),
+    task_id: TaskIdSchema,
     comment: z.string().min(1).optional(),
     progress: z.string().min(1).optional(),
     revisado: z.boolean().optional(),
@@ -184,7 +191,7 @@ export const TaskUpdateOutputSchema = z.object({
 });
 
 export const TaskDeliverInputSchema = z.object({
-  task_id: z.string().min(1),
+  task_id: TaskIdSchema,
   summary: z.string().min(1),
   /**
    * Lay validation entry point: a URL, command or screenshot reference the
@@ -221,7 +228,7 @@ export const TaskDeliverOutputSchema = z.object({
  * There is no archive flag and no undo.
  */
 export const TaskDeleteInputSchema = z.object({
-  task_id: z.string().min(1),
+  task_id: TaskIdSchema,
 });
 
 export const TaskDeleteOutputSchema = z.object({
@@ -233,7 +240,7 @@ export const TaskDeleteOutputSchema = z.object({
 });
 
 export const BranchRegisterInputSchema = z.object({
-  task_id: z.string().min(1),
+  task_id: TaskIdSchema,
   branch: z.string().min(1),
 });
 

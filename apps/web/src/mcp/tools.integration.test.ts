@@ -11,10 +11,19 @@ import {
   TaskListOutputSchema,
   TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
-import { executionAttempt, handoff, mission, task, workspace } from "@agent-board/db";
+import {
+  executionAttempt,
+  handoff,
+  mcpToken,
+  mission,
+  project,
+  task,
+  workspace,
+} from "@agent-board/db";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
+import { generateTokenSecret, hashToken } from "./token";
 import { invokeTool } from "./tools";
 
 const origem = {
@@ -713,5 +722,193 @@ describe("MCP tool edge cases against a test db", () => {
     if (!deleted.ok) {
       expect(deleted.error.code).toBe("NOT_FOUND");
     }
+  });
+});
+
+describe("task_id accepts uuid and short id", () => {
+  let world: TestWorld;
+
+  afterEach(async () => {
+    if (world) await closeTestWorld(world);
+  });
+
+  function ctx() {
+    return {
+      tokenId: world.tokenId,
+      workspaceId: world.workspaceId,
+      tokenLabel: "test",
+    };
+  }
+
+  async function makeCard(title: string) {
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title,
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error("create failed");
+    return TaskCreateOutputSchema.parse(created.value).task;
+  }
+
+  it("resolves task_get and task_claim with both uuid and short id", async () => {
+    world = await createTestWorld();
+    const a = await makeCard("Get by short id");
+    const byUuid = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: a.id,
+    });
+    const byShort = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: a.short_id.toLowerCase(),
+    });
+    expect(byUuid.ok).toBe(true);
+    expect(byShort.ok).toBe(true);
+    if (!byUuid.ok || !byShort.ok) return;
+    expect(TaskGetOutputSchema.parse(byUuid.value).task.id).toBe(a.id);
+    expect(TaskGetOutputSchema.parse(byShort.value).task.id).toBe(a.id);
+
+    const b = await makeCard("Claim by short id");
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: b.short_id,
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    expect(TaskClaimOutputSchema.parse(claimed.value).task.id).toBe(b.id);
+    expect(TaskClaimOutputSchema.parse(claimed.value).task.status).toBe(
+      "em_execucao",
+    );
+
+    const c = await makeCard("Claim by uuid");
+    const claimedUuid = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: c.id,
+    });
+    expect(claimedUuid.ok).toBe(true);
+  });
+
+  it("resolves task_update, branch_register and task_deliver with both forms", async () => {
+    world = await createTestWorld();
+    const card = await makeCard("Mutations by short id");
+
+    const branched = await invokeTool(world.db, ctx(), "branch_register", {
+      task_id: card.short_id.toLowerCase(),
+      branch: "oc-x-mutations-by-short-id",
+    });
+    expect(branched.ok).toBe(true);
+
+    const noted = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.short_id,
+      comment: "progress via short id",
+    });
+    expect(noted.ok).toBe(true);
+
+    const notedUuid = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      progress: "still going",
+    });
+    expect(notedUuid.ok).toBe(true);
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.short_id });
+    const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.short_id.toLowerCase(),
+      summary: "done via short id",
+    });
+    expect(delivered.ok).toBe(true);
+    if (!delivered.ok) return;
+    expect(TaskDeliverOutputSchema.parse(delivered.value).task.id).toBe(card.id);
+  });
+
+  it("resolves task_delete and dotted child short ids", async () => {
+    world = await createTestWorld();
+    const team = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Parent with children",
+      type: "rfc",
+      o_que: "Quebrar.",
+      por_que: "Grande.",
+      como_confirmo: [{ step: "lê", expected: "fatias" }],
+      mode: "team",
+      origem,
+      subtasks: [
+        { title: "Fatia um", scope: "a", boundary: "não b" },
+        { title: "Fatia dois", scope: "b", boundary: "não a" },
+      ],
+    });
+    expect(team.ok).toBe(true);
+    if (!team.ok) return;
+    const parent = TaskCreateOutputSchema.parse(team.value).task;
+    const childShort = `${parent.short_id}.1`;
+
+    const got = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: childShort.toLowerCase(),
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(TaskGetOutputSchema.parse(got.value).task.short_id).toBe(childShort);
+    expect(TaskGetOutputSchema.parse(got.value).task.parent_id).toBe(parent.id);
+
+    const doomed = await makeCard("Delete by short id");
+    const deleted = await invokeTool(world.db, ctx(), "task_delete", {
+      task_id: doomed.short_id,
+    });
+    expect(deleted.ok).toBe(true);
+
+    const doomedUuid = await makeCard("Delete by uuid");
+    const deletedUuid = await invokeTool(world.db, ctx(), "task_delete", {
+      task_id: doomedUuid.id,
+    });
+    expect(deletedUuid.ok).toBe(true);
+  });
+
+  it("does not resolve another workspace's short id", async () => {
+    world = await createTestWorld();
+    const card = await makeCard("Workspace scoped");
+
+    const [otherWs] = await world.db
+      .insert(workspace)
+      .values({ name: "Other", executors: [] })
+      .returning({ id: workspace.id });
+    if (!otherWs) throw new Error("failed to insert other workspace");
+    const [otherProj] = await world.db
+      .insert(project)
+      .values({
+        workspaceId: otherWs.id,
+        name: "Other",
+        idPrefix: "ZZ",
+        nextNumber: 1,
+      })
+      .returning({ id: project.id });
+    if (!otherProj) throw new Error("failed to insert other project");
+    const secret = generateTokenSecret();
+    const [otherTok] = await world.db
+      .insert(mcpToken)
+      .values({
+        workspaceId: otherWs.id,
+        label: "other",
+        hash: hashToken(secret),
+        tokenPrefix: secret.slice(0, 12),
+      })
+      .returning({ id: mcpToken.id });
+    if (!otherTok) throw new Error("failed to insert other token");
+
+    const foreign = await invokeTool(
+      world.db,
+      {
+        tokenId: otherTok.id,
+        workspaceId: otherWs.id,
+        tokenLabel: "other",
+      },
+      "task_get",
+      { task_id: card.short_id },
+    );
+    expect(foreign.ok).toBe(false);
+    if (!foreign.ok) expect(foreign.error.code).toBe("NOT_FOUND");
+
+    const home = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.short_id,
+    });
+    expect(home.ok).toBe(true);
   });
 });

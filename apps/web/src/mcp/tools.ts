@@ -6,6 +6,7 @@ import {
   handoff,
   mission,
   nextShortId,
+  normalizeShortId,
   project,
   task,
   taskComment,
@@ -32,7 +33,7 @@ import {
   type Task,
   type Usage,
 } from "@agent-board/mcp-core";
-import { and, asc, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { isPairInConfig } from "../lib/executors";
 import { renderBriefingMarkdown } from "./briefing";
 import {
@@ -1164,9 +1165,12 @@ async function findTask(
   taskRef: string,
   lock = false,
 ): Promise<{ row: TaskRow; proj: ProjectRow } | null> {
-  const identity = looksLikeUuid(taskRef)
-    ? eq(task.id, taskRef)
-    : or(eq(task.shortId, taskRef), eq(task.shortId, taskRef.toUpperCase()));
+  const ref = taskRef.trim();
+  // Uuid or short id (AGB-5, OVK-5.4). Short ids are matched
+  // case-insensitively and only inside the token's workspace.
+  const identity = looksLikeUuid(ref)
+    ? eq(task.id, ref)
+    : sql`upper(${task.shortId}) = ${normalizeShortId(ref)}`;
 
   const query = db
     .select({ task, project })

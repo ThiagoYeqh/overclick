@@ -6,7 +6,13 @@ export {
   type TaskStatus,
   type TransitionOptions,
 } from "./task-status";
-export { formatShortId, isValidPrefix, nextShortId } from "./short-id";
+export {
+  formatShortId,
+  isShortId,
+  isValidPrefix,
+  nextShortId,
+  normalizeShortId,
+} from "./short-id";
 export {
   canCreateFirstAdmin,
   isValidEmail,

@@ -164,6 +164,29 @@ describe("task_create canonical flow", () => {
     expect(result.success).toBe(false);
   });
 
+  it("documents that task_id accepts a uuid or a short id", () => {
+    const schema = toolContracts.task_get.input;
+    const described = schema.shape.task_id.description ?? "";
+    expect(described.toLowerCase()).toContain("short");
+    for (const name of [
+      "task_get",
+      "task_claim",
+      "task_update",
+      "task_deliver",
+      "task_delete",
+      "branch_register",
+    ] as const) {
+      expect(
+        toolContracts[name].input.parse({
+          task_id: "AGB-5",
+          ...(name === "task_update" ? { comment: "ok" } : {}),
+          ...(name === "task_deliver" ? { summary: "ok" } : {}),
+          ...(name === "branch_register" ? { branch: "agb-5-x" } : {}),
+        }).task_id,
+      ).toBe("AGB-5");
+    }
+  });
+
   it("requires origem identity from the caller", () => {
     const result = TaskCreateInputSchema.safeParse({
       project_id: "proj_1",

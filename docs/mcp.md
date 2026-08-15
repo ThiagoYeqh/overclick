@@ -35,6 +35,9 @@ The workspace is resolved from the token. Revoked or missing token → **HTTP 40
 | `harness_recommend` | policy lookup (activity type → CLI · model · effort) |
 | `harness_list` | the whole policy + configured executors |
 
+Every tool that takes `task_id` accepts the card uuid **or** the workspace short id
+(`AGB-5`, `OVK-5.4`). Resolution is scoped to the token's workspace.
+
 `task_claim` and `task_get` return the briefing. The executor needs no other source of
 context. The briefing ends with the executor contract: when done, call `task_deliver`
 with `summary`, `evidence`, `branch` and `usage {tokens_in, tokens_out, duration_ms,
