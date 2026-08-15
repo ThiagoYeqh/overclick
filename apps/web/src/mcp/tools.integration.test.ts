@@ -4,9 +4,10 @@ import {
   MissionListOutputSchema,
   TaskCreateOutputSchema,
   TaskDeleteOutputSchema,
+  TaskListOutputSchema,
   TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
-import { executionAttempt, handoff, task } from "@agent-board/db";
+import { executionAttempt, handoff, mission, task } from "@agent-board/db";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
@@ -176,6 +177,62 @@ describe("MCP tool edge cases against a test db", () => {
     expect(reviewed.ok).toBe(true);
     if (!reviewed.ok) return;
     expect(TaskUpdateOutputSchema.parse(reviewed.value).task.revisado).toBe(true);
+  });
+
+  it("scopes task_list to one mission via mission_id", async () => {
+    world = await createTestWorld();
+    const [secondMission] = await world.db
+      .insert(mission)
+      .values({
+        workspaceId: world.workspaceId,
+        title: "Segunda missão",
+        objective: "Separar a fila.",
+        status: "ativa",
+      })
+      .returning({ id: mission.id });
+    if (!secondMission) throw new Error("failed to insert second mission");
+
+    const inFirst = await invokeTool(world.db, ctx(), "task_create", {
+      mission: world.missionId,
+      project_id: world.projectId,
+      title: "Card da primeira missão",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(inFirst.ok).toBe(true);
+    const inSecond = await invokeTool(world.db, ctx(), "task_create", {
+      mission: secondMission.id,
+      project_id: world.projectId,
+      title: "Card da segunda missão",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(inSecond.ok).toBe(true);
+
+    const listed = await invokeTool(world.db, ctx(), "task_list", {
+      mission_id: secondMission.id,
+    });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    const out = TaskListOutputSchema.parse(listed.value);
+    expect(out.tasks).toHaveLength(1);
+    expect(out.tasks[0]?.title).toBe("Card da segunda missão");
+    expect(out.tasks[0]?.mission_id).toBe(secondMission.id);
+
+    const listedFirst = await invokeTool(world.db, ctx(), "task_list", {
+      mission_id: world.missionId,
+    });
+    expect(listedFirst.ok).toBe(true);
+    if (!listedFirst.ok) return;
+    const first = TaskListOutputSchema.parse(listedFirst.value);
+    expect(first.tasks).toHaveLength(1);
+    expect(first.tasks[0]?.title).toBe("Card da primeira missão");
   });
 
   it("hard deletes a claimed card and cascades its execution attempts", async () => {

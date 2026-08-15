@@ -12,7 +12,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   mission_get:
     "Devolve a missão completa (objetivo/contexto) para injetar no prompt.",
   task_list:
-    "Fila de cards do workspace. Filtros: projeto, status, prioridade, awaiting_review_by.",
+    "Fila de cards do workspace. Filtros: projeto, missão, status, prioridade, awaiting_review_by.",
   task_get:
     "Card autocontido: contrato + harness + missão + convenção de branch (markdown).",
   task_create:
