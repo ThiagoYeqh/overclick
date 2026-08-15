@@ -101,19 +101,18 @@ function Telemetry({ text }: { text: string }) {
 
 function Card({
   card,
-  corner,
   onOpen,
   t,
 }: {
   card: BoardCard;
-  corner: boolean;
   onOpen: (c: BoardCard) => void;
   t: Dict;
 }) {
+  const exec = card.status === "em_execucao";
   const dim = card.status === "validado";
   return (
     <div
-      className={`card nebula-glass${corner ? " nebula-corners" : ""}${dim ? " dim" : ""}`}
+      className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}`}
       onClick={() => onOpen(card)}
     >
       <div className="id-row">
@@ -388,9 +387,17 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
           <div className="lbl">{t.detail.why}</div>
           <p>{card.porQue}</p>
         </div>
-        <div className="d-sec">
+        <div className={`d-sec${reviewing ? " d-sec-validate" : ""}`}>
           <div className="lbl">
-            {reviewing ? t.detail.validationHowToConfirm : t.detail.howToConfirm}
+            <span>
+              {reviewing ? t.detail.validationHowToConfirm : t.detail.howToConfirm}
+            </span>
+            {(card.status === "feito" || card.status === "validado") &&
+            card.comoConfirmo.length > 0 ? (
+              <span className={`d-progress${allTicked ? " done" : ""}`}>
+                {ticks.length}/{card.comoConfirmo.length}
+              </span>
+            ) : null}
           </div>
           {reviewing && card.howToVerify ? <HowToVerify value={card.howToVerify} t={t} /> : null}
           {card.comoConfirmo.length === 0 ? (
@@ -474,11 +481,10 @@ export function Board({ cards, lang }: { cards: BoardCard[]; lang: string }) {
                 {list.length === 0 ? (
                   <EmptyState status={status} t={t} />
                 ) : (
-                  list.map((card, i) => (
+                  list.map((card) => (
                     <Card
                       key={card.id}
                       card={card}
-                      corner={status === "em_execucao" && i === 0}
                       onOpen={setOpen}
                       t={t}
                     />
