@@ -57,4 +57,17 @@ describe("self-contained briefing markdown", () => {
     expect(md).toContain(convention.commit_prefix);
     expect(md).toContain("faltou o teste do login");
   });
+
+  it("ends with the executor contract so agents know to deliver with usage", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const md = renderBriefingMarkdown({ task, mission, branchConvention: convention });
+
+    const contractAt = md.indexOf("## Contrato do executor");
+    expect(contractAt).toBeGreaterThan(-1);
+    expect(md.slice(contractAt)).toContain("task_deliver");
+    expect(md.slice(contractAt)).toContain("tokens_in");
+    expect(md.slice(contractAt)).toContain("estimated: true");
+    // Nothing after the contract: it must be the last thing the agent reads.
+    expect(md.indexOf("## ", contractAt + 1)).toBe(-1);
+  });
 });

@@ -218,4 +218,19 @@ describe("task_deliver usage and artifacts", () => {
       turns: 11,
     });
   });
+
+  it("accepts estimated usage and a usage-only task_update", () => {
+    const delivered = TaskDeliverInputSchema.parse({
+      task_id: "OC-1",
+      summary: "estimado",
+      usage: { tokens_in: 1000, tokens_out: 200, estimated: true },
+    });
+    expect(delivered.usage?.estimated).toBe(true);
+
+    const updated = toolContracts.task_update.input.parse({
+      task_id: "OC-1",
+      usage: { tokens_in: 5000, cost_usd: 0.4 },
+    });
+    expect(updated.usage?.tokens_in).toBe(5000);
+  });
 });

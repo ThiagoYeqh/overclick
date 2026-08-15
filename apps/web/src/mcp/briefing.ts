@@ -63,5 +63,14 @@ export function renderBriefingMarkdown(input: {
     `- branch: \`${branchConvention.branch}\``,
     `- commit/PR: \`${branchConvention.commit_prefix}\``,
     reopen,
+    "",
+    // The briefing must END with the executor contract: in field tests,
+    // workers with board tools made zero calls because nothing told them.
+    "## Contrato do executor",
+    "",
+    "Quando terminar, chame `task_deliver` com summary, evidence, branch e " +
+      "usage `{tokens_in, tokens_out, duration_ms, cost_usd, turns}`. " +
+      "Sem números exatos, ESTIME e marque `estimated: true`. " +
+      "Números reais descobertos depois? Corrija com `task_update` passando usage.",
   ].join("\n");
 }

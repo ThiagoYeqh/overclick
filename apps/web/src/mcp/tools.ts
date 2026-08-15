@@ -601,6 +601,7 @@ async function taskUpdate(
     progress?: string;
     revisado?: boolean;
     harness?: Harness;
+    usage?: Usage;
   },
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
@@ -641,6 +642,16 @@ async function taskUpdate(
     if (updated) nextRow = updated;
   }
 
+  // Usage can arrive (or be corrected) after deliver: real numbers found
+  // later fill or overwrite the latest attempt instead of dying in a comment.
+  let usageRecorded = false;
+  if (input.usage) {
+    const applied = await applyUsageToLatestAttempt(db, nextRow, input.usage);
+    if (!applied.ok) return applied;
+    nextRow = applied.value;
+    usageRecorded = true;
+  }
+
   const bodies = [input.comment, input.progress ? `progresso: ${input.progress}` : null]
     .filter((value): value is string => Boolean(value));
   for (const body of bodies) {
@@ -655,7 +666,77 @@ async function taskUpdate(
     task: mapTask(nextRow, found.proj, {
       reopenComment: await latestReopenComment(db, nextRow),
     }),
+    ...(usageRecorded ? { usage_recorded: true } : {}),
   };
+}
+
+/**
+ * Applies a usage block to the task's most recent attempt, merging over what
+ * is already there, syncing the latest handoff and recomputing the card's
+ * telemetry-incomplete flag.
+ */
+async function applyUsageToLatestAttempt(
+  db: McpDatabase,
+  row: TaskRow,
+  usage: Usage,
+): Promise<Result<TaskRow>> {
+  const [attempt] = await db
+    .select()
+    .from(executionAttempt)
+    .where(eq(executionAttempt.taskId, row.id))
+    .orderBy(desc(executionAttempt.startedAt))
+    .limit(1);
+  if (!attempt) {
+    return err(
+      "INVALID_ARGUMENT",
+      "Sem attempt para receber usage. Faça task_claim antes de reportar usage.",
+    );
+  }
+
+  const merged: Usage = {
+    tokens_in: usage.tokens_in ?? attempt.tokensIn ?? undefined,
+    tokens_out: usage.tokens_out ?? attempt.tokensOut ?? undefined,
+    tokens_cache: usage.tokens_cache ?? attempt.tokensCache ?? undefined,
+    cost_usd:
+      usage.cost_usd ??
+      (attempt.costUsd != null ? Number(attempt.costUsd) : undefined),
+    duration_ms: usage.duration_ms ?? attempt.durationMs ?? undefined,
+    turns: usage.turns ?? attempt.turns ?? undefined,
+    estimated: usage.estimated ?? false,
+  };
+
+  await db
+    .update(executionAttempt)
+    .set({
+      tokensIn: merged.tokens_in,
+      tokensOut: merged.tokens_out,
+      tokensCache: merged.tokens_cache,
+      costUsd: merged.cost_usd !== undefined ? String(merged.cost_usd) : null,
+      durationMs: merged.duration_ms,
+      turns: merged.turns,
+      usageEstimated: merged.estimated ?? false,
+    })
+    .where(eq(executionAttempt.id, attempt.id));
+
+  const [latestHandoff] = await db
+    .select()
+    .from(handoff)
+    .where(eq(handoff.taskId, row.id))
+    .orderBy(desc(handoff.createdAt))
+    .limit(1);
+  if (latestHandoff) {
+    await db
+      .update(handoff)
+      .set({ usage: merged })
+      .where(eq(handoff.id, latestHandoff.id));
+  }
+
+  const [updated] = await db
+    .update(task)
+    .set({ telemetryIncomplete: isTelemetryIncomplete(merged) })
+    .where(eq(task.id, row.id))
+    .returning();
+  return ok(updated ?? row);
 }
 
 /**
@@ -755,10 +836,11 @@ async function taskDeliver(
       .limit(1);
 
     if (openAttempt) {
+      const finishedAt = new Date();
       await tx
         .update(executionAttempt)
         .set({
-          finishedAt: new Date(),
+          finishedAt,
           result: "success",
           tokensIn: input.usage?.tokens_in,
           tokensOut: input.usage?.tokens_out,
@@ -768,7 +850,14 @@ async function taskDeliver(
               ? String(input.usage.cost_usd)
               : null,
           durationMs: input.usage?.duration_ms,
+          // Telemetry that does not depend on agent goodwill: the server
+          // measures claim → deliver itself, whatever the agent reports.
+          serverDurationMs: Math.max(
+            0,
+            finishedAt.getTime() - openAttempt.startedAt.getTime(),
+          ),
           turns: input.usage?.turns,
+          usageEstimated: input.usage?.estimated ?? false,
         })
         .where(eq(executionAttempt.id, openAttempt.id));
     }
@@ -842,6 +931,12 @@ async function taskDeliver(
       created_at: iso(persisted.value.saved.createdAt),
     },
     telemetry_incomplete: persisted.value.incomplete,
+    ...(input.usage
+      ? {}
+      : {
+          usage_warning:
+            "card will show usage not reported — send usage via task_update at any time",
+        }),
     routed_to: persisted.value.routedTo,
   };
 }

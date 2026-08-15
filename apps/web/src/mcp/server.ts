@@ -20,9 +20,9 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   task_claim:
     "Pega o card (status → em execução), cria ExecutionAttempt e devolve o briefing.",
   task_update:
-    "Registra progresso, comentário, marca revisado ou reclassifica o harness do card.",
+    "Registra progresso, comentário, marca revisado, reclassifica o harness ou reporta/corrige usage do card (inclusive depois do deliver).",
   task_deliver:
-    "Entrega o resultado: resumo, evidências, artefatos, usage. how_to_verify (URL ou comando) abre o painel de validação leiga. Status → feito.",
+    "Entrega o resultado: resumo, evidências, artefatos, usage. usage é OBRIGATÓRIO: sem números exatos, ESTIME tokens, turns e custo e marque estimated: true — o card rotula como estimativa. A duração é medida pelo servidor do claim ao deliver. how_to_verify (URL ou comando) abre o painel de validação leiga. Status → feito.",
   task_delete:
     "Hard delete: remove o card com attempts, handoffs e subtasks em cascata. Irreversível.",
   branch_register: "Grava a branch criada no card.",

@@ -143,18 +143,27 @@ export const TaskUpdateInputSchema = z
     revisado: z.boolean().optional(),
     /** Reclassifies the card. Validated against the configured executors. */
     harness: HarnessSchema.optional(),
+    /**
+     * Reports or corrects usage after the fact: fills or overwrites the
+     * latest attempt's usage, even on a delivered card. Real numbers found
+     * later belong here, never in a comment.
+     */
+    usage: UsageSchema.optional(),
   })
   .refine(
     (value) =>
       value.comment !== undefined ||
       value.progress !== undefined ||
       value.revisado !== undefined ||
-      value.harness !== undefined,
-    { message: "informe comment, progress, revisado ou harness" },
+      value.harness !== undefined ||
+      value.usage !== undefined,
+    { message: "informe comment, progress, revisado, harness ou usage" },
   );
 
 export const TaskUpdateOutputSchema = z.object({
   task: TaskSchema,
+  /** Present when a usage block was applied to the latest attempt. */
+  usage_recorded: z.boolean().optional(),
 });
 
 export const TaskDeliverInputSchema = z.object({
@@ -170,6 +179,13 @@ export const TaskDeliverInputSchema = z.object({
   artifacts: z.array(ArtifactSchema).default([]),
   branch: z.string().min(1).optional(),
   pull_request_url: z.string().url().optional(),
+  /**
+   * Required by contract: report exact numbers when the harness exposes
+   * them, otherwise ESTIMATE tokens, turns and cost and set estimated: true.
+   * The schema still accepts a missing block so a delivery is never lost,
+   * but the response then carries usage_warning and the card shows
+   * "usage not reported". Duration is measured server-side regardless.
+   */
   usage: UsageSchema.optional(),
 });
 
@@ -177,6 +193,8 @@ export const TaskDeliverOutputSchema = z.object({
   task: TaskSchema,
   handoff: HandoffSchema,
   telemetry_incomplete: z.boolean(),
+  /** Actionable warning returned when the delivery came without usage. */
+  usage_warning: z.string().optional(),
   routed_to: ReviewerSchema,
 });
 

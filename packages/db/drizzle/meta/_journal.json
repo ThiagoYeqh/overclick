@@ -43,6 +43,13 @@
       "when": 1786821612651,
       "tag": "0005_fearless_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786821993091,
+      "tag": "0006_spotty_sinister_six",
+      "breakpoints": true
     }
   ]
 }

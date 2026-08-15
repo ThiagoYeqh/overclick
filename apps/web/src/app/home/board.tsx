@@ -146,7 +146,9 @@ function Card({
           card.telemetry ? (
             <Telemetry text={card.telemetry} />
           ) : (
-            <span className="telemetry">{t.board.noTelemetry}</span>
+            // Never a bare "no telemetry" on a delivered card: without any
+            // numbers the honest label is that usage went unreported.
+            <span className="telemetry">{t.board.usageNotReported}</span>
           )
         ) : null}
       </div>

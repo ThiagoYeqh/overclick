@@ -93,6 +93,12 @@ export const UsageSchema = z.object({
   cost_usd: z.number().nonnegative().optional(),
   duration_ms: z.number().int().nonnegative().optional(),
   turns: z.number().int().nonnegative().optional(),
+  /**
+   * True when the numbers are the executor's estimate instead of exact
+   * telemetry. Estimates are welcome: the card labels them "estimated"
+   * rather than showing nothing.
+   */
+  estimated: z.boolean().optional(),
 });
 
 export const EvidenceSchema = z

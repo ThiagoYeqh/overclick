@@ -241,6 +241,7 @@ export function usageFromUnknown(raw: unknown): Usage | null {
     cost_usd: num("cost_usd") ?? num("costUsd"),
     duration_ms: num("duration_ms") ?? num("durationMs"),
     turns: num("turns"),
+    estimated: typeof rec.estimated === "boolean" ? rec.estimated : undefined,
   };
 }
 

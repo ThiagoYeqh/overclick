@@ -78,27 +78,44 @@ function toBoardCard(t: TaskRow, tr: Dict): BoardCard {
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   )[0];
 
+  // Footer ladder: full usage > estimated usage (labeled) > server-measured
+  // duration with "usage not reported". A delivered card never shows nothing.
   let telemetry: string | null = null;
+  let estimated = false;
   if (latestAttempt) {
     const parts: string[] = [];
-    if (latestAttempt.durationMs != null) parts.push(fmtDurationMs(latestAttempt.durationMs));
     const tokens =
       (latestAttempt.tokensIn ?? 0) +
       (latestAttempt.tokensOut ?? 0) +
       (latestAttempt.tokensCache ?? 0);
-    if (tokens > 0) parts.push(fmtTokens(tokens));
-    if (latestAttempt.costUsd != null) parts.push(`~US$ ${Number(latestAttempt.costUsd).toFixed(2)}`);
-    telemetry = parts.join(" · ") || null;
+    const hasUsage =
+      tokens > 0 ||
+      latestAttempt.costUsd != null ||
+      latestAttempt.durationMs != null ||
+      latestAttempt.turns != null;
+    if (hasUsage) {
+      const duration = latestAttempt.durationMs ?? latestAttempt.serverDurationMs;
+      if (duration != null) parts.push(fmtDurationMs(duration));
+      if (tokens > 0) parts.push(fmtTokens(tokens));
+      if (latestAttempt.costUsd != null) parts.push(`~US$ ${Number(latestAttempt.costUsd).toFixed(2)}`);
+      telemetry = parts.join(" · ") || null;
+      estimated = latestAttempt.usageEstimated;
+    } else if (latestAttempt.serverDurationMs != null) {
+      telemetry = `${fmtDurationMs(latestAttempt.serverDurationMs)} · ${tr.board.usageNotReported}`;
+    }
   } else if (latestHandoff?.usage) {
     const u = latestHandoff.usage;
     const parts: string[] = [];
-    if (u.durationMs != null) parts.push(fmtDurationMs(u.durationMs));
-    const tokens = (u.tokensIn ?? 0) + (u.tokensOut ?? 0) + (u.tokensCache ?? 0);
+    if (u.duration_ms != null) parts.push(fmtDurationMs(u.duration_ms));
+    const tokens = (u.tokens_in ?? 0) + (u.tokens_out ?? 0) + (u.tokens_cache ?? 0);
     if (tokens > 0) parts.push(fmtTokens(tokens));
-    if (u.costUsd != null) parts.push(`~US$ ${u.costUsd.toFixed(2)}`);
+    if (u.cost_usd != null) parts.push(`~US$ ${u.cost_usd.toFixed(2)}`);
     telemetry = parts.join(" · ") || null;
+    estimated = u.estimated ?? false;
   }
-  if (telemetry && t.telemetryIncomplete) {
+  if (telemetry && estimated) {
+    telemetry += ` · ${tr.board.estimated}`;
+  } else if (telemetry && t.telemetryIncomplete && !telemetry.includes(tr.board.usageNotReported)) {
     telemetry += ` · ${tr.board.telemetryIncomplete}`;
   }
 

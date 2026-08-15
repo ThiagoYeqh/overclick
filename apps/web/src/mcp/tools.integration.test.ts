@@ -95,9 +95,111 @@ describe("MCP tool edge cases against a test db", () => {
     });
     expect(submitted.ok).toBe(true);
     if (!submitted.ok) return;
-    const handoff = TaskDeliverOutputSchema.parse(submitted.value);
-    expect(handoff.telemetry_incomplete).toBe(true);
-    expect(handoff.task.status).toBe("feito");
+    const delivered = TaskDeliverOutputSchema.parse(submitted.value);
+    expect(delivered.telemetry_incomplete).toBe(true);
+    expect(delivered.task.status).toBe("feito");
+    // Usage is required by contract: a usage-less delivery still lands, but
+    // the response tells the agent how to fix it after the fact.
+    expect(delivered.usage_warning).toContain("task_update");
+
+    // The server measured claim → deliver on its own.
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.serverDurationMs).not.toBeNull();
+    expect(attempt?.serverDurationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("marks estimated usage on the attempt and skips the warning", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Estimativa",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "Agente sem números exatos.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "estimado",
+      usage: {
+        tokens_in: 1000,
+        tokens_out: 200,
+        cost_usd: 0.05,
+        duration_ms: 60000,
+        turns: 3,
+        estimated: true,
+      },
+    });
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const delivered = TaskDeliverOutputSchema.parse(submitted.value);
+    expect(delivered.usage_warning).toBeUndefined();
+    expect(delivered.handoff.usage?.estimated).toBe(true);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.usageEstimated).toBe(true);
+  });
+
+  it("accepts usage via task_update after deliver and clears the incomplete flag", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Correção de usage",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "Números reais chegaram depois.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "sem números na hora",
+    });
+
+    const corrected = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      usage: {
+        tokens_in: 5000,
+        tokens_out: 900,
+        cost_usd: 0.4,
+        duration_ms: 120000,
+        turns: 7,
+      },
+    });
+    expect(corrected.ok).toBe(true);
+    if (!corrected.ok) return;
+    const out = TaskUpdateOutputSchema.parse(corrected.value);
+    expect(out.usage_recorded).toBe(true);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.tokensIn).toBe(5000);
+    expect(attempt?.usageEstimated).toBe(false);
+
+    const [row] = await world.db.select().from(task).where(eq(task.id, card.id));
+    expect(row?.telemetryIncomplete).toBe(false);
+
+    const [ho] = await world.db.select().from(handoff).where(eq(handoff.taskId, card.id));
+    expect(ho?.usage?.tokens_in).toBe(5000);
   });
 
   it("persists how_to_verify on the handoff and restarts validation ticks", async () => {

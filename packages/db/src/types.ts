@@ -51,13 +51,19 @@ export type HandoffArtifact = {
   content: string;
 };
 
+/**
+ * Snapshot of the MCP usage contract as stored on the handoff jsonb. The MCP
+ * layer is the only writer and it writes snake_case; estimated marks numbers
+ * the executor guessed instead of measured.
+ */
 export type UsageReport = {
-  tokensIn?: number;
-  tokensOut?: number;
-  tokensCache?: number;
-  costUsd?: number;
-  durationMs?: number;
+  tokens_in?: number;
+  tokens_out?: number;
+  tokens_cache?: number;
+  cost_usd?: number;
+  duration_ms?: number;
   turns?: number;
+  estimated?: boolean;
 };
 
 /**
