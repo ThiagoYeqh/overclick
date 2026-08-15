@@ -266,6 +266,23 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   color: var(--nebula-text-secondary); letter-spacing: 0.04em;
 }
 .nb .crumb b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); }
+.nb .crumb select {
+  appearance: none; background: transparent; border: 0; padding: 0 2px 0 0;
+  color: var(--nebula-text-primary); font: inherit; font-weight: var(--nebula-weight-medium);
+  letter-spacing: inherit; cursor: pointer;
+}
+.nb .crumb select:focus { outline: none; }
+.nb .filter-chip {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  padding: 3px 10px; background: rgba(255,255,255,0.03);
+}
+.nb .filter-chip select {
+  appearance: none; background: transparent; border: 0; padding: 0;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11px; letter-spacing: 0.04em; cursor: pointer; max-width: 180px;
+}
+.nb .filter-chip select:focus { outline: none; }
 .nb .spacer { flex: 1; }
 /* o globals.css legado estiliza <form> como painel — na home ele é inline */
 .nb form { display: inline; background: none; border: none; padding: 0; gap: 0; }

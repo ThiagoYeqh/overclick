@@ -24,6 +24,8 @@ export type BoardCard = {
   comoConfirmo: ConfirmStep[];
   validationTicks: ValidationTickView[];
   howToVerify: string | null;
+  projectId: string;
+  missionId: string | null;
   mission: string | null;
   harness: string | null;
   devolve: string;

@@ -54,7 +54,14 @@ describe("complete schema from spec §3", () => {
   it("user is local auth only: email + password hash", () => {
     const cols = columnNames(user);
     expect(cols).toEqual(
-      expect.arrayContaining(["id", "email", "passwordHash", "createdAt"]),
+      expect.arrayContaining([
+        "id",
+        "email",
+        "passwordHash",
+        "boardProjectId",
+        "boardMissionId",
+        "createdAt",
+      ]),
     );
     expect(cols).not.toContain("phone");
     expect(cols).not.toContain("company");

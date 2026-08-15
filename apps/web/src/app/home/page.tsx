@@ -1,15 +1,16 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { project, task, workspace } from "@agent-board/db";
-import { logoutAction } from "../../actions/auth";
+import { mission, project, task, user } from "@agent-board/db";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { UpdateBanner } from "../../components/update-banner";
+import { resolveBoardFilter } from "../../lib/board-filter";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
 import { checkForUpdate, updateHelperDir } from "../../lib/updates";
 import { parseComoConfirmo } from "../../mcp/map";
-import { Board, type BoardCard } from "./board";
+import type { BoardCard } from "./board";
+import { HomeShell } from "./home-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -43,12 +44,13 @@ function fmtDate(d: Date): string {
 
 type TaskRow = Awaited<ReturnType<typeof loadTasks>>[number];
 
-async function loadTasks(projectId: string) {
+async function loadTasks(projectIds: string[]) {
+  if (projectIds.length === 0) return [];
   return db().query.task.findMany({
-    where: eq(task.projectId, projectId),
+    where: inArray(task.projectId, projectIds),
     orderBy: asc(task.createdAt),
     with: {
-      mission: { columns: { title: true } },
+      mission: { columns: { id: true, title: true } },
       createdBy: { columns: { email: true } },
       reviewer: { columns: { email: true } },
       attempts: true,
@@ -144,6 +146,8 @@ function toBoardCard(t: TaskRow, tr: Dict): BoardCard {
     telemetry,
     handoff: latestHandoff?.summary ?? null,
     howToVerify: latestHandoff?.howToVerify ?? null,
+    projectId: t.projectId,
+    missionId: t.missionId,
   };
 }
 
@@ -153,47 +157,42 @@ export default async function HomePage() {
 
   const ws = await db().query.workspace.findFirst();
   if (!ws) redirect("/setup");
-  const proj = await db().query.project.findFirst({
+  const projects = await db().query.project.findMany({
     where: eq(project.workspaceId, ws.id),
+    orderBy: asc(project.createdAt),
+    columns: { id: true, name: true },
   });
-  if (!proj) redirect("/setup");
+  if (projects.length === 0) redirect("/setup");
+
+  const missions = await db().query.mission.findMany({
+    where: eq(mission.workspaceId, ws.id),
+    orderBy: asc(mission.createdAt),
+    columns: { id: true, title: true },
+  });
+
+  const [me] = await db()
+    .select({
+      boardProjectId: user.boardProjectId,
+      boardMissionId: user.boardMissionId,
+    })
+    .from(user)
+    .where(eq(user.id, session.userId))
+    .limit(1);
 
   const t = dict(ws.language);
   // Opt-in only: with the toggle off this instance makes zero outbound calls.
   const release = ws.updateCheckEnabled ? await checkForUpdate() : null;
-  const rows = await loadTasks(proj.id);
+  const rows = await loadTasks(projects.map((item) => item.id));
   const cards = rows.map((row) => toBoardCard(row, t));
-  const running = cards.filter((c) => c.status === "em_execucao").length;
-  const review = cards.filter((c) => c.status === "feito").length;
+  const initialFilter = resolveBoardFilter(
+    { projectId: me?.boardProjectId ?? null, missionId: me?.boardMissionId ?? null },
+    projects,
+    missions,
+  );
 
   return (
     <div className="nb nebula-surface">
       <NebulaAtmosphere />
-
-      <div className="topbar nebula-glass">
-        <div className="logo">
-          over<span>click</span>
-        </div>
-        <div className="crumb">
-          {ws.name} / <b>{proj.name}</b>
-        </div>
-        <div className="spacer" />
-        <span className="btn-ghost pill">
-          {t.board.myReview} <span className="badge">{review}</span>
-        </span>
-        <div className="agent-status">
-          <span className={`dot${running === 0 ? " idle" : ""}`} />
-          {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
-        </div>
-        <a className="btn-ghost" href="/settings">
-          {t.board.settings}
-        </a>
-        <form action={logoutAction}>
-          <button className="btn-ghost" type="submit">
-            {t.board.logout}
-          </button>
-        </form>
-      </div>
 
       {release ? (
         <UpdateBanner
@@ -205,7 +204,14 @@ export default async function HomePage() {
         />
       ) : null}
 
-      <Board cards={cards} lang={ws.language} />
+      <HomeShell
+        workspaceName={ws.name}
+        lang={ws.language}
+        projects={projects}
+        missions={missions}
+        cards={cards}
+        initialFilter={initialFilter}
+      />
 
       <div className="nebula-glass-fade viewport-fade" aria-hidden="true" />
     </div>
