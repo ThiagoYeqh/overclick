@@ -70,9 +70,12 @@ export function CliLogo({ id }: { id: string }) {
       );
     case "grok":
       return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff">
-          <circle cx="12" cy="12" r="7.6" strokeWidth="1.7" />
-          <path d="M6.4 17.6L17.6 6.4" strokeWidth="2.4" />
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="7.4" stroke="#fff" strokeWidth="1.7" />
+          {/* slash cuts through the ring and extends past it, so it reads as
+              the Grok mark instead of a "prohibited" sign */}
+          <path d="M4.6 19.4L19.4 4.6" stroke="#0e1013" strokeWidth="5.2" />
+          <path d="M3.8 20.2L20.2 3.8" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" />
         </svg>
       );
     case "opencode":
