@@ -3,8 +3,11 @@ import {
   HarnessRecommendOutputSchema,
   MissionListOutputSchema,
   TaskCreateOutputSchema,
+  TaskDeleteOutputSchema,
   TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
+import { executionAttempt, handoff, task } from "@agent-board/db";
+import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
 import { invokeTool } from "./tools";
@@ -173,5 +176,93 @@ describe("MCP tool edge cases against a test db", () => {
     expect(reviewed.ok).toBe(true);
     if (!reviewed.ok) return;
     expect(TaskUpdateOutputSchema.parse(reviewed.value).task.revisado).toBe(true);
+  });
+
+  it("hard deletes a claimed card and cascades its execution attempts", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Card para deletar",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    expect(claimed.ok).toBe(true);
+
+    const deleted = await invokeTool(world.db, ctx(), "task_delete", {
+      task_id: card.id,
+    });
+    expect(deleted.ok).toBe(true);
+    if (!deleted.ok) return;
+    const out = TaskDeleteOutputSchema.parse(deleted.value);
+    expect(out.deleted).toBe(true);
+    expect(out.short_id).toBe(card.short_id);
+    expect(out.attempts_deleted).toBe(1);
+
+    const taskRows = await world.db.select().from(task).where(eq(task.id, card.id));
+    expect(taskRows).toHaveLength(0);
+    const attemptRows = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attemptRows).toHaveLength(0);
+  });
+
+  it("hard deletes a delivered card and cascades its handoffs", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Card entregue para deletar",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entregue",
+    });
+    expect(delivered.ok).toBe(true);
+
+    const deleted = await invokeTool(world.db, ctx(), "task_delete", {
+      task_id: card.short_id,
+    });
+    expect(deleted.ok).toBe(true);
+    if (!deleted.ok) return;
+    const out = TaskDeleteOutputSchema.parse(deleted.value);
+    expect(out.handoffs_deleted).toBe(1);
+    expect(out.attempts_deleted).toBe(1);
+
+    const handoffRows = await world.db
+      .select()
+      .from(handoff)
+      .where(eq(handoff.taskId, card.id));
+    expect(handoffRows).toHaveLength(0);
+  });
+
+  it("returns NOT_FOUND when deleting a card that does not exist", async () => {
+    world = await createTestWorld();
+    const deleted = await invokeTool(world.db, ctx(), "task_delete", {
+      task_id: "00000000-0000-4000-8000-000000000000",
+    });
+    expect(deleted.ok).toBe(false);
+    if (!deleted.ok) {
+      expect(deleted.error.code).toBe("NOT_FOUND");
+    }
   });
 });

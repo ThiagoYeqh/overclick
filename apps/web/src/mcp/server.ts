@@ -22,6 +22,8 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   task_update: "Registra progresso, comentário ou marca revisado (revisor agente).",
   task_deliver:
     "Entrega o resultado: resumo, evidências, artefatos, usage. Status → feito.",
+  task_delete:
+    "Hard delete: remove o card com attempts, handoffs e subtasks em cascata. Irreversível.",
   branch_register: "Grava a branch criada no card.",
   harness_recommend:
     "Lookup da política do cardápio: tipo → CLI · modelo · effort.",

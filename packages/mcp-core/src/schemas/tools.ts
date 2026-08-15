@@ -171,6 +171,23 @@ export const TaskDeliverOutputSchema = z.object({
   routed_to: ReviewerSchema,
 });
 
+/**
+ * task_delete is a hard delete by owner decision: the card row is removed and the
+ * database cascades over execution_attempts, handoffs, comments and subtasks.
+ * There is no archive flag and no undo.
+ */
+export const TaskDeleteInputSchema = z.object({
+  task_id: z.string().min(1),
+});
+
+export const TaskDeleteOutputSchema = z.object({
+  deleted: z.literal(true),
+  task_id: z.string().min(1),
+  short_id: z.string().min(1),
+  attempts_deleted: z.number().int().min(0),
+  handoffs_deleted: z.number().int().min(0),
+});
+
 export const BranchRegisterInputSchema = z.object({
   task_id: z.string().min(1),
   branch: z.string().min(1),
@@ -233,6 +250,7 @@ export const MCP_TOOL_NAMES = [
   "task_claim",
   "task_update",
   "task_deliver",
+  "task_delete",
   "branch_register",
   "harness_recommend",
   "harness_list",
@@ -273,6 +291,10 @@ export const toolContracts = {
     input: TaskDeliverInputSchema,
     output: TaskDeliverOutputSchema,
   },
+  task_delete: {
+    input: TaskDeleteInputSchema,
+    output: TaskDeleteOutputSchema,
+  },
   branch_register: {
     input: BranchRegisterInputSchema,
     output: BranchRegisterOutputSchema,
@@ -294,6 +316,8 @@ export type TaskClaimOutput = z.infer<typeof TaskClaimOutputSchema>;
 export type TaskUpdateInput = z.infer<typeof TaskUpdateInputSchema>;
 export type TaskDeliverInput = z.infer<typeof TaskDeliverInputSchema>;
 export type TaskDeliverOutput = z.infer<typeof TaskDeliverOutputSchema>;
+export type TaskDeleteInput = z.infer<typeof TaskDeleteInputSchema>;
+export type TaskDeleteOutput = z.infer<typeof TaskDeleteOutputSchema>;
 export type MissionListInput = z.infer<typeof MissionListInputSchema>;
 export type MissionGetInput = z.infer<typeof MissionGetInputSchema>;
 export type TaskListInput = z.infer<typeof TaskListInputSchema>;

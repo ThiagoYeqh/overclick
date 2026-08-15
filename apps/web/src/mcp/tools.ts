@@ -96,6 +96,9 @@ export async function invokeTool(
     case "task_deliver":
       value = await taskDeliver(db, ctx, parsed.data as Parameters<typeof taskDeliver>[2]);
       break;
+    case "task_delete":
+      value = await taskDelete(db, ctx, parsed.data as Parameters<typeof taskDelete>[2]);
+      break;
     case "branch_register":
       value = await branchRegister(db, ctx, parsed.data as Parameters<typeof branchRegister>[2]);
       break;
@@ -714,6 +717,46 @@ async function taskDeliver(
     telemetry_incomplete: persisted.value.incomplete,
     routed_to: persisted.value.routedTo,
   };
+}
+
+async function taskDelete(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: { task_id: string },
+) {
+  return db.transaction(async (tx) => {
+    const found = await findTask(tx, ctx.workspaceId, input.task_id, true);
+    if (!found) {
+      return err("NOT_FOUND", `Task ${input.task_id} não encontrada.`);
+    }
+
+    const children = await tx
+      .select({ id: task.id })
+      .from(task)
+      .where(eq(task.parentId, found.row.id));
+    const ids = [found.row.id, ...children.map((child) => child.id)];
+
+    const [attempts] = await tx
+      .select({ n: count() })
+      .from(executionAttempt)
+      .where(inArray(executionAttempt.taskId, ids));
+    const [handoffs] = await tx
+      .select({ n: count() })
+      .from(handoff)
+      .where(inArray(handoff.taskId, ids));
+
+    // Hard delete by owner decision: attempts, handoffs, comments and subtasks
+    // go with the card via FK cascade. No archive, no undo.
+    await tx.delete(task).where(eq(task.id, found.row.id));
+
+    return {
+      deleted: true as const,
+      task_id: found.row.id,
+      short_id: found.row.shortId,
+      attempts_deleted: Number(attempts?.n ?? 0),
+      handoffs_deleted: Number(handoffs?.n ?? 0),
+    };
+  });
 }
 
 async function branchRegister(
