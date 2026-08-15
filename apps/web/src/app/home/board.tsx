@@ -4,27 +4,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState, useTransition } from "react";
 import { reopenTaskAction, validateTaskAction } from "../../actions/review";
 import { createBoardTaskAction } from "../../actions/tasks";
-
-export type BoardCard = {
-  id: string;
-  shortId: string;
-  title: string;
-  tipo: "feature" | "bug" | "rfc";
-  status: "aberto" | "em_execucao" | "feito" | "validado";
-  isExample: boolean;
-  oQue: string;
-  porQue: string;
-  comoConfirmo: string;
-  mission: string | null;
-  harness: string | null;
-  devolve: string;
-  origem: string;
-  executor: string | null;
-  elapsed: string | null;
-  branch: string | null;
-  telemetry: string | null;
-  handoff: string | null;
-};
+import type { BoardCard } from "./board-card";
 
 const COLUMNS = [
   { status: "aberto", label: "Open" },
@@ -136,7 +116,10 @@ function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void
   const [comment, setComment] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
-  if (card.status !== "feito") return null;
+  const isDone = card.status === "feito";
+  const isStuckCandidate = card.status === "em_execucao";
+
+  if (!isDone && !isStuckCandidate) return null;
 
   const validate = () =>
     start(async () => {
@@ -163,11 +146,20 @@ function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void
   if (reopening) {
     return (
       <div className="d-actions d-actions-reopen">
+        {isStuckCandidate ? (
+          <p className="d-help">
+            This releases the board state for another attempt. It does not stop an external agent process.
+          </p>
+        ) : null}
         <textarea
           className="d-textarea"
           autoFocus
           rows={3}
-          placeholder="What's missing? The agent reads this comment on its next claim."
+          placeholder={
+            isStuckCandidate
+              ? "Why is this card stuck? This comment will be visible on the next claim."
+              : "What's missing? The agent reads this comment on its next claim."
+          }
           value={comment}
           onChange={(e) => setComment(e.target.value)}
         />
@@ -189,11 +181,36 @@ function DetailActions({ card, onClose }: { card: BoardCard; onClose: () => void
       {err ? <p className="d-err">{err}</p> : null}
       <div className="d-actions-row">
         <button className="d-btn-sec" disabled={pending} onClick={() => setReopening(true)}>
-          Reopen with a comment
+          {isStuckCandidate ? "Reopen stuck card" : "Reopen with a comment"}
         </button>
-        <button className="d-btn-pri" disabled={pending} onClick={validate}>
-          {pending ? "Validating…" : "Validate"}
-        </button>
+        {isDone ? (
+          <button className="d-btn-pri" disabled={pending} onClick={validate}>
+            {pending ? "Validating…" : "Validate"}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function History({ card }: { card: BoardCard }) {
+  if (card.history.length === 0) return null;
+
+  return (
+    <div className="d-sec">
+      <div className="lbl">History</div>
+      <div className="history-list">
+        {card.history.map((event) => (
+          <div className="history-item" key={event.id}>
+            <div className="history-meta">
+              <span>{event.at}</span>
+              <span>{event.kind}</span>
+              <span>{event.actor}</span>
+            </div>
+            <div className="history-summary">{event.summary}</div>
+            {event.detail ? <div className="history-detail">{event.detail}</div> : null}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -258,6 +275,7 @@ function Detail({ card, onClose }: { card: BoardCard; onClose: () => void }) {
             <div className="d-evid">{card.handoff}</div>
           </div>
         ) : null}
+        <History card={card} />
         <DetailActions card={card} onClose={onClose} />
       </div>
     </div>
