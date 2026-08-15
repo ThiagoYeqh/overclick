@@ -28,7 +28,7 @@ describe("selectionFromConfig", () => {
     const sel = selectionFromConfig([
       { id: "grok", label: "Grok", enabled: true, models: [] },
     ]);
-    expect(sel.enabled.grok).toEqual(["grok-4"]);
+    expect(sel.enabled.grok).toEqual(["grok-4.6"]);
   });
 
   it("recognizes the custom CLI and keeps the user-given name", () => {

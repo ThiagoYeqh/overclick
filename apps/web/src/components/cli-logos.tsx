@@ -1,88 +1,55 @@
-/** Inline SVG logos for the CLIs (offline, faithful to the approved mockup). Server-safe. */
+import { BRAND_ICON_DATA } from "./__generated__/brandIconData";
+
+/**
+ * Real brand marks for the executor CLIs. Server-safe inline SVG, offline.
+ * Sources: BRAND_ICON_DATA captured from @lobehub/icons (MIT); Grok is the
+ * official lobehub glyph (the Grok slash mark, not the X logo); OpenCode is
+ * the official mark from opencode.ai/brand. Muse has no published mark yet.
+ */
+
+type BrandKey = keyof typeof BRAND_ICON_DATA;
+
+function Brand({ name, variant = "color" }: { name: BrandKey; variant?: "color" | "mono" }) {
+  const d = BRAND_ICON_DATA[name];
+  const v = variant === "color" && d.color ? d.color : d.mono;
+  return (
+    <svg
+      viewBox={v.viewBox}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      // eslint-disable-next-line react/no-danger
+      dangerouslySetInnerHTML={{ __html: v.inner }}
+    />
+  );
+}
+
 export function CliLogo({ id }: { id: string }) {
   switch (id) {
     case "claude-code":
-      return (
-        <svg viewBox="0 0 24 24">
-          <g stroke="#D97757" strokeWidth="2" strokeLinecap="round">
-            {[0, 36, 72, 108, 144, 180, 216, 252, 288, 324].map((a) => (
-              <line key={a} x1="12" y1="4.5" x2="12" y2="8.6" transform={`rotate(${a} 12 12)`} />
-            ))}
-          </g>
-        </svg>
-      );
+      return <Brand name="Claude" />;
     case "gemini-cli":
-      return (
-        <svg viewBox="0 0 24 24">
-          <defs>
-            <linearGradient id="lg-gem" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#E491F2" />
-              <stop offset=".5" stopColor="#8B7CF6" />
-              <stop offset="1" stopColor="#3E8FF7" />
-            </linearGradient>
-          </defs>
-          <path fill="url(#lg-gem)" d="M12 2.6c.55 4.6 2.8 6.9 7.4 7.4l2 .3-2 .3c-4.6.55-6.85 2.8-7.4 7.4l-.3 2-.3-2c-.55-4.6-2.8-6.85-7.4-7.4l-2-.3 2-.3c4.6-.55 6.85-2.8 7.4-7.4l.3-2z" />
-          <circle cx="20.3" cy="12" r="1.35" fill="#F7D154" />
-        </svg>
-      );
+      return <Brand name="Gemini" />;
     case "codex":
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="#46A08C" strokeWidth="1.9" strokeLinecap="round">
-          <circle cx="12" cy="7.8" r="4.5" strokeDasharray="20.5 7.8" transform="rotate(15 12 7.8)" />
-          <circle cx="15.6" cy="9.9" r="4.5" strokeDasharray="20.5 7.8" transform="rotate(75 15.6 9.9)" />
-          <circle cx="15.6" cy="14.1" r="4.5" strokeDasharray="20.5 7.8" transform="rotate(135 15.6 14.1)" />
-          <circle cx="12" cy="16.2" r="4.5" strokeDasharray="20.5 7.8" transform="rotate(195 12 16.2)" />
-          <circle cx="8.4" cy="14.1" r="4.5" strokeDasharray="20.5 7.8" transform="rotate(255 8.4 14.1)" />
-          <circle cx="8.4" cy="9.9" r="4.5" strokeDasharray="20.5 7.8" transform="rotate(315 8.4 9.9)" />
-        </svg>
-      );
+      return <Brand name="OpenAI" variant="mono" />;
     case "kimi":
-      return (
-        <svg viewBox="0 0 24 24">
-          <path d="M7.6 4.6v14.8M15.8 4.6L8.2 12l7.9 7.4" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-          <rect x="16.4" y="3.8" width="2.5" height="2.5" rx="0.6" fill="#4C8DFF" transform="rotate(14 17.6 5)" />
-        </svg>
-      );
+      return <Brand name="Kimi" />;
     case "antigravity":
-      return (
-        <svg viewBox="0 0 24 24">
-          <defs>
-            <linearGradient id="lg-ag" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#6EA8FF" />
-              <stop offset="1" stopColor="#3B6FF0" />
-            </linearGradient>
-          </defs>
-          <path d="M5.2 19.4C7 12.2 8.8 5.6 12 5.6s5 6.6 6.8 13.8" fill="none" stroke="url(#lg-ag)" strokeWidth="3.1" strokeLinecap="round" />
-        </svg>
-      );
+      return <Brand name="Antigravity" />;
     case "cursor":
-      return (
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round">
-          <path d="M12 3.6l7.4 4.25v8.3L12 20.4l-7.4-4.25v-8.3z" />
-          <path d="M12 12l7.4-4.15M12 12L4.6 7.85M12 12v8.4" />
-        </svg>
-      );
+      return <Brand name="Cursor" variant="mono" />;
     case "github-copilot":
-      return (
-        <svg viewBox="0 0 24 24">
-          <path fill="#fff" d="M12 6.1c-3.2 0-5.7 2.3-5.7 5.1 0 2.5 1.8 4.3 4.4 4.7.3.1.4-.1.4-.3v-1.1c-1.8.2-2.2-.8-2.2-.8-.3-.7-.7-.9-.7-.9-.6-.4 0-.4 0-.4.7.1 1 .7 1 .7.6 1 1.6.7 2 .5.1-.4.2-.8.4-.9-1.5-.2-3-.8-3-3 0-.7.2-1.2.6-1.7-.1-.1-.3-.8.1-1.6 0 0 .5-.2 1.7.7.5-.1 1-.2 1.5-.2s1 .1 1.5.2c1.2-.9 1.7-.7 1.7-.7.4.8.2 1.5.1 1.6.4.5.6 1 .6 1.7 0 2.2-1.5 2.8-3 3 .2.2.4.6.4 1.3v1.8c0 .2.1.4.4.3 2.6-.4 4.4-2.2 4.4-4.7 0-2.8-2.5-5.1-5.7-5.1z" />
-        </svg>
-      );
+      return <Brand name="Github" variant="mono" />;
     case "grok":
       return (
-        <svg viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="7.4" stroke="#fff" strokeWidth="1.7" />
-          {/* slash cuts through the ring and extends past it, so it reads as
-              the Grok mark instead of a "prohibited" sign */}
-          <path d="M4.6 19.4L19.4 4.6" stroke="#0e1013" strokeWidth="5.2" />
-          <path d="M3.8 20.2L20.2 3.8" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" />
+        <svg viewBox="0 0 24 24" fill="currentColor" fillRule="evenodd" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815" />
         </svg>
       );
     case "opencode":
       return (
-        <svg viewBox="0 0 24 24">
-          <rect x="5.6" y="5.6" width="12.8" height="12.8" fill="none" stroke="#fff" strokeWidth="2.1" />
-          <rect x="9.4" y="10.1" width="4.5" height="4.5" fill="#fff" />
+        <svg viewBox="0 6 24 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 30H6V18H18V30Z" fill="#4B4646" />
+          <path d="M18 12H6V30H18V12ZM24 36H0V6H24V36Z" fill="#F1ECEC" />
         </svg>
       );
     case "muse-code":

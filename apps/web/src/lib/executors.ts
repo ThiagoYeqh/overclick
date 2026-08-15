@@ -6,16 +6,32 @@ export type ExecutorDef = {
 };
 
 export const EXECUTOR_CATALOG: readonly ExecutorDef[] = [
-  { id: "claude-code", label: "Claude Code", models: ["fable-5", "sonnet-5", "haiku-4-5"] },
-  { id: "gemini-cli", label: "Gemini", models: ["3.5-flash", "3.1-pro"] },
-  { id: "codex", label: "Codex", models: ["gpt-5.6-sol", "gpt-5.4-mini"] },
-  { id: "kimi", label: "Kimi", models: ["k2-thinking", "k2"] },
-  { id: "antigravity", label: "Antigravity", models: ["3.1-pro", "sonnet-4-6"] },
+  { id: "claude-code", label: "Claude Code", models: ["fable-5", "opus-5", "sonnet-5", "haiku-4-5"] },
+  { id: "gemini-cli", label: "Gemini", models: ["3.5-flash", "3.1-pro", "3-flash"] },
+  {
+    id: "codex",
+    label: "Codex",
+    models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4-mini"],
+  },
+  {
+    id: "kimi",
+    label: "Kimi",
+    models: ["kimi-for-coding", "kimi-for-coding-highspeed", "k3", "k3-256k"],
+  },
+  {
+    id: "antigravity",
+    label: "Antigravity",
+    models: ["3.7-flash-high", "3.7-flash-medium", "3.7-flash-low"],
+  },
   { id: "cursor", label: "Cursor", models: ["auto"] },
-  { id: "github-copilot", label: "GitHub Copilot", models: ["auto", "gpt-5.4"] },
-  { id: "grok", label: "Grok", models: ["grok-4", "grok-4-fast"] },
-  { id: "opencode", label: "OpenCode", models: ["auto"] },
-  { id: "muse-code", label: "Muse Code", models: ["mimo-v2.5-pro", "mimo-omni"] },
+  { id: "github-copilot", label: "GitHub Copilot", models: ["auto"] },
+  { id: "grok", label: "Grok", models: ["grok-4.6", "grok-4.5", "grok-composer-2.5-fast"] },
+  {
+    id: "opencode",
+    label: "OpenCode",
+    models: ["big-pickle", "deepseek-v4-flash-free", "mimo-v2.5-free"],
+  },
+  { id: "muse-code", label: "Muse Code", models: ["muse-spark-1.2"] },
 ];
 
 /** Id of the custom executor ("+ Customize"), which connects via generic MCP. */
