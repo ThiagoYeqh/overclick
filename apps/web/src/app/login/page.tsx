@@ -19,7 +19,7 @@ export default async function LoginPage() {
       <h1>Welcome back.</h1>
       <p className="sub">Sign in with this local instance&apos;s admin account.</p>
       <LoginForm />
-      <p className="foot">v0.1.0 · local instance · no data sent anywhere</p>
+      <p className="foot">v0.1.1 · local instance · no data sent anywhere</p>
     </>
   );
 }
