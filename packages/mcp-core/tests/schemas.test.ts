@@ -2,15 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   TaskDeliverInputSchema,
   MCP_TOOL_NAMES,
+  MissionCreateInputSchema,
   TaskCreateInputSchema,
   toolContracts,
 } from "../src/index.js";
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 12 tools", () => {
+  it("exports input and output schemas for all 13 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "mission_list",
       "mission_get",
+      "mission_create",
       "task_list",
       "task_get",
       "task_create",
@@ -26,6 +28,31 @@ describe("MCP tool contracts", () => {
       expect(toolContracts[name].input).toBeDefined();
       expect(toolContracts[name].output).toBeDefined();
     }
+  });
+});
+
+describe("mission_create", () => {
+  it("accepts title plus objective/context markdown and status", () => {
+    const parsed = MissionCreateInputSchema.parse({
+      title: "Norte do board",
+      objective: "Fechar o loop MCP.",
+      context: "O board é a fonte de verdade.",
+      status: "ativa",
+    });
+    expect(parsed.title).toBe("Norte do board");
+    expect(parsed.objective).toBe("Fechar o loop MCP.");
+    expect(parsed.context).toBe("O board é a fonte de verdade.");
+  });
+
+  it("allows title only (objective/context optional, status defaults later)", () => {
+    const parsed = MissionCreateInputSchema.parse({ title: "Loose north" });
+    expect(parsed.objective).toBeUndefined();
+    expect(parsed.context).toBeUndefined();
+    expect(parsed.status).toBeUndefined();
+  });
+
+  it("rejects an empty title", () => {
+    expect(MissionCreateInputSchema.safeParse({ title: "" }).success).toBe(false);
   });
 });
 

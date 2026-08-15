@@ -9,6 +9,7 @@ export const mission = pgTable("mission", {
     .references(() => workspace.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   objective: text("objective").notNull().default(""),
+  context: text("context").notNull().default(""),
   status: missionStatusEnum("status").notNull().default("ativa"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -11,12 +11,14 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   mission_list: "Lista as missões do workspace e o contexto de cada uma.",
   mission_get:
     "Devolve a missão completa (objetivo/contexto) para injetar no prompt.",
+  mission_create:
+    "Cria uma missão no workspace (title, objective/context em markdown, status). Use o id retornado em task_create.mission.",
   task_list:
     "Fila de cards do workspace. Filtros: projeto, missão, status, prioridade, awaiting_review_by.",
   task_get:
     "Card autocontido: contrato + harness + missão + convenção de branch (markdown).",
   task_create:
-    "Cria um card. Workspace vem do token. Missão declarada pelo caller. mode solo|team.",
+    "Cria um card. Workspace vem do token. mission é o id de uma missão existente (mission_create / mission_list); omitido → card solto. mode solo|team.",
   task_claim:
     "Pega o card (status → em execução), cria ExecutionAttempt e devolve o briefing.",
   task_update:

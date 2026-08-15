@@ -40,6 +40,22 @@ export const MissionGetOutputSchema = z.object({
   mission: MissionSchema,
 });
 
+/**
+ * Canonical mission_create input.
+ * Workspace is resolved from the MCP bearer token — never sent in the body.
+ * `objective` and `context` are markdown. Omit either and the other fills it.
+ */
+export const MissionCreateInputSchema = z.object({
+  title: z.string().min(1).max(200),
+  objective: z.string().optional(),
+  context: z.string().optional(),
+  status: MissionStatusSchema.optional(),
+});
+
+export const MissionCreateOutputSchema = z.object({
+  mission: MissionSchema,
+});
+
 export const TaskListInputSchema = z.object({
   project_id: z.string().min(1).optional(),
   mission_id: z.string().min(1).optional(),
@@ -67,7 +83,8 @@ export const TaskGetOutputSchema = z.object({
 /**
  * Canonical task_create input (§4.1).
  * Workspace is resolved from the MCP bearer token — never sent in the body.
- * Mission is declared by the caller; omitted → card is born loose.
+ * `mission` is the id of an existing mission (from mission_create / mission_list).
+ * Missing id → NOT_FOUND. Omitted → card is born loose.
  */
 export const TaskCreateInputSchema = z
   .object({
@@ -271,6 +288,7 @@ export const HarnessListOutputSchema = z.object({
 export const MCP_TOOL_NAMES = [
   "mission_list",
   "mission_get",
+  "mission_create",
   "task_list",
   "task_get",
   "task_create",
@@ -293,6 +311,10 @@ export const toolContracts = {
   mission_get: {
     input: MissionGetInputSchema,
     output: MissionGetOutputSchema,
+  },
+  mission_create: {
+    input: MissionCreateInputSchema,
+    output: MissionCreateOutputSchema,
   },
   task_list: {
     input: TaskListInputSchema,
@@ -347,6 +369,8 @@ export type TaskDeleteInput = z.infer<typeof TaskDeleteInputSchema>;
 export type TaskDeleteOutput = z.infer<typeof TaskDeleteOutputSchema>;
 export type MissionListInput = z.infer<typeof MissionListInputSchema>;
 export type MissionGetInput = z.infer<typeof MissionGetInputSchema>;
+export type MissionCreateInput = z.infer<typeof MissionCreateInputSchema>;
+export type MissionCreateOutput = z.infer<typeof MissionCreateOutputSchema>;
 export type TaskListInput = z.infer<typeof TaskListInputSchema>;
 export type TaskGetInput = z.infer<typeof TaskGetInputSchema>;
 export type BranchRegisterInput = z.infer<typeof BranchRegisterInputSchema>;

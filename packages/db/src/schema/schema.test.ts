@@ -70,6 +70,7 @@ describe("complete schema from spec §3", () => {
         "workspaceId",
         "title",
         "objective",
+        "context",
         "status",
         "createdAt",
         "updatedAt",

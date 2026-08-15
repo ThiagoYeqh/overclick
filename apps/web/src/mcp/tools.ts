@@ -79,6 +79,13 @@ export async function invokeTool(
     case "mission_get":
       value = await missionGet(db, ctx, parsed.data as Parameters<typeof missionGet>[2]);
       break;
+    case "mission_create":
+      value = await missionCreate(
+        db,
+        ctx,
+        parsed.data as Parameters<typeof missionCreate>[2],
+      );
+      break;
     case "task_list":
       value = await taskList(db, ctx, parsed.data as Parameters<typeof taskList>[2]);
       break;
@@ -182,6 +189,34 @@ async function missionGet(
     .from(task)
     .where(eq(task.missionId, row.id));
   return { mission: mapMission(row, Number(counted?.n ?? 0)) };
+}
+
+async function missionCreate(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: {
+    title: string;
+    objective?: string;
+    context?: string;
+    status?: "ativa" | "pausada" | "concluida";
+  },
+) {
+  const objective = (input.objective ?? input.context ?? "").trim();
+  const context = (input.context ?? input.objective ?? "").trim();
+  const [row] = await db
+    .insert(mission)
+    .values({
+      workspaceId: ctx.workspaceId,
+      title: input.title.trim(),
+      objective,
+      context,
+      status: input.status ?? "ativa",
+    })
+    .returning();
+  if (!row) {
+    throw new Error("failed to insert mission");
+  }
+  return { mission: mapMission(row, 0) };
 }
 
 async function taskList(
@@ -1109,16 +1144,16 @@ async function findMission(
   workspaceId: string,
   missionRef: string,
 ) {
-  const filters = [eq(mission.workspaceId, workspaceId)];
-  if (looksLikeUuid(missionRef)) {
-    filters.push(eq(mission.id, missionRef));
-  } else {
-    filters.push(eq(mission.title, missionRef));
+  // task_create.mission and mission_get take an existing mission id.
+  // A missing or unknown id is a clean NOT_FOUND — we never match by title
+  // and never invent a mission on the fly.
+  if (!looksLikeUuid(missionRef)) {
+    return null;
   }
   const [row] = await db
     .select()
     .from(mission)
-    .where(and(...filters))
+    .where(and(eq(mission.workspaceId, workspaceId), eq(mission.id, missionRef)))
     .limit(1);
   return row ?? null;
 }

@@ -155,12 +155,14 @@ export function harnessToDb(
 }
 
 export function mapMission(row: MissionRow, taskCount?: number): Mission {
+  const objective = row.objective;
+  const context = row.context || row.objective;
   return {
     id: row.id,
     title: row.title,
     status: row.status,
-    objective: row.objective,
-    context: row.objective,
+    objective,
+    context,
     ...(taskCount !== undefined ? { task_count: taskCount } : {}),
   };
 }

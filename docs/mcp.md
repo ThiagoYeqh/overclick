@@ -1,6 +1,6 @@
 # MCP · OverClick
 
-The board exposes the 12 MVP tools over **streamable HTTP**, served by the same app process.
+The board exposes the 13 MVP tools over **streamable HTTP**, served by the same app process.
 
 ## Connect
 
@@ -21,9 +21,10 @@ The workspace is resolved from the token. Revoked or missing token → **HTTP 40
 | Tool | What it does |
 |---|---|
 | `mission_list` / `mission_get` | missions and the context to inject into the prompt |
+| `mission_create` | creates a mission (`title`, objective/context markdown, `status`) and returns its id |
 | `task_list` | the queue (project, `mission_id`, status, priority, `awaiting_review_by`) |
 | `task_get` | self-contained md briefing (contract + harness + mission + branch) |
-| `task_create` | creates the card (declared mission, `mode` solo\|team, origin) |
+| `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin) |
 | `task_claim` | status → `in_progress`; a second claim → `ALREADY_CLAIMED` |
 | `task_update` | progress, comment, the `reviewed` mark, a new `harness` (validated against executors), or a `usage` block that fills or corrects the latest attempt's telemetry, even after deliver |
 | `task_deliver` | result + usage; status → `done`; routed to the card's reviewer |

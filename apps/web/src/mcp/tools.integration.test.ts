@@ -1,9 +1,13 @@
 import {
   TaskDeliverOutputSchema,
   HarnessRecommendOutputSchema,
+  MissionCreateOutputSchema,
+  MissionGetOutputSchema,
   MissionListOutputSchema,
+  TaskClaimOutputSchema,
   TaskCreateOutputSchema,
   TaskDeleteOutputSchema,
+  TaskGetOutputSchema,
   TaskListOutputSchema,
   TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
@@ -335,6 +339,111 @@ describe("MCP tool edge cases against a test db", () => {
     if (!submitted.ok) {
       expect(submitted.error.code).toBe("INVALID_TRANSITION");
     }
+  });
+
+  it("creates a mission, lists it, and links a task by that id", async () => {
+    world = await createTestWorld();
+
+    const created = await invokeTool(world.db, ctx(), "mission_create", {
+      title: "Field north",
+      objective: "Ship the mission loop.",
+      context: "Agents must inherit this context in the briefing.",
+      status: "ativa",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const miss = MissionCreateOutputSchema.parse(created.value).mission;
+    expect(miss.title).toBe("Field north");
+    expect(miss.objective).toBe("Ship the mission loop.");
+    expect(miss.context).toBe("Agents must inherit this context in the briefing.");
+    expect(miss.status).toBe("ativa");
+    expect(miss.task_count).toBe(0);
+
+    const listed = await invokeTool(world.db, ctx(), "mission_list", {});
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    const missions = MissionListOutputSchema.parse(listed.value).missions;
+    expect(missions.map((row) => row.id)).toContain(miss.id);
+    expect(missions.find((row) => row.id === miss.id)?.title).toBe("Field north");
+
+    const fetched = await invokeTool(world.db, ctx(), "mission_get", {
+      mission_id: miss.id,
+    });
+    expect(fetched.ok).toBe(true);
+    if (!fetched.ok) return;
+    expect(MissionGetOutputSchema.parse(fetched.value).mission.context).toBe(
+      "Agents must inherit this context in the briefing.",
+    );
+
+    const card = await invokeTool(world.db, ctx(), "task_create", {
+      mission: miss.id,
+      project_id: world.projectId,
+      title: "Linked to the new mission",
+      type: "feature",
+      o_que: "Card born under Field north.",
+      por_que: "Prove the link.",
+      como_confirmo: [{ step: "abre o card", expected: "missão Field north" }],
+      origem,
+    });
+    expect(card.ok).toBe(true);
+    if (!card.ok) return;
+    const taskOut = TaskCreateOutputSchema.parse(card.value).task;
+    expect(taskOut.mission_id).toBe(miss.id);
+
+    const got = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: taskOut.id,
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    const payload = TaskGetOutputSchema.parse(got.value);
+    expect(payload.mission?.id).toBe(miss.id);
+    expect(payload.briefing_markdown).toContain("Field north");
+    expect(payload.briefing_markdown).toContain("Ship the mission loop.");
+    expect(payload.briefing_markdown).toContain(
+      "Agents must inherit this context in the briefing.",
+    );
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: taskOut.id,
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const claimOut = TaskClaimOutputSchema.parse(claimed.value);
+    expect(claimOut.briefing_markdown).toContain(
+      "Agents must inherit this context in the briefing.",
+    );
+  });
+
+  it("returns a clean NOT_FOUND when task_create.mission is missing", async () => {
+    world = await createTestWorld();
+    const missing = await invokeTool(world.db, ctx(), "task_create", {
+      mission: "00000000-0000-4000-8000-000000000000",
+      project_id: world.projectId,
+      title: "Orphan attempt",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(missing.ok).toBe(false);
+    if (missing.ok) return;
+    expect(missing.error.code).toBe("NOT_FOUND");
+    expect(missing.error.message).toMatch(/não encontrada/i);
+
+    const byTitle = await invokeTool(world.db, ctx(), "task_create", {
+      mission: "Norte do board",
+      project_id: world.projectId,
+      title: "Title is not an id",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(byTitle.ok).toBe(false);
+    if (byTitle.ok) return;
+    expect(byTitle.error.code).toBe("NOT_FOUND");
   });
 
   it("lists missions, recommends harness, registers a branch and marks revisado", async () => {

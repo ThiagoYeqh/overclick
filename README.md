@@ -67,7 +67,7 @@ Then, in your terminal: *"grab the next task from the board."* Watch the example
 
 ## MCP surface
 
-12 tools: `mission_list` · `mission_get` · `task_list` · `task_get` · `task_create` ·
+13 tools: `mission_list` · `mission_get` · `mission_create` · `task_list` · `task_get` · `task_create` ·
 `task_claim` · `task_update` · `task_deliver` · `task_delete` · `branch_register` ·
 `harness_recommend` · `harness_list`. Streamable HTTP, bearer tokens, atomic claims,
 typed errors. See
