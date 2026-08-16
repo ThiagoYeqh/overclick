@@ -83,7 +83,13 @@ function fmtCost(value: number, source: CostSource | null, tr: Dict): string {
   return `~US$ ${value.toFixed(2)} ${label}`;
 }
 
-function toBoardCard(t: TaskRow, tr: Dict, prices: readonly ModelPrice[]): BoardCard {
+function toBoardCard(
+  t: TaskRow,
+  tr: Dict,
+  prices: readonly ModelPrice[],
+  /** Money is opt-in: with it off the footer is tokens and time only. */
+  pricingEnabled: boolean,
+): BoardCard {
   const h = t.harness;
   const harness =
     [h?.model ?? h?.modelTier, h?.effort].filter(Boolean).join(" · ") || null;
@@ -153,14 +159,16 @@ function toBoardCard(t: TaskRow, tr: Dict, prices: readonly ModelPrice[]): Board
       if (duration != null) parts.push(fmtDurationMs(duration));
       if (tokens > 0) parts.push(fmtTokens(tokens));
       if (chain) parts.push(chain);
-      // The board owns the arithmetic: tokens plus the price table beat the
-      // number the agent volunteered, which is only the fallback. Every model
-      // in the run is priced at its own rate, never the whole run at one.
-      const cost = resolveSegmentedCost(segments, prices, {
-        costUsd: latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null,
-        usageEstimated: latestAttempt.usageEstimated,
-      });
-      if (cost.costUsd != null) parts.push(fmtCost(cost.costUsd, cost.source, tr));
+      // Money only when the workspace asked for it. When it did, the board
+      // owns the arithmetic: tokens plus the price table beat the number the
+      // agent volunteered, and every model is priced at its own rate.
+      if (pricingEnabled) {
+        const cost = resolveSegmentedCost(segments, prices, {
+          costUsd: latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null,
+          usageEstimated: latestAttempt.usageEstimated,
+        });
+        if (cost.costUsd != null) parts.push(fmtCost(cost.costUsd, cost.source, tr));
+      }
       telemetry = parts.join(" · ") || null;
       estimated = latestAttempt.usageEstimated;
     } else if (latestAttempt.serverDurationMs != null) {
@@ -181,7 +189,7 @@ function toBoardCard(t: TaskRow, tr: Dict, prices: readonly ModelPrice[]): Board
     const chain = modelChain(segmentModels(normalizeUsageSegments(u, null)));
     if (chain) parts.push(chain);
     // No attempt to price: this is the agent's own number, labeled as such.
-    if (u.cost_usd != null) {
+    if (pricingEnabled && u.cost_usd != null) {
       parts.push(fmtCost(u.cost_usd, u.estimated ? "estimated" : "reported", tr));
     }
     telemetry = parts.join(" · ") || null;
@@ -256,8 +264,9 @@ export default async function HomePage() {
   // Opt-in only: with the toggle off this instance makes zero outbound calls.
   const release = ws.updateCheckEnabled ? await checkForUpdate() : null;
   const rows = await loadTasks(projects.map((item) => item.id));
-  const prices = await loadModelPrices(db(), ws.id);
-  const cards = rows.map((row) => toBoardCard(row, t, prices));
+  // Same rule as the Insights page: no money layer, no price table to read.
+  const prices = ws.pricingEnabled ? await loadModelPrices(db(), ws.id) : [];
+  const cards = rows.map((row) => toBoardCard(row, t, prices, ws.pricingEnabled));
   const initialFilter = resolveBoardFilter(
     { projectId: me?.boardProjectId ?? null, missionId: me?.boardMissionId ?? null },
     projects,

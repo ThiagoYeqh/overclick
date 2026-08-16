@@ -50,7 +50,7 @@ instructions hand their agents this context before the first tool call.
 | `task_update` | progress, comment, the `reviewed` mark, a new `harness` (validated against executors), or a `usage` block that fills or corrects the latest attempt's telemetry, even after deliver |
 | | `spawn_failure`: a boot-failure note an orchestrator posts when the planned executor never started (CLI missing, crash on boot); it lands as a typed timeline entry with the planned harness attached and both entries render in the card detail under "Execution trace" |
 | `task_deliver` | result + usage; status → `done`; routed to the card's reviewer |
-| | `usage` is required by contract: report exact numbers when your harness exposes them, otherwise **estimate** tokens, turns and cost and set `estimated: true` (the card labels the numbers "estimated"). A delivery without usage still lands, but the response carries a warning and the card shows "usage not reported". |
+| | `usage` is required by contract: report exact numbers when your harness exposes them, otherwise **estimate** tokens, turns and duration and set `estimated: true` (the card labels the numbers "estimated"). Tokens and time are what the board asks for; `cost_usd` is optional and only used when the board cannot price the run itself. A delivery without usage still lands, but the response carries a warning and the card shows "usage not reported". |
 | | `usage.segments` records tokens **per model**: `[{model, input, output, cache_read, cache_write}]`, one entry per model that ran. A conversation that switched model reports both, and the card footer reads `sonnet-5 to opus-5` instead of crediting the whole run to whichever model was recorded at claim time. The flat `tokens_in/out/cache` shape is still accepted and stored as a single segment; when segments arrive the board derives the flat totals from them, so both always agree. |
 | | optional `how_to_verify`: a URL, command or screenshot reference the reviewer opens first. It is shown on top of the validation panel in the Done detail ("For checking, open"). |
 | `task_delete` | hard delete: removes the card plus attempts, handoffs and subtasks (irreversible) |
@@ -58,7 +58,8 @@ instructions hand their agents this context before the first tool call.
 | `harness_recommend` | policy lookup (activity type → CLI · model · effort) |
 | `harness_list` | the whole policy + configured executors, each line carrying `updated_by` and `updated_at` |
 | `harness_set` | writes one policy line (`type`, optional `cli`, `model`, `effort`), validated against the configured executors and stamped with the token label. **Needs a manage token** (see below); `cli` omitted means no preference |
-| `insights_query` | cost, tokens and time over the workspace, plus the reopened rate per model. Readable with any token |
+| `insights_query` | tokens and time over the workspace, plus the reopened rate per model. Readable with any token |
+| | Money is opt-in and off by default: `pricing_enabled: false` comes back with every `cost_usd` null, never a zero standing in for "no cost to report", because on a flat subscription a dollar figure is fiction. Turn the cost layer on in Settings and the board fills those fields with approximate figures from its price table, labeled by source |
 | | `group_by=model` reads the segments, so a run that switched model lands in both model groups with the tokens each one actually spent, each priced at its own rate. Those groups carry `shared_attempts`: the runs that touched more than one model. Their duration lands whole in every model the run touched, because nothing records how the wall clock split, so per-model durations overlap instead of adding up to the total |
 | | `group_by` project, mission, model or card (omit it for totals and the reopen rate only), `since` and `until` to narrow the period. Same rows and same aggregation the Insights page runs, so a number never disagrees with the screen: only finished attempts count, example cards stay out, `estimated` and `missing` come back as counts next to every total, and a card whose cost nobody reported keeps `cost_usd: null` instead of a fake `0`. The period narrows attempts by when they finished; reopens are not narrowed, so a delivery reopened later still counts |
 | `executors_update` | adds or removes CLIs and models in the executor config, in the shape the Settings grid saves. **Needs a manage token** |
@@ -130,9 +131,14 @@ error and the details stay in the server logs.
 
 ## Telemetry
 
+The unit is tokens and time. Both are facts on any plan, which is why the card footer
+and the Insights page lead with them and show no dollar figure unless somebody switches
+the cost layer on.
+
 Telemetry does not depend on agent goodwill. The server measures the duration itself,
 from claim to deliver, and stores it on the attempt. The card footer always shows
 something real, in this order: full usage; estimated usage labeled "estimated";
 server-measured duration with "usage not reported". Estimates beat silence: agents
 that cannot read exact numbers are instructed to estimate and mark `estimated: true`,
-and real numbers found later can overwrite the attempt through `task_update`.
+and real numbers found later can overwrite the attempt through `task_update`. Whatever
+the source, it travels with the number: measured, estimated, or not reported at all.

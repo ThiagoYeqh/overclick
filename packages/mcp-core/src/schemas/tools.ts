@@ -476,12 +476,19 @@ export const ExecutorsUpdateOutputSchema = z.object({
 });
 
 /**
- * Usage totals over a set of finished attempts. `estimated` and `missing` are
- * counts of attempts, not money: they say how much of the sum to trust. The
- * board never silently folds a guess or a blank into a number.
+ * Usage totals over a set of finished attempts. Tokens and time are the
+ * primary unit; the cost fields are filled only when the workspace turned the
+ * money layer on. `estimated` and `missing` are counts of attempts, not money:
+ * they say how much of the totals to trust. The board never silently folds a
+ * guess or a blank into a number.
  */
 export const UsageTotalsSchema = z.object({
-  cost_usd: z.number(),
+  /**
+   * Null when the workspace keeps the money layer off, which is the default:
+   * tokens and time are facts on every plan, a dollar figure is not. Never a
+   * zero standing in for "no cost to report".
+   */
+  cost_usd: z.number().nullable(),
   /** Attempts whose cost the board computed from the price table. */
   cost_computed: z.number().int().nonnegative(),
   /** Attempts that contributed the cost figure the agent sent. */
@@ -568,6 +575,12 @@ export const InsightsQueryOutputSchema = z.object({
     until: IsoDateTimeSchema.nullable(),
   }),
   totals: UsageTotalsSchema,
+  /**
+   * False by default: this workspace reports tokens and time only, and every
+   * cost field comes back null. Turn the money layer on in Settings and the
+   * board fills them with approximate figures from its price table.
+   */
+  pricing_enabled: z.boolean(),
   /** Plain-language honesty note, the same one the Insights page prints. */
   note: z.string().min(1),
   /** Where the dollars came from: "3 computed · 1 agent reported". */

@@ -116,6 +116,7 @@ export default async function SettingsPage() {
         prices={prices}
         unpricedModels={unpricedModels}
         recipes={recipes}
+        pricingEnabled={ws.pricingEnabled}
         tokens={tokens.map((t) => ({
           id: t.id,
           label: t.label,

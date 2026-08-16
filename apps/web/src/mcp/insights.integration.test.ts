@@ -1,4 +1,12 @@
-import { executionAttempt, modelPrice, task, taskComment, user } from "@agent-board/db";
+import {
+  executionAttempt,
+  modelPrice,
+  task,
+  taskComment,
+  user,
+  workspace,
+} from "@agent-board/db";
+import { eq } from "drizzle-orm";
 import { InsightsQueryOutputSchema } from "@agent-board/mcp-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -38,8 +46,18 @@ describe("insights_query answers what the Insights page answers", () => {
     return computeInsights(rows, reopens, prices);
   }
 
+  async function setPricing(enabled: boolean) {
+    await world.db
+      .update(workspace)
+      .set({ pricingEnabled: enabled })
+      .where(eq(workspace.id, world.workspaceId));
+  }
+
   beforeAll(async () => {
     world = await createTestWorld();
+    // This suite is about the money layer, which is opt-in and off by default.
+    // The last test turns it back off and checks what the default looks like.
+    await setPricing(true);
 
     const [reviewer] = await world.db
       .insert(user)
@@ -367,6 +385,35 @@ describe("insights_query answers what the Insights page answers", () => {
     expect(opus?.seeded_at).toBeTruthy();
 
     await world.db.delete(modelPrice);
+  });
+
+  it("reports no dollars at all when the money layer is off", async () => {
+    await setPricing(false);
+    try {
+      const queried = await invokeTool(world.db, ctx(), "insights_query", {
+        group_by: "card",
+      });
+      expect(queried.ok).toBe(true);
+      if (!queried.ok) return;
+      const out = InsightsQueryOutputSchema.parse(queried.value);
+
+      expect(out.pricing_enabled).toBe(false);
+      // Null, not zero: with cost off there is no figure to report at all.
+      expect(out.totals.cost_usd).toBeNull();
+      expect(out.totals.cost_computed).toBe(0);
+      expect(out.totals.cost_unpriced).toBe(0);
+      expect(out.cost_note).toContain("tokens and time only");
+      expect(out.cards?.every((row) => row.cost_usd === null)).toBe(true);
+      expect(out.cards?.every((row) => row.cost_source === null)).toBe(true);
+
+      // The facts survive untouched: tokens, time and the honesty note.
+      expect(out.totals.tokens).toBe(2000);
+      expect(out.totals.duration_ms).toBe(6_600_000);
+      expect(out.totals.attempts).toBe(3);
+      expect(out.note).toBe("1 estimated · 1 usage not reported");
+    } finally {
+      await setPricing(true);
+    }
   });
 
   it("is readable with a plain worker token, no manage flag needed", async () => {

@@ -134,9 +134,15 @@ const en = {
     tabPolicy: "Harness policy",
     tabTokens: "MCP tokens",
     tabLanguage: "Language",
-    tabPrices: "Model prices",
+    tabPrices: "Cost (optional)",
     pricesSub:
-      "US dollars per million tokens. When an attempt reports tokens, the board computes the cost from this table instead of trusting the number the agent sent.",
+      "Off by default. Tokens and time are facts on every plan; a dollar figure is fiction on a flat subscription and a price table goes stale and lies with confidence. Turn this on only if you pay per token, and the board adds an approximate cost next to the numbers it measured.",
+    pricingToggle: "Show approximate cost on cards and insights",
+    pricingOffNote:
+      "Cost is off. Cards and insights show tokens and time only. The table below stays here, unused, until you turn it on.",
+    pricingOnNote:
+      "Cost is on. Every dollar figure is approximate, computed from this table and labeled with where it came from.",
+    pricingSaved: "Saved. Cards and insights follow the new setting.",
     thPriceModel: "Model",
     thPriceInput: "input / Mtok",
     thPriceOutput: "output / Mtok",
@@ -378,9 +384,15 @@ const ptBR: Dict = {
     tabPolicy: "Política de harness",
     tabTokens: "Tokens MCP",
     tabLanguage: "Idioma",
-    tabPrices: "Preços por modelo",
+    tabPrices: "Custo (opcional)",
     pricesSub:
-      "Dólares por milhão de tokens. Quando uma execução reporta tokens, o board calcula o custo por esta tabela em vez de confiar no número que o agente mandou.",
+      "Desligado por padrão. Tokens e tempo são fatos em qualquer plano; um valor em dólar é ficção numa assinatura fixa, e tabela de preço envelhece e mente com confiança. Ligue só se você paga por token, e o board passa a mostrar um custo aproximado ao lado dos números que mediu.",
+    pricingToggle: "Mostrar custo aproximado nos cards e no Insights",
+    pricingOffNote:
+      "Custo desligado. Cards e Insights mostram só tokens e tempo. A tabela abaixo fica aqui, parada, até você ligar.",
+    pricingOnNote:
+      "Custo ligado. Todo valor em dólar é aproximado, calculado por esta tabela e rotulado com a origem.",
+    pricingSaved: "Salvo. Cards e Insights seguem a nova configuração.",
     thPriceModel: "Modelo",
     thPriceInput: "entrada / Mtok",
     thPriceOutput: "saída / Mtok",

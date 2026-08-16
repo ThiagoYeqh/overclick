@@ -24,10 +24,21 @@ function valueOf(card: CardInsight, key: SortKey): number {
   return card.attempts;
 }
 
-/** The per-card cost table. Sort state is view-only, so it stays client-side. */
-export function CostTable({ cards, lang }: { cards: CardInsight[]; lang: string }) {
+/** The per-card table. Sort state is view-only, so it stays client-side. */
+export function CostTable({
+  cards,
+  lang,
+  pricingEnabled,
+}: {
+  cards: CardInsight[];
+  lang: string;
+  /** Money is opt-in: with it off there is no cost column to sort by. */
+  pricingEnabled: boolean;
+}) {
   const t = insightsCopy(lang);
-  const [sortKey, setSortKey] = useState<SortKey>("cost");
+  const [sortKey, setSortKey] = useState<SortKey>(
+    pricingEnabled ? "cost" : "tokens",
+  );
   const [descending, setDescending] = useState(true);
 
   const sorted = useMemo(() => {
@@ -49,7 +60,7 @@ export function CostTable({ cards, lang }: { cards: CardInsight[]; lang: string 
     key === sortKey ? (descending ? " ↓" : " ↑") : "";
 
   const sortable: { key: SortKey; label: string }[] = [
-    { key: "cost", label: t.colCost },
+    ...(pricingEnabled ? [{ key: "cost" as const, label: t.colCost }] : []),
     { key: "tokens", label: t.colTokens },
     { key: "time", label: t.colTime },
     { key: "attempts", label: t.colAttempts },
@@ -62,7 +73,7 @@ export function CostTable({ cards, lang }: { cards: CardInsight[]; lang: string 
           <th>{t.colCard}</th>
           <th>{t.colMission}</th>
           <th>{t.colModel}</th>
-          <th>{t.colSource}</th>
+          {pricingEnabled ? <th>{t.colSource}</th> : null}
           {sortable.map((col) => (
             <th
               key={col.key}
@@ -93,16 +104,20 @@ export function CostTable({ cards, lang }: { cards: CardInsight[]; lang: string 
             <td className="ins-mono">
               {card.models.length > 0 ? card.models.join(", ") : t.noModel}
             </td>
-            <td className={card.costSource ? "" : "ins-dim"}>
-              {sourceLabel(card.costSource, t)}
-            </td>
-            <td className="num">
-              {card.costUsd != null ? (
-                <b>{fmtCostUsd(card.costUsd)}</b>
-              ) : (
-                <span className="ins-dim">{t.costNotReported}</span>
-              )}
-            </td>
+            {pricingEnabled ? (
+              <td className={card.costSource ? "" : "ins-dim"}>
+                {sourceLabel(card.costSource, t)}
+              </td>
+            ) : null}
+            {pricingEnabled ? (
+              <td className="num">
+                {card.costUsd != null ? (
+                  <b>{fmtCostUsd(card.costUsd)}</b>
+                ) : (
+                  <span className="ins-dim">{t.costNotReported}</span>
+                )}
+              </td>
+            ) : null}
             <td className="num">{fmtTokens(card.tokens)}</td>
             <td className="num">{fmtDurationMs(card.durationMs)}</td>
             <td className="num">{card.attempts}</td>

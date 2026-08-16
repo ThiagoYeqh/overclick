@@ -4,7 +4,7 @@
  */
 const en = {
   title: "Insights",
-  sub: "What execution costs on this board: per project, per mission, per model, per card.",
+  sub: "What execution takes on this board: tokens and time per project, per mission, per model, per card.",
   backToBoard: "← Board",
   totalCost: "Total cost",
   totalTokens: "Total tokens",
@@ -20,6 +20,7 @@ const en = {
     `${n} run${n === 1 ? "" : "s"} switched model. Tokens are split per model; the duration is not, so the times below overlap.`,
   reopenedByModel: "Reopened rate by model",
   perCard: "Cost per card",
+  perCardNoMoney: "Per card",
   colName: "name",
   colCard: "card",
   colProject: "project",
@@ -50,7 +51,7 @@ const en = {
   pricesNote: "Cost is computed from the price table in Settings whenever an attempt reports tokens.",
   sortHint: "click a column to sort",
   empty:
-    "No delivered work yet. When an agent claims and delivers a card, its cost, tokens and time land here.",
+    "No delivered work yet. When an agent claims and delivers a card, its tokens and time land here.",
   emptyReopens:
     "No deliveries to measure. The reopened rate appears after the first review cycle.",
 };
@@ -59,7 +60,7 @@ export type InsightsCopy = typeof en;
 
 const ptBR: InsightsCopy = {
   title: "Insights",
-  sub: "Quanto custa a execução neste board: por projeto, por missão, por modelo, por card.",
+  sub: "O que a execução consome neste board: tokens e tempo por projeto, por missão, por modelo, por card.",
   backToBoard: "← Board",
   totalCost: "Custo total",
   totalTokens: "Tokens totais",
@@ -75,6 +76,7 @@ const ptBR: InsightsCopy = {
     `${n} execuç${n === 1 ? "ão trocou" : "ões trocaram"} de modelo. Os tokens são separados por modelo; a duração não, então os tempos abaixo se sobrepõem.`,
   reopenedByModel: "Taxa de reabertura por modelo",
   perCard: "Custo por card",
+  perCardNoMoney: "Por card",
   colName: "nome",
   colCard: "card",
   colProject: "projeto",
@@ -105,7 +107,7 @@ const ptBR: InsightsCopy = {
   pricesNote: "O custo é calculado pela tabela de preços em Configurações sempre que uma execução reporta tokens.",
   sortHint: "clique numa coluna para ordenar",
   empty:
-    "Nenhuma entrega ainda. Quando um agente pegar e entregar um card, o custo, os tokens e o tempo aparecem aqui.",
+    "Nenhuma entrega ainda. Quando um agente pegar e entregar um card, os tokens e o tempo aparecem aqui.",
   emptyReopens:
     "Nenhuma entrega para medir. A taxa de reabertura aparece depois do primeiro ciclo de revisão.",
 };

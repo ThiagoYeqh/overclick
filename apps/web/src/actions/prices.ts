@@ -2,7 +2,12 @@
 
 import { and, eq, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { factoryModelPrices, modelPrice, normalizeModelKey } from "@agent-board/db";
+import {
+  factoryModelPrices,
+  modelPrice,
+  normalizeModelKey,
+  workspace,
+} from "@agent-board/db";
 import type { ActionResult } from "../lib/action-result";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
@@ -96,6 +101,32 @@ export async function savePricesAction(
         },
       });
   }
+
+  revalidatePath("/settings");
+  revalidatePath("/insights");
+  revalidatePath("/home");
+  return { ok: true };
+}
+
+/**
+ * Turns the money layer on or off. OFF by default: tokens and time are facts
+ * on every plan, a dollar figure is not. With it off the board shows no
+ * dollars anywhere and the price table sits idle; with it on, cost appears
+ * next to the tokens, labeled approximate and labeled by source.
+ */
+export async function savePricingEnabledAction(
+  enabled: boolean,
+): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
+
+  const ws = await db().query.workspace.findFirst();
+  if (!ws) return { ok: false, error: "Workspace not found." };
+
+  await db()
+    .update(workspace)
+    .set({ pricingEnabled: enabled })
+    .where(eq(workspace.id, ws.id));
 
   revalidatePath("/settings");
   revalidatePath("/insights");

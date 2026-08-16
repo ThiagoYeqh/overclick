@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
 import { addSeenExecutorAction, saveExecutorsAction } from "../../actions/executors";
 import { saveLanguageAction } from "../../actions/language";
-import { savePricesAction } from "../../actions/prices";
+import { savePricesAction, savePricingEnabledAction } from "../../actions/prices";
 import { saveRecipesAction } from "../../actions/recipes";
 import {
   createPairingCodeAction,
@@ -81,6 +81,7 @@ export function SettingsClient({
   seenSuggestions,
   cardapio,
   prices,
+  pricingEnabled,
   unpricedModels,
   recipes,
   tokens,
@@ -94,6 +95,7 @@ export function SettingsClient({
   seenSuggestions: SeenSuggestion[];
   cardapio: CardapioRow[];
   prices: ModelPriceRow[];
+  pricingEnabled: boolean;
   unpricedModels: string[];
   recipes: UsageRecipeRow[];
   tokens: TokenRow[];
@@ -215,6 +217,17 @@ export function SettingsClient({
       const r = await saveCardapioAction(rows as CardapioInput[]);
       if (!r.ok) setErr(r.error);
       else { setMsg(t.settings.policySaved); router.refresh(); }
+    });
+
+  // ---- cost layer, opt-in and off by default
+  const [pricingOn, setPricingOn] = useState(pricingEnabled);
+  const savePricing = (next: boolean) =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      setPricingOn(next);
+      const r = await savePricingEnabledAction(next);
+      if (!r.ok) { setPricingOn(!next); setErr(r.error); }
+      else { setMsg(t.settings.pricingSaved); router.refresh(); }
     });
 
   // ---- model prices
@@ -471,6 +484,20 @@ export function SettingsClient({
         {/* ---- MODEL PRICES ---- */}
         <div className={`tabpane${tab === "prices" ? " active" : ""}`}>
           <p className="page-sub">{t.settings.pricesSub}</p>
+          {/* The switch comes first: everything below it only matters once
+              somebody decides this board should talk about money at all. */}
+          <label className="upd-toggle">
+            <input
+              type="checkbox"
+              checked={pricingOn}
+              disabled={pending}
+              onChange={(e) => savePricing(e.target.checked)}
+            />
+            <span>{t.settings.pricingToggle}</span>
+          </label>
+          <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
+            {pricingOn ? t.settings.pricingOnNote : t.settings.pricingOffNote}
+          </div>
           <table className="policy">
             <thead>
               <tr>

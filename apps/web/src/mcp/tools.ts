@@ -1442,10 +1442,21 @@ async function insightsQuery(
     );
   }
 
+  const [ws] = await db
+    .select({ pricingEnabled: workspace.pricingEnabled })
+    .from(workspace)
+    .where(eq(workspace.id, ctx.workspaceId))
+    .limit(1);
+  // Money is opt-in. With it off there is no price table to read and every
+  // cost field comes back null, never a zero pretending to be an answer.
+  const pricingEnabled = ws?.pricingEnabled ?? false;
+
   const [attemptRows, reopenRows, prices] = await Promise.all([
     loadInsightAttemptRows(db as InsightsDb, ctx.workspaceId),
     loadReopenRows(db as InsightsDb, ctx.workspaceId),
-    loadModelPrices(db as PricesDb, ctx.workspaceId),
+    pricingEnabled
+      ? loadModelPrices(db as PricesDb, ctx.workspaceId)
+      : Promise.resolve([]),
   ]);
   const insights = computeInsights(
     filterAttemptsByPeriod(attemptRows, { since, until }),
@@ -1454,11 +1465,11 @@ async function insightsQuery(
   );
 
   const totalsFor = (row: (typeof insights)["totals"]) => ({
-    cost_usd: row.costUsd,
-    cost_computed: row.costComputed,
-    cost_reported: row.costReported,
-    cost_estimated: row.costEstimated,
-    cost_unpriced: row.costUnpriced,
+    cost_usd: pricingEnabled ? row.costUsd : null,
+    cost_computed: pricingEnabled ? row.costComputed : 0,
+    cost_reported: pricingEnabled ? row.costReported : 0,
+    cost_estimated: pricingEnabled ? row.costEstimated : 0,
+    cost_unpriced: pricingEnabled ? row.costUnpriced : 0,
     tokens: row.tokens,
     duration_ms: row.durationMs,
     attempts: row.attempts,
@@ -1488,9 +1499,10 @@ async function insightsQuery(
         project: card.projectName,
         mission: card.missionTitle,
         models: card.models,
-        // Kept nullable on purpose: an unknown cost is not a cost of zero.
-        cost_usd: card.costUsd,
-        cost_source: card.costSource,
+        // Kept nullable on purpose: an unknown cost is not a cost of zero,
+        // and with the money layer off there is no cost to know.
+        cost_usd: pricingEnabled ? card.costUsd : null,
+        cost_source: pricingEnabled ? card.costSource : null,
         tokens: card.tokens,
         duration_ms: card.durationMs,
         attempts: card.attempts,
@@ -1506,8 +1518,11 @@ async function insightsQuery(
       until: until ? iso(until) : null,
     },
     totals,
+    pricing_enabled: pricingEnabled,
     note: usageHonestyNote(insights.totals),
-    cost_note: costSourceNote(insights.totals),
+    cost_note: pricingEnabled
+      ? costSourceNote(insights.totals)
+      : "cost is off on this board: tokens and time only",
     ...grouped,
     reopened_by_model: insights.reopensByModel.map((row) => ({
       model: row.model,

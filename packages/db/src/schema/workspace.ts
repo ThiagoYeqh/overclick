@@ -12,6 +12,13 @@ export const workspace = pgTable("workspace", {
    * phone-home promise means no outbound request unless the owner turns it on.
    */
   updateCheckEnabled: boolean("update_check_enabled").notNull().default(false),
+  /**
+   * Opt-in money layer. OFF by default: tokens and time are facts on every
+   * plan, while a dollar figure is fiction on a flat subscription and a price
+   * table goes stale and lies with confidence. Turn it on and the board adds a
+   * clearly labeled approximate cost next to the numbers it measured.
+   */
+  pricingEnabled: boolean("pricing_enabled").notNull().default(false),
   executors: jsonb("executors")
     .$type<ExecutorConfig[]>()
     .notNull()

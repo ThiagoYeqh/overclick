@@ -39,17 +39,20 @@ function GroupTable({
   rows,
   fallbackLabel,
   t,
+  pricingEnabled,
 }: {
   rows: GroupInsight[];
   fallbackLabel: string;
   t: InsightsCopy;
+  /** Money is opt-in: with it off the cost column is not there at all. */
+  pricingEnabled: boolean;
 }) {
   return (
     <table className="ins-table">
       <thead>
         <tr>
           <th>{t.colName}</th>
-          <th className="num">{t.colCost}</th>
+          {pricingEnabled ? <th className="num">{t.colCost}</th> : null}
           <th className="num">{t.colTokens}</th>
           <th className="num">{t.colTime}</th>
           <th className="num">{t.colAttempts}</th>
@@ -64,9 +67,11 @@ function GroupTable({
                 <span className="ins-flag">{honestyNote(row, t)}</span>
               ) : null}
             </td>
-            <td className="num">
-              <b>{fmtCostUsd(row.costUsd)}</b>
-            </td>
+            {pricingEnabled ? (
+              <td className="num">
+                <b>{fmtCostUsd(row.costUsd)}</b>
+              </td>
+            ) : null}
             <td className="num">{fmtTokens(row.tokens)}</td>
             <td className="num">{fmtDurationMs(row.durationMs)}</td>
             <td className="num">{row.attempts}</td>
@@ -122,14 +127,17 @@ export default async function InsightsPage() {
   const ws = await db().query.workspace.findFirst();
   if (!ws) redirect("/setup");
 
+  // No price table to read when the money layer is off: there is nothing on
+  // this page for it to fill.
   const [attemptRows, reopenRows, prices] = await Promise.all([
     loadInsightAttemptRows(db(), ws.id),
     loadReopenRows(db(), ws.id),
-    loadModelPrices(db(), ws.id),
+    ws.pricingEnabled ? loadModelPrices(db(), ws.id) : Promise.resolve([]),
   ]);
   const insights = computeInsights(attemptRows, reopenRows, prices);
   const t = insightsCopy(ws.language);
   const switchedRuns = insights.switchedRuns;
+  const pricingEnabled = ws.pricingEnabled;
   const { totals } = insights;
 
   return (
@@ -158,20 +166,24 @@ export default async function InsightsPage() {
         ) : (
           <>
             <div className="ins-tiles">
-              <div className="ins-tile nebula-glass">
-                <div className="ins-lbl">{t.totalCost}</div>
-                <div className="ins-num">{fmtCostUsd(totals.costUsd)}</div>
-                <div className="ins-note">{sourceNote(totals, t)}</div>
-                <div className="ins-note">{honestyNote(totals, t)}</div>
-              </div>
+              {/* Tokens and time first: they are true on every plan. Money is
+                  a layer this workspace switched on, or it is simply absent. */}
               <div className="ins-tile nebula-glass">
                 <div className="ins-lbl">{t.totalTokens}</div>
                 <div className="ins-num">{fmtTokens(totals.tokens)}</div>
+                <div className="ins-note">{honestyNote(totals, t)}</div>
               </div>
               <div className="ins-tile nebula-glass">
                 <div className="ins-lbl">{t.totalTime}</div>
                 <div className="ins-num">{fmtDurationMs(totals.durationMs)}</div>
               </div>
+              {pricingEnabled ? (
+                <div className="ins-tile nebula-glass">
+                  <div className="ins-lbl">{t.totalCost}</div>
+                  <div className="ins-num">{fmtCostUsd(totals.costUsd)}</div>
+                  <div className="ins-note">{sourceNote(totals, t)}</div>
+                </div>
+              ) : null}
               <div className="ins-tile nebula-glass">
                 <div className="ins-lbl">{t.attempts}</div>
                 <div className="ins-num">{totals.attempts}</div>
@@ -181,7 +193,12 @@ export default async function InsightsPage() {
             <div className="ins-grid">
               <div className="ins-sec">
                 <div className="sec-cap">{t.byProject}</div>
-                <GroupTable rows={insights.byProject} fallbackLabel="—" t={t} />
+                <GroupTable
+                  rows={insights.byProject}
+                  fallbackLabel="—"
+                  t={t}
+                  pricingEnabled={pricingEnabled}
+                />
               </div>
               <div className="ins-sec">
                 <div className="sec-cap">{t.byMission}</div>
@@ -189,6 +206,7 @@ export default async function InsightsPage() {
                   rows={insights.byMission}
                   fallbackLabel={t.noMission}
                   t={t}
+                  pricingEnabled={pricingEnabled}
                 />
               </div>
               <div className="ins-sec">
@@ -202,6 +220,7 @@ export default async function InsightsPage() {
                   rows={insights.byModel}
                   fallbackLabel={t.noModel}
                   t={t}
+                  pricingEnabled={pricingEnabled}
                 />
               </div>
               <div className="ins-sec">
@@ -211,9 +230,15 @@ export default async function InsightsPage() {
             </div>
 
             <div className="ins-sec">
-              <div className="sec-cap">{t.perCard}</div>
-              <p className="ins-dim">{t.pricesNote}</p>
-              <CostTable cards={insights.perCard} lang={ws.language} />
+              <div className="sec-cap">
+                {pricingEnabled ? t.perCard : t.perCardNoMoney}
+              </div>
+              {pricingEnabled ? <p className="ins-dim">{t.pricesNote}</p> : null}
+              <CostTable
+                cards={insights.perCard}
+                lang={ws.language}
+                pricingEnabled={pricingEnabled}
+              />
             </div>
           </>
         )}
