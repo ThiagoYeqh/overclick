@@ -55,6 +55,7 @@ async function loadTasks(projectIds: string[]) {
       reviewer: { columns: { email: true } },
       attempts: true,
       handoffs: true,
+      comments: true,
     },
   });
 }
@@ -79,6 +80,18 @@ function toBoardCard(t: TaskRow, tr: Dict): BoardCard {
   const latestHandoff = [...t.handoffs].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   )[0];
+
+  // Typed execution trace: executor swaps recorded at claim time and spawn
+  // failures posted by orchestrators, oldest first.
+  const timeline = [...t.comments]
+    .filter((c) => c.kind === "executor_swap" || c.kind === "spawn_failure")
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .map((c) => ({
+      kind: c.kind as "executor_swap" | "spawn_failure",
+      body: c.body,
+      author: c.authorAgentRef,
+      at: fmtDate(c.createdAt),
+    }));
 
   // Footer ladder: full usage > estimated usage (labeled) > server-measured
   // duration with "usage not reported". A delivered card never shows nothing.
@@ -143,6 +156,7 @@ function toBoardCard(t: TaskRow, tr: Dict): BoardCard {
     executor: t.claimedByExecutor ?? latestAttempt?.executor ?? null,
     elapsed: t.claimedAt ? fmtElapsed(t.claimedAt, tr) : null,
     branch: t.branch ?? latestHandoff?.branch ?? null,
+    timeline,
     telemetry,
     handoff: latestHandoff?.summary ?? null,
     howToVerify: latestHandoff?.howToVerify ?? null,

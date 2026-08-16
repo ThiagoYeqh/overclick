@@ -455,6 +455,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-evid { background: rgba(8,10,13,.6); border: 1px solid var(--nebula-glass-border); border-radius: 10px;
   padding: 10px 13px; font-size: 12px; color: var(--nebula-text-secondary); line-height: 1.55; }
 .nb .d-tel { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-secondary); letter-spacing: .02em; }
+.nb .d-timeline { display: flex; flex-direction: column; gap: 6px; }
+.nb .d-tl-entry { font-family: var(--nebula-font-mono); font-size: 11px; }
+.nb .d-tl-entry .tag { margin-right: 6px; }
+.nb .d-tl-meta { color: var(--nebula-text-tertiary); }
 
 /* ---------- validation panel (Done · review) ---------- */
 .nb .d-verify { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;

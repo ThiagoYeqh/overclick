@@ -11,6 +11,12 @@ import { dict, type Dict } from "../../lib/i18n";
 
 export type ConfirmStep = { step: string; expected: string };
 export type ValidationTickView = { index: number; byEmail: string; at: string };
+export type TimelineEntry = {
+  kind: "executor_swap" | "spawn_failure";
+  body: string;
+  author: string | null;
+  at: string;
+};
 
 export type BoardCard = {
   id: string;
@@ -33,6 +39,7 @@ export type BoardCard = {
   executor: string | null;
   elapsed: string | null;
   branch: string | null;
+  timeline: TimelineEntry[];
   telemetry: string | null;
   handoff: string | null;
 };
@@ -432,6 +439,26 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
             <span className="rl">{t.board.returnsTo} <b>{card.devolve}</b></span>
           </div>
         </div>
+        {card.timeline.length > 0 ? (
+          <div className="d-sec">
+            <div className="lbl">{t.detail.timeline}</div>
+            <div className="d-timeline">
+              {card.timeline.map((entry, index) => (
+                <div className="d-evid d-tl-entry" key={index}>
+                  <span className={`tag ${entry.kind === "spawn_failure" ? "bug" : "feature"}`}>
+                    {entry.kind === "spawn_failure"
+                      ? t.detail.spawnFailure
+                      : t.detail.executorSwap}
+                  </span>{" "}
+                  {entry.body}
+                  <span className="d-tl-meta">
+                    {" "}· {entry.author ?? "agent"} · {entry.at}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="d-sec d-grid">
           <div>
             <div className="lbl">{t.detail.branch}</div>

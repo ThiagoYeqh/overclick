@@ -31,7 +31,9 @@ instructions hand their agents this context before the first tool call.
 | `task_get` | self-contained md briefing (contract + harness + mission + branch) |
 | `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin) |
 | `task_claim` | status → `in_progress`; a second claim → `ALREADY_CLAIMED` |
+| | when the claiming executor differs from the card harness, the response carries a `harness_divergence` warning and the card timeline automatically records an executor swap entry naming planned vs actual |
 | `task_update` | progress, comment, the `reviewed` mark, a new `harness` (validated against executors), or a `usage` block that fills or corrects the latest attempt's telemetry, even after deliver |
+| | `spawn_failure`: a boot-failure note an orchestrator posts when the planned executor never started (CLI missing, crash on boot); it lands as a typed timeline entry with the planned harness attached and both entries render in the card detail under "Execution trace" |
 | `task_deliver` | result + usage; status → `done`; routed to the card's reviewer |
 | | `usage` is required by contract: report exact numbers when your harness exposes them, otherwise **estimate** tokens, turns and cost and set `estimated: true` (the card labels the numbers "estimated"). A delivery without usage still lands, but the response carries a warning and the card shows "usage not reported". |
 | | optional `how_to_verify`: a URL, command or screenshot reference the reviewer opens first. It is shown on top of the validation panel in the Done detail ("For checking, open"). |

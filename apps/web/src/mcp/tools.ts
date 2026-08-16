@@ -636,9 +636,26 @@ async function taskClaim(
       ? {
           recommended,
           actual,
-          warning: `Harness diverge: o card recomenda ${recommended.model} · ${recommended.effort}, o executor veio com ${actual.model}.`,
+          warning: `Executor differs from the card harness: the card plans ${recommended.model} · ${recommended.effort}, the claim came with ${actual.model}.`,
         }
       : undefined;
+
+  if (divergence) {
+    // The swap survives the session: the card timeline records planned vs
+    // actual automatically, whoever reads the board later sees what ran.
+    const planned = [
+      recommended?.cli ? `${recommended.cli} · ` : "",
+      recommended?.model,
+      ` · ${recommended?.effort}`,
+    ].join("");
+    const cameWith = [actual.cli ? `${actual.cli} · ` : "", actual.model].join("");
+    await db.insert(taskComment).values({
+      taskId: claimed.value.updated.id,
+      authorAgentRef: ctx.tokenLabel,
+      kind: "executor_swap",
+      body: `planned ${planned}, actual ${cameWith}`,
+    });
+  }
 
   return {
     task: payload.task,
@@ -713,6 +730,7 @@ async function taskUpdate(
     revisado?: boolean;
     harness?: Harness;
     usage?: Usage;
+    spawn_failure?: string;
   },
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
@@ -773,6 +791,23 @@ async function taskUpdate(
       taskId: nextRow.id,
       authorAgentRef: ctx.tokenLabel,
       body,
+    });
+  }
+
+  if (input.spawn_failure) {
+    // Boot-failure trace from an orchestrator: the planned executor never
+    // started. Typed so the card detail labels it, with the planned harness
+    // captured at post time.
+    const planned = nextRow.harness
+      ? ` (planned ${[nextRow.harness.cli, nextRow.harness.model ?? nextRow.harness.modelTier]
+          .filter(Boolean)
+          .join(" · ")} · ${nextRow.harness.effort})`
+      : "";
+    await db.insert(taskComment).values({
+      taskId: nextRow.id,
+      authorAgentRef: ctx.tokenLabel,
+      kind: "spawn_failure",
+      body: `${input.spawn_failure}${planned}`,
     });
   }
 
@@ -1310,10 +1345,12 @@ async function latestReopenComment(
   row: TaskRow,
 ): Promise<string | null> {
   if (row.status !== "aberto") return null;
+  // Only prose comments qualify: typed timeline entries (executor_swap,
+  // spawn_failure) are traces, not reopen instructions for the next claim.
   const [comment] = await db
     .select()
     .from(taskComment)
-    .where(eq(taskComment.taskId, row.id))
+    .where(and(eq(taskComment.taskId, row.id), eq(taskComment.kind, "comment")))
     .orderBy(desc(taskComment.createdAt))
     .limit(1);
   return comment?.body ?? null;

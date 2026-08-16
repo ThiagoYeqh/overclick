@@ -18,6 +18,7 @@ import {
   mission,
   project,
   task,
+  taskComment,
   workspace,
 } from "@agent-board/db";
 import { eq } from "drizzle-orm";
@@ -421,6 +422,98 @@ describe("MCP tool edge cases against a test db", () => {
     expect(claimOut.briefing_markdown).toContain(
       "Agents must inherit this context in the briefing.",
     );
+  });
+
+  async function createPlainCard(title: string) {
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title,
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error("card not created");
+    return TaskCreateOutputSchema.parse(created.value).task;
+  }
+
+  it("records planned vs actual on the timeline when the claim executor differs", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Swapped executor");
+    expect(card.harness?.model).toBeTruthy();
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "kimi-cli", model: "kimi-k2", session_id: "sess_swap" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.harness_divergence?.warning).toContain("kimi-k2");
+
+    const entries = await world.db
+      .select()
+      .from(taskComment)
+      .where(eq(taskComment.taskId, card.id));
+    const swap = entries.find((entry) => entry.kind === "executor_swap");
+    expect(swap).toBeTruthy();
+    expect(swap?.body).toContain(`planned`);
+    expect(swap?.body).toContain(card.harness?.model ?? "");
+    expect(swap?.body).toContain("actual kimi-cli · kimi-k2");
+  });
+
+  it("keeps the timeline clean when the executor matches the harness", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Matching executor");
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: {
+        cli: "claude-code",
+        model: card.harness?.model ?? "sonnet-5",
+        session_id: "sess_match",
+      },
+    });
+    expect(claimed.ok).toBe(true);
+
+    const entries = await world.db
+      .select()
+      .from(taskComment)
+      .where(eq(taskComment.taskId, card.id));
+    expect(entries.filter((entry) => entry.kind === "executor_swap")).toHaveLength(0);
+  });
+
+  it("accepts a spawn_failure note that never leaks into the reopen comment", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Kimi never booted");
+
+    const updated = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      spawn_failure: "kimi-cli exited 127 before boot",
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    TaskUpdateOutputSchema.parse(updated.value);
+
+    const entries = await world.db
+      .select()
+      .from(taskComment)
+      .where(eq(taskComment.taskId, card.id));
+    const failure = entries.find((entry) => entry.kind === "spawn_failure");
+    expect(failure?.body).toContain("kimi-cli exited 127 before boot");
+    expect(failure?.body).toContain("planned");
+
+    // The trace is not a reopen instruction: the next claim briefing must
+    // not carry it as the reopen comment.
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.task.reopen_comment).toBeNull();
+    expect(out.briefing_markdown).not.toContain("kimi-cli exited 127");
   });
 
   it("returns a typed NOT_FOUND for task_create with an invalid project, never raw SQL", async () => {

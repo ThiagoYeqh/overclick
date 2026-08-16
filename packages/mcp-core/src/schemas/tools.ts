@@ -173,6 +173,12 @@ export const TaskUpdateInputSchema = z
      * later belong here, never in a comment.
      */
     usage: UsageSchema.optional(),
+    /**
+     * Boot-failure trace: the planned executor never started (CLI missing,
+     * crash on boot). An orchestrator posts what happened and the card
+     * timeline records it as a typed spawn failure entry.
+     */
+    spawn_failure: z.string().min(1).optional(),
   })
   .refine(
     (value) =>
@@ -180,8 +186,12 @@ export const TaskUpdateInputSchema = z
       value.progress !== undefined ||
       value.revisado !== undefined ||
       value.harness !== undefined ||
-      value.usage !== undefined,
-    { message: "informe comment, progress, revisado, harness ou usage" },
+      value.usage !== undefined ||
+      value.spawn_failure !== undefined,
+    {
+      message:
+        "provide comment, progress, revisado, harness, usage or spawn_failure",
+    },
   );
 
 export const TaskUpdateOutputSchema = z.object({
