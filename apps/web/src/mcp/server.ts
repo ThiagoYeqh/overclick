@@ -54,7 +54,7 @@ export function createOverclickMcpServer(opts: {
   ctx: AuthContext;
 }): McpServer {
   const server = new McpServer(
-    { name: "overclick", version: "0.1.2" },
+    { name: "overclick", version: "0.1.3" },
     { instructions: SERVER_INSTRUCTIONS },
   );
 
