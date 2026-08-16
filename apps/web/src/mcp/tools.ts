@@ -13,6 +13,7 @@ import {
   task,
   taskComment,
   workspace,
+  type ExecutorConfig,
 } from "@agent-board/db";
 import {
   applyTransition,
@@ -37,7 +38,7 @@ import {
   type Usage,
 } from "@agent-board/mcp-core";
 import { and, asc, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { isPairInConfig } from "../lib/executors";
+import { applyExecutorUpdate, isPairInConfig } from "../lib/executors";
 import { renderBriefingMarkdown } from "./briefing";
 import {
   decodeExecutor,
@@ -175,6 +176,13 @@ async function dispatchTool(
       break;
     case "harness_set":
       value = await harnessSet(db, ctx, data as Parameters<typeof harnessSet>[2]);
+      break;
+    case "executors_update":
+      value = await executorsUpdate(
+        db,
+        ctx,
+        data as Parameters<typeof executorsUpdate>[2],
+      );
       break;
     default: {
       const _never: never = name;
@@ -1357,6 +1365,97 @@ async function harnessSet(
   if (!row) throw new Error("failed to write cardapio entry");
 
   return { policy: policyEntryFromRow(row) };
+}
+
+/**
+ * Adds or removes CLIs and models in the workspace executor config, writing
+ * the same shape the Settings grid saves so both screens read one source.
+ * Behind the manage flag: executors decide what a card is allowed to run on.
+ */
+async function executorsUpdate(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: {
+    cli: string;
+    label?: string;
+    enabled?: boolean;
+    add_models?: string[];
+    remove_models?: string[];
+    remove?: boolean;
+  },
+) {
+  const denied = requireManage(ctx, "executors_update");
+  if (denied) return denied;
+
+  const [ws] = await db
+    .select()
+    .from(workspace)
+    .where(eq(workspace.id, ctx.workspaceId))
+    .limit(1);
+  if (!ws) {
+    return err(
+      "NOT_FOUND",
+      "The workspace for this token no longer exists. Generate a new token in the board Settings.",
+    );
+  }
+
+  const applied = applyExecutorUpdate(ws.executors, input);
+  if (applied.removed && applied.config.length === ws.executors.length) {
+    return err(
+      "NOT_FOUND",
+      `Executor '${input.cli}' is not in this workspace config. Call harness_list to see the configured executors.`,
+    );
+  }
+
+  // A removal can orphan a policy line, exactly as it can from Settings. The
+  // write stands; the agent gets told what harness_set has to fix. Only what
+  // THIS call broke is reported: a board whose policy was already pointing at
+  // models it does not have would otherwise warn on every unrelated edit.
+  const policy = await loadPolicy(db, ctx.workspaceId);
+  const before = new Set(orphanedPolicyTypes(policy, ws.executors));
+  const warnings = orphanedPolicyTypes(policy, applied.config)
+    .filter((type) => !before.has(type))
+    .map((type) => {
+      const line = policy.find((row) => row.type === type);
+      return `policy line '${type}' points at ${[line?.cli, line?.model]
+        .filter(Boolean)
+        .join(" · ")}, which is no longer configured. Fix it with harness_set.`;
+    });
+
+  await db
+    .update(workspace)
+    .set({ executors: applied.config as ExecutorConfig[] })
+    .where(eq(workspace.id, ctx.workspaceId));
+
+  return {
+    executors: applied.config,
+    updated: applied.targetId,
+    removed: applied.removed,
+    ...(warnings.length > 0 ? { policy_warnings: warnings } : {}),
+  };
+}
+
+/** Activity types whose policy model no longer exists on an enabled executor. */
+function orphanedPolicyTypes(
+  policy: CardapioPolicyEntry[],
+  config: readonly { id: string; enabled: boolean; models: string[] }[],
+): string[] {
+  const orphaned: string[] = [];
+  for (const line of policy) {
+    const model = line.model?.trim();
+    if (!model) continue;
+    // With a cli the pair has to exist on it; without one, any enabled
+    // executor offering the model is enough. Same rule recommendHarness uses.
+    const available = line.cli
+      ? isPairInConfig(config, line.cli, model)
+      : config.some(
+          (row) =>
+            row.enabled &&
+            row.models.some((m) => m.trim().toLowerCase() === model.toLowerCase()),
+        );
+    if (!available) orphaned.push(line.type);
+  }
+  return orphaned;
 }
 
 function requireManage(

@@ -9,7 +9,7 @@ import {
 } from "../src/index.js";
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 16 tools", () => {
+  it("exports input and output schemas for all 17 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "project_list",
       "project_create",
@@ -27,6 +27,7 @@ describe("MCP tool contracts", () => {
       "harness_recommend",
       "harness_list",
       "harness_set",
+      "executors_update",
     ]);
     for (const name of MCP_TOOL_NAMES) {
       expect(toolContracts[name].input).toBeDefined();

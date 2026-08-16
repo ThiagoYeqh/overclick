@@ -1,6 +1,6 @@
 # MCP · OverClick
 
-The board exposes the 16 tools over **streamable HTTP**, served by the same app process.
+The board exposes the 17 tools over **streamable HTTP**, served by the same app process.
 
 ## Connect
 
@@ -57,6 +57,8 @@ instructions hand their agents this context before the first tool call.
 | `harness_recommend` | policy lookup (activity type → CLI · model · effort) |
 | `harness_list` | the whole policy + configured executors, each line carrying `updated_by` and `updated_at` |
 | `harness_set` | writes one policy line (`type`, optional `cli`, `model`, `effort`), validated against the configured executors and stamped with the token label. **Needs a manage token** (see below); `cli` omitted means no preference |
+| `executors_update` | adds or removes CLIs and models in the executor config, in the shape the Settings grid saves. **Needs a manage token** |
+| | one `cli` per call (the board id, or the binary name an agent sends: `claude` resolves to `claude-code`), plus `add_models`, `remove_models`, `enabled`, `label`, or `remove: true` to drop the CLI entirely. Adding models turns the CLI on unless `enabled: false` says otherwise, because an unchecked model is invisible to the policy selects and to card harnesses. When a change orphans a policy line, the response carries `policy_warnings` naming what `harness_set` has to fix |
 
 Every tool that takes `task_id` accepts the card uuid **or** the workspace short id
 (`AGB-5`, `OVK-5.4`), and every `project_id` accepts the project uuid **or** its card
@@ -84,10 +86,11 @@ Settings › MCP tokens. Tokens that have it show a `manage` badge in the list. 
 else about the token is unchanged: same URL, same header, same tools for claiming and
 delivering.
 
-Without the flag, the configuration tools answer with a typed `PERMISSION_DENIED` and
-change nothing. The harness policy also keeps a trail: every line records who wrote it
-last (an email from Settings, the token label from `harness_set`) and when, shown in the
-Settings policy table and returned by `harness_list`.
+The tools behind it are `harness_set` and `executors_update`. Without the flag they answer
+with a typed `PERMISSION_DENIED` and change nothing. The harness policy also keeps a
+trail: every line records who wrote it last (an email from Settings, the token label from
+`harness_set`) and when, shown in the Settings policy table and returned by
+`harness_list`.
 
 ## Errors
 

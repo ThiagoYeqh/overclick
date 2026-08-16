@@ -197,6 +197,110 @@ export function removeModelFromSelection(
   return { ...sel, models, enabled };
 }
 
+/** One row of the persisted executor config, structurally. */
+export type ExecutorConfigRow = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  /** Checked models: the ones agents may actually be asked to run. */
+  models: string[];
+  /** Editable model list offered by the selects. */
+  catalog?: string[];
+};
+
+export type ExecutorUpdate = {
+  cli: string;
+  label?: string;
+  enabled?: boolean;
+  add_models?: string[];
+  remove_models?: string[];
+  remove?: boolean;
+};
+
+/** Catalog of a stored row, filling the legacy shape saved before the field. */
+function catalogOf(row: ExecutorConfigRow, builtIn: readonly string[]): string[] {
+  return row.catalog
+    ? [...row.catalog]
+    : [...new Set([...builtIn, ...row.models])];
+}
+
+/**
+ * Applies one add/remove operation to the executor config, in the exact shape
+ * the Settings grid saves: `catalog` is what the selects offer, `models` is
+ * what is checked, `enabled` is the CLI switch. Pure so both the MCP tool and
+ * its tests can use it without a database.
+ *
+ * Adding models turns the CLI on unless the caller says otherwise: a model
+ * nobody checked is invisible to the policy selects and to card harnesses,
+ * which is never what "add this model" means.
+ */
+export function applyExecutorUpdate(
+  config: readonly ExecutorConfigRow[],
+  update: ExecutorUpdate,
+): { config: ExecutorConfigRow[]; targetId: string; removed: boolean } {
+  const cli = update.cli.trim();
+  const targetId = resolveCatalogCli(cli) ?? cli.toLowerCase();
+  const next: ExecutorConfigRow[] = config.map((row) => ({
+    ...row,
+    models: [...row.models],
+    ...(row.catalog ? { catalog: [...row.catalog] } : {}),
+  }));
+
+  if (update.remove) {
+    return {
+      config: next.filter((row) => row.id !== targetId),
+      targetId,
+      removed: true,
+    };
+  }
+
+  const builtIn = EXECUTOR_CATALOG.find((d) => d.id === targetId)?.models ?? [];
+  let row = next.find((item) => item.id === targetId);
+  if (!row) {
+    row = {
+      id: targetId,
+      label:
+        update.label?.trim() ||
+        EXECUTOR_CATALOG.find((d) => d.id === targetId)?.label ||
+        cli,
+      enabled: false,
+      models: [],
+      catalog: [],
+    };
+    next.push(row);
+  } else if (update.label?.trim()) {
+    row.label = update.label.trim();
+  }
+
+  const catalog = catalogOf(row, builtIn);
+  const checked = [...row.models];
+
+  for (const raw of update.add_models ?? []) {
+    const model = raw.trim();
+    if (!model) continue;
+    if (!catalog.includes(model)) catalog.push(model);
+    if (!checked.includes(model)) checked.push(model);
+  }
+  for (const raw of update.remove_models ?? []) {
+    const model = raw.trim();
+    if (!model) continue;
+    const inCatalog = catalog.indexOf(model);
+    if (inCatalog >= 0) catalog.splice(inCatalog, 1);
+    const inChecked = checked.indexOf(model);
+    if (inChecked >= 0) checked.splice(inChecked, 1);
+  }
+
+  row.catalog = catalog;
+  row.models = checked;
+  if (update.enabled !== undefined) {
+    row.enabled = update.enabled;
+  } else if ((update.add_models ?? []).length > 0) {
+    row.enabled = true;
+  }
+
+  return { config: next, targetId, removed: false };
+}
+
 /** Display labels for the cardapio activity types (real mcp-core types). */
 export const CARDAPIO_LABELS: Record<string, { label: string; hint: string }> = {
   bug: { label: "Bug", hint: "localized fix, repro → patch" },

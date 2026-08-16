@@ -3,6 +3,7 @@ import {
   CUSTOM_EXECUTOR_ID,
   EXECUTOR_CATALOG,
   addModelToSelection,
+  applyExecutorUpdate,
   cardapioLabel,
   isPairInConfig,
   learnedExecutorDefs,
@@ -148,5 +149,109 @@ describe("cardapioLabel", () => {
   it("labels the known types and returns the type itself when unknown", () => {
     expect(cardapioLabel("bug").label).toBe("Bug");
     expect(cardapioLabel("unknown")).toEqual({ label: "unknown", hint: "" });
+  });
+});
+
+describe("applyExecutorUpdate", () => {
+  const base = [
+    {
+      id: "claude-code",
+      label: "Claude Code",
+      enabled: true,
+      models: ["fable-5"],
+      catalog: ["fable-5", "opus-5"],
+    },
+    { id: "codex", label: "Codex", enabled: false, models: [], catalog: ["gpt-5.5"] },
+  ];
+
+  it("adds a model to the catalog and checks it, turning the CLI on", () => {
+    const { config, targetId, removed } = applyExecutorUpdate(base, {
+      cli: "codex",
+      add_models: ["gpt-5.6-sol"],
+    });
+    const row = config.find((r) => r.id === "codex");
+    expect(targetId).toBe("codex");
+    expect(removed).toBe(false);
+    expect(row?.catalog).toEqual(["gpt-5.5", "gpt-5.6-sol"]);
+    expect(row?.models).toEqual(["gpt-5.6-sol"]);
+    expect(row?.enabled).toBe(true);
+  });
+
+  it("honours an explicit enabled:false while still adding the model", () => {
+    const { config } = applyExecutorUpdate(base, {
+      cli: "codex",
+      add_models: ["gpt-5.6-sol"],
+      enabled: false,
+    });
+    const row = config.find((r) => r.id === "codex");
+    expect(row?.catalog).toContain("gpt-5.6-sol");
+    expect(row?.enabled).toBe(false);
+  });
+
+  it("removes a model from both the catalog and the checked list", () => {
+    const { config } = applyExecutorUpdate(base, {
+      cli: "claude-code",
+      remove_models: ["fable-5"],
+    });
+    const row = config.find((r) => r.id === "claude-code");
+    expect(row?.catalog).toEqual(["opus-5"]);
+    expect(row?.models).toEqual([]);
+    expect(row?.enabled).toBe(true);
+  });
+
+  it("resolves the binary name an agent sends to the board id", () => {
+    const { config, targetId } = applyExecutorUpdate(base, {
+      cli: "claude",
+      add_models: ["opus-5"],
+    });
+    expect(targetId).toBe("claude-code");
+    expect(config.filter((r) => r.id === "claude-code")).toHaveLength(1);
+    expect(config.find((r) => r.id === "claude-code")?.models).toEqual([
+      "fable-5",
+      "opus-5",
+    ]);
+  });
+
+  it("creates a CLI that is not in the config yet, with the given label", () => {
+    const { config, targetId } = applyExecutorUpdate(base, {
+      cli: "aider",
+      label: "Aider",
+      add_models: ["deepseek-v4"],
+    });
+    expect(targetId).toBe("aider");
+    expect(config.find((r) => r.id === "aider")).toEqual({
+      id: "aider",
+      label: "Aider",
+      enabled: true,
+      models: ["deepseek-v4"],
+      catalog: ["deepseek-v4"],
+    });
+  });
+
+  it("drops the whole CLI on remove and leaves the others alone", () => {
+    const { config, removed } = applyExecutorUpdate(base, {
+      cli: "codex",
+      remove: true,
+    });
+    expect(removed).toBe(true);
+    expect(config.map((r) => r.id)).toEqual(["claude-code"]);
+  });
+
+  it("does not mutate the config it was given", () => {
+    const snapshot = JSON.stringify(base);
+    applyExecutorUpdate(base, { cli: "claude-code", add_models: ["haiku-4-5"] });
+    expect(JSON.stringify(base)).toBe(snapshot);
+  });
+
+  it("fills the catalog of a legacy row saved before the field existed", () => {
+    const { config } = applyExecutorUpdate(
+      [{ id: "claude-code", label: "Claude Code", enabled: true, models: ["fable-5"] }],
+      { cli: "claude-code", add_models: ["custom-model"] },
+    );
+    const row = config.find((r) => r.id === "claude-code");
+    // Built-in suggestions plus what was checked, then the new model.
+    expect(row?.catalog).toContain("opus-5");
+    expect(row?.catalog).toContain("fable-5");
+    expect(row?.catalog).toContain("custom-model");
   });
 });

@@ -46,6 +46,8 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
     "Lookup da política do cardápio: tipo → CLI · modelo · effort.",
   harness_list:
     "Política inteira do workspace (tipo → CLI · modelo · effort) e os executores configurados.",
+  executors_update:
+    "Adds or removes CLIs and models in the workspace executor config, in the same shape the Settings grid saves. Adding models turns the CLI on unless enabled:false says otherwise; remove:true drops the whole CLI. Needs a token with the manage flag.",
   harness_set:
     "Writes one policy line (activity type to cli, model, effort), validated against the configured executors and stamped with who changed it. Needs a token with the manage flag; a plain worker token gets PERMISSION_DENIED.",
 };

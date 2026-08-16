@@ -351,18 +351,86 @@ export const HarnessSetOutputSchema = z.object({
   policy: CardapioPolicyEntrySchema,
 });
 
+export const ConfiguredExecutorSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  enabled: z.boolean(),
+  /** Checked models: what a card harness may actually ask for. */
+  models: z.array(z.string()),
+  /** Editable model list the board's selects offer for this CLI. */
+  catalog: z.array(z.string()).optional(),
+});
+
 export const HarnessListInputSchema = z.object({});
 
 export const HarnessListOutputSchema = z.object({
   policy: z.array(CardapioPolicyEntrySchema),
-  executors: z.array(
-    z.object({
-      id: z.string().min(1),
-      label: z.string().min(1),
-      enabled: z.boolean(),
-      models: z.array(z.string()),
-    }),
-  ),
+  executors: z.array(ConfiguredExecutorSchema),
+});
+
+/**
+ * Adds or removes CLIs and models in the workspace executor config, in the
+ * same shape the Settings grid saves. Guarded by the token's manage flag.
+ * Adding models turns the CLI on unless `enabled: false` says otherwise: an
+ * unchecked model is invisible to the policy selects and to card harnesses.
+ * `remove: true` drops the whole CLI and cannot be combined with the others.
+ */
+export const ExecutorsUpdateInputSchema = z
+  .object({
+    cli: z
+      .string()
+      .min(1)
+      .describe(
+        "Executor id (claude-code, codex, ...) or the binary name an agent sends (claude, gemini). Resolved to the board's id.",
+      ),
+    label: z.string().min(1).optional(),
+    enabled: z.boolean().optional(),
+    add_models: z.array(z.string().min(1)).optional(),
+    remove_models: z.array(z.string().min(1)).optional(),
+    remove: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.remove &&
+      (value.enabled !== undefined ||
+        value.add_models?.length ||
+        value.remove_models?.length ||
+        value.label)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["remove"],
+        message:
+          "remove drops the whole executor; send it alone, without label, enabled, add_models or remove_models",
+      });
+    }
+    if (
+      !value.remove &&
+      value.enabled === undefined &&
+      !value.add_models?.length &&
+      !value.remove_models?.length &&
+      !value.label
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["cli"],
+        message:
+          "provide at least one of label, enabled, add_models, remove_models or remove",
+      });
+    }
+  });
+
+export const ExecutorsUpdateOutputSchema = z.object({
+  /** The whole config after the change, the shape Settings reads. */
+  executors: z.array(ConfiguredExecutorSchema),
+  /** Id the cli resolved to, which may differ from what was sent. */
+  updated: z.string().min(1),
+  removed: z.boolean(),
+  /**
+   * Policy lines left pointing at a cli/model this change took away. The write
+   * still happened; this says what to fix with harness_set.
+   */
+  policy_warnings: z.array(z.string()).optional(),
 });
 
 export const MCP_TOOL_NAMES = [
@@ -382,6 +450,7 @@ export const MCP_TOOL_NAMES = [
   "harness_recommend",
   "harness_list",
   "harness_set",
+  "executors_update",
 ] as const;
 
 export type McpToolName = (typeof MCP_TOOL_NAMES)[number];
@@ -451,6 +520,10 @@ export const toolContracts = {
     input: HarnessSetInputSchema,
     output: HarnessSetOutputSchema,
   },
+  executors_update: {
+    input: ExecutorsUpdateInputSchema,
+    output: ExecutorsUpdateOutputSchema,
+  },
 } as const;
 
 export type TaskCreateInput = z.infer<typeof TaskCreateInputSchema>;
@@ -473,6 +546,9 @@ export type HarnessRecommendInput = z.infer<typeof HarnessRecommendInputSchema>;
 export type HarnessListInput = z.infer<typeof HarnessListInputSchema>;
 export type HarnessListOutput = z.infer<typeof HarnessListOutputSchema>;
 export type CardapioPolicyEntryContract = z.infer<typeof CardapioPolicyEntrySchema>;
+export type ConfiguredExecutorContract = z.infer<typeof ConfiguredExecutorSchema>;
+export type ExecutorsUpdateInput = z.infer<typeof ExecutorsUpdateInputSchema>;
+export type ExecutorsUpdateOutput = z.infer<typeof ExecutorsUpdateOutputSchema>;
 export type HarnessSetInput = z.infer<typeof HarnessSetInputSchema>;
 export type HarnessSetOutput = z.infer<typeof HarnessSetOutputSchema>;
 export type ProjectListInput = z.infer<typeof ProjectListInputSchema>;
