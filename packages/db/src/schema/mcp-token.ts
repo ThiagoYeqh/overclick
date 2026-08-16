@@ -20,6 +20,12 @@ export const mcpToken = pgTable(
     label: text("label").notNull(),
     hash: text("hash").notNull(),
     tokenPrefix: text("token_prefix"),
+    /**
+     * Lets this token change the workspace configuration over MCP (harness
+     * policy, executors). OFF by default: a worker token claims and delivers
+     * cards, it does not get to promote itself to a better model.
+     */
+    canManage: boolean("can_manage").notNull().default(false),
     revoked: boolean("revoked").notNull().default(false),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),

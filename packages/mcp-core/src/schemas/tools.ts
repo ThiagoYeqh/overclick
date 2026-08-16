@@ -11,6 +11,7 @@ import {
   ExecutionModeSchema,
   HandoffSchema,
   HarnessSchema,
+  IsoDateTimeSchema,
   MissionSchema,
   MissionStatusSchema,
   MissionSummarySchema,
@@ -324,6 +325,30 @@ export const CardapioPolicyEntrySchema = z.object({
   cli: z.string().min(1).nullable(),
   model: z.string().min(1).nullable(),
   effort: EffortSchema,
+  /**
+   * Who wrote this line last and when: an email when it came from Settings,
+   * the token label when it came from harness_set. Null on a factory default
+   * nobody has touched yet.
+   */
+  updated_by: z.string().min(1).nullable().optional(),
+  updated_at: IsoDateTimeSchema.nullable().optional(),
+});
+
+/**
+ * Writes one policy line. Guarded by the token's manage flag: a worker token
+ * gets PERMISSION_DENIED instead of promoting itself to a better model.
+ * `cli` null or omitted means no preference; the model still has to exist on
+ * one of the workspace's enabled executors.
+ */
+export const HarnessSetInputSchema = z.object({
+  type: CardapioTaskTypeSchema,
+  cli: z.string().min(1).nullable().optional(),
+  model: z.string().min(1),
+  effort: EffortSchema,
+});
+
+export const HarnessSetOutputSchema = z.object({
+  policy: CardapioPolicyEntrySchema,
 });
 
 export const HarnessListInputSchema = z.object({});
@@ -356,6 +381,7 @@ export const MCP_TOOL_NAMES = [
   "branch_register",
   "harness_recommend",
   "harness_list",
+  "harness_set",
 ] as const;
 
 export type McpToolName = (typeof MCP_TOOL_NAMES)[number];
@@ -421,6 +447,10 @@ export const toolContracts = {
     input: HarnessListInputSchema,
     output: HarnessListOutputSchema,
   },
+  harness_set: {
+    input: HarnessSetInputSchema,
+    output: HarnessSetOutputSchema,
+  },
 } as const;
 
 export type TaskCreateInput = z.infer<typeof TaskCreateInputSchema>;
@@ -443,6 +473,8 @@ export type HarnessRecommendInput = z.infer<typeof HarnessRecommendInputSchema>;
 export type HarnessListInput = z.infer<typeof HarnessListInputSchema>;
 export type HarnessListOutput = z.infer<typeof HarnessListOutputSchema>;
 export type CardapioPolicyEntryContract = z.infer<typeof CardapioPolicyEntrySchema>;
+export type HarnessSetInput = z.infer<typeof HarnessSetInputSchema>;
+export type HarnessSetOutput = z.infer<typeof HarnessSetOutputSchema>;
 export type ProjectListInput = z.infer<typeof ProjectListInputSchema>;
 export type ProjectListOutput = z.infer<typeof ProjectListOutputSchema>;
 export type ProjectCreateInput = z.infer<typeof ProjectCreateInputSchema>;

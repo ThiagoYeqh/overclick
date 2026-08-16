@@ -13,8 +13,15 @@ export type CreateTokenResult =
   | { ok: true; id: string; secret: string }
   | { ok: false; error: string };
 
-/** Generates a real MCP token. The secret is only returned in this response, once. */
-export async function createTokenAction(label: string): Promise<CreateTokenResult> {
+/**
+ * Generates a real MCP token. The secret is only returned in this response, once.
+ * `canManage` opens the configuration tools (harness_set, executors_update) to
+ * that token and is off unless the owner asks for it.
+ */
+export async function createTokenAction(
+  label: string,
+  canManage = false,
+): Promise<CreateTokenResult> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Session expired. Sign in again." };
 
@@ -33,6 +40,7 @@ export async function createTokenAction(label: string): Promise<CreateTokenResul
         label: name,
         hash: hashToken(secret),
         tokenPrefix: secret.slice(0, 12),
+        canManage,
         createdByUserId: session.userId,
       })
       .returning({ id: mcpToken.id });

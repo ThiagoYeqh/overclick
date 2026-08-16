@@ -24,12 +24,20 @@ import {
 } from "../../lib/executors";
 import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
 
-type CardapioRow = { activityType: string; cli: string | null; model: string | null; effort: string };
+type CardapioRow = {
+  activityType: string;
+  cli: string | null;
+  model: string | null;
+  effort: string;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
 type SeenSuggestion = { cli: string; model: string; count: number; lastSeenAt: string };
 type TokenRow = {
   id: string;
   label: string;
   masked: string;
+  canManage: boolean;
   revoked: boolean;
   createdAt: string;
   lastUsedAt: string | null;
@@ -191,13 +199,15 @@ export function SettingsClient({
   const [newLabel, setNewLabel] = useState("");
   const [fresh, setFresh] = useState<{ secret: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [newCanManage, setNewCanManage] = useState(false);
   const genToken = () =>
     start(async () => {
       setErr(null); setMsg(null);
-      const r = await createTokenAction(newLabel || "unnamed token");
+      const r = await createTokenAction(newLabel || "unnamed token", newCanManage);
       if (!r.ok) return setErr(r.error);
       setFresh({ secret: r.secret });
       setNewLabel("");
+      setNewCanManage(false);
       router.refresh();
     });
   const revoke = (id: string) =>
@@ -306,7 +316,7 @@ export function SettingsClient({
         <div className={`tabpane${tab === "policy" ? " active" : ""}`}>
           <table className="policy">
             <thead>
-              <tr><th>{t.settings.thActivity}</th><th>{t.settings.thCli}</th><th>{t.settings.thModel}</th><th>{t.settings.thEffort}</th></tr>
+              <tr><th>{t.settings.thActivity}</th><th>{t.settings.thCli}</th><th>{t.settings.thModel}</th><th>{t.settings.thEffort}</th><th>{t.settings.thLastChange}</th></tr>
             </thead>
             <tbody>
               {rows.map((r, i) => {
@@ -333,6 +343,13 @@ export function SettingsClient({
                         {EFFORTS.map((e2) => <option key={e2} value={e2}>{e2}</option>)}
                       </select>
                     </td>
+                    <td className="who">
+                      {r.updatedBy && r.updatedAt ? (
+                        <>{r.updatedBy}<small>{fmtDate(r.updatedAt, dateLocale)}</small></>
+                      ) : (
+                        <span className="dim">{t.settings.neverChanged}</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -357,7 +374,12 @@ export function SettingsClient({
               tokens.map((tok) => (
                 <div key={tok.id} className={`tok${tok.revoked ? " revoked" : ""}`}>
                   <div className="meta">
-                    <div className="label">{tok.label}</div>
+                    <div className="label">
+                      {tok.label}
+                      {tok.canManage ? (
+                        <span className="tok-cap">{t.settings.manageBadge}</span>
+                      ) : null}
+                    </div>
                     <div className="sub">
                       {t.settings.created} {fmtDate(tok.createdAt, dateLocale)} ·{" "}
                       {tok.revoked ? t.settings.revoked : fmtLastUse(tok.lastUsedAt, t)}
@@ -397,6 +419,18 @@ export function SettingsClient({
             <button className="btn-new" disabled={pending} onClick={genToken}>
               {pending ? t.wizard.generating : t.settings.generateTokenBtn}
             </button>
+          </div>
+
+          <label className="upd-toggle">
+            <input
+              type="checkbox"
+              checked={newCanManage}
+              onChange={(e) => setNewCanManage(e.target.checked)}
+            />
+            <span>{t.settings.manageLabel}</span>
+          </label>
+          <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
+            {t.settings.manageNote}
           </div>
 
           {pairFresh ? (

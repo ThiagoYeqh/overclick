@@ -5,6 +5,8 @@ export const ERROR_CODES = [
   "TOKEN_REVOKED",
   "TOKEN_MISSING",
   "UNAUTHORIZED",
+  /** Token authenticated, but not allowed to change the workspace config. */
+  "PERMISSION_DENIED",
   "INVALID_ARGUMENT",
   "REOPEN_COMMENT_REQUIRED",
   "HARNESS_UNAVAILABLE",

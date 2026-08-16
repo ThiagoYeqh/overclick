@@ -30,6 +30,9 @@ export async function saveCardapioAction(entries: CardapioInput[]): Promise<Acti
     }
   }
 
+  // Same trail the MCP harness_set writes: whoever touched the line last, and
+  // when. Settings shows it next to the row.
+  const updatedAt = new Date();
   for (const e of entries) {
     await db()
       .insert(cardapioEntry)
@@ -39,10 +42,18 @@ export async function saveCardapioAction(entries: CardapioInput[]): Promise<Acti
         cli: e.cli || null,
         model: e.model || null,
         effort: e.effort,
+        updatedBy: session.email,
+        updatedAt,
       })
       .onConflictDoUpdate({
         target: [cardapioEntry.workspaceId, cardapioEntry.activityType],
-        set: { cli: e.cli || null, model: e.model || null, effort: e.effort },
+        set: {
+          cli: e.cli || null,
+          model: e.model || null,
+          effort: e.effort,
+          updatedBy: session.email,
+          updatedAt,
+        },
       });
   }
   revalidatePath("/settings");

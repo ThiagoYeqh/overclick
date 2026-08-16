@@ -173,6 +173,9 @@ async function dispatchTool(
     case "harness_list":
       value = await harnessList(db, ctx);
       break;
+    case "harness_set":
+      value = await harnessSet(db, ctx, data as Parameters<typeof harnessSet>[2]);
+      break;
     default: {
       const _never: never = name;
       return err("INVALID_ARGUMENT", `unknown tool: ${String(_never)}`);
@@ -1299,6 +1302,87 @@ async function harnessList(db: McpDatabase, ctx: AuthContext) {
   };
 }
 
+/**
+ * Writes one line of the harness policy. Gated on the token's manage flag:
+ * the point of the flag is that a worker token cannot promote itself to a
+ * better model between two claims.
+ */
+async function harnessSet(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: {
+    type: CardapioTaskType;
+    cli?: string | null;
+    model: string;
+    effort: EffortLevel;
+  },
+) {
+  const denied = requireManage(ctx, "harness_set");
+  if (denied) return denied;
+
+  const resolved = await resolveHarnessAgainstExecutors(db, ctx.workspaceId, {
+    ...(input.cli ? { cli: input.cli } : {}),
+    model: input.model,
+    effort: input.effort,
+  });
+  if (!resolved.ok) return resolved;
+
+  // A null cli stays null: "no preference" is a real policy choice, and the
+  // executor match above already proved the model is available somewhere.
+  const cli = input.cli?.trim() || null;
+  const updatedAt = new Date();
+
+  const [row] = await db
+    .insert(cardapioEntry)
+    .values({
+      workspaceId: ctx.workspaceId,
+      activityType: input.type,
+      cli,
+      model: input.model,
+      effort: input.effort,
+      updatedBy: ctx.tokenLabel,
+      updatedAt,
+    })
+    .onConflictDoUpdate({
+      target: [cardapioEntry.workspaceId, cardapioEntry.activityType],
+      set: {
+        cli,
+        model: input.model,
+        effort: input.effort,
+        updatedBy: ctx.tokenLabel,
+        updatedAt,
+      },
+    })
+    .returning();
+  if (!row) throw new Error("failed to write cardapio entry");
+
+  return { policy: policyEntryFromRow(row) };
+}
+
+function requireManage(
+  ctx: AuthContext,
+  tool: string,
+): Result<never> | null {
+  if (ctx.canManage) return null;
+  return err(
+    "PERMISSION_DENIED",
+    `This token cannot change the workspace configuration, so ${tool} is refused. Ask the owner to tick "can manage the workspace" for it in Settings › MCP tokens, or use a token that already has it.`,
+  );
+}
+
+function policyEntryFromRow(
+  row: typeof cardapioEntry.$inferSelect,
+): CardapioPolicyEntry & { updated_by: string | null; updated_at: string } {
+  return {
+    type: row.activityType,
+    cli: row.cli,
+    model: row.model,
+    effort: row.effort as EffortLevel,
+    updated_by: row.updatedBy,
+    updated_at: iso(row.updatedAt),
+  };
+}
+
 async function loadPolicy(
   db: McpDatabase,
   workspaceId: string,
@@ -1307,12 +1391,7 @@ async function loadPolicy(
     .select()
     .from(cardapioEntry)
     .where(eq(cardapioEntry.workspaceId, workspaceId));
-  return rows.map((row) => ({
-    type: row.activityType,
-    cli: row.cli,
-    model: row.model,
-    effort: row.effort as EffortLevel,
-  }));
+  return rows.map((row) => policyEntryFromRow(row));
 }
 
 async function recommendFor(

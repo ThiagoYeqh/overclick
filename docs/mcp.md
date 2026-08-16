@@ -1,6 +1,6 @@
 # MCP · OverClick
 
-The board exposes the 15 tools over **streamable HTTP**, served by the same app process.
+The board exposes the 16 tools over **streamable HTTP**, served by the same app process.
 
 ## Connect
 
@@ -55,7 +55,8 @@ instructions hand their agents this context before the first tool call.
 | `task_delete` | hard delete: removes the card plus attempts, handoffs and subtasks (irreversible) |
 | `branch_register` | records the branch on the card |
 | `harness_recommend` | policy lookup (activity type → CLI · model · effort) |
-| `harness_list` | the whole policy + configured executors |
+| `harness_list` | the whole policy + configured executors, each line carrying `updated_by` and `updated_at` |
+| `harness_set` | writes one policy line (`type`, optional `cli`, `model`, `effort`), validated against the configured executors and stamped with the token label. **Needs a manage token** (see below); `cli` omitted means no preference |
 
 Every tool that takes `task_id` accepts the card uuid **or** the workspace short id
 (`AGB-5`, `OVK-5.4`), and every `project_id` accepts the project uuid **or** its card
@@ -71,6 +72,23 @@ reads: when done, call `task_deliver` with `summary`, `evidence`, `branch` and
 `usage {tokens_in, tokens_out, duration_ms, cost_usd, turns}`; without exact numbers,
 estimate and set `estimated: true`.
 
+## The manage flag
+
+Reading the board is what a worker token is for. Rewriting the workspace configuration is
+not: a token that can move the harness policy can promote itself to a better model between
+two claims. So the configuration tools sit behind a per-token **manage** flag, off by
+default.
+
+Tick "This token can change the workspace configuration" when generating the token in
+Settings › MCP tokens. Tokens that have it show a `manage` badge in the list. Everything
+else about the token is unchanged: same URL, same header, same tools for claiming and
+delivering.
+
+Without the flag, the configuration tools answer with a typed `PERMISSION_DENIED` and
+change nothing. The harness policy also keeps a trail: every line records who wrote it
+last (an email from Settings, the token label from `harness_set`) and when, shown in the
+Settings policy table and returned by `harness_list`.
+
 ## Errors
 
 Every error is typed and speaks tool language: a short `code` plus a message that
@@ -84,6 +102,7 @@ error and the details stay in the server logs.
 | `INVALID_TRANSITION` | the call does not fit the card status; for example, delivering an open card returns "Card is open, call task_claim before task_deliver." |
 | `ALREADY_CLAIMED` | another executor holds the card; retry with `force: true` to take over |
 | `INVALID_ARGUMENT` | the input failed validation; the message names the field |
+| `PERMISSION_DENIED` | the token is valid but has no manage flag, so it cannot change the workspace configuration; nothing was written |
 | `INTERNAL` | unexpected server error, nothing leaked; check ids and retry |
 
 ## Telemetry

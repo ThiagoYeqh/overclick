@@ -46,6 +46,8 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
     "Lookup da política do cardápio: tipo → CLI · modelo · effort.",
   harness_list:
     "Política inteira do workspace (tipo → CLI · modelo · effort) e os executores configurados.",
+  harness_set:
+    "Writes one policy line (activity type to cli, model, effort), validated against the configured executors and stamped with who changed it. Needs a token with the manage flag; a plain worker token gets PERMISSION_DENIED.",
 };
 
 function inputSchemaFor(name: McpToolName) {

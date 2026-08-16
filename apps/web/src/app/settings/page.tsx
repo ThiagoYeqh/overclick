@@ -39,6 +39,8 @@ export default async function SettingsPage() {
       cli: row ? row.cli : f.cli,
       model: row ? row.model : f.model,
       effort: row ? row.effort : f.effort,
+      updatedBy: row?.updatedBy ?? null,
+      updatedAt: row ? row.updatedAt.toISOString() : null,
     };
   });
 
@@ -47,6 +49,7 @@ export default async function SettingsPage() {
       id: mcpToken.id,
       label: mcpToken.label,
       tokenPrefix: mcpToken.tokenPrefix,
+      canManage: mcpToken.canManage,
       revoked: mcpToken.revoked,
       lastUsedAt: mcpToken.lastUsedAt,
       createdAt: mcpToken.createdAt,
@@ -82,6 +85,7 @@ export default async function SettingsPage() {
           id: t.id,
           label: t.label,
           masked: `${t.tokenPrefix ?? "ocb_"}••••••••`,
+          canManage: t.canManage,
           revoked: t.revoked,
           createdAt: t.createdAt.toISOString(),
           lastUsedAt: t.lastUsedAt?.toISOString() ?? null,
