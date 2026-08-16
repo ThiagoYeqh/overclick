@@ -1,12 +1,21 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { mission, project, task, user } from "@agent-board/db";
+import {
+  mission,
+  project,
+  resolveAttemptCost,
+  task,
+  user,
+  type CostSource,
+  type ModelPrice,
+} from "@agent-board/db";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { UpdateBanner } from "../../components/update-banner";
 import { resolveBoardFilter } from "../../lib/board-filter";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
+import { loadModelPrices } from "../../lib/prices";
 import { checkForUpdate, updateHelperDir } from "../../lib/updates";
 import { parseComoConfirmo } from "../../mcp/map";
 import type { BoardCard } from "./board";
@@ -60,7 +69,18 @@ async function loadTasks(projectIds: string[]) {
   });
 }
 
-function toBoardCard(t: TaskRow, tr: Dict): BoardCard {
+/** "~US$ 0.42 computed": a dollar figure never travels without its source. */
+function fmtCost(value: number, source: CostSource | null, tr: Dict): string {
+  const label =
+    source === "computed"
+      ? tr.board.costComputed
+      : source === "estimated"
+        ? tr.board.costEstimated
+        : tr.board.costReported;
+  return `~US$ ${value.toFixed(2)} ${label}`;
+}
+
+function toBoardCard(t: TaskRow, tr: Dict, prices: readonly ModelPrice[]): BoardCard {
   const h = t.harness;
   const harness =
     [h?.model ?? h?.modelTier, h?.effort].filter(Boolean).join(" · ") || null;
@@ -112,7 +132,20 @@ function toBoardCard(t: TaskRow, tr: Dict): BoardCard {
       const duration = latestAttempt.durationMs ?? latestAttempt.serverDurationMs;
       if (duration != null) parts.push(fmtDurationMs(duration));
       if (tokens > 0) parts.push(fmtTokens(tokens));
-      if (latestAttempt.costUsd != null) parts.push(`~US$ ${Number(latestAttempt.costUsd).toFixed(2)}`);
+      // The board owns the arithmetic: tokens plus the price table beat the
+      // number the agent volunteered, which is only the fallback.
+      const cost = resolveAttemptCost(
+        {
+          tokensIn: latestAttempt.tokensIn,
+          tokensOut: latestAttempt.tokensOut,
+          tokensCache: latestAttempt.tokensCache,
+          costUsd: latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null,
+          usageEstimated: latestAttempt.usageEstimated,
+        },
+        prices,
+        latestAttempt.model,
+      );
+      if (cost.costUsd != null) parts.push(fmtCost(cost.costUsd, cost.source, tr));
       telemetry = parts.join(" · ") || null;
       estimated = latestAttempt.usageEstimated;
     } else if (latestAttempt.serverDurationMs != null) {
@@ -124,7 +157,10 @@ function toBoardCard(t: TaskRow, tr: Dict): BoardCard {
     if (u.duration_ms != null) parts.push(fmtDurationMs(u.duration_ms));
     const tokens = (u.tokens_in ?? 0) + (u.tokens_out ?? 0) + (u.tokens_cache ?? 0);
     if (tokens > 0) parts.push(fmtTokens(tokens));
-    if (u.cost_usd != null) parts.push(`~US$ ${u.cost_usd.toFixed(2)}`);
+    // No attempt to price: this is the agent's own number, labeled as such.
+    if (u.cost_usd != null) {
+      parts.push(fmtCost(u.cost_usd, u.estimated ? "estimated" : "reported", tr));
+    }
     telemetry = parts.join(" · ") || null;
     estimated = u.estimated ?? false;
   }
@@ -197,7 +233,8 @@ export default async function HomePage() {
   // Opt-in only: with the toggle off this instance makes zero outbound calls.
   const release = ws.updateCheckEnabled ? await checkForUpdate() : null;
   const rows = await loadTasks(projects.map((item) => item.id));
-  const cards = rows.map((row) => toBoardCard(row, t));
+  const prices = await loadModelPrices(db(), ws.id);
+  const cards = rows.map((row) => toBoardCard(row, t, prices));
   const initialFilter = resolveBoardFilter(
     { projectId: me?.boardProjectId ?? null, missionId: me?.boardMissionId ?? null },
     projects,

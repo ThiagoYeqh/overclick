@@ -2,10 +2,19 @@
 
 import { useMemo, useState } from "react";
 import type { CardInsight } from "../../lib/insights";
-import { insightsCopy } from "./copy";
+import { insightsCopy, type InsightsCopy } from "./copy";
 import { fmtCostUsd, fmtDurationMs, fmtTokens } from "./format";
 
 type SortKey = "cost" | "tokens" | "time" | "attempts";
+
+/** Every dollar figure on this table says where it came from. */
+function sourceLabel(source: CardInsight["costSource"], t: InsightsCopy): string {
+  if (source === "computed") return t.sourceComputed;
+  if (source === "reported") return t.sourceReported;
+  if (source === "estimated") return t.sourceEstimated;
+  if (source === "mixed") return t.sourceMixed;
+  return t.sourceNone;
+}
 
 function valueOf(card: CardInsight, key: SortKey): number {
   // Cards that never reported a cost sort below a real $0 instead of mixing in.
@@ -53,6 +62,7 @@ export function CostTable({ cards, lang }: { cards: CardInsight[]; lang: string 
           <th>{t.colCard}</th>
           <th>{t.colMission}</th>
           <th>{t.colModel}</th>
+          <th>{t.colSource}</th>
           {sortable.map((col) => (
             <th
               key={col.key}
@@ -82,6 +92,9 @@ export function CostTable({ cards, lang }: { cards: CardInsight[]; lang: string 
             <td className="ins-dim">{card.missionTitle ?? t.noMission}</td>
             <td className="ins-mono">
               {card.models.length > 0 ? card.models.join(", ") : t.noModel}
+            </td>
+            <td className={card.costSource ? "" : "ins-dim"}>
+              {sourceLabel(card.costSource, t)}
             </td>
             <td className="num">
               {card.costUsd != null ? (

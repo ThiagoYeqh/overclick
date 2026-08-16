@@ -361,11 +361,34 @@ export const ConfiguredExecutorSchema = z.object({
   catalog: z.array(z.string()).optional(),
 });
 
+/**
+ * One model's price, in US dollars per million tokens. `cache_per_mtok`
+ * prices the `tokens_cache` counter of the usage contract. `seeded_at` is the
+ * date the public price was captured, and is null on a row a human edited.
+ */
+export const ModelPriceSchema = z.object({
+  model: z.string().min(1),
+  label: z.string().min(1),
+  input_per_mtok: z.number().nonnegative(),
+  output_per_mtok: z.number().nonnegative(),
+  cache_per_mtok: z.number().nonnegative(),
+  source: z.enum(["seed", "custom"]),
+  seeded_at: z.string().nullable(),
+  updated_by: z.string().nullable(),
+  updated_at: z.string().nullable(),
+});
+
 export const HarnessListInputSchema = z.object({});
 
 export const HarnessListOutputSchema = z.object({
   policy: z.array(CardapioPolicyEntrySchema),
   executors: z.array(ConfiguredExecutorSchema),
+  /**
+   * The board's price table, so an orchestrator can reason about cost before
+   * it picks a harness. A model that is absent has no price on this board and
+   * its cost will only ever be what the agent reports.
+   */
+  prices: z.array(ModelPriceSchema),
 });
 
 /**
@@ -440,6 +463,14 @@ export const ExecutorsUpdateOutputSchema = z.object({
  */
 export const UsageTotalsSchema = z.object({
   cost_usd: z.number(),
+  /** Attempts whose cost the board computed from the price table. */
+  cost_computed: z.number().int().nonnegative(),
+  /** Attempts that contributed the cost figure the agent sent. */
+  cost_reported: z.number().int().nonnegative(),
+  /** Same, where the agent flagged its own numbers as an estimate. */
+  cost_estimated: z.number().int().nonnegative(),
+  /** Attempts with tokens the board could not price: no row for the model. */
+  cost_unpriced: z.number().int().nonnegative(),
   tokens: z.number().int().nonnegative(),
   duration_ms: z.number().int().nonnegative(),
   attempts: z.number().int().nonnegative(),
@@ -462,8 +493,10 @@ export const InsightCardSchema = z.object({
   project: z.string(),
   mission: z.string().nullable(),
   models: z.array(z.string()),
-  /** null when no attempt on the card reported a cost. Not the same as $0. */
+  /** null when no attempt on the card has a cost. Not the same as $0. */
   cost_usd: z.number().nullable(),
+  /** Where that figure came from; "mixed" when the attempts disagree. */
+  cost_source: z.enum(["computed", "reported", "estimated", "mixed"]).nullable(),
   tokens: z.number().int().nonnegative(),
   duration_ms: z.number().int().nonnegative(),
   attempts: z.number().int().nonnegative(),
@@ -510,6 +543,8 @@ export const InsightsQueryOutputSchema = z.object({
   totals: UsageTotalsSchema,
   /** Plain-language honesty note, the same one the Insights page prints. */
   note: z.string().min(1),
+  /** Where the dollars came from: "3 computed · 1 agent reported". */
+  cost_note: z.string().min(1),
   /** Present when group_by is project, mission or model. Cost descending. */
   groups: z.array(InsightGroupSchema).optional(),
   /** Present when group_by is card. */
@@ -637,6 +672,7 @@ export type HarnessListInput = z.infer<typeof HarnessListInputSchema>;
 export type HarnessListOutput = z.infer<typeof HarnessListOutputSchema>;
 export type CardapioPolicyEntryContract = z.infer<typeof CardapioPolicyEntrySchema>;
 export type ConfiguredExecutorContract = z.infer<typeof ConfiguredExecutorSchema>;
+export type ModelPriceContract = z.infer<typeof ModelPriceSchema>;
 export type ExecutorsUpdateInput = z.infer<typeof ExecutorsUpdateInputSchema>;
 export type ExecutorsUpdateOutput = z.infer<typeof ExecutorsUpdateOutputSchema>;
 export type InsightsQueryInput = z.infer<typeof InsightsQueryInputSchema>;

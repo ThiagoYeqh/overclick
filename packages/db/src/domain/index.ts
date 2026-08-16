@@ -21,3 +21,20 @@ export {
 } from "./first-access";
 export { canNestUnder } from "./subtask";
 export { factoryCardapioPolicy } from "./cardapio";
+export {
+  computeCostUsd,
+  factoryModelPrices,
+  findModelPrice,
+  mergeCostSources,
+  MODEL_PRICES_SEEDED_AT,
+  normalizeModelKey,
+  resolveAttemptCost,
+  totalTokens,
+  type AttemptUsage,
+  type CostSource,
+  type ModelPrice,
+  type ModelPriceRow,
+  type PriceSource,
+  type ResolvedCost,
+  type TokenCounts,
+} from "./pricing";

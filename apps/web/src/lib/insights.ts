@@ -1,11 +1,16 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import {
   executionAttempt,
+  findModelPrice,
+  mergeCostSources,
   mission,
   project,
+  resolveAttemptCost,
   task,
   taskComment,
+  type CostSource,
   type Database,
+  type ModelPrice,
 } from "@agent-board/db";
 
 /** Postgres or PGlite drizzle client — the query surface insights needs. */
@@ -126,9 +131,31 @@ export function usageHonestyNote(totals: UsageTotals): string {
   return parts.length > 0 ? parts.join(" · ") : "all usage reported";
 }
 
+/**
+ * "3 computed · 1 agent reported · 2 unpriced model": where the dollars in a
+ * sum came from. A total that mixes arithmetic with an agent's own guess says
+ * so instead of presenting one number as if it were all the same kind.
+ */
+export function costSourceNote(totals: UsageTotals): string {
+  const parts: string[] = [];
+  if (totals.costComputed > 0) parts.push(`${totals.costComputed} computed`);
+  if (totals.costReported > 0) parts.push(`${totals.costReported} agent reported`);
+  if (totals.costEstimated > 0) parts.push(`${totals.costEstimated} estimated`);
+  if (totals.costUnpriced > 0) parts.push(`${totals.costUnpriced} unpriced model`);
+  return parts.length > 0 ? parts.join(" · ") : "no cost to attribute";
+}
+
 export type UsageTotals = {
-  /** Sum of the costs that were reported. Attempts without a cost add zero. */
+  /** Sum of the costs the board could establish. Unknown costs add zero. */
   costUsd: number;
+  /** Attempts whose cost the board computed from the price table. */
+  costComputed: number;
+  /** Attempts that contributed the cost figure the agent sent. */
+  costReported: number;
+  /** Same, where the agent flagged its own numbers as an estimate. */
+  costEstimated: number;
+  /** Attempts with tokens the board could not price: no row for the model. */
+  costUnpriced: number;
   /** tokens_in + tokens_out + tokens_cache across attempts that reported them. */
   tokens: number;
   /** Reported duration, falling back to the server-measured claim → deliver time. */
@@ -163,8 +190,10 @@ export type CardInsight = {
   projectName: string;
   missionTitle: string | null;
   models: string[];
-  /** null when no attempt on the card reported a cost. Distinct from a real $0. */
+  /** null when no attempt on the card has a cost. Distinct from a real $0. */
   costUsd: number | null;
+  /** Where that figure came from, "mixed" when the attempts disagree. */
+  costSource: CostSource | "mixed" | null;
   tokens: number;
   durationMs: number;
   attempts: number;
@@ -185,7 +214,18 @@ const NO_MISSION = "__none__";
 const NO_MODEL = "__unknown__";
 
 function emptyTotals(): UsageTotals {
-  return { costUsd: 0, tokens: 0, durationMs: 0, attempts: 0, estimated: 0, missing: 0 };
+  return {
+    costUsd: 0,
+    costComputed: 0,
+    costReported: 0,
+    costEstimated: 0,
+    costUnpriced: 0,
+    tokens: 0,
+    durationMs: 0,
+    attempts: 0,
+    estimated: 0,
+    missing: 0,
+  };
 }
 
 function attemptTokens(a: InsightAttemptRow): number {
@@ -206,11 +246,39 @@ function attemptDurationMs(a: InsightAttemptRow): number {
   return a.durationMs ?? a.serverDurationMs ?? 0;
 }
 
-function addAttempt(totals: UsageTotals, a: InsightAttemptRow): void {
+/**
+ * The cost of one attempt, computed from the price table when the attempt
+ * carries tokens and the model has a price, and only otherwise the number the
+ * agent volunteered.
+ */
+function attemptCost(a: InsightAttemptRow, prices: readonly ModelPrice[]) {
+  return resolveAttemptCost(
+    {
+      tokensIn: a.tokensIn,
+      tokensOut: a.tokensOut,
+      tokensCache: a.tokensCache,
+      costUsd: a.costUsd != null ? Number(a.costUsd) : null,
+      usageEstimated: a.usageEstimated,
+    },
+    prices,
+    a.model,
+  );
+}
+
+function addAttempt(
+  totals: UsageTotals,
+  a: InsightAttemptRow,
+  cost: { costUsd: number | null; source: CostSource | null },
+  priced: boolean,
+): void {
   totals.attempts += 1;
   totals.tokens += attemptTokens(a);
   totals.durationMs += attemptDurationMs(a);
-  if (a.costUsd != null) totals.costUsd += Number(a.costUsd);
+  if (cost.costUsd != null) totals.costUsd += cost.costUsd;
+  if (cost.source === "computed") totals.costComputed += 1;
+  if (cost.source === "reported") totals.costReported += 1;
+  if (cost.source === "estimated") totals.costEstimated += 1;
+  if (attemptTokens(a) > 0 && !priced) totals.costUnpriced += 1;
   if (!hasReportedUsage(a)) totals.missing += 1;
   else if (a.usageEstimated) totals.estimated += 1;
 }
@@ -224,11 +292,14 @@ function sortGroups(groups: GroupInsight[]): GroupInsight[] {
 /**
  * Pure aggregation over attempt rows. Only finished attempts count: a running
  * attempt has nothing honest to sum yet. Example cards stay out so demo data
- * never inflates real cost.
+ * never inflates real cost. Costs come from the price table whenever the
+ * attempt reported tokens; the agent's own figure is the fallback, not the
+ * default.
  */
 export function computeInsights(
   rows: InsightAttemptRow[],
   reopens: ReopenRow[],
+  prices: readonly ModelPrice[] = [],
 ): Insights {
   const finished = rows.filter((r) => !r.taskIsExample && r.finishedAt != null);
 
@@ -236,7 +307,10 @@ export function computeInsights(
   const byProject = new Map<string, GroupInsight>();
   const byMission = new Map<string, GroupInsight>();
   const byModel = new Map<string, GroupInsight>();
-  const byCard = new Map<string, CardInsight & { costReported: boolean }>();
+  const byCard = new Map<
+    string,
+    CardInsight & { hasCost: boolean; sources: (CostSource | null)[] }
+  >();
 
   const group = (
     map: Map<string, GroupInsight>,
@@ -252,13 +326,17 @@ export function computeInsights(
   };
 
   for (const a of finished) {
-    addAttempt(totals, a);
-    addAttempt(group(byProject, a.projectId, a.projectName), a);
+    const cost = attemptCost(a, prices);
+    const priced = findModelPrice(prices, a.model) != null;
+    addAttempt(totals, a, cost, priced);
+    addAttempt(group(byProject, a.projectId, a.projectName), a, cost, priced);
     addAttempt(
       group(byMission, a.missionId ?? NO_MISSION, a.missionTitle),
       a,
+      cost,
+      priced,
     );
-    addAttempt(group(byModel, a.model ?? NO_MODEL, a.model), a);
+    addAttempt(group(byModel, a.model ?? NO_MODEL, a.model), a, cost, priced);
 
     let card = byCard.get(a.taskId);
     if (!card) {
@@ -270,12 +348,14 @@ export function computeInsights(
         missionTitle: a.missionTitle,
         models: [],
         costUsd: null,
+        costSource: null,
         tokens: 0,
         durationMs: 0,
         attempts: 0,
         estimated: false,
         missing: false,
-        costReported: false,
+        hasCost: false,
+        sources: [],
       };
       byCard.set(a.taskId, card);
     }
@@ -283,9 +363,10 @@ export function computeInsights(
     card.tokens += attemptTokens(a);
     card.durationMs += attemptDurationMs(a);
     if (a.model && !card.models.includes(a.model)) card.models.push(a.model);
-    if (a.costUsd != null) {
-      card.costReported = true;
-      card.costUsd = (card.costUsd ?? 0) + Number(a.costUsd);
+    if (cost.costUsd != null) {
+      card.hasCost = true;
+      card.costUsd = (card.costUsd ?? 0) + cost.costUsd;
+      card.sources.push(cost.source);
     }
     if (!hasReportedUsage(a)) card.missing = true;
     else if (a.usageEstimated) card.estimated = true;
@@ -320,9 +401,10 @@ export function computeInsights(
     .sort((a, b) => b.rate - a.rate || b.deliveries - a.deliveries);
 
   const perCard = [...byCard.values()]
-    .map(({ costReported, ...card }) => ({
+    .map(({ hasCost, sources, ...card }) => ({
       ...card,
-      costUsd: costReported ? card.costUsd : null,
+      costUsd: hasCost ? card.costUsd : null,
+      costSource: mergeCostSources(sources),
     }))
     .sort((a, b) => (b.costUsd ?? -1) - (a.costUsd ?? -1) || b.tokens - a.tokens);
 

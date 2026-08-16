@@ -251,3 +251,54 @@ describe("computeInsights per card", () => {
     expect(result.perCard[0]?.models).toEqual(["sonnet-5", "opus-4-8"]);
   });
 });
+
+describe("cost from the price table", () => {
+  const prices = [
+    { model: "sonnet-5", label: "sonnet-5", inputPerMtok: 3, outputPerMtok: 15, cachePerMtok: 0.3 },
+  ];
+
+  it("computes the cost from tokens instead of the number the agent sent", () => {
+    const result = computeInsights(
+      [attempt({ costUsd: "99.00", tokensIn: 1_000_000, tokensOut: 0, tokensCache: 0 })],
+      [],
+      prices,
+    );
+    expect(result.totals.costUsd).toBeCloseTo(3);
+    expect(result.totals.costComputed).toBe(1);
+    expect(result.totals.costReported).toBe(0);
+    expect(result.perCard[0]?.costSource).toBe("computed");
+  });
+
+  it("falls back to the agent's figure for a model nobody priced", () => {
+    const result = computeInsights(
+      [attempt({ model: "kimi-for-coding", costUsd: "0.40" })],
+      [],
+      prices,
+    );
+    expect(result.totals.costUsd).toBeCloseTo(0.4);
+    expect(result.totals.costReported).toBe(1);
+    expect(result.totals.costUnpriced).toBe(1);
+    expect(result.perCard[0]?.costSource).toBe("reported");
+  });
+
+  it("calls a card that mixes computed and reported costs mixed", () => {
+    const result = computeInsights(
+      [
+        attempt({ taskId: "task-1", model: "sonnet-5", tokensIn: 1_000_000, tokensOut: 0 }),
+        attempt({ taskId: "task-1", model: "kimi-for-coding", tokensIn: 0, tokensOut: 0, tokensCache: 0, costUsd: "1.00" }),
+      ],
+      [],
+      prices,
+    );
+    expect(result.perCard[0]?.costSource).toBe("mixed");
+    expect(result.perCard[0]?.costUsd).toBeCloseTo(4);
+  });
+
+  it("recomputes when the price changes, with no new attempt data", () => {
+    const rows = [attempt({ tokensIn: 1_000_000, tokensOut: 0, tokensCache: 0 })];
+    const cheap = computeInsights(rows, [], prices);
+    const dear = computeInsights(rows, [], [{ ...prices[0]!, inputPerMtok: 6 }]);
+    expect(cheap.totals.costUsd).toBeCloseTo(3);
+    expect(dear.totals.costUsd).toBeCloseTo(6);
+  });
+});

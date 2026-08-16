@@ -1,4 +1,4 @@
-import { executionAttempt, task, taskComment, user } from "@agent-board/db";
+import { executionAttempt, modelPrice, task, taskComment, user } from "@agent-board/db";
 import { InsightsQueryOutputSchema } from "@agent-board/mcp-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -6,6 +6,7 @@ import {
   loadInsightAttemptRows,
   loadReopenRows,
 } from "../lib/insights";
+import { loadModelPrices } from "../lib/prices";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
 import { invokeTool } from "./tools";
 
@@ -29,11 +30,12 @@ describe("insights_query answers what the Insights page answers", () => {
   }
 
   async function pageInsights() {
-    const [rows, reopens] = await Promise.all([
+    const [rows, reopens, prices] = await Promise.all([
       loadInsightAttemptRows(world.db, world.workspaceId),
       loadReopenRows(world.db, world.workspaceId),
+      loadModelPrices(world.db, world.workspaceId),
     ]);
-    return computeInsights(rows, reopens);
+    return computeInsights(rows, reopens, prices);
   }
 
   beforeAll(async () => {
@@ -155,6 +157,10 @@ describe("insights_query answers what the Insights page answers", () => {
 
     expect(out.totals).toEqual({
       cost_usd: page.totals.costUsd,
+      cost_computed: page.totals.costComputed,
+      cost_reported: page.totals.costReported,
+      cost_estimated: page.totals.costEstimated,
+      cost_unpriced: page.totals.costUnpriced,
       tokens: page.totals.tokens,
       duration_ms: page.totals.durationMs,
       attempts: page.totals.attempts,
@@ -163,11 +169,16 @@ describe("insights_query answers what the Insights page answers", () => {
     });
     // Three finished attempts on real cards; the example card's $99 is out.
     expect(out.totals.attempts).toBe(3);
-    expect(out.totals.cost_usd).toBeCloseTo(2.5);
+    // Both priced attempts are computed from the seeded table, not from the
+    // $2.00 and $0.50 the agents sent: 1000·3 + 500·15, and 400·5 + 100·25.
+    expect(out.totals.cost_usd).toBeCloseTo(0.015);
+    expect(out.totals.cost_computed).toBe(2);
+    expect(out.totals.cost_reported).toBe(0);
     expect(out.totals.tokens).toBe(2000);
     expect(out.totals.estimated).toBe(1);
     expect(out.totals.missing).toBe(1);
     expect(out.note).toBe("1 estimated · 1 usage not reported");
+    expect(out.cost_note).toBe("2 computed");
     expect(out.period).toEqual({ since: null, until: null });
     // Without group_by the response stays small.
     expect(out.groups).toBeUndefined();
@@ -193,6 +204,10 @@ describe("insights_query answers what the Insights page answers", () => {
           key: row.key,
           label: row.label,
           cost_usd: row.costUsd,
+          cost_computed: row.costComputed,
+          cost_reported: row.costReported,
+          cost_estimated: row.costEstimated,
+          cost_unpriced: row.costUnpriced,
           tokens: row.tokens,
           duration_ms: row.durationMs,
           attempts: row.attempts,
@@ -210,7 +225,7 @@ describe("insights_query answers what the Insights page answers", () => {
     const missions = InsightsQueryOutputSchema.parse(byMission.value).groups;
     expect(
       missions?.find((row) => row.label === "Norte do board")?.cost_usd,
-    ).toBeCloseTo(2);
+    ).toBeCloseTo(0.0105);
     // The loose card's group carries a null label, never an invented one.
     expect(missions?.find((row) => row.label === null)?.attempts).toBe(2);
   });
@@ -252,8 +267,9 @@ describe("insights_query answers what the Insights page answers", () => {
       attempts: 1,
       estimated: false,
       missing: false,
+      cost_source: "computed",
     });
-    expect(full?.cost_usd).toBeCloseTo(2);
+    expect(full?.cost_usd).toBeCloseTo(0.0105);
 
     const partial = out.cards?.find((row) => row.task_id === estimatedTaskId);
     expect(partial?.models).toEqual(["opus-4-8", "haiku-4"]);
@@ -271,7 +287,7 @@ describe("insights_query answers what the Insights page answers", () => {
     if (!queried.ok) return;
     const out = InsightsQueryOutputSchema.parse(queried.value);
     expect(out.totals.attempts).toBe(1);
-    expect(out.totals.cost_usd).toBeCloseTo(0.5);
+    expect(out.totals.cost_usd).toBeCloseTo(0.0045);
     expect(out.totals.estimated).toBe(1);
     expect(out.note).toBe("1 estimated");
     expect(out.period.since).toBe("2026-08-11T00:00:00.000Z");
@@ -305,6 +321,52 @@ describe("insights_query answers what the Insights page answers", () => {
     if (queried.ok) return;
     expect(queried.error.code).toBe("INVALID_ARGUMENT");
     expect(queried.error.message).toContain("inverted");
+  });
+
+  it("recomputes the aggregates when a price changes in Settings", async () => {
+    // Same edit the Settings price table writes: sonnet-5 at twice the price.
+    await world.db.insert(modelPrice).values({
+      workspaceId: world.workspaceId,
+      model: "sonnet-5",
+      label: "sonnet-5",
+      inputPerMtok: "6",
+      outputPerMtok: "30",
+      cachePerMtok: "0.6",
+      seededAt: null,
+      updatedBy: "owner@local.test",
+    });
+
+    const queried = await invokeTool(world.db, ctx(), "insights_query", {
+      group_by: "card",
+    });
+    expect(queried.ok).toBe(true);
+    if (!queried.ok) return;
+    const out = InsightsQueryOutputSchema.parse(queried.value);
+    const full = out.cards?.find((row) => row.task_id === fullTaskId);
+    expect(full?.cost_usd).toBeCloseTo(0.021);
+    expect(full?.cost_source).toBe("computed");
+    expect(out.totals.cost_usd).toBeCloseTo(0.0255);
+
+    // The price list is readable before picking a harness, with the edit
+    // marked as a human's and the untouched rows still stamped with the date
+    // the public prices were captured.
+    const listed = await invokeTool(world.db, ctx(), "harness_list", {});
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    const prices = (listed.value as { prices: Array<Record<string, unknown>> }).prices;
+    const sonnet = prices.find((row) => row.model === "sonnet-5");
+    expect(sonnet).toMatchObject({
+      input_per_mtok: 6,
+      output_per_mtok: 30,
+      source: "custom",
+      seeded_at: null,
+      updated_by: "owner@local.test",
+    });
+    const opus = prices.find((row) => row.model === "opus-4-8");
+    expect(opus).toMatchObject({ source: "seed", input_per_mtok: 5 });
+    expect(opus?.seeded_at).toBeTruthy();
+
+    await world.db.delete(modelPrice);
   });
 
   it("is readable with a plain worker token, no manage flag needed", async () => {

@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
 import { addSeenExecutorAction, saveExecutorsAction } from "../../actions/executors";
 import { saveLanguageAction } from "../../actions/language";
+import { savePricesAction } from "../../actions/prices";
 import {
   createPairingCodeAction,
   createTokenAction,
@@ -23,6 +24,7 @@ import {
   resolveCatalogCli,
 } from "../../lib/executors";
 import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
+import type { ModelPriceRow } from "@agent-board/db";
 
 type CardapioRow = {
   activityType: string;
@@ -33,6 +35,17 @@ type CardapioRow = {
   updatedAt: string | null;
 };
 type SeenSuggestion = { cli: string; model: string; count: number; lastSeenAt: string };
+/** One line of the price table, as the form edits it (numbers stay strings). */
+type PriceRow = {
+  model: string;
+  label: string;
+  input: string;
+  output: string;
+  cache: string;
+  source: "seed" | "custom";
+  seededAt: string | null;
+  updatedBy: string | null;
+};
 type TokenRow = {
   id: string;
   label: string;
@@ -66,6 +79,8 @@ export function SettingsClient({
   executors,
   seenSuggestions,
   cardapio,
+  prices,
+  unpricedModels,
   tokens,
   lang,
   updateCheckEnabled,
@@ -76,6 +91,8 @@ export function SettingsClient({
   executors: ExecutorSelection;
   seenSuggestions: SeenSuggestion[];
   cardapio: CardapioRow[];
+  prices: ModelPriceRow[];
+  unpricedModels: string[];
   tokens: TokenRow[];
   lang: string;
   updateCheckEnabled: boolean;
@@ -91,6 +108,7 @@ export function SettingsClient({
   const tabs = [
     { id: "exec", label: t.settings.tabExecutors },
     { id: "policy", label: t.settings.tabPolicy },
+    { id: "prices", label: t.settings.tabPrices },
     { id: "tokens", label: t.settings.tabTokens },
     { id: "language", label: t.settings.tabLanguage },
     { id: "updates", label: t.updates.tabUpdates },
@@ -193,6 +211,61 @@ export function SettingsClient({
       const r = await saveCardapioAction(rows as CardapioInput[]);
       if (!r.ok) setErr(r.error);
       else { setMsg(t.settings.policySaved); router.refresh(); }
+    });
+
+  // ---- model prices
+  const [priceRows, setPriceRows] = useState<PriceRow[]>(
+    prices.map((p) => ({
+      model: p.model,
+      label: p.label,
+      input: String(p.inputPerMtok),
+      output: String(p.outputPerMtok),
+      cache: String(p.cachePerMtok),
+      source: p.source,
+      seededAt: p.seededAt,
+      updatedBy: p.updatedBy,
+    })),
+  );
+  const [addedModels, setAddedModels] = useState<string[]>([]);
+  const [newModel, setNewModel] = useState("");
+  const setPrice = (i: number, patch: Partial<PriceRow>) =>
+    setPriceRows(priceRows.map((row, j) => (j === i ? { ...row, ...patch } : row)));
+  const addPriceRow = (model: string) => {
+    const label = model.trim();
+    if (!label) return;
+    if (priceRows.some((row) => row.label.toLowerCase() === label.toLowerCase())) return;
+    setPriceRows([
+      ...priceRows,
+      {
+        model: label,
+        label,
+        input: "0",
+        output: "0",
+        cache: "0",
+        source: "custom",
+        seededAt: null,
+        updatedBy: null,
+      },
+    ]);
+    setAddedModels((prev) => [...prev, label]);
+    setNewModel("");
+  };
+  const removePriceRow = (i: number) =>
+    setPriceRows(priceRows.filter((_, j) => j !== i));
+  const savePrices = () =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      const r = await savePricesAction(
+        priceRows.map((row) => ({
+          model: row.model,
+          label: row.label,
+          inputPerMtok: Number(row.input),
+          outputPerMtok: Number(row.output),
+          cachePerMtok: Number(row.cache),
+        })),
+      );
+      if (!r.ok) setErr(r.error);
+      else { setMsg(t.settings.pricesSaved); router.refresh(); }
     });
 
   // ---- tokens
@@ -361,6 +434,95 @@ export function SettingsClient({
           <div className="save-row">
             <button className="btn-new" disabled={pending} onClick={savePolicy}>
               {pending ? t.settings.saving : t.settings.savePolicy}
+            </button>
+          </div>
+        </div>
+
+        {/* ---- MODEL PRICES ---- */}
+        <div className={`tabpane${tab === "prices" ? " active" : ""}`}>
+          <p className="page-sub">{t.settings.pricesSub}</p>
+          <table className="policy">
+            <thead>
+              <tr>
+                <th>{t.settings.thPriceModel}</th>
+                <th>{t.settings.thPriceInput}</th>
+                <th>{t.settings.thPriceOutput}</th>
+                <th>{t.settings.thPriceCache}</th>
+                <th>{t.settings.thPriceOrigin}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {priceRows.map((row, i) => (
+                <tr key={row.model}>
+                  <td className="act">{row.label}</td>
+                  {(["input", "output", "cache"] as const).map((field) => (
+                    <td key={field}>
+                      <input
+                        className="input"
+                        style={{ maxWidth: 110 }}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={row[field]}
+                        onChange={(e) => setPrice(i, { [field]: e.target.value })}
+                      />
+                    </td>
+                  ))}
+                  <td className="who">
+                    {row.source === "seed" && row.seededAt ? (
+                      <span className="dim">{t.settings.priceSeeded(row.seededAt)}</span>
+                    ) : (
+                      <>
+                        {t.settings.priceEdited}
+                        {row.updatedBy ? <small>{row.updatedBy}</small> : null}
+                      </>
+                    )}
+                    {addedModels.includes(row.label) ? (
+                      <button className="seen-add" onClick={() => removePriceRow(i)}>
+                        {t.settings.priceRemove}
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {unpricedModels.filter((m) => !addedModels.includes(m)).length > 0 ? (
+            <div className="seen-sugg">
+              <div className="sec-cap">{t.settings.priceSeenModels}</div>
+              <div className="seen-row">
+                {unpricedModels
+                  .filter((m) => !addedModels.includes(m))
+                  .map((model) => (
+                    <span key={model} className="seen-chip">
+                      <b>{model}</b>
+                      <button className="seen-add" onClick={() => addPriceRow(model)}>
+                        {t.settings.add}
+                      </button>
+                    </span>
+                  ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="gen-row">
+            <input
+              className="input"
+              style={{ maxWidth: 320 }}
+              placeholder={t.settings.priceAddModel}
+              value={newModel}
+              onChange={(e) => setNewModel(e.target.value)}
+            />
+            <button className="btn-new" onClick={() => addPriceRow(newModel)}>
+              {t.settings.priceAdd}
+            </button>
+          </div>
+
+          <div className="policy-note">{t.settings.priceCacheNote}</div>
+          <div className="save-row">
+            <button className="btn-new" disabled={pending} onClick={savePrices}>
+              {pending ? t.settings.saving : t.settings.savePrices}
             </button>
           </div>
         </div>

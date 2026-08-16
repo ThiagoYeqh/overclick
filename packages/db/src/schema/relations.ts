@@ -9,12 +9,21 @@ import { task } from "./task";
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { cardapioEntry } from "./cardapio-entry";
+import { modelPrice } from "./model-price";
 
 export const workspaceRelations = relations(workspace, ({ many }) => ({
   missions: many(mission),
   projects: many(project),
   mcpTokens: many(mcpToken),
   cardapioEntries: many(cardapioEntry),
+  modelPrices: many(modelPrice),
+}));
+
+export const modelPriceRelations = relations(modelPrice, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [modelPrice.workspaceId],
+    references: [workspace.id],
+  }),
 }));
 
 export const cardapioEntryRelations = relations(cardapioEntry, ({ one }) => ({

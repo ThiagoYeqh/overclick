@@ -10,6 +10,7 @@ import {
   type ModelReopenInsight,
   type UsageTotals,
 } from "../../lib/insights";
+import { loadModelPrices } from "../../lib/prices";
 import { insightsCopy, type InsightsCopy } from "./copy";
 import { CostTable } from "./cost-table";
 import { fmtCostUsd, fmtDurationMs, fmtRate, fmtTokens } from "./format";
@@ -22,6 +23,16 @@ function honestyNote(totals: UsageTotals, t: InsightsCopy): string {
   if (totals.estimated > 0) parts.push(t.estimatedCount(totals.estimated));
   if (totals.missing > 0) parts.push(t.missingCount(totals.missing));
   return parts.length > 0 ? parts.join(" · ") : t.allReported;
+}
+
+/** Where the dollars in a sum came from: computed, reported, or estimated. */
+function sourceNote(totals: UsageTotals, t: InsightsCopy): string {
+  const parts: string[] = [];
+  if (totals.costComputed > 0) parts.push(t.computedCount(totals.costComputed));
+  if (totals.costReported > 0) parts.push(t.reportedCount(totals.costReported));
+  if (totals.costEstimated > 0) parts.push(t.estimatedCount(totals.costEstimated));
+  if (totals.costUnpriced > 0) parts.push(t.unpricedCount(totals.costUnpriced));
+  return parts.length > 0 ? parts.join(" · ") : t.noCostSource;
 }
 
 function GroupTable({
@@ -111,11 +122,12 @@ export default async function InsightsPage() {
   const ws = await db().query.workspace.findFirst();
   if (!ws) redirect("/setup");
 
-  const [attemptRows, reopenRows] = await Promise.all([
+  const [attemptRows, reopenRows, prices] = await Promise.all([
     loadInsightAttemptRows(db(), ws.id),
     loadReopenRows(db(), ws.id),
+    loadModelPrices(db(), ws.id),
   ]);
-  const insights = computeInsights(attemptRows, reopenRows);
+  const insights = computeInsights(attemptRows, reopenRows, prices);
   const t = insightsCopy(ws.language);
   const { totals } = insights;
 
@@ -148,6 +160,7 @@ export default async function InsightsPage() {
               <div className="ins-tile nebula-glass">
                 <div className="ins-lbl">{t.totalCost}</div>
                 <div className="ins-num">{fmtCostUsd(totals.costUsd)}</div>
+                <div className="ins-note">{sourceNote(totals, t)}</div>
                 <div className="ins-note">{honestyNote(totals, t)}</div>
               </div>
               <div className="ins-tile nebula-glass">
@@ -193,6 +206,7 @@ export default async function InsightsPage() {
 
             <div className="ins-sec">
               <div className="sec-cap">{t.perCard}</div>
+              <p className="ins-dim">{t.pricesNote}</p>
               <CostTable cards={insights.perCard} lang={ws.language} />
             </div>
           </>

@@ -41,12 +41,14 @@ import { and, asc, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm
 import { applyExecutorUpdate, isPairInConfig } from "../lib/executors";
 import {
   computeInsights,
+  costSourceNote,
   filterAttemptsByPeriod,
   loadInsightAttemptRows,
   loadReopenRows,
   usageHonestyNote,
   type InsightsDb,
 } from "../lib/insights";
+import { loadModelPrices, type PricesDb } from "../lib/prices";
 import { renderBriefingMarkdown } from "./briefing";
 import {
   decodeExecutor,
@@ -1319,9 +1321,23 @@ async function harnessList(db: McpDatabase, ctx: AuthContext) {
     );
   }
   const policy = await loadPolicy(db, ctx.workspaceId);
+  // The price table travels with the policy: an orchestrator picking a
+  // harness can weigh what each model costs before it spends anything.
+  const prices = await loadModelPrices(db as PricesDb, ctx.workspaceId);
   return {
     policy: policy.length > 0 ? policy : factoryCardapioPolicy(),
     executors: ws.executors,
+    prices: prices.map((price) => ({
+      model: price.model,
+      label: price.label,
+      input_per_mtok: price.inputPerMtok,
+      output_per_mtok: price.outputPerMtok,
+      cache_per_mtok: price.cachePerMtok,
+      source: price.source,
+      seeded_at: price.seededAt,
+      updated_by: price.updatedBy,
+      updated_at: price.updatedAt,
+    })),
   };
 }
 
@@ -1405,34 +1421,36 @@ async function insightsQuery(
     );
   }
 
-  const [attemptRows, reopenRows] = await Promise.all([
+  const [attemptRows, reopenRows, prices] = await Promise.all([
     loadInsightAttemptRows(db as InsightsDb, ctx.workspaceId),
     loadReopenRows(db as InsightsDb, ctx.workspaceId),
+    loadModelPrices(db as PricesDb, ctx.workspaceId),
   ]);
   const insights = computeInsights(
     filterAttemptsByPeriod(attemptRows, { since, until }),
     reopenRows,
+    prices,
   );
 
-  const totals = {
-    cost_usd: insights.totals.costUsd,
-    tokens: insights.totals.tokens,
-    duration_ms: insights.totals.durationMs,
-    attempts: insights.totals.attempts,
-    estimated: insights.totals.estimated,
-    missing: insights.totals.missing,
-  };
+  const totalsFor = (row: (typeof insights)["totals"]) => ({
+    cost_usd: row.costUsd,
+    cost_computed: row.costComputed,
+    cost_reported: row.costReported,
+    cost_estimated: row.costEstimated,
+    cost_unpriced: row.costUnpriced,
+    tokens: row.tokens,
+    duration_ms: row.durationMs,
+    attempts: row.attempts,
+    estimated: row.estimated,
+    missing: row.missing,
+  });
+  const totals = totalsFor(insights.totals);
 
   const groupsFor = (rows: typeof insights.byProject) =>
     rows.map((row) => ({
       key: row.key,
       label: row.label,
-      cost_usd: row.costUsd,
-      tokens: row.tokens,
-      duration_ms: row.durationMs,
-      attempts: row.attempts,
-      estimated: row.estimated,
-      missing: row.missing,
+      ...totalsFor(row),
     }));
 
   let grouped: Record<string, unknown> = {};
@@ -1448,8 +1466,9 @@ async function insightsQuery(
         project: card.projectName,
         mission: card.missionTitle,
         models: card.models,
-        // Kept nullable on purpose: no reported cost is not a cost of zero.
+        // Kept nullable on purpose: an unknown cost is not a cost of zero.
         cost_usd: card.costUsd,
+        cost_source: card.costSource,
         tokens: card.tokens,
         duration_ms: card.durationMs,
         attempts: card.attempts,
@@ -1466,6 +1485,7 @@ async function insightsQuery(
     },
     totals,
     note: usageHonestyNote(insights.totals),
+    cost_note: costSourceNote(insights.totals),
     ...grouped,
     reopened_by_model: insights.reopensByModel.map((row) => ({
       model: row.model,
