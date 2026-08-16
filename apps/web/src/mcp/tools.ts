@@ -1,9 +1,11 @@
 import {
   canNestUnder,
   cardapioEntry,
+  derivePrefix,
   executionAttempt,
   factoryCardapioPolicy,
   handoff,
+  isValidPrefix,
   mission,
   nextShortId,
   normalizeShortId,
@@ -39,12 +41,14 @@ import { isPairInConfig } from "../lib/executors";
 import { renderBriefingMarkdown } from "./briefing";
 import {
   decodeExecutor,
+  emptyCardCounts,
   encodeExecutor,
   executorsFromWorkspace,
   harnessToDb,
   iso,
   looksLikeUuid,
   mapMission,
+  mapProject,
   mapTask,
   originToDb,
   reviewerFromRow,
@@ -112,6 +116,16 @@ async function dispatchTool(
 ): Promise<unknown> {
   let value: unknown;
   switch (name) {
+    case "project_list":
+      value = await projectList(db, ctx);
+      break;
+    case "project_create":
+      value = await projectCreate(
+        db,
+        ctx,
+        data as Parameters<typeof projectCreate>[2],
+      );
+      break;
     case "mission_list":
       value = await missionList(db, ctx, data as Parameters<typeof missionList>[2]);
       break;
@@ -169,6 +183,113 @@ async function dispatchTool(
 
 export function isMcpToolName(name: string): name is McpToolName {
   return (MCP_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+/** Every message that sends an agent back to the project tools says the same thing. */
+const PROJECT_HINT =
+  "Call project_list to see the projects in this workspace, or project_create to start one.";
+
+async function projectList(db: McpDatabase, ctx: AuthContext) {
+  const rows = await db
+    .select()
+    .from(project)
+    .where(eq(project.workspaceId, ctx.workspaceId))
+    .orderBy(asc(project.createdAt));
+
+  const ids = rows.map((row) => row.id);
+  const counts =
+    ids.length === 0
+      ? []
+      : await db
+          .select({ projectId: task.projectId, status: task.status, n: count() })
+          .from(task)
+          .where(inArray(task.projectId, ids))
+          .groupBy(task.projectId, task.status);
+
+  const byProject = new Map<string, ReturnType<typeof emptyCardCounts>>();
+  for (const row of counts) {
+    const tally = byProject.get(row.projectId) ?? emptyCardCounts();
+    const n = Number(row.n);
+    tally[row.status] += n;
+    tally.total += n;
+    byProject.set(row.projectId, tally);
+  }
+
+  return {
+    projects: rows.map((row) =>
+      mapProject(row, byProject.get(row.id) ?? emptyCardCounts()),
+    ),
+  };
+}
+
+async function projectCreate(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: { name: string; repo_url?: string; id_prefix?: string },
+) {
+  const name = input.name.trim();
+  if (!name) {
+    return err("INVALID_ARGUMENT", "Project name cannot be empty.");
+  }
+
+  const explicit = input.id_prefix?.trim().toUpperCase();
+  const prefix = explicit ?? derivePrefix(name);
+  if (!prefix) {
+    return err(
+      "INVALID_ARGUMENT",
+      `Could not derive a card prefix from '${name}'. Pass id_prefix explicitly: 2 to 4 letters or digits, for example AGB.`,
+    );
+  }
+  if (!isValidPrefix(prefix)) {
+    return err(
+      "INVALID_ARGUMENT",
+      `Card prefix '${prefix}' is invalid: use 2 to 4 letters or digits, for example AGB.`,
+    );
+  }
+
+  // The prefix is what every card carries (AGB-1, AGB-2), so a collision would
+  // make two projects indistinguishable on the board. Checked here for a clean
+  // message, and again by the unique index below for concurrent creates.
+  const taken = await findProject(db, ctx.workspaceId, prefix);
+  if (taken) {
+    return err(
+      "INVALID_ARGUMENT",
+      `Card prefix '${prefix}' is already used by project '${taken.name}'. Pass a different id_prefix.`,
+    );
+  }
+
+  let row: ProjectRow | undefined;
+  try {
+    [row] = await db
+      .insert(project)
+      .values({
+        workspaceId: ctx.workspaceId,
+        name,
+        repoUrl: input.repo_url?.trim() || null,
+        idPrefix: prefix,
+        nextNumber: 1,
+      })
+      .returning();
+  } catch (error) {
+    if (isPrefixConflict(error)) {
+      return err(
+        "INVALID_ARGUMENT",
+        `Card prefix '${prefix}' was just taken by another project. Pass a different id_prefix.`,
+      );
+    }
+    throw error;
+  }
+  if (!row) {
+    throw new Error("failed to insert project");
+  }
+
+  return { project: mapProject(row, emptyCardCounts()) };
+}
+
+function isPrefixConflict(error: unknown): boolean {
+  const message =
+    error instanceof Error ? `${error.message} ${String(error.cause ?? "")}` : "";
+  return message.includes("project_workspace_prefix");
 }
 
 async function missionList(
@@ -262,13 +383,14 @@ async function taskList(
 ) {
   const filters = [eq(project.workspaceId, ctx.workspaceId)];
   if (input.project_id) {
-    if (!looksLikeUuid(input.project_id)) {
+    const proj = await findProject(db, ctx.workspaceId, input.project_id);
+    if (!proj) {
       return err(
         "NOT_FOUND",
-        `Project ${input.project_id} not found in this workspace. Use the project_id (uuid) shown on existing cards or on the board.`,
+        `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
       );
     }
-    filters.push(eq(task.projectId, input.project_id));
+    filters.push(eq(task.projectId, proj.id));
   }
   if (input.mission_id) {
     if (!looksLikeUuid(input.mission_id)) {
@@ -373,26 +495,11 @@ async function taskCreate(
     origem: Task["origem"];
   },
 ) {
-  // A non-uuid project_id must never reach the driver: the uuid cast error
-  // would surface as a raw "Failed query" message.
-  const proj = looksLikeUuid(input.project_id)
-    ? (
-        await db
-          .select()
-          .from(project)
-          .where(
-            and(
-              eq(project.id, input.project_id),
-              eq(project.workspaceId, ctx.workspaceId),
-            ),
-          )
-          .limit(1)
-      )[0]
-    : undefined;
+  const proj = await findProject(db, ctx.workspaceId, input.project_id);
   if (!proj) {
     return err(
       "NOT_FOUND",
-      `Project ${input.project_id} not found in this workspace. Use the project_id (uuid) shown on existing cards from task_list or on the board.`,
+      `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
     );
   }
 
@@ -1269,6 +1376,30 @@ async function assembleTaskPayload(
     mission: missionPayload,
     branch_convention: convention,
   };
+}
+
+/**
+ * Resolves a project by uuid or by its card prefix (AGB), case-insensitively
+ * and only inside the token's workspace. A non-uuid ref never reaches the
+ * driver as a uuid: the cast error would surface as a raw "Failed query".
+ */
+async function findProject(
+  db: Tx,
+  workspaceId: string,
+  projectRef: string,
+): Promise<ProjectRow | null> {
+  const ref = projectRef.trim();
+  if (!ref) return null;
+  const identity = looksLikeUuid(ref)
+    ? eq(project.id, ref)
+    : sql`upper(${project.idPrefix}) = ${ref.toUpperCase()}`;
+
+  const [row] = await db
+    .select()
+    .from(project)
+    .where(and(eq(project.workspaceId, workspaceId), identity))
+    .limit(1);
+  return row ?? null;
 }
 
 async function findMission(

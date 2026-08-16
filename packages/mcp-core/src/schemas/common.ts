@@ -165,6 +165,27 @@ export const MissionSchema = MissionSummarySchema.extend({
   context: z.string(),
 });
 
+/** Cards in a project, split by status so the totals never hide the queue. */
+export const ProjectCardCountsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  aberto: z.number().int().nonnegative(),
+  em_execucao: z.number().int().nonnegative(),
+  feito: z.number().int().nonnegative(),
+  validado: z.number().int().nonnegative(),
+});
+
+export const ProjectSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** Card prefix: `AGB` gives `AGB-1`, `AGB-2`. Unique per workspace. */
+  id_prefix: z.string().min(1),
+  repo_url: z.string().nullable(),
+  /** Number the next card in this project will get. */
+  next_number: z.number().int().positive(),
+  cards: ProjectCardCountsSchema,
+  created_at: IsoDateTimeSchema,
+});
+
 export const TaskSummarySchema = z.object({
   id: z.string().min(1),
   short_id: z.string().min(1),
@@ -240,6 +261,8 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 export type Artifact = z.infer<typeof ArtifactSchema>;
 export type SubtaskCreate = z.infer<typeof SubtaskCreateSchema>;
 export type Mission = z.infer<typeof MissionSchema>;
+export type Project = z.infer<typeof ProjectSchema>;
+export type ProjectCardCounts = z.infer<typeof ProjectCardCountsSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;
 export type Handoff = z.infer<typeof HandoffSchema>;

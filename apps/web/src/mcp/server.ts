@@ -14,9 +14,14 @@ export const SERVER_INSTRUCTIONS = [
   "",
   "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, model, session_id) and returns the briefing, and when the work is done you call task_deliver with summary, evidence, branch and usage. Without exact usage numbers, estimate and set estimated: true.",
   "Missions group cards: mission_create returns the id that task_create accepts. Every task_id argument accepts the card uuid or the workspace short id (for example AGB-5).",
+  "Cards live in projects: project_list shows the projects of the workspace and project_create starts one. task_create takes the project uuid or its card prefix (for example AGB).",
 ].join("\n");
 
 const DESCRIPTIONS: Record<McpToolName, string> = {
+  project_list:
+    "Lists the workspace projects with card prefix, repo url and card counts by status. Start here on a fresh board: task_create needs a project.",
+  project_create:
+    "Creates a project (name, optional repo_url, optional id_prefix). The card prefix is derived from the name when omitted and is unique per workspace.",
   mission_list: "Lista as missões do workspace e o contexto de cada uma.",
   mission_get:
     "Devolve a missão completa (objetivo/contexto) para injetar no prompt.",

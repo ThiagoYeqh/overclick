@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatShortId, isShortId, isValidPrefix, nextShortId, normalizeShortId } from "./short-id";
+import {
+  derivePrefix,
+  formatShortId,
+  isShortId,
+  isValidPrefix,
+  nextShortId,
+  normalizeShortId,
+} from "./short-id";
 
 describe("card short id (spec §3.1)", () => {
   it("formats <prefix>-<n>", () => {
@@ -20,6 +27,22 @@ describe("card short id (spec §3.1)", () => {
   it("allocates the next number from the project counter", () => {
     expect(nextShortId("AGB", 1)).toEqual({ shortId: "AGB-1", nextNumber: 2 });
     expect(nextShortId("OC", 42)).toEqual({ shortId: "OC-42", nextNumber: 43 });
+  });
+
+  it("derives a prefix from the project name", () => {
+    expect(derivePrefix("Agent Board")).toBe("AB");
+    expect(derivePrefix("OverClick")).toBe("OC");
+    expect(derivePrefix("overclick")).toBe("OVE");
+    expect(derivePrefix("my cool new big project")).toBe("MCNB");
+    expect(derivePrefix("Café Móvel")).toBe("CM");
+    expect(derivePrefix("api-gateway")).toBe("AG");
+  });
+
+  it("returns null when there is nothing to derive a prefix from", () => {
+    expect(derivePrefix("")).toBeNull();
+    expect(derivePrefix("   ")).toBeNull();
+    expect(derivePrefix("!!!")).toBeNull();
+    expect(derivePrefix("X")).toBeNull();
   });
 
   it("recognizes parent and dotted child short ids case-insensitively", () => {

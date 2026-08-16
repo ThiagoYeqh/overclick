@@ -8,6 +8,8 @@ import {
   type Harness,
   type Mission,
   type Origem,
+  type Project,
+  type ProjectCardCounts,
   type Reviewer,
   type Task,
   type Usage,
@@ -164,6 +166,25 @@ export function mapMission(row: MissionRow, taskCount?: number): Mission {
     objective,
     context,
     ...(taskCount !== undefined ? { task_count: taskCount } : {}),
+  };
+}
+
+export function emptyCardCounts(): ProjectCardCounts {
+  return { total: 0, aberto: 0, em_execucao: 0, feito: 0, validado: 0 };
+}
+
+export function mapProject(
+  row: ProjectRow,
+  cards: ProjectCardCounts = emptyCardCounts(),
+): Project {
+  return {
+    id: row.id,
+    name: row.name,
+    id_prefix: row.idPrefix,
+    repo_url: row.repoUrl,
+    next_number: row.nextNumber,
+    cards,
+    created_at: iso(row.createdAt),
   };
 }
 

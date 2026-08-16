@@ -3,13 +3,16 @@ import {
   TaskDeliverInputSchema,
   MCP_TOOL_NAMES,
   MissionCreateInputSchema,
+  ProjectCreateInputSchema,
   TaskCreateInputSchema,
   toolContracts,
 } from "../src/index.js";
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 13 tools", () => {
+  it("exports input and output schemas for all 15 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
+      "project_list",
+      "project_create",
       "mission_list",
       "mission_get",
       "mission_create",
@@ -28,6 +31,23 @@ describe("MCP tool contracts", () => {
       expect(toolContracts[name].input).toBeDefined();
       expect(toolContracts[name].output).toBeDefined();
     }
+  });
+});
+
+describe("project_create", () => {
+  it("takes a name alone, with repo_url and id_prefix optional", () => {
+    const parsed = ProjectCreateInputSchema.parse({ name: "Agent Board" });
+    expect(parsed.name).toBe("Agent Board");
+    expect(parsed.repo_url).toBeUndefined();
+    expect(parsed.id_prefix).toBeUndefined();
+  });
+
+  it("rejects an empty name and a repo_url that is not a url", () => {
+    expect(ProjectCreateInputSchema.safeParse({ name: "" }).success).toBe(false);
+    expect(
+      ProjectCreateInputSchema.safeParse({ name: "Board", repo_url: "github" })
+        .success,
+    ).toBe(false);
   });
 });
 

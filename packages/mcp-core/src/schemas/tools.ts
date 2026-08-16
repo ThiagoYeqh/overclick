@@ -16,6 +16,7 @@ import {
   MissionSummarySchema,
   OrigemSchema,
   PrioritySchema,
+  ProjectSchema,
   ReviewerSchema,
   SubtaskCreateSchema,
   TaskSchema,
@@ -56,8 +57,43 @@ export const MissionCreateOutputSchema = z.object({
   mission: MissionSchema,
 });
 
+const ProjectRefSchema = z
+  .string()
+  .min(1)
+  .describe(
+    "Project uuid or its card prefix (e.g. AGB). Resolved in the token workspace; call project_list to see both.",
+  );
+
+export const ProjectListInputSchema = z.object({});
+
+export const ProjectListOutputSchema = z.object({
+  projects: z.array(ProjectSchema),
+});
+
+/**
+ * Canonical project_create input.
+ * Workspace is resolved from the MCP bearer token — never sent in the body.
+ * `id_prefix` is derived from the name when omitted (`Agent Board` → `AGB`
+ * style initials) and is unique per workspace.
+ */
+export const ProjectCreateInputSchema = z.object({
+  name: z.string().min(1).max(200),
+  repo_url: z.string().url().optional(),
+  id_prefix: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Card prefix, 2 to 4 letters or digits (e.g. AGB). Derived from the name when omitted.",
+    ),
+});
+
+export const ProjectCreateOutputSchema = z.object({
+  project: ProjectSchema,
+});
+
 export const TaskListInputSchema = z.object({
-  project_id: z.string().min(1).optional(),
+  project_id: ProjectRefSchema.optional(),
   mission_id: z.string().min(1).optional(),
   status: z.union([CardStatusSchema, z.array(CardStatusSchema)]).optional(),
   priority: PrioritySchema.optional(),
@@ -92,11 +128,13 @@ export const TaskGetOutputSchema = z.object({
  * Workspace is resolved from the MCP bearer token — never sent in the body.
  * `mission` is the id of an existing mission (from mission_create / mission_list).
  * Missing id → NOT_FOUND. Omitted → card is born loose.
+ * `project_id` takes the project uuid or its card prefix (from project_list /
+ * project_create).
  */
 export const TaskCreateInputSchema = z
   .object({
     mission: z.string().min(1).optional(),
-    project_id: z.string().min(1),
+    project_id: ProjectRefSchema,
     title: z.string().min(1).max(200),
     type: TaskTypeSchema,
     o_que: z.string().min(1),
@@ -303,6 +341,8 @@ export const HarnessListOutputSchema = z.object({
 });
 
 export const MCP_TOOL_NAMES = [
+  "project_list",
+  "project_create",
   "mission_list",
   "mission_get",
   "mission_create",
@@ -321,6 +361,14 @@ export const MCP_TOOL_NAMES = [
 export type McpToolName = (typeof MCP_TOOL_NAMES)[number];
 
 export const toolContracts = {
+  project_list: {
+    input: ProjectListInputSchema,
+    output: ProjectListOutputSchema,
+  },
+  project_create: {
+    input: ProjectCreateInputSchema,
+    output: ProjectCreateOutputSchema,
+  },
   mission_list: {
     input: MissionListInputSchema,
     output: MissionListOutputSchema,
@@ -395,3 +443,7 @@ export type HarnessRecommendInput = z.infer<typeof HarnessRecommendInputSchema>;
 export type HarnessListInput = z.infer<typeof HarnessListInputSchema>;
 export type HarnessListOutput = z.infer<typeof HarnessListOutputSchema>;
 export type CardapioPolicyEntryContract = z.infer<typeof CardapioPolicyEntrySchema>;
+export type ProjectListInput = z.infer<typeof ProjectListInputSchema>;
+export type ProjectListOutput = z.infer<typeof ProjectListOutputSchema>;
+export type ProjectCreateInput = z.infer<typeof ProjectCreateInputSchema>;
+export type ProjectCreateOutput = z.infer<typeof ProjectCreateOutputSchema>;

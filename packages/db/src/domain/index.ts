@@ -7,6 +7,7 @@ export {
   type TransitionOptions,
 } from "./task-status";
 export {
+  derivePrefix,
   formatShortId,
   isShortId,
   isValidPrefix,

@@ -1,6 +1,6 @@
 # MCP · OverClick
 
-The board exposes the 13 MVP tools over **streamable HTTP**, served by the same app process.
+The board exposes the 15 tools over **streamable HTTP**, served by the same app process.
 
 ## Connect
 
@@ -37,11 +37,14 @@ instructions hand their agents this context before the first tool call.
 
 | Tool | What it does |
 |---|---|
+| `project_list` | the workspace projects: uuid, name, card prefix, repo url, next card number and card counts by status |
+| `project_create` | creates a project (`name`, optional `repo_url`, optional `id_prefix`). The prefix is derived from the name when omitted (`Agent Board` → `AB`, `OverClick` → `OC`, `overclick` → `OVE`) and is unique per workspace: a collision comes back as `INVALID_ARGUMENT` naming the project that holds it |
 | `mission_list` / `mission_get` | missions and the context to inject into the prompt |
 | `mission_create` | creates a mission (`title`, objective/context markdown, `status`) and returns its id |
 | `task_list` | the queue (project, `mission_id`, status, priority, `awaiting_review_by`) |
 | `task_get` | self-contained md briefing (contract + harness + mission + branch) |
 | `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin) |
+| | `project_id` takes the project uuid **or** its card prefix (`AGB`), so an agent that just called `project_list` never needs the uuid |
 | `task_claim` | status → `in_progress`; a second claim → `ALREADY_CLAIMED` |
 | | when the claiming executor differs from the card harness, the response carries a `harness_divergence` warning and the card timeline automatically records an executor swap entry naming planned vs actual |
 | `task_update` | progress, comment, the `reviewed` mark, a new `harness` (validated against executors), or a `usage` block that fills or corrects the latest attempt's telemetry, even after deliver |
@@ -55,7 +58,12 @@ instructions hand their agents this context before the first tool call.
 | `harness_list` | the whole policy + configured executors |
 
 Every tool that takes `task_id` accepts the card uuid **or** the workspace short id
-(`AGB-5`, `OVK-5.4`). Resolution is scoped to the token's workspace.
+(`AGB-5`, `OVK-5.4`), and every `project_id` accepts the project uuid **or** its card
+prefix (`AGB`). Resolution is case-insensitive and scoped to the token's workspace.
+
+A fresh instance is self-serve: `project_list` shows what exists and `project_create`
+starts a project, so an agent can go from an empty board to its first card without ever
+reading the database.
 
 `task_claim` and `task_get` return the briefing. The executor needs no other source of
 context. The briefing always ends with the executor contract, the last thing the agent
@@ -72,7 +80,7 @@ error and the details stay in the server logs.
 
 | Code | Meaning and next step |
 |---|---|
-| `NOT_FOUND` | the id does not exist in the token's workspace; the message points to `task_list`, `mission_list` or `harness_list` |
+| `NOT_FOUND` | the id does not exist in the token's workspace; the message points to `task_list`, `project_list`, `mission_list` or `harness_list` |
 | `INVALID_TRANSITION` | the call does not fit the card status; for example, delivering an open card returns "Card is open, call task_claim before task_deliver." |
 | `ALREADY_CLAIMED` | another executor holds the card; retry with `force: true` to take over |
 | `INVALID_ARGUMENT` | the input failed validation; the message names the field |

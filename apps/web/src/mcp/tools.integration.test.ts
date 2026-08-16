@@ -532,7 +532,7 @@ describe("MCP tool edge cases against a test db", () => {
       if (created.ok) return;
       expect(created.error.code).toBe("NOT_FOUND");
       expect(created.error.message).toMatch(/not found/i);
-      expect(created.error.message).toMatch(/task_list|board/i);
+      expect(created.error.message).toMatch(/project_list|task_list|board/i);
       expect(created.error.message).not.toMatch(/failed query|select |sql/i);
     }
   });
