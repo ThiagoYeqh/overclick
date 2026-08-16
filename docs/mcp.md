@@ -16,6 +16,11 @@ Other HTTP clients (Codex, Gemini CLI, Overclock) use the same URL and the same
 
 The workspace is resolved from the token. Revoked or missing token → **HTTP 401**.
 
+On initialize the server ships instructions that open with the board identity:
+"OverClick is the task board where agents claim and deliver cards (not Overclock the
+IDE); registering activities means task_create here." Clients that surface MCP
+instructions hand their agents this context before the first tool call.
+
 ## Tools
 
 | Tool | What it does |
@@ -39,9 +44,10 @@ Every tool that takes `task_id` accepts the card uuid **or** the workspace short
 (`AGB-5`, `OVK-5.4`). Resolution is scoped to the token's workspace.
 
 `task_claim` and `task_get` return the briefing. The executor needs no other source of
-context. The briefing ends with the executor contract: when done, call `task_deliver`
-with `summary`, `evidence`, `branch` and `usage {tokens_in, tokens_out, duration_ms,
-cost_usd, turns}`.
+context. The briefing always ends with the executor contract, the last thing the agent
+reads: when done, call `task_deliver` with `summary`, `evidence`, `branch` and
+`usage {tokens_in, tokens_out, duration_ms, cost_usd, turns}`; without exact numbers,
+estimate and set `estimated: true`.
 
 ## Errors
 

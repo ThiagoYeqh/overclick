@@ -7,6 +7,15 @@ import {
 import { invokeTool } from "./tools";
 import type { AuthContext, McpDatabase } from "./types";
 
+// The first sentence disambiguates the two products: field tests burned
+// sessions with agents registering activities in Overclock instead of here.
+export const SERVER_INSTRUCTIONS = [
+  "OverClick is the task board where agents claim and deliver cards (not Overclock the IDE); registering activities means task_create here.",
+  "",
+  "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, model, session_id) and returns the briefing, and when the work is done you call task_deliver with summary, evidence, branch and usage. Without exact usage numbers, estimate and set estimated: true.",
+  "Missions group cards: mission_create returns the id that task_create accepts. Every task_id argument accepts the card uuid or the workspace short id (for example AGB-5).",
+].join("\n");
+
 const DESCRIPTIONS: Record<McpToolName, string> = {
   mission_list: "Lista as missões do workspace e o contexto de cada uma.",
   mission_get:
@@ -44,7 +53,10 @@ export function createOverclickMcpServer(opts: {
   db: McpDatabase;
   ctx: AuthContext;
 }): McpServer {
-  const server = new McpServer({ name: "overclick", version: "0.1.2" });
+  const server = new McpServer(
+    { name: "overclick", version: "0.1.2" },
+    { instructions: SERVER_INSTRUCTIONS },
+  );
 
   for (const name of MCP_TOOL_NAMES) {
     server.registerTool(

@@ -62,9 +62,11 @@ describe("self-contained briefing markdown", () => {
     const convention = branchConvention(task.short_id, task.title);
     const md = renderBriefingMarkdown({ task, mission, branchConvention: convention });
 
-    const contractAt = md.indexOf("## Contrato do executor");
+    const contractAt = md.indexOf("## Executor contract");
     expect(contractAt).toBeGreaterThan(-1);
-    expect(md.slice(contractAt)).toContain("task_deliver");
+    expect(md.slice(contractAt)).toContain(
+      "When done, call `task_deliver` with summary, evidence, branch and usage",
+    );
     expect(md.slice(contractAt)).toContain("tokens_in");
     expect(md.slice(contractAt)).toContain("estimated: true");
     // Nothing after the contract: it must be the last thing the agent reads.

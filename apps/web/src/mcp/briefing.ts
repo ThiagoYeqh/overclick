@@ -66,11 +66,11 @@ export function renderBriefingMarkdown(input: {
     "",
     // The briefing must END with the executor contract: in field tests,
     // workers with board tools made zero calls because nothing told them.
-    "## Contrato do executor",
+    "## Executor contract",
     "",
-    "Quando terminar, chame `task_deliver` com summary, evidence, branch e " +
+    "When done, call `task_deliver` with summary, evidence, branch and " +
       "usage `{tokens_in, tokens_out, duration_ms, cost_usd, turns}`. " +
-      "Sem números exatos, ESTIME e marque `estimated: true`. " +
-      "Números reais descobertos depois? Corrija com `task_update` passando usage.",
+      "Without exact numbers, ESTIMATE and set `estimated: true`. " +
+      "Real numbers found later? Correct them with `task_update` passing usage.",
   ].join("\n");
 }
