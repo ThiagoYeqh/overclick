@@ -338,5 +338,17 @@ describe("task_deliver usage and artifacts", () => {
     expect(
       isTelemetryIncomplete({ cost_usd: 0.1, duration_ms: 1000, turns: 2 }),
     ).toBe(true);
+    // Money is an opt-in layer the board computes itself, so a delivery that
+    // names no price is complete as long as it reported what it measured.
+    expect(
+      isTelemetryIncomplete({
+        segments: [{ model: "opus-5", input: 10, output: 20 }],
+        duration_ms: 1000,
+        turns: 2,
+      }),
+    ).toBe(false);
+    expect(
+      isTelemetryIncomplete({ tokens_in: 10, tokens_out: 20, turns: 2 }),
+    ).toBe(true);
   });
 });

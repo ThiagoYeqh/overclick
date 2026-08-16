@@ -312,12 +312,13 @@ export function isTelemetryIncomplete(usage?: TelemetryUsage | null): boolean {
     return true;
   }
   // Segments carry the same tokens the flat counters used to: a run that
-  // reported per-model numbers reported its tokens.
+  // reported per-model numbers reported its tokens. `cost_usd` is not part of
+  // the bar: money is an opt-in layer the board computes itself, so a delivery
+  // that reports tokens, time and turns is complete without naming a price.
   const hasSegments = (usage.segments?.length ?? 0) > 0;
   return (
     (usage.tokens_in === undefined && !hasSegments) ||
     (usage.tokens_out === undefined && !hasSegments) ||
-    usage.cost_usd === undefined ||
     usage.duration_ms === undefined ||
     usage.turns === undefined
   );
