@@ -117,11 +117,28 @@ export const TaskGetInputSchema = z.object({
   task_id: TaskIdSchema,
 });
 
+/**
+ * The board's recipe for measuring a run on this CLI. It rides in the briefing
+ * so the agent never has to guess how to count itself, and it also comes back
+ * structured for callers that want to run it without parsing markdown.
+ */
+export const UsageRecipeSchema = z.object({
+  /** Executor catalog id, or "generic" for the fallback. */
+  cli: z.string().min(1),
+  label: z.string().min(1),
+  /** What the recipe can honestly produce. */
+  yields: z.enum(["tokens_per_model", "no_tokens"]),
+  instructions: z.string().min(1),
+  /** Empty when this CLI has no command that measures anything. */
+  command: z.string(),
+});
+
 export const TaskGetOutputSchema = z.object({
   task: TaskSchema,
   briefing_markdown: z.string(),
   mission: MissionSchema.nullable(),
   branch_convention: BranchConventionSchema,
+  usage_recipe: UsageRecipeSchema.nullable().optional(),
 });
 
 /**
@@ -196,6 +213,8 @@ export const TaskClaimOutputSchema = z.object({
   briefing_markdown: z.string(),
   branch_convention: BranchConventionSchema,
   harness_divergence: HarnessDivergenceSchema.optional(),
+  /** Recipe for the CLI that claimed, already appended to the briefing. */
+  usage_recipe: UsageRecipeSchema.nullable().optional(),
 });
 
 export const TaskUpdateInputSchema = z

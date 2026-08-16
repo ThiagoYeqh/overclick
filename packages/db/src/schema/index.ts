@@ -18,6 +18,7 @@ export { mcpToken } from "./mcp-token";
 export { pairingCode } from "./pairing-code";
 export { cardapioEntry } from "./cardapio-entry";
 export { modelPrice } from "./model-price";
+export { usageRecipe } from "./usage-recipe";
 export {
   executionAttemptRelations,
   handoffRelations,
@@ -29,4 +30,5 @@ export {
   workspaceRelations,
   cardapioEntryRelations,
   modelPriceRelations,
+  usageRecipeRelations,
 } from "./relations";

@@ -166,6 +166,75 @@ describe("MCP tool edge cases against a test db", () => {
     expect(attempt?.usageEstimated).toBe(true);
   });
 
+  it("ends the claim briefing with the recipe for the claiming CLI", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Receita no briefing",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "O agente precisa saber como se medir.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    // The agent sends the binary name; the board resolves it to the catalog id.
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "claude", model: "sonnet-5" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const payload = TaskClaimOutputSchema.parse(claimed.value);
+
+    expect(payload.usage_recipe?.cli).toBe("claude-code");
+    expect(payload.usage_recipe?.yields).toBe("tokens_per_model");
+    const md = payload.briefing_markdown;
+    const recipeAt = md.indexOf("## Measuring this run");
+    const contractAt = md.indexOf("## Executor contract");
+    expect(recipeAt).toBeGreaterThan(-1);
+    expect(recipeAt).toBeLessThan(contractAt);
+    expect(md).toContain("CLAUDE_CODE_SESSION_ID");
+    expect(md.slice(contractAt)).toContain("segments");
+    // The contract stays the last thing the agent reads.
+    expect(md.indexOf("## ", contractAt + 1)).toBe(-1);
+  });
+
+  it("hands the generic recipe to a CLI the board has no recipe for", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "CLI desconhecido",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "Nem todo CLI tem receita.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "some-new-cli", model: "whatever-1" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const payload = TaskClaimOutputSchema.parse(claimed.value);
+    expect(payload.usage_recipe?.cli).toBe("generic");
+    expect(payload.briefing_markdown).toContain("(no command for this CLI yet)");
+
+    // task_get keeps handing the same recipe: the card knows who claimed it.
+    const got = await invokeTool(world.db, ctx(), "task_get", { task_id: card.id });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(TaskGetOutputSchema.parse(got.value).usage_recipe?.cli).toBe("generic");
+  });
+
   it("stores usage in segments per model and derives the flat totals", async () => {
     world = await createTestWorld();
     const created = await invokeTool(world.db, ctx(), "task_create", {

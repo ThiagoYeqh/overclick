@@ -73,10 +73,26 @@ starts a project, so an agent can go from an empty board to its first card witho
 reading the database.
 
 `task_claim` and `task_get` return the briefing. The executor needs no other source of
-context. The briefing always ends with the executor contract, the last thing the agent
-reads: when done, call `task_deliver` with `summary`, `evidence`, `branch` and
-`usage {tokens_in, tokens_out, duration_ms, cost_usd, turns}`; without exact numbers,
-estimate and set `estimated: true`.
+context. The briefing always ends with two things, in this order: how to measure the run,
+then what to send.
+
+**The usage collection recipe.** An agent can read its own session transcript and total
+the token counters per model exactly; nobody was telling it how. The board keeps one
+recipe per CLI (`claude-code`, `codex`, `gemini-cli`, plus a `generic` fallback) and
+appends the one matching the executor that claimed the card. The claim response also
+carries it structured as `usage_recipe {cli, label, yields, instructions, command}`, so a
+caller can run it without parsing markdown. `yields` is `tokens_per_model` when the
+command prints real numbers and `no_tokens` when the CLI records none on disk, in which
+case the honest move is estimating and saying so. The shipped Claude Code and Codex
+recipes print exactly the `segments` shape `task_deliver` takes. Recipes are editable in
+Settings › Usage recipes: a CLI changing its transcript format is fixed there, once,
+instead of in every agent's head, and a recipe edited back to the shipped text stops
+being stored.
+
+**The executor contract**, last, so it is the final thing read: when done, call
+`task_deliver` with `summary`, `evidence`, `branch` and `usage`; send usage as
+`segments`, one per model that ran, plus `duration_ms` and `turns`; without exact
+numbers, estimate and set `estimated: true`.
 
 ## The manage flag
 

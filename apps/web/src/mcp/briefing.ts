@@ -1,11 +1,33 @@
+import type { UsageRecipe } from "@agent-board/db";
 import type { BranchConvention, Mission, Task } from "@agent-board/mcp-core";
+
+/**
+ * How this executor measures the run it just did, taken from the board's
+ * recipe for its CLI. It goes at the very end of the briefing, right before
+ * the delivery contract, because that is the moment the agent needs it.
+ */
+function renderRecipe(recipe: UsageRecipe): string[] {
+  const block = recipe.command
+    ? ["```bash", recipe.command, "```"]
+    : ["(no command for this CLI yet)"];
+  return [
+    `## Measuring this run — ${recipe.label}`,
+    "",
+    recipe.instructions,
+    "",
+    ...block,
+    "",
+  ];
+}
 
 export function renderBriefingMarkdown(input: {
   task: Task;
   mission: Mission | null;
   branchConvention: BranchConvention;
+  /** Recipe for the CLI running the card; omitted when none could be resolved. */
+  recipe?: UsageRecipe | null;
 }): string {
-  const { task, mission, branchConvention } = input;
+  const { task, mission, branchConvention, recipe } = input;
   const steps = task.como_confirmo
     .map((step, index) => `${index + 1}. ${step.step} → ${step.expected}`)
     .join("\n");
@@ -64,12 +86,16 @@ export function renderBriefingMarkdown(input: {
     `- commit/PR: \`${branchConvention.commit_prefix}\``,
     reopen,
     "",
-    // The briefing must END with the executor contract: in field tests,
-    // workers with board tools made zero calls because nothing told them.
+    // The briefing must END with the recipe and the executor contract: in
+    // field tests, workers with board tools made zero calls because nothing
+    // told them how to measure themselves or what to send.
+    ...(recipe ? renderRecipe(recipe) : []),
     "## Executor contract",
     "",
     "When done, call `task_deliver` with summary, evidence, branch and " +
-      "usage `{tokens_in, tokens_out, duration_ms, cost_usd, turns}`. " +
+      "usage. Send usage as `segments`, one per model that ran: " +
+      "`{segments: [{model, input, output, cache_read, cache_write}], " +
+      "duration_ms, turns}` — the command above prints exactly that shape. " +
       "Without exact numbers, ESTIMATE and set `estimated: true`. " +
       "Real numbers found later? Correct them with `task_update` passing usage.",
   ].join("\n");

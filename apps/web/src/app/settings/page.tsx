@@ -14,6 +14,7 @@ import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import { isPairInConfig, selectionFromConfig } from "../../lib/executors";
 import { loadModelPrices } from "../../lib/prices";
+import { loadUsageRecipes } from "../../lib/recipes";
 import { SettingsClient } from "./settings-client";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +64,7 @@ export default async function SettingsPage() {
     .orderBy(desc(mcpToken.createdAt));
 
   const prices = await loadModelPrices(db(), ws.id);
+  const recipes = await loadUsageRecipes(db(), ws.id);
 
   // Models this board has actually run, or is configured to run, that the
   // price table cannot price yet. Offered in Settings so nobody has to guess
@@ -113,6 +115,7 @@ export default async function SettingsPage() {
         cardapio={cardapioRows}
         prices={prices}
         unpricedModels={unpricedModels}
+        recipes={recipes}
         tokens={tokens.map((t) => ({
           id: t.id,
           label: t.label,

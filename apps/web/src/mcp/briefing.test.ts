@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { factoryUsageRecipes, findUsageRecipe } from "@agent-board/db";
 import { branchConvention, type Mission, type Task } from "@agent-board/mcp-core";
 import { renderBriefingMarkdown } from "./briefing";
 
@@ -67,9 +68,44 @@ describe("self-contained briefing markdown", () => {
     expect(md.slice(contractAt)).toContain(
       "When done, call `task_deliver` with summary, evidence, branch and usage",
     );
-    expect(md.slice(contractAt)).toContain("tokens_in");
+    expect(md.slice(contractAt)).toContain("segments");
     expect(md.slice(contractAt)).toContain("estimated: true");
     // Nothing after the contract: it must be the last thing the agent reads.
     expect(md.indexOf("## ", contractAt + 1)).toBe(-1);
+  });
+
+  it("ends with the collection recipe and then the contract", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const recipe = findUsageRecipe(factoryUsageRecipes(), "claude-code");
+    const md = renderBriefingMarkdown({
+      task,
+      mission,
+      branchConvention: convention,
+      recipe,
+    });
+
+    const recipeAt = md.indexOf("## Measuring this run");
+    const contractAt = md.indexOf("## Executor contract");
+    expect(recipeAt).toBeGreaterThan(-1);
+    // Recipe first, contract last: measure, then send.
+    expect(recipeAt).toBeLessThan(contractAt);
+    expect(md).toContain("CLAUDE_CODE_SESSION_ID");
+    expect(md).toContain("cache_read_input_tokens");
+    expect(md.slice(recipeAt, contractAt)).toContain("```bash");
+  });
+
+  it("falls back to the generic recipe for a CLI nobody wrote one for", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const recipe = findUsageRecipe(factoryUsageRecipes(), "some-new-cli");
+    expect(recipe?.cli).toBe("generic");
+    const md = renderBriefingMarkdown({
+      task,
+      mission,
+      branchConvention: convention,
+      recipe,
+    });
+    // Nothing to run, so the briefing says so instead of showing an empty block.
+    expect(md).toContain("(no command for this CLI yet)");
+    expect(md).toContain("estimated: true");
   });
 });

@@ -6,6 +6,7 @@ import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
 import { addSeenExecutorAction, saveExecutorsAction } from "../../actions/executors";
 import { saveLanguageAction } from "../../actions/language";
 import { savePricesAction } from "../../actions/prices";
+import { saveRecipesAction } from "../../actions/recipes";
 import {
   createPairingCodeAction,
   createTokenAction,
@@ -24,7 +25,7 @@ import {
   resolveCatalogCli,
 } from "../../lib/executors";
 import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
-import type { ModelPriceRow } from "@agent-board/db";
+import type { ModelPriceRow, UsageRecipeRow } from "@agent-board/db";
 
 type CardapioRow = {
   activityType: string;
@@ -81,6 +82,7 @@ export function SettingsClient({
   cardapio,
   prices,
   unpricedModels,
+  recipes,
   tokens,
   lang,
   updateCheckEnabled,
@@ -93,6 +95,7 @@ export function SettingsClient({
   cardapio: CardapioRow[];
   prices: ModelPriceRow[];
   unpricedModels: string[];
+  recipes: UsageRecipeRow[];
   tokens: TokenRow[];
   lang: string;
   updateCheckEnabled: boolean;
@@ -109,6 +112,7 @@ export function SettingsClient({
     { id: "exec", label: t.settings.tabExecutors },
     { id: "policy", label: t.settings.tabPolicy },
     { id: "prices", label: t.settings.tabPrices },
+    { id: "recipes", label: t.settings.tabRecipes },
     { id: "tokens", label: t.settings.tabTokens },
     { id: "language", label: t.settings.tabLanguage },
     { id: "updates", label: t.updates.tabUpdates },
@@ -266,6 +270,32 @@ export function SettingsClient({
       );
       if (!r.ok) setErr(r.error);
       else { setMsg(t.settings.pricesSaved); router.refresh(); }
+    });
+
+  // ---- usage recipes
+  const [recipeRows, setRecipeRows] = useState<UsageRecipeRow[]>(recipes);
+  // A save refreshes the server data; adopt it, so the badge stops claiming a
+  // recipe is the shipped one right after somebody rewrote it.
+  const [recipesSeen, setRecipesSeen] = useState(recipes);
+  if (recipesSeen !== recipes) {
+    setRecipesSeen(recipes);
+    setRecipeRows(recipes);
+  }
+  const setRecipe = (i: number, patch: Partial<UsageRecipeRow>) =>
+    setRecipeRows(recipeRows.map((row, j) => (j === i ? { ...row, ...patch } : row)));
+  const saveRecipes = () =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      const r = await saveRecipesAction(
+        recipeRows.map((row) => ({
+          cli: row.cli,
+          label: row.label,
+          instructions: row.instructions,
+          command: row.command,
+        })),
+      );
+      if (!r.ok) setErr(r.error);
+      else { setMsg(t.settings.recipesSaved); router.refresh(); }
     });
 
   // ---- tokens
@@ -523,6 +553,48 @@ export function SettingsClient({
           <div className="save-row">
             <button className="btn-new" disabled={pending} onClick={savePrices}>
               {pending ? t.settings.saving : t.settings.savePrices}
+            </button>
+          </div>
+        </div>
+
+        {/* ---- USAGE RECIPES ---- */}
+        <div className={`tabpane${tab === "recipes" ? " active" : ""}`}>
+          <p className="page-sub">{t.settings.recipesSub}</p>
+          {recipeRows.map((row, i) => (
+            <div key={row.cli} className="seen-sugg">
+              <div className="sec-cap">
+                {row.label}
+                <span className="dim">
+                  {" · "}
+                  {row.command.trim()
+                    ? t.settings.recipeYieldsTokens
+                    : t.settings.recipeYieldsNone}
+                  {" · "}
+                  {row.source === "seed"
+                    ? t.settings.recipeShipped
+                    : `${t.settings.recipeEdited}${row.updatedBy ? ` — ${row.updatedBy}` : ""}`}
+                </span>
+              </div>
+              <label className="lbl">{t.settings.recipeInstructions}</label>
+              <textarea
+                className="input"
+                rows={3}
+                value={row.instructions}
+                onChange={(e) => setRecipe(i, { instructions: e.target.value })}
+              />
+              <label className="lbl">{t.settings.recipeCommand}</label>
+              <textarea
+                className="input d-mono"
+                rows={row.command ? 12 : 2}
+                placeholder={t.settings.recipeNoCommand}
+                value={row.command}
+                onChange={(e) => setRecipe(i, { command: e.target.value })}
+              />
+            </div>
+          ))}
+          <div className="gen-row">
+            <button className="btn-new" disabled={pending} onClick={saveRecipes}>
+              {pending ? t.settings.saving : t.settings.saveRecipes}
             </button>
           </div>
         </div>

@@ -51,6 +51,7 @@ import {
   type InsightsDb,
 } from "../lib/insights";
 import { loadModelPrices, type PricesDb } from "../lib/prices";
+import { loadUsageRecipes, recipeForCli, type RecipesDb } from "../lib/recipes";
 import { renderBriefingMarkdown } from "./briefing";
 import {
   decodeExecutor,
@@ -761,6 +762,7 @@ async function taskClaim(
     claimed.value.updated,
     claimed.value.proj,
     claimed.value.reopenComment,
+    input.executor?.cli ?? null,
   );
   if (!payload || ("ok" in payload && payload.ok === false)) return payload;
 
@@ -812,6 +814,7 @@ async function taskClaim(
     },
     briefing_markdown: payload.briefing_markdown,
     branch_convention: payload.branch_convention,
+    usage_recipe: payload.usage_recipe,
     ...(divergence ? { harness_divergence: divergence } : {}),
   };
 }
@@ -1680,6 +1683,8 @@ async function assembleTaskPayload(
   row: TaskRow,
   proj: ProjectRow,
   reopenComment?: string | null,
+  /** CLI running the card, when the caller knows it (the claim executor). */
+  cli?: string | null,
 ) {
   const comment =
     reopenComment !== undefined
@@ -1692,15 +1697,33 @@ async function assembleTaskPayload(
     if (miss) missionPayload = mapMission(miss);
   }
   const convention = branchConvention(mapped.short_id, mapped.title);
+  // Whoever is running the card gets the recipe for their own CLI. On a
+  // task_get without an executor, the card's claimed executor or its planned
+  // harness names the CLI; anything else lands on the generic recipe.
+  const recipes = await loadUsageRecipes(db as RecipesDb, proj.workspaceId);
+  const recipe = recipeForCli(
+    recipes,
+    cli ?? row.claimedByExecutor ?? row.harness?.cli ?? null,
+  );
   return {
     task: mapped,
     briefing_markdown: renderBriefingMarkdown({
       task: mapped,
       mission: missionPayload,
       branchConvention: convention,
+      recipe,
     }),
     mission: missionPayload,
     branch_convention: convention,
+    usage_recipe: recipe
+      ? {
+          cli: recipe.cli,
+          label: recipe.label,
+          yields: recipe.yields,
+          instructions: recipe.instructions,
+          command: recipe.command,
+        }
+      : null,
   };
 }
 

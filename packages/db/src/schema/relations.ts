@@ -10,6 +10,7 @@ import { user } from "./user";
 import { workspace } from "./workspace";
 import { cardapioEntry } from "./cardapio-entry";
 import { modelPrice } from "./model-price";
+import { usageRecipe } from "./usage-recipe";
 
 export const workspaceRelations = relations(workspace, ({ many }) => ({
   missions: many(mission),
@@ -17,11 +18,19 @@ export const workspaceRelations = relations(workspace, ({ many }) => ({
   mcpTokens: many(mcpToken),
   cardapioEntries: many(cardapioEntry),
   modelPrices: many(modelPrice),
+  usageRecipes: many(usageRecipe),
 }));
 
 export const modelPriceRelations = relations(modelPrice, ({ one }) => ({
   workspace: one(workspace, {
     fields: [modelPrice.workspaceId],
+    references: [workspace.id],
+  }),
+}));
+
+export const usageRecipeRelations = relations(usageRecipe, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [usageRecipe.workspaceId],
     references: [workspace.id],
   }),
 }));
