@@ -1,6 +1,6 @@
 # MCP · OverClick
 
-The board exposes the 17 tools over **streamable HTTP**, served by the same app process.
+The board exposes the 18 tools over **streamable HTTP**, served by the same app process.
 
 ## Connect
 
@@ -57,6 +57,8 @@ instructions hand their agents this context before the first tool call.
 | `harness_recommend` | policy lookup (activity type → CLI · model · effort) |
 | `harness_list` | the whole policy + configured executors, each line carrying `updated_by` and `updated_at` |
 | `harness_set` | writes one policy line (`type`, optional `cli`, `model`, `effort`), validated against the configured executors and stamped with the token label. **Needs a manage token** (see below); `cli` omitted means no preference |
+| `insights_query` | cost, tokens and time over the workspace, plus the reopened rate per model. Readable with any token |
+| | `group_by` project, mission, model or card (omit it for totals and the reopen rate only), `since` and `until` to narrow the period. Same rows and same aggregation the Insights page runs, so a number never disagrees with the screen: only finished attempts count, example cards stay out, `estimated` and `missing` come back as counts next to every total, and a card whose cost nobody reported keeps `cost_usd: null` instead of a fake `0`. The period narrows attempts by when they finished; reopens are not narrowed, so a delivery reopened later still counts |
 | `executors_update` | adds or removes CLIs and models in the executor config, in the shape the Settings grid saves. **Needs a manage token** |
 | | one `cli` per call (the board id, or the binary name an agent sends: `claude` resolves to `claude-code`), plus `add_models`, `remove_models`, `enabled`, `label`, or `remove: true` to drop the CLI entirely. Adding models turns the CLI on unless `enabled: false` says otherwise, because an unchecked model is invisible to the policy selects and to card harnesses. When a change orphans a policy line, the response carries `policy_warnings` naming what `harness_set` has to fix |
 

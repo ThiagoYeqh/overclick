@@ -99,6 +99,33 @@ export async function loadReopenRows(
     );
 }
 
+/**
+ * Narrows attempt rows to a period by when the attempt finished. Only the
+ * attempts are narrowed: a reopen that lands after the window still means that
+ * delivery was reopened, so the reopen rows stay whole.
+ */
+export function filterAttemptsByPeriod(
+  rows: InsightAttemptRow[],
+  period: { since?: Date; until?: Date },
+): InsightAttemptRow[] {
+  if (!period.since && !period.until) return rows;
+  return rows.filter((row) => {
+    if (!row.finishedAt) return false;
+    const at = row.finishedAt.getTime();
+    if (period.since && at < period.since.getTime()) return false;
+    if (period.until && at > period.until.getTime()) return false;
+    return true;
+  });
+}
+
+/** "2 estimated · 1 usage not reported", or the all-clear. Never a silent sum. */
+export function usageHonestyNote(totals: UsageTotals): string {
+  const parts: string[] = [];
+  if (totals.estimated > 0) parts.push(`${totals.estimated} estimated`);
+  if (totals.missing > 0) parts.push(`${totals.missing} usage not reported`);
+  return parts.length > 0 ? parts.join(" · ") : "all usage reported";
+}
+
 export type UsageTotals = {
   /** Sum of the costs that were reported. Attempts without a cost add zero. */
   costUsd: number;

@@ -433,6 +433,91 @@ export const ExecutorsUpdateOutputSchema = z.object({
   policy_warnings: z.array(z.string()).optional(),
 });
 
+/**
+ * Usage totals over a set of finished attempts. `estimated` and `missing` are
+ * counts of attempts, not money: they say how much of the sum to trust. The
+ * board never silently folds a guess or a blank into a number.
+ */
+export const UsageTotalsSchema = z.object({
+  cost_usd: z.number(),
+  tokens: z.number().int().nonnegative(),
+  duration_ms: z.number().int().nonnegative(),
+  attempts: z.number().int().nonnegative(),
+  /** Attempts whose executor flagged the numbers as an estimate. */
+  estimated: z.number().int().nonnegative(),
+  /** Attempts that finished reporting no usage at all. */
+  missing: z.number().int().nonnegative(),
+});
+
+export const InsightGroupSchema = UsageTotalsSchema.extend({
+  key: z.string().min(1),
+  /** null when the dimension is absent: card without mission, model not reported. */
+  label: z.string().nullable(),
+});
+
+export const InsightCardSchema = z.object({
+  task_id: z.string().min(1),
+  short_id: z.string().min(1),
+  title: z.string(),
+  project: z.string(),
+  mission: z.string().nullable(),
+  models: z.array(z.string()),
+  /** null when no attempt on the card reported a cost. Not the same as $0. */
+  cost_usd: z.number().nullable(),
+  tokens: z.number().int().nonnegative(),
+  duration_ms: z.number().int().nonnegative(),
+  attempts: z.number().int().nonnegative(),
+  estimated: z.boolean(),
+  missing: z.boolean(),
+});
+
+export const ModelReopenSchema = z.object({
+  model: z.string().nullable(),
+  deliveries: z.number().int().nonnegative(),
+  reopened: z.number().int().nonnegative(),
+  /** reopened / deliveries, 0..1. */
+  rate: z.number(),
+});
+
+/**
+ * The aggregate questions the Insights page answers, over MCP. Same rows, same
+ * aggregation: only finished attempts count, example cards stay out, and the
+ * period narrows attempts by when they finished (reopens are not narrowed, so
+ * a delivery reopened later still counts as reopened).
+ */
+export const InsightsQueryInputSchema = z.object({
+  group_by: z
+    .enum(["project", "mission", "model", "card"])
+    .optional()
+    .describe("Omit for totals and the reopen rate only."),
+  since: z
+    .string()
+    .datetime()
+    .optional()
+    .describe("ISO timestamp; attempts that finished before it are excluded."),
+  until: z
+    .string()
+    .datetime()
+    .optional()
+    .describe("ISO timestamp; attempts that finished after it are excluded."),
+});
+
+export const InsightsQueryOutputSchema = z.object({
+  period: z.object({
+    since: IsoDateTimeSchema.nullable(),
+    until: IsoDateTimeSchema.nullable(),
+  }),
+  totals: UsageTotalsSchema,
+  /** Plain-language honesty note, the same one the Insights page prints. */
+  note: z.string().min(1),
+  /** Present when group_by is project, mission or model. Cost descending. */
+  groups: z.array(InsightGroupSchema).optional(),
+  /** Present when group_by is card. */
+  cards: z.array(InsightCardSchema).optional(),
+  /** Reopened rate per model, highest first. */
+  reopened_by_model: z.array(ModelReopenSchema),
+});
+
 export const MCP_TOOL_NAMES = [
   "project_list",
   "project_create",
@@ -451,6 +536,7 @@ export const MCP_TOOL_NAMES = [
   "harness_list",
   "harness_set",
   "executors_update",
+  "insights_query",
 ] as const;
 
 export type McpToolName = (typeof MCP_TOOL_NAMES)[number];
@@ -524,6 +610,10 @@ export const toolContracts = {
     input: ExecutorsUpdateInputSchema,
     output: ExecutorsUpdateOutputSchema,
   },
+  insights_query: {
+    input: InsightsQueryInputSchema,
+    output: InsightsQueryOutputSchema,
+  },
 } as const;
 
 export type TaskCreateInput = z.infer<typeof TaskCreateInputSchema>;
@@ -549,6 +639,10 @@ export type CardapioPolicyEntryContract = z.infer<typeof CardapioPolicyEntrySche
 export type ConfiguredExecutorContract = z.infer<typeof ConfiguredExecutorSchema>;
 export type ExecutorsUpdateInput = z.infer<typeof ExecutorsUpdateInputSchema>;
 export type ExecutorsUpdateOutput = z.infer<typeof ExecutorsUpdateOutputSchema>;
+export type InsightsQueryInput = z.infer<typeof InsightsQueryInputSchema>;
+export type InsightsQueryOutput = z.infer<typeof InsightsQueryOutputSchema>;
+export type InsightGroupContract = z.infer<typeof InsightGroupSchema>;
+export type InsightCardContract = z.infer<typeof InsightCardSchema>;
 export type HarnessSetInput = z.infer<typeof HarnessSetInputSchema>;
 export type HarnessSetOutput = z.infer<typeof HarnessSetOutputSchema>;
 export type ProjectListInput = z.infer<typeof ProjectListInputSchema>;

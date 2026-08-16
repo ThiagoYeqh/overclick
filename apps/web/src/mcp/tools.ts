@@ -39,6 +39,14 @@ import {
 } from "@agent-board/mcp-core";
 import { and, asc, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { applyExecutorUpdate, isPairInConfig } from "../lib/executors";
+import {
+  computeInsights,
+  filterAttemptsByPeriod,
+  loadInsightAttemptRows,
+  loadReopenRows,
+  usageHonestyNote,
+  type InsightsDb,
+} from "../lib/insights";
 import { renderBriefingMarkdown } from "./briefing";
 import {
   decodeExecutor,
@@ -176,6 +184,13 @@ async function dispatchTool(
       break;
     case "harness_set":
       value = await harnessSet(db, ctx, data as Parameters<typeof harnessSet>[2]);
+      break;
+    case "insights_query":
+      value = await insightsQuery(
+        db,
+        ctx,
+        data as Parameters<typeof insightsQuery>[2],
+      );
       break;
     case "executors_update":
       value = await executorsUpdate(
@@ -1365,6 +1380,100 @@ async function harnessSet(
   if (!row) throw new Error("failed to write cardapio entry");
 
   return { policy: policyEntryFromRow(row) };
+}
+
+/**
+ * The aggregate questions the Insights page answers, over MCP. Deliberately
+ * the same two loaders and the same pure aggregation the page calls, so an
+ * agent and a human reading the screen can never disagree about a number.
+ */
+async function insightsQuery(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: {
+    group_by?: "project" | "mission" | "model" | "card";
+    since?: string;
+    until?: string;
+  },
+) {
+  const since = input.since ? new Date(input.since) : undefined;
+  const until = input.until ? new Date(input.until) : undefined;
+  if (since && until && since.getTime() > until.getTime()) {
+    return err(
+      "INVALID_ARGUMENT",
+      "The period is inverted: since is later than until.",
+    );
+  }
+
+  const [attemptRows, reopenRows] = await Promise.all([
+    loadInsightAttemptRows(db as InsightsDb, ctx.workspaceId),
+    loadReopenRows(db as InsightsDb, ctx.workspaceId),
+  ]);
+  const insights = computeInsights(
+    filterAttemptsByPeriod(attemptRows, { since, until }),
+    reopenRows,
+  );
+
+  const totals = {
+    cost_usd: insights.totals.costUsd,
+    tokens: insights.totals.tokens,
+    duration_ms: insights.totals.durationMs,
+    attempts: insights.totals.attempts,
+    estimated: insights.totals.estimated,
+    missing: insights.totals.missing,
+  };
+
+  const groupsFor = (rows: typeof insights.byProject) =>
+    rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      cost_usd: row.costUsd,
+      tokens: row.tokens,
+      duration_ms: row.durationMs,
+      attempts: row.attempts,
+      estimated: row.estimated,
+      missing: row.missing,
+    }));
+
+  let grouped: Record<string, unknown> = {};
+  if (input.group_by === "project") grouped = { groups: groupsFor(insights.byProject) };
+  if (input.group_by === "mission") grouped = { groups: groupsFor(insights.byMission) };
+  if (input.group_by === "model") grouped = { groups: groupsFor(insights.byModel) };
+  if (input.group_by === "card") {
+    grouped = {
+      cards: insights.perCard.map((card) => ({
+        task_id: card.taskId,
+        short_id: card.shortId,
+        title: card.title,
+        project: card.projectName,
+        mission: card.missionTitle,
+        models: card.models,
+        // Kept nullable on purpose: no reported cost is not a cost of zero.
+        cost_usd: card.costUsd,
+        tokens: card.tokens,
+        duration_ms: card.durationMs,
+        attempts: card.attempts,
+        estimated: card.estimated,
+        missing: card.missing,
+      })),
+    };
+  }
+
+  return {
+    period: {
+      since: since ? iso(since) : null,
+      until: until ? iso(until) : null,
+    },
+    totals,
+    note: usageHonestyNote(insights.totals),
+    ...grouped,
+    reopened_by_model: insights.reopensByModel.map((row) => ({
+      model: row.model,
+      deliveries: row.deliveries,
+      reopened: row.reopened,
+      rate: row.rate,
+    })),
+  };
 }
 
 /**

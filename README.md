@@ -67,10 +67,10 @@ Then, in your terminal: *"grab the next task from the board."* Watch the example
 
 ## MCP surface
 
-17 tools: `project_list` · `project_create` · `mission_list` · `mission_get` · `mission_create` ·
+18 tools: `project_list` · `project_create` · `mission_list` · `mission_get` · `mission_create` ·
 `task_list` · `task_get` · `task_create` · `task_claim` · `task_update` · `task_deliver` ·
 `task_delete` · `branch_register` · `harness_recommend` · `harness_list` · `harness_set` ·
-`executors_update`. Streamable HTTP, bearer tokens, atomic claims, typed errors. The
+`executors_update` · `insights_query`. Streamable HTTP, bearer tokens, atomic claims, typed errors. The
 configuration tools sit behind a per-token manage flag, off by default. See
 [`docs/mcp.md`](docs/mcp.md).
 
