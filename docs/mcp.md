@@ -4,7 +4,19 @@ The board exposes the 13 MVP tools over **streamable HTTP**, served by the same 
 
 ## Connect
 
-Replace the host and paste the token generated in the UI (it is shown in full only once):
+Preferred: **pairing code**. The human generates a one-time 6-digit code in the wizard
+or in Settings › Tokens and reads it to the agent; the agent exchanges it on the public
+pairing endpoint and receives the real token, so the bearer value never travels through
+a chat:
+
+```bash
+curl -sX POST http://<your-host>/api/pair \
+  -H 'Content-Type: application/json' -d '{"code":"<6 digits>"}'
+# → {"token":"ocb_...","url":"/mcp",...}   single use, 10 minute TTL
+```
+
+Classic: replace the host and paste the token generated in the UI (it is shown in full
+only once):
 
 ```bash
 claude mcp add --transport http overclick http://<your-host>/mcp \

@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
+import { createPairingCode, pairingStatus } from "../lib/pairing";
 import { generateTokenSecret, hashToken } from "../mcp/token";
 import type { ActionResult } from "../lib/action-result";
 
@@ -56,6 +57,44 @@ export async function revokeTokenAction(tokenId: string): Promise<ActionResult> 
     .where(and(eq(mcpToken.id, tokenId), eq(mcpToken.workspaceId, ws.id)));
   revalidatePath("/settings");
   return { ok: true };
+}
+
+export type CreatePairingResult =
+  | { ok: true; id: string; code: string; expiresAt: string }
+  | { ok: false; error: string };
+
+/**
+ * One-time pairing code: the human reads the 6 digits to the agent and the
+ * agent exchanges them on the public /api/pair endpoint for the real token.
+ * The bearer value never appears in a conversation.
+ */
+export async function createPairingCodeAction(
+  label: string,
+): Promise<CreatePairingResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
+
+  const ws = await db().query.workspace.findFirst();
+  if (!ws) return { ok: false, error: "Workspace not found." };
+
+  const created = await createPairingCode(db(), {
+    workspaceId: ws.id,
+    label: label.trim() || "paired agent",
+    userId: session.userId,
+  });
+  return {
+    ok: true,
+    id: created.id,
+    code: created.code,
+    expiresAt: created.expiresAt.toISOString(),
+  };
+}
+
+/** Wizard polling for the pairing path: lit once the code was exchanged. */
+export async function pollPairingAction(id: string): Promise<{ paired: boolean }> {
+  const session = await getSession();
+  if (!session) return { paired: false };
+  return pairingStatus(db(), id);
 }
 
 /** Polling for the "waiting for the first connection" indicator (wizard T3). */

@@ -15,6 +15,7 @@ export { taskComment } from "./task-comment";
 export { executionAttempt } from "./execution-attempt";
 export { handoff } from "./handoff";
 export { mcpToken } from "./mcp-token";
+export { pairingCode } from "./pairing-code";
 export { cardapioEntry } from "./cardapio-entry";
 export {
   executionAttemptRelations,

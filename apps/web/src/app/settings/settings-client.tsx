@@ -5,7 +5,11 @@ import { useState, useTransition } from "react";
 import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
 import { addSeenExecutorAction, saveExecutorsAction } from "../../actions/executors";
 import { saveLanguageAction } from "../../actions/language";
-import { createTokenAction, revokeTokenAction } from "../../actions/tokens";
+import {
+  createPairingCodeAction,
+  createTokenAction,
+  revokeTokenAction,
+} from "../../actions/tokens";
 import { saveUpdateCheckAction } from "../../actions/updates";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import {
@@ -214,6 +218,29 @@ export function SettingsClient({
     } catch { /* clipboard unavailable */ }
   };
 
+  // ---- pairing code: the token never travels through a chat
+  const [pairFresh, setPairFresh] = useState<{ code: string } | null>(null);
+  const [pairCopied, setPairCopied] = useState(false);
+  const pairCmd = pairFresh
+    ? `curl -sX POST http://${host}/api/pair \\\n  -H 'Content-Type: application/json' -d '{"code":"${pairFresh.code}"}'`
+    : "";
+  const genPair = () =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      const r = await createPairingCodeAction(newLabel || "paired agent");
+      if (!r.ok) return setErr(r.error);
+      setPairFresh({ code: r.code });
+      setNewLabel("");
+    });
+  const copyPair = async () => {
+    if (!pairFresh) return;
+    try {
+      await navigator.clipboard.writeText(pairCmd);
+      setPairCopied(true);
+      setTimeout(() => setPairCopied(false), 2000);
+    } catch { /* clipboard unavailable */ }
+  };
+
   return (
     <>
       <NebulaAtmosphere />
@@ -364,10 +391,28 @@ export function SettingsClient({
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
             />
+            <button className="btn-new" disabled={pending} onClick={genPair}>
+              {pending ? t.wizard.generating : t.settings.generatePairBtn}
+            </button>
             <button className="btn-new" disabled={pending} onClick={genToken}>
               {pending ? t.wizard.generating : t.settings.generateTokenBtn}
             </button>
           </div>
+
+          {pairFresh ? (
+            <div className="fresh-tok">
+              <div className="lbl">{t.settings.freshPair}</div>
+              <div className="pair-code">{pairFresh.code}</div>
+              <div className="cmd">{pairCmd}
+                <button className={`copy${pairCopied ? " ok" : ""}`} onClick={copyPair}>
+                  {pairCopied ? t.wizard.copied : t.wizard.copy}
+                </button>
+              </div>
+              <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
+                {t.settings.pairNote}
+              </div>
+            </div>
+          ) : null}
 
           <div className="sec-cap">{t.settings.connectAgent}</div>
           <div className="cmd">

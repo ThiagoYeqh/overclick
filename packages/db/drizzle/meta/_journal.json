@@ -71,6 +71,13 @@
       "when": 1786891226727,
       "tag": "0009_massive_tattoo",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786891562067,
+      "tag": "0010_mature_shiva",
+      "breakpoints": true
     }
   ]
 }

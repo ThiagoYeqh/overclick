@@ -4,7 +4,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { saveExecutorsAction } from "../../actions/executors";
 import { saveProjectAction } from "../../actions/onboarding";
-import { createTokenAction, pollTokenAction } from "../../actions/tokens";
+import {
+  createPairingCodeAction,
+  createTokenAction,
+  pollPairingAction,
+  pollTokenAction,
+} from "../../actions/tokens";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import {
   ExecutorsGrid,
@@ -80,6 +85,11 @@ export function Wizard({
   // ---- T3
   const [label, setLabel] = useState("Claude Code on this machine");
   const [tab, setTab] = useState<string>("claude-code");
+  // Pairing first: the human reads 6 digits to the agent and the bearer
+  // token never appears in a conversation. The classic copy command stays
+  // one tab away.
+  const [mode, setMode] = useState<"pair" | "command">("pair");
+  const [pair, setPair] = useState<{ id: string; code: string } | null>(null);
   const [token, setToken] = useState<{ id: string; secret: string } | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -87,13 +97,18 @@ export function Wizard({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const baseUrl = `http://${host}/mcp`;
+  const pairCmd = pair
+    ? `curl -sX POST http://${host}/api/pair \\\n  -H 'Content-Type: application/json' -d '{"code":"${pair.code}"}'`
+    : "";
 
   useEffect(() => {
-    if (!token || connected) return;
+    if ((!token && !pair) || connected) return;
     let stopped = false;
     const check = async () => {
       if (stopped) return;
-      const r = await pollTokenAction(token.id);
+      const r = token
+        ? await pollTokenAction(token.id)
+        : await pollPairingAction(pair!.id).then((p) => ({ used: p.paired }));
       if (r.used && !stopped) setConnected(true);
     };
     // This step asks the user to leave and paste the command in a terminal;
@@ -113,7 +128,7 @@ export function Wizard({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [token, connected]);
+  }, [token, pair, connected]);
 
   const goNext = () =>
     start(async () => {
@@ -141,6 +156,26 @@ export function Wizard({
       if (!r.ok) return setErr(r.error);
       setToken({ id: r.id, secret: r.secret });
     });
+
+  const genPair = () =>
+    start(async () => {
+      setErr(null);
+      const r = await createPairingCodeAction(label);
+      if (!r.ok) return setErr(r.error);
+      setPair({ id: r.id, code: r.code });
+      setConnected(false);
+    });
+
+  const copyPairCmd = async () => {
+    if (!pair) return;
+    try {
+      await navigator.clipboard.writeText(pairCmd);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable; the text stays selectable */
+    }
+  };
 
   const copyCmd = async () => {
     if (!token) return;
@@ -244,7 +279,36 @@ export function Wizard({
                 disabled={Boolean(token)}
               />
             </div>
-            {!token ? (
+            <div className="tabs">
+              <span className={mode === "pair" ? "on" : ""} onClick={() => setMode("pair")}>
+                {t.wizard.pairTab}
+              </span>
+              <span className={mode === "command" ? "on" : ""} onClick={() => setMode("command")}>
+                {t.wizard.commandTab}
+              </span>
+            </div>
+            {mode === "pair" ? (
+              !pair ? (
+                <>
+                  <p className="sub">{t.wizard.pairSub}</p>
+                  <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genPair}>
+                    {pending ? t.wizard.generating : t.wizard.generateCode}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="pair-code">{pair.code}</div>
+                  <div className="tok-note">{t.wizard.pairHint}</div>
+                  <div className="cmd">
+                    {pairCmd}
+                    <button className={`copy${copied ? " ok" : ""}`} onClick={copyPairCmd}>
+                      {copied ? t.wizard.copied : t.wizard.copy}
+                    </button>
+                  </div>
+                  <div className="tok-note">{t.wizard.pairNote}</div>
+                </>
+              )
+            ) : !token ? (
               <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genToken}>
                 {pending ? t.wizard.generating : t.wizard.generateToken}
               </button>
@@ -273,18 +337,24 @@ export function Wizard({
                     {revealed ? t.wizard.hide : t.wizard.reveal}
                   </span>
                 </div>
-                <div className={`conn${connected ? " lit" : ""}`}>
-                  <div className="l1">
-                    <span className={`pip${connected ? " green" : ""}`} />
-                    <span>{connected ? t.wizard.connected : t.wizard.waiting}</span>
-                  </div>
-                  <div className="l2">
-                    {connected ? `${label} · ${t.wizard.justNow}` : t.wizard.pasteCmd}
-                  </div>
-                  <div className="cap">{connected ? t.wizard.firstCall : t.wizard.polling}</div>
-                </div>
               </>
             )}
+            {(mode === "pair" ? pair : token) ? (
+              <div className={`conn${connected ? " lit" : ""}`}>
+                <div className="l1">
+                  <span className={`pip${connected ? " green" : ""}`} />
+                  <span>{connected ? t.wizard.connected : t.wizard.waiting}</span>
+                </div>
+                <div className="l2">
+                  {connected
+                    ? `${label} · ${t.wizard.justNow}`
+                    : mode === "pair"
+                      ? t.wizard.pairWaiting
+                      : t.wizard.pasteCmd}
+                </div>
+                <div className="cap">{connected ? t.wizard.firstCall : t.wizard.polling}</div>
+              </div>
+            ) : null}
           </div>
 
           {err ? <p className="werr">{err}</p> : null}
