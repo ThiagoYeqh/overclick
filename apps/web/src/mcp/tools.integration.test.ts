@@ -166,6 +166,153 @@ describe("MCP tool edge cases against a test db", () => {
     expect(attempt?.usageEstimated).toBe(true);
   });
 
+  it("stores usage in segments per model and derives the flat totals", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Trocou de modelo no meio",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "A run trocou de modelo.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "claude", model: "sonnet-5" },
+    });
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entregue por dois modelos",
+      usage: {
+        segments: [
+          { model: "sonnet-5", input: 1000, output: 200, cache_read: 5000 },
+          { model: "opus-5", input: 300, output: 900, cache_write: 100 },
+        ],
+        cost_usd: 0.4,
+        duration_ms: 900_000,
+        turns: 12,
+      },
+    });
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const delivered = TaskDeliverOutputSchema.parse(submitted.value);
+    expect(delivered.telemetry_incomplete).toBe(false);
+    expect(delivered.handoff.usage?.segments).toHaveLength(2);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.usageSegments).toEqual([
+      { model: "sonnet-5", input: 1000, output: 200, cache_read: 5000 },
+      { model: "opus-5", input: 300, output: 900, cache_write: 100 },
+    ]);
+    // The flat counters keep agreeing with the segments they came from.
+    expect(attempt?.tokensIn).toBe(1300);
+    expect(attempt?.tokensOut).toBe(1100);
+    expect(attempt?.tokensCache).toBe(5100);
+  });
+
+  it("stores a flat usage block as one segment for the claimed model", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Formato antigo",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "O agente ainda manda o formato plano.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "claude", model: "sonnet-5" },
+    });
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "formato plano",
+      usage: {
+        tokens_in: 1000,
+        tokens_out: 200,
+        tokens_cache: 7000,
+        cost_usd: 0.1,
+        duration_ms: 60_000,
+        turns: 3,
+      },
+    });
+    expect(submitted.ok).toBe(true);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.usageSegments).toEqual([
+      { model: "sonnet-5", input: 1000, output: 200, cache_read: 7000 },
+    ]);
+    expect(attempt?.tokensIn).toBe(1000);
+  });
+
+  it("replaces the stored segments when task_update corrects them", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Correcao de segmentos",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "Os numeros reais apareceram depois.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "claude", model: "sonnet-5" },
+    });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "sem numeros",
+    });
+    const updated = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      usage: {
+        segments: [
+          { model: "sonnet-5", input: 10, output: 20 },
+          { model: "opus-5", input: 30, output: 40 },
+        ],
+        cost_usd: 0.02,
+        duration_ms: 30_000,
+        turns: 2,
+      },
+    });
+    expect(updated.ok).toBe(true);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.usageSegments).toHaveLength(2);
+    expect(attempt?.tokensIn).toBe(40);
+    expect(attempt?.tokensOut).toBe(60);
+
+    const [saved] = await world.db
+      .select()
+      .from(handoff)
+      .where(eq(handoff.taskId, card.id));
+    expect(saved?.usage?.segments).toHaveLength(2);
+  });
+
   it("accepts usage via task_update after deliver and clears the incomplete flag", async () => {
     world = await createTestWorld();
     const created = await invokeTool(world.db, ctx(), "task_create", {

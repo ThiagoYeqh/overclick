@@ -5,6 +5,7 @@ import {
   MissionCreateInputSchema,
   ProjectCreateInputSchema,
   TaskCreateInputSchema,
+  isTelemetryIncomplete,
   toolContracts,
 } from "../src/index.js";
 
@@ -305,5 +306,37 @@ describe("task_deliver usage and artifacts", () => {
       usage: { tokens_in: 5000, cost_usd: 0.4 },
     });
     expect(updated.usage?.tokens_in).toBe(5000);
+  });
+
+  it("accepts usage in segments, one per model that ran", () => {
+    const delivered = TaskDeliverInputSchema.parse({
+      task_id: "OC-1",
+      summary: "trocou de modelo",
+      usage: {
+        segments: [
+          { model: "sonnet-5", input: 1000, output: 200, cache_read: 5000 },
+          { model: "opus-5", input: 300, output: 900, cache_write: 100 },
+        ],
+        duration_ms: 900_000,
+        turns: 12,
+      },
+    });
+    expect(delivered.usage?.segments).toHaveLength(2);
+    expect(delivered.usage?.segments?.[1]?.model).toBe("opus-5");
+  });
+
+  it("counts segments as reported tokens for the telemetry flag", () => {
+    expect(
+      isTelemetryIncomplete({
+        segments: [{ model: "opus-5", input: 10, output: 20 }],
+        cost_usd: 0.1,
+        duration_ms: 1000,
+        turns: 2,
+      }),
+    ).toBe(false);
+    // No segments and no flat counters: still incomplete.
+    expect(
+      isTelemetryIncomplete({ cost_usd: 0.1, duration_ms: 1000, turns: 2 }),
+    ).toBe(true);
   });
 });

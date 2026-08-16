@@ -2,8 +2,11 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import {
   mission,
+  modelChain,
+  normalizeUsageSegments,
   project,
-  resolveAttemptCost,
+  resolveSegmentedCost,
+  segmentModels,
   task,
   user,
   type CostSource,
@@ -128,28 +131,46 @@ function toBoardCard(t: TaskRow, tr: Dict, prices: readonly ModelPrice[]): Board
       latestAttempt.costUsd != null ||
       latestAttempt.durationMs != null ||
       latestAttempt.turns != null;
+    // What each model actually spent. Stored before segments existed, or with
+    // no tokens at all, the attempt still reads as one segment for its model.
+    const segments = latestAttempt.usageSegments?.length
+      ? latestAttempt.usageSegments
+      : (() => {
+          const folded = normalizeUsageSegments(
+            {
+              tokens_in: latestAttempt.tokensIn ?? undefined,
+              tokens_out: latestAttempt.tokensOut ?? undefined,
+              tokens_cache: latestAttempt.tokensCache ?? undefined,
+            },
+            latestAttempt.model,
+          );
+          return folded.length > 0 ? folded : [{ model: latestAttempt.model }];
+        })();
+    // One model, or the chain a run that switched models actually walked.
+    const chain = modelChain(segmentModels(segments));
     if (hasUsage) {
       const duration = latestAttempt.durationMs ?? latestAttempt.serverDurationMs;
       if (duration != null) parts.push(fmtDurationMs(duration));
       if (tokens > 0) parts.push(fmtTokens(tokens));
+      if (chain) parts.push(chain);
       // The board owns the arithmetic: tokens plus the price table beat the
-      // number the agent volunteered, which is only the fallback.
-      const cost = resolveAttemptCost(
-        {
-          tokensIn: latestAttempt.tokensIn,
-          tokensOut: latestAttempt.tokensOut,
-          tokensCache: latestAttempt.tokensCache,
-          costUsd: latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null,
-          usageEstimated: latestAttempt.usageEstimated,
-        },
-        prices,
-        latestAttempt.model,
-      );
+      // number the agent volunteered, which is only the fallback. Every model
+      // in the run is priced at its own rate, never the whole run at one.
+      const cost = resolveSegmentedCost(segments, prices, {
+        costUsd: latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null,
+        usageEstimated: latestAttempt.usageEstimated,
+      });
       if (cost.costUsd != null) parts.push(fmtCost(cost.costUsd, cost.source, tr));
       telemetry = parts.join(" · ") || null;
       estimated = latestAttempt.usageEstimated;
     } else if (latestAttempt.serverDurationMs != null) {
-      telemetry = `${fmtDurationMs(latestAttempt.serverDurationMs)} · ${tr.board.usageNotReported}`;
+      telemetry = [
+        fmtDurationMs(latestAttempt.serverDurationMs),
+        chain,
+        tr.board.usageNotReported,
+      ]
+        .filter(Boolean)
+        .join(" · ");
     }
   } else if (latestHandoff?.usage) {
     const u = latestHandoff.usage;
@@ -157,6 +178,8 @@ function toBoardCard(t: TaskRow, tr: Dict, prices: readonly ModelPrice[]): Board
     if (u.duration_ms != null) parts.push(fmtDurationMs(u.duration_ms));
     const tokens = (u.tokens_in ?? 0) + (u.tokens_out ?? 0) + (u.tokens_cache ?? 0);
     if (tokens > 0) parts.push(fmtTokens(tokens));
+    const chain = modelChain(segmentModels(normalizeUsageSegments(u, null)));
+    if (chain) parts.push(chain);
     // No attempt to price: this is the agent's own number, labeled as such.
     if (u.cost_usd != null) {
       parts.push(fmtCost(u.cost_usd, u.estimated ? "estimated" : "reported", tr));

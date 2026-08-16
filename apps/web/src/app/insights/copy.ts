@@ -16,6 +16,8 @@ const en = {
   byProject: "By project",
   byMission: "By mission",
   byModel: "By model",
+  sharedModelsNote: (n: number) =>
+    `${n} run${n === 1 ? "" : "s"} switched model. Tokens are split per model; the duration is not, so the times below overlap.`,
   reopenedByModel: "Reopened rate by model",
   perCard: "Cost per card",
   colName: "name",
@@ -69,6 +71,8 @@ const ptBR: InsightsCopy = {
   byProject: "Por projeto",
   byMission: "Por missão",
   byModel: "Por modelo",
+  sharedModelsNote: (n: number) =>
+    `${n} execuç${n === 1 ? "ão trocou" : "ões trocaram"} de modelo. Os tokens são separados por modelo; a duração não, então os tempos abaixo se sobrepõem.`,
   reopenedByModel: "Taxa de reabertura por modelo",
   perCard: "Custo por card",
   colName: "nome",

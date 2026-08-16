@@ -5,6 +5,12 @@
  * here is pure so the web app, the MCP layer and the tests share one answer.
  */
 
+import {
+  segmentTokenCounts,
+  segmentTotalTokens,
+  type UsageSegment,
+} from "./usage";
+
 /** One model's price, in US dollars per million tokens. */
 export type ModelPrice = {
   /** Normalized key (see normalizeModelKey). */
@@ -164,6 +170,47 @@ export function resolveAttemptCost(
     };
   }
   return { costUsd: null, source: null };
+}
+
+/**
+ * The cost of a run recorded in segments: every model priced at its own rate
+ * and added up, which is the only honest answer once a run switched model. The
+ * figure the agent volunteered is the fallback, used when the price table
+ * cannot cover every model the run touched. Splitting that one figure across
+ * models would be inventing numbers, so it is never divided.
+ */
+export function resolveSegmentedCost(
+  segments: readonly UsageSegment[],
+  prices: readonly ModelPrice[],
+  fallback: { costUsd?: number | null; usageEstimated?: boolean },
+): ResolvedCost {
+  if (areSegmentsPriced(segments, prices)) {
+    let sum = 0;
+    for (const segment of segments) {
+      const price = findModelPrice(prices, segment.model);
+      if (price) sum += computeCostUsd(price, segmentTokenCounts(segment));
+    }
+    return { costUsd: Math.round(sum * 1e6) / 1e6, source: "computed" };
+  }
+  if (fallback.costUsd != null) {
+    return {
+      costUsd: Number(fallback.costUsd),
+      source: fallback.usageEstimated ? "estimated" : "reported",
+    };
+  }
+  return { costUsd: null, source: null };
+}
+
+/** True when every segment that carries tokens has a price to be read at. */
+export function areSegmentsPriced(
+  segments: readonly UsageSegment[],
+  prices: readonly ModelPrice[],
+): boolean {
+  const spending = segments.filter((s) => segmentTotalTokens(s) > 0);
+  return (
+    spending.length > 0 &&
+    spending.every((s) => findModelPrice(prices, s.model) != null)
+  );
 }
 
 /**

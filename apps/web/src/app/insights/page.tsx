@@ -129,6 +129,7 @@ export default async function InsightsPage() {
   ]);
   const insights = computeInsights(attemptRows, reopenRows, prices);
   const t = insightsCopy(ws.language);
+  const switchedRuns = insights.switchedRuns;
   const { totals } = insights;
 
   return (
@@ -192,6 +193,11 @@ export default async function InsightsPage() {
               </div>
               <div className="ins-sec">
                 <div className="sec-cap">{t.byModel}</div>
+                {/* Runs that switched model split their tokens but not their
+                    clock: say so instead of letting the times look additive. */}
+                {switchedRuns > 0 ? (
+                  <p className="ins-dim">{t.sharedModelsNote(switchedRuns)}</p>
+                ) : null}
                 <GroupTable
                   rows={insights.byModel}
                   fallbackLabel={t.noModel}

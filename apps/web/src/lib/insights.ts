@@ -1,16 +1,24 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import {
+  areSegmentsPriced,
   executionAttempt,
   findModelPrice,
   mergeCostSources,
   mission,
+  normalizeUsageSegments,
   project,
   resolveAttemptCost,
+  resolveSegmentedCost,
+  segmentModels,
+  segmentTokenCounts,
+  segmentTotalTokens,
   task,
   taskComment,
   type CostSource,
   type Database,
   type ModelPrice,
+  type ResolvedCost,
+  type UsageSegment,
 } from "@agent-board/db";
 
 /** Postgres or PGlite drizzle client — the query surface insights needs. */
@@ -29,6 +37,8 @@ export type InsightAttemptRow = {
   model: string | null;
   result: string | null;
   finishedAt: Date | null;
+  /** Tokens by model. Null on attempts recorded before segments existed. */
+  usageSegments: UsageSegment[] | null;
   tokensIn: number | null;
   tokensOut: number | null;
   tokensCache: number | null;
@@ -63,6 +73,7 @@ export async function loadInsightAttemptRows(
       model: executionAttempt.model,
       result: executionAttempt.result,
       finishedAt: executionAttempt.finishedAt,
+      usageSegments: executionAttempt.usageSegments,
       tokensIn: executionAttempt.tokensIn,
       tokensOut: executionAttempt.tokensOut,
       tokensCache: executionAttempt.tokensCache,
@@ -172,6 +183,13 @@ export type GroupInsight = UsageTotals & {
   key: string;
   /** null when the dimension is absent (card without mission, model not reported). */
   label: string | null;
+  /**
+   * Only on byModel: attempts in this group that also ran another model. Their
+   * tokens are split per segment, but nothing records how the wall clock split,
+   * so the whole duration lands in every model the run touched. Non-zero means
+   * the durations across models overlap instead of adding up to the total.
+   */
+  sharedAttempts?: number;
 };
 
 export type ModelReopenInsight = {
@@ -203,6 +221,12 @@ export type CardInsight = {
 
 export type Insights = {
   totals: UsageTotals;
+  /**
+   * Finished attempts that ran more than one model. Each of them appears in
+   * several byModel groups, so this is the count the screen can name without
+   * double counting.
+   */
+  switchedRuns: number;
   byProject: GroupInsight[];
   byMission: GroupInsight[];
   byModel: GroupInsight[];
@@ -232,6 +256,27 @@ function attemptTokens(a: InsightAttemptRow): number {
   return (a.tokensIn ?? 0) + (a.tokensOut ?? 0) + (a.tokensCache ?? 0);
 }
 
+/**
+ * The models an attempt actually ran, as segments. Attempts stored before
+ * segments existed fold their flat counters into one segment for the model
+ * recorded at claim time; an attempt that reported no tokens at all still
+ * yields one empty segment so it keeps showing up under its model instead of
+ * vanishing from the per-model view.
+ */
+function attemptSegments(a: InsightAttemptRow): UsageSegment[] {
+  const stored = a.usageSegments?.length
+    ? a.usageSegments
+    : normalizeUsageSegments(
+        {
+          tokens_in: a.tokensIn ?? undefined,
+          tokens_out: a.tokensOut ?? undefined,
+          tokens_cache: a.tokensCache ?? undefined,
+        },
+        a.model,
+      );
+  return stored.length > 0 ? stored : [{ model: a.model }];
+}
+
 /** Same ladder the board uses: any number counts as reported usage. */
 function hasReportedUsage(a: InsightAttemptRow): boolean {
   return (
@@ -246,22 +291,41 @@ function attemptDurationMs(a: InsightAttemptRow): number {
   return a.durationMs ?? a.serverDurationMs ?? 0;
 }
 
+/** The cost of one attempt, every segment priced at its own model's rate. */
+function attemptCost(
+  a: InsightAttemptRow,
+  segments: readonly UsageSegment[],
+  prices: readonly ModelPrice[],
+): ResolvedCost {
+  return resolveSegmentedCost(segments, prices, {
+    costUsd: a.costUsd != null ? Number(a.costUsd) : null,
+    usageEstimated: a.usageEstimated,
+  });
+}
+
 /**
- * The cost of one attempt, computed from the price table when the attempt
- * carries tokens and the model has a price, and only otherwise the number the
- * agent volunteered.
+ * The cost of one segment. A run with a single segment keeps the whole ladder,
+ * agent-reported dollars included; a run that switched model does not, because
+ * splitting one volunteered figure across models would be inventing numbers.
  */
-function attemptCost(a: InsightAttemptRow, prices: readonly ModelPrice[]) {
+function segmentCost(
+  a: InsightAttemptRow,
+  segment: UsageSegment,
+  prices: readonly ModelPrice[],
+  allowReportedFallback: boolean,
+): ResolvedCost {
+  const tokens = segmentTokenCounts(segment);
   return resolveAttemptCost(
     {
-      tokensIn: a.tokensIn,
-      tokensOut: a.tokensOut,
-      tokensCache: a.tokensCache,
-      costUsd: a.costUsd != null ? Number(a.costUsd) : null,
+      tokensIn: tokens.input,
+      tokensOut: tokens.output,
+      tokensCache: tokens.cache,
+      costUsd:
+        allowReportedFallback && a.costUsd != null ? Number(a.costUsd) : null,
       usageEstimated: a.usageEstimated,
     },
     prices,
-    a.model,
+    segment.model,
   );
 }
 
@@ -281,6 +345,33 @@ function addAttempt(
   if (attemptTokens(a) > 0 && !priced) totals.costUnpriced += 1;
   if (!hasReportedUsage(a)) totals.missing += 1;
   else if (a.usageEstimated) totals.estimated += 1;
+}
+
+/**
+ * One model's slice of an attempt, for the per-model view. Tokens and cost are
+ * the segment's; duration and the honesty counters belong to the whole run, so
+ * they land on every model that ran in it.
+ */
+function addSegment(
+  totals: GroupInsight,
+  a: InsightAttemptRow,
+  segment: UsageSegment,
+  cost: ResolvedCost,
+  priced: boolean,
+  shared: boolean,
+): void {
+  const tokens = segmentTotalTokens(segment);
+  totals.attempts += 1;
+  totals.tokens += tokens;
+  totals.durationMs += attemptDurationMs(a);
+  if (cost.costUsd != null) totals.costUsd += cost.costUsd;
+  if (cost.source === "computed") totals.costComputed += 1;
+  if (cost.source === "reported") totals.costReported += 1;
+  if (cost.source === "estimated") totals.costEstimated += 1;
+  if (tokens > 0 && !priced) totals.costUnpriced += 1;
+  if (!hasReportedUsage(a)) totals.missing += 1;
+  else if (a.usageEstimated) totals.estimated += 1;
+  if (shared) totals.sharedAttempts = (totals.sharedAttempts ?? 0) + 1;
 }
 
 function sortGroups(groups: GroupInsight[]): GroupInsight[] {
@@ -304,6 +395,7 @@ export function computeInsights(
   const finished = rows.filter((r) => !r.taskIsExample && r.finishedAt != null);
 
   const totals = emptyTotals();
+  let switchedRuns = 0;
   const byProject = new Map<string, GroupInsight>();
   const byMission = new Map<string, GroupInsight>();
   const byModel = new Map<string, GroupInsight>();
@@ -326,8 +418,9 @@ export function computeInsights(
   };
 
   for (const a of finished) {
-    const cost = attemptCost(a, prices);
-    const priced = findModelPrice(prices, a.model) != null;
+    const segments = attemptSegments(a);
+    const cost = attemptCost(a, segments, prices);
+    const priced = areSegmentsPriced(segments, prices);
     addAttempt(totals, a, cost, priced);
     addAttempt(group(byProject, a.projectId, a.projectName), a, cost, priced);
     addAttempt(
@@ -336,7 +429,20 @@ export function computeInsights(
       cost,
       priced,
     );
-    addAttempt(group(byModel, a.model ?? NO_MODEL, a.model), a, cost, priced);
+    // Per model, from the segments: a run that switched model lands in both
+    // groups with the tokens each one actually spent.
+    const shared = segments.length > 1;
+    if (shared) switchedRuns += 1;
+    for (const segment of segments) {
+      addSegment(
+        group(byModel, segment.model ?? NO_MODEL, segment.model),
+        a,
+        segment,
+        segmentCost(a, segment, prices, !shared),
+        findModelPrice(prices, segment.model) != null,
+        shared,
+      );
+    }
 
     let card = byCard.get(a.taskId);
     if (!card) {
@@ -362,7 +468,13 @@ export function computeInsights(
     card.attempts += 1;
     card.tokens += attemptTokens(a);
     card.durationMs += attemptDurationMs(a);
-    if (a.model && !card.models.includes(a.model)) card.models.push(a.model);
+    // Every model the card ran, in the order it ran them: the footer reads
+    // "sonnet-5 to opus-5" off this list.
+    for (const segment of segments) {
+      if (segment.model && !card.models.includes(segment.model)) {
+        card.models.push(segment.model);
+      }
+    }
     if (cost.costUsd != null) {
       card.hasCost = true;
       card.costUsd = (card.costUsd ?? 0) + cost.costUsd;
@@ -383,18 +495,22 @@ export function computeInsights(
   const reopenAgg = new Map<string, ModelReopenInsight>();
   for (const a of finished) {
     if (a.result !== "success" || !a.finishedAt) continue;
-    const key = a.model ?? NO_MODEL;
-    let entry = reopenAgg.get(key);
-    if (!entry) {
-      entry = { model: a.model, deliveries: 0, reopened: 0, rate: 0 };
-      reopenAgg.set(key, entry);
+    // A delivery a run produced with two models counts for both: neither can
+    // be cleared of a reopen the pair earned together.
+    for (const model of segmentModels(attemptSegments(a))) {
+      const key = model ?? NO_MODEL;
+      let entry = reopenAgg.get(key);
+      if (!entry) {
+        entry = { model, deliveries: 0, reopened: 0, rate: 0 };
+        reopenAgg.set(key, entry);
+      }
+      entry.deliveries += 1;
+      const finishedAt = a.finishedAt;
+      const wasReopened = (reopensByTask.get(a.taskId) ?? []).some(
+        (at) => at.getTime() > finishedAt.getTime(),
+      );
+      if (wasReopened) entry.reopened += 1;
     }
-    entry.deliveries += 1;
-    const finishedAt = a.finishedAt;
-    const wasReopened = (reopensByTask.get(a.taskId) ?? []).some(
-      (at) => at.getTime() > finishedAt.getTime(),
-    );
-    if (wasReopened) entry.reopened += 1;
   }
   const reopensByModel = [...reopenAgg.values()]
     .map((e) => ({ ...e, rate: e.deliveries > 0 ? e.reopened / e.deliveries : 0 }))
@@ -410,6 +526,7 @@ export function computeInsights(
 
   return {
     totals,
+    switchedRuns,
     byProject: sortGroups([...byProject.values()]),
     byMission: sortGroups([...byMission.values()]),
     byModel: sortGroups([...byModel.values()]),

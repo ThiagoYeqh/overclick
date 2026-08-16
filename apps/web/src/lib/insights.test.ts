@@ -22,6 +22,7 @@ function attempt(overrides: Partial<InsightAttemptRow> = {}): InsightAttemptRow 
     model: "sonnet-5",
     result: "success",
     finishedAt: new Date("2026-08-10T12:00:00Z"),
+    usageSegments: null,
     tokensIn: 1000,
     tokensOut: 500,
     tokensCache: 0,
@@ -300,5 +301,117 @@ describe("cost from the price table", () => {
     const dear = computeInsights(rows, [], [{ ...prices[0]!, inputPerMtok: 6 }]);
     expect(cheap.totals.costUsd).toBeCloseTo(3);
     expect(dear.totals.costUsd).toBeCloseTo(6);
+  });
+});
+
+describe("usage in segments per model", () => {
+  const prices = [
+    { model: "sonnet-5", label: "sonnet-5", inputPerMtok: 3, outputPerMtok: 15, cachePerMtok: 0.3 },
+    { model: "opus-5", label: "opus-5", inputPerMtok: 5, outputPerMtok: 25, cachePerMtok: 0.5 },
+  ];
+
+  const switched = () =>
+    attempt({
+      model: "sonnet-5",
+      costUsd: null,
+      tokensIn: 1_200_000,
+      tokensOut: 0,
+      tokensCache: 0,
+      usageSegments: [
+        { model: "sonnet-5", input: 1_000_000 },
+        { model: "opus-5", input: 200_000 },
+      ],
+    });
+
+  it("splits a run that switched model across both model groups", () => {
+    const result = computeInsights([switched()], [], prices);
+
+    expect(result.byModel.map((g) => g.label).sort()).toEqual(["opus-5", "sonnet-5"]);
+    const sonnet = result.byModel.find((g) => g.label === "sonnet-5");
+    const opus = result.byModel.find((g) => g.label === "opus-5");
+    expect(sonnet?.tokens).toBe(1_000_000);
+    expect(opus?.tokens).toBe(200_000);
+    // Each model priced at its own rate: 1M in at $3, 200k in at $5.
+    expect(sonnet?.costUsd).toBeCloseTo(3);
+    expect(opus?.costUsd).toBeCloseTo(1);
+    expect(result.totals.costUsd).toBeCloseTo(4);
+    // One attempt, counted once in the totals and once per model it ran.
+    expect(result.totals.attempts).toBe(1);
+    expect(sonnet?.sharedAttempts).toBe(1);
+    expect(opus?.sharedAttempts).toBe(1);
+  });
+
+  it("names every model the card ran, in order", () => {
+    const result = computeInsights([switched()], [], prices);
+    expect(result.perCard[0]?.models).toEqual(["sonnet-5", "opus-5"]);
+  });
+
+  it("counts a delivery from a switched run against both models", () => {
+    const result = computeInsights(
+      [switched()],
+      [reopen("task-1", "2026-08-10T13:00:00Z")],
+      prices,
+    );
+    expect(result.reopensByModel).toHaveLength(2);
+    expect(result.reopensByModel.every((r) => r.reopened === 1)).toBe(true);
+  });
+
+  it("does not split the dollar figure an agent volunteered across models", () => {
+    const result = computeInsights(
+      [
+        attempt({
+          model: "kimi-for-coding",
+          costUsd: "9.00",
+          tokensIn: 2_000,
+          tokensOut: 0,
+          tokensCache: 0,
+          usageSegments: [
+            { model: "kimi-for-coding", input: 1_000 },
+            { model: "moonshot-x", input: 1_000 },
+          ],
+        }),
+      ],
+      [],
+      prices,
+    );
+    // Unpriced on both sides: the attempt keeps the agent's figure once, and
+    // neither model group claims a slice of it.
+    expect(result.totals.costUsd).toBeCloseTo(9);
+    expect(result.byModel.every((g) => g.costUsd === 0)).toBe(true);
+    expect(result.byModel.every((g) => g.costUnpriced === 1)).toBe(true);
+  });
+
+  it("reads an attempt stored before segments as a single segment", () => {
+    const result = computeInsights(
+      [attempt({ usageSegments: null, model: "sonnet-5", tokensIn: 1_000_000, tokensOut: 0, tokensCache: 0, costUsd: null })],
+      [],
+      prices,
+    );
+    expect(result.byModel).toHaveLength(1);
+    expect(result.byModel[0]?.label).toBe("sonnet-5");
+    expect(result.byModel[0]?.tokens).toBe(1_000_000);
+    expect(result.byModel[0]?.sharedAttempts).toBeUndefined();
+    expect(result.totals.costUsd).toBeCloseTo(3);
+  });
+
+  it("keeps an attempt that reported nothing under its model", () => {
+    const result = computeInsights(
+      [
+        attempt({
+          usageSegments: null,
+          tokensIn: null,
+          tokensOut: null,
+          tokensCache: null,
+          costUsd: null,
+          durationMs: null,
+          turns: null,
+        }),
+      ],
+      [],
+      prices,
+    );
+    expect(result.byModel).toHaveLength(1);
+    expect(result.byModel[0]?.label).toBe("sonnet-5");
+    expect(result.byModel[0]?.missing).toBe(1);
   });
 });

@@ -1,3 +1,5 @@
+import type { UsageSegment } from "./domain/usage";
+
 export type Effort = "low" | "medium" | "high";
 
 export type Harness = {
@@ -64,6 +66,12 @@ export type UsageReport = {
   duration_ms?: number;
   turns?: number;
   estimated?: boolean;
+  /**
+   * One entry per model that ran, so a conversation that switched model is
+   * recorded truthfully. The flat counters above stay filled with what the
+   * segments add up to, for every reader written before segments existed.
+   */
+  segments?: UsageSegment[];
 };
 
 /**

@@ -85,6 +85,7 @@ export {
   TaskSummarySchema,
   TaskTypeSchema,
   UsageSchema,
+  UsageSegmentSchema,
   branchConvention,
   isTelemetryIncomplete,
   type Artifact,
@@ -105,7 +106,9 @@ export {
   type SubtaskCreate,
   type Task,
   type TaskType,
+  type TelemetryUsage,
   type Usage,
+  type UsageSegment,
 } from "./schemas/common.js";
 
 export {

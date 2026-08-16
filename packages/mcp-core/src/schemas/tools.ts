@@ -484,6 +484,14 @@ export const InsightGroupSchema = UsageTotalsSchema.extend({
   key: z.string().min(1),
   /** null when the dimension is absent: card without mission, model not reported. */
   label: z.string().nullable(),
+  /**
+   * Only on group_by=model: attempts in this group that also ran another
+   * model. Their tokens are split per segment, but the board has no way to
+   * know how the wall clock split, so the whole duration lands in every model
+   * the run touched. Non-zero means the durations across models overlap and do
+   * not add up to the total.
+   */
+  shared_attempts: z.number().int().nonnegative().optional(),
 });
 
 export const InsightCardSchema = z.object({

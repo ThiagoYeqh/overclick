@@ -22,6 +22,7 @@ export {
 export { canNestUnder } from "./subtask";
 export { factoryCardapioPolicy } from "./cardapio";
 export {
+  areSegmentsPriced,
   computeCostUsd,
   factoryModelPrices,
   findModelPrice,
@@ -29,6 +30,7 @@ export {
   MODEL_PRICES_SEEDED_AT,
   normalizeModelKey,
   resolveAttemptCost,
+  resolveSegmentedCost,
   totalTokens,
   type AttemptUsage,
   type CostSource,
@@ -38,3 +40,15 @@ export {
   type ResolvedCost,
   type TokenCounts,
 } from "./pricing";
+export {
+  flattenUsageSegments,
+  modelChain,
+  normalizeUsageSegments,
+  resolveUsageSegments,
+  segmentModels,
+  segmentTokenCounts,
+  segmentTotalTokens,
+  type FlatUsageTokens,
+  type SegmentedUsage,
+  type UsageSegment,
+} from "./usage";

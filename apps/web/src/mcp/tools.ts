@@ -10,10 +10,12 @@ import {
   nextShortId,
   normalizeShortId,
   project,
+  resolveUsageSegments,
   task,
   taskComment,
   workspace,
   type ExecutorConfig,
+  type UsageReport,
 } from "@agent-board/db";
 import {
   applyTransition,
@@ -977,21 +979,28 @@ async function applyUsageToLatestAttempt(
     );
   }
 
-  const merged: Usage = {
-    tokens_in: usage.tokens_in ?? attempt.tokensIn ?? undefined,
-    tokens_out: usage.tokens_out ?? attempt.tokensOut ?? undefined,
-    tokens_cache: usage.tokens_cache ?? attempt.tokensCache ?? undefined,
-    cost_usd:
-      usage.cost_usd ??
-      (attempt.costUsd != null ? Number(attempt.costUsd) : undefined),
-    duration_ms: usage.duration_ms ?? attempt.durationMs ?? undefined,
-    turns: usage.turns ?? attempt.turns ?? undefined,
-    estimated: usage.estimated ?? false,
-  };
+  // A segment list is a whole picture of who spent what, so a new one replaces
+  // the stored one instead of merging counter by counter.
+  const merged: UsageReport = resolveUsageSegments(
+    {
+      segments: usage.segments ?? attempt.usageSegments ?? undefined,
+      tokens_in: usage.tokens_in ?? attempt.tokensIn ?? undefined,
+      tokens_out: usage.tokens_out ?? attempt.tokensOut ?? undefined,
+      tokens_cache: usage.tokens_cache ?? attempt.tokensCache ?? undefined,
+      cost_usd:
+        usage.cost_usd ??
+        (attempt.costUsd != null ? Number(attempt.costUsd) : undefined),
+      duration_ms: usage.duration_ms ?? attempt.durationMs ?? undefined,
+      turns: usage.turns ?? attempt.turns ?? undefined,
+      estimated: usage.estimated ?? false,
+    },
+    attempt.model,
+  );
 
   await db
     .update(executionAttempt)
     .set({
+      usageSegments: merged.segments?.length ? merged.segments : null,
       tokensIn: merged.tokens_in,
       tokensOut: merged.tokens_out,
       tokensCache: merged.tokens_cache,
@@ -1112,7 +1121,6 @@ async function taskDeliver(
     );
     if (!transition.ok) return transition;
 
-    const incomplete = isTelemetryIncomplete(input.usage);
     const [openAttempt] = await tx
       .select()
       .from(executionAttempt)
@@ -1125,6 +1133,14 @@ async function taskDeliver(
       .orderBy(desc(executionAttempt.startedAt))
       .limit(1);
 
+    // Usage as the board stores it: segments per model, with the flat
+    // counters derived from them. A flat-only block still arrives here as one
+    // segment for the model the attempt was claimed with.
+    const usage: UsageReport | undefined = input.usage
+      ? resolveUsageSegments(input.usage, openAttempt?.model ?? null)
+      : undefined;
+    const incomplete = isTelemetryIncomplete(usage);
+
     if (openAttempt) {
       const finishedAt = new Date();
       await tx
@@ -1132,22 +1148,21 @@ async function taskDeliver(
         .set({
           finishedAt,
           result: "success",
-          tokensIn: input.usage?.tokens_in,
-          tokensOut: input.usage?.tokens_out,
-          tokensCache: input.usage?.tokens_cache,
+          usageSegments: usage?.segments?.length ? usage.segments : null,
+          tokensIn: usage?.tokens_in,
+          tokensOut: usage?.tokens_out,
+          tokensCache: usage?.tokens_cache,
           costUsd:
-            input.usage?.cost_usd !== undefined
-              ? String(input.usage.cost_usd)
-              : null,
-          durationMs: input.usage?.duration_ms,
+            usage?.cost_usd !== undefined ? String(usage.cost_usd) : null,
+          durationMs: usage?.duration_ms,
           // Telemetry that does not depend on agent goodwill: the server
           // measures claim → deliver itself, whatever the agent reports.
           serverDurationMs: Math.max(
             0,
             finishedAt.getTime() - openAttempt.startedAt.getTime(),
           ),
-          turns: input.usage?.turns,
-          usageEstimated: input.usage?.estimated ?? false,
+          turns: usage?.turns,
+          usageEstimated: usage?.estimated ?? false,
         })
         .where(eq(executionAttempt.id, openAttempt.id));
     }
@@ -1163,7 +1178,7 @@ async function taskDeliver(
         artifacts: input.artifacts as never,
         branch: input.branch ?? found.row.branch,
         prUrl: input.pull_request_url ?? found.row.prUrl,
-        usage: input.usage ?? null,
+        usage: usage ?? null,
       })
       .returning();
     if (!saved) throw new Error("failed to insert handoff");
@@ -1188,6 +1203,7 @@ async function taskDeliver(
       proj: found.proj,
       saved,
       incomplete,
+      usage,
       routedTo: reviewerFromRow(updated),
       attemptExecutor: openAttempt
         ? decodeExecutor(openAttempt.executor, openAttempt.model)
@@ -1216,7 +1232,9 @@ async function taskDeliver(
         persisted.value.saved.prUrl && /^https?:\/\//.test(persisted.value.saved.prUrl)
           ? persisted.value.saved.prUrl
           : null,
-      usage: input.usage ?? null,
+      // What the board stored, segments included, not what arrived: a flat
+      // block comes back as the single segment it became.
+      usage: persisted.value.usage ?? null,
       telemetry_incomplete: persisted.value.incomplete,
       created_at: iso(persisted.value.saved.createdAt),
     },
@@ -1451,6 +1469,7 @@ async function insightsQuery(
       key: row.key,
       label: row.label,
       ...totalsFor(row),
+      ...(row.sharedAttempts ? { shared_attempts: row.sharedAttempts } : {}),
     }));
 
   let grouped: Record<string, unknown> = {};
