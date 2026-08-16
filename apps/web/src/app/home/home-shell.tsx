@@ -90,6 +90,7 @@ export function HomeShell({
           <span className={`dot${running === 0 ? " idle" : ""}`} />
           {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
         </div>
+        <a className="btn-ghost" href="/insights">Insights</a>
         <a className="btn-ghost" href="/settings">
           {t.board.settings}
         </a>

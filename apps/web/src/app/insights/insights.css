@@ -1,0 +1,111 @@
+/* Insights page (AGB-6). Own file so the shared nebula.css stays untouched. */
+
+.nb .ins-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--nebula-space-4);
+  margin-bottom: 10px;
+}
+.nb .ins-tile { padding: 16px 18px; border-radius: 12px; }
+.nb .ins-tile .ins-lbl {
+  font-family: var(--nebula-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nebula-text-tertiary);
+  margin-bottom: 8px;
+}
+.nb .ins-tile .ins-num {
+  font-size: 22px;
+  font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight);
+  text-shadow: var(--nebula-glow-text);
+}
+.nb .ins-tile .ins-note {
+  margin-top: 6px;
+  font-family: var(--nebula-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--nebula-text-tertiary);
+}
+
+.nb .ins-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 var(--nebula-space-8);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .nb .ins-tiles { grid-template-columns: repeat(2, 1fr); }
+  .nb .ins-grid { grid-template-columns: 1fr; }
+}
+
+.nb .ins-table { width: 100%; border-collapse: collapse; }
+.nb .ins-table th {
+  font-family: var(--nebula-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nebula-text-tertiary);
+  text-align: left;
+  padding: 0 10px 10px 0;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.nb .ins-table td {
+  padding: 8px 10px 8px 0;
+  border-top: 1px solid var(--nebula-plan-divider);
+  vertical-align: middle;
+  font-size: 12.5px;
+}
+.nb .ins-table .num { text-align: right; }
+.nb .ins-table td.num {
+  font-family: var(--nebula-font-mono);
+  font-size: 11.5px;
+  color: var(--nebula-text-secondary);
+  white-space: nowrap;
+}
+.nb .ins-table td.num b {
+  color: var(--nebula-text-primary);
+  font-weight: var(--nebula-weight-medium);
+}
+.nb .ins-sort { cursor: pointer; user-select: none; transition: color 0.15s; }
+.nb .ins-sort:hover { color: var(--nebula-text-secondary); }
+.nb .ins-sort.on { color: var(--nebula-mist-glow); }
+
+.nb .ins-cid {
+  font-family: var(--nebula-font-mono);
+  font-size: 10.5px;
+  color: var(--nebula-mist-light);
+  letter-spacing: 0.03em;
+  margin-right: 8px;
+}
+.nb .ins-card-title { font-weight: var(--nebula-weight-medium); }
+.nb .ins-flag {
+  font-family: var(--nebula-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nebula-text-tertiary);
+  border: 1px solid var(--nebula-glass-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.nb .ins-dim { color: var(--nebula-text-tertiary); }
+.nb .ins-mono {
+  font-family: var(--nebula-font-mono);
+  font-size: 11px;
+  color: var(--nebula-text-secondary);
+}
+
+.nb .ins-sec { margin-bottom: 6px; }
+.nb .ins-empty {
+  padding: 26px 28px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--nebula-text-secondary);
+  line-height: 1.55;
+  max-width: 560px;
+}

@@ -1,0 +1,253 @@
+import { describe, expect, it } from "vitest";
+import {
+  computeInsights,
+  type InsightAttemptRow,
+  type ReopenRow,
+} from "./insights";
+
+let seq = 0;
+
+function attempt(overrides: Partial<InsightAttemptRow> = {}): InsightAttemptRow {
+  seq += 1;
+  return {
+    attemptId: `attempt-${seq}`,
+    taskId: "task-1",
+    taskShortId: "OC-1",
+    taskTitle: "First card",
+    taskIsExample: false,
+    projectId: "proj-1",
+    projectName: "OverClick",
+    missionId: null,
+    missionTitle: null,
+    model: "sonnet-5",
+    result: "success",
+    finishedAt: new Date("2026-08-10T12:00:00Z"),
+    tokensIn: 1000,
+    tokensOut: 500,
+    tokensCache: 0,
+    costUsd: "1.50",
+    durationMs: 60_000,
+    serverDurationMs: 65_000,
+    turns: 10,
+    usageEstimated: false,
+    ...overrides,
+  };
+}
+
+function reopen(taskId: string, at: string): ReopenRow {
+  return { taskId, createdAt: new Date(at) };
+}
+
+describe("computeInsights totals", () => {
+  it("sums cost, tokens and time across finished attempts", () => {
+    const result = computeInsights(
+      [
+        attempt({ costUsd: "1.50", tokensIn: 1000, tokensOut: 500 }),
+        attempt({
+          taskId: "task-2",
+          taskShortId: "OC-2",
+          costUsd: "0.25",
+          tokensIn: 200,
+          tokensOut: 100,
+          tokensCache: 700,
+          durationMs: 30_000,
+        }),
+      ],
+      [],
+    );
+    expect(result.totals.costUsd).toBeCloseTo(1.75);
+    expect(result.totals.tokens).toBe(2500);
+    expect(result.totals.durationMs).toBe(90_000);
+    expect(result.totals.attempts).toBe(2);
+  });
+
+  it("ignores unfinished attempts and example cards", () => {
+    const result = computeInsights(
+      [
+        attempt(),
+        attempt({ finishedAt: null, costUsd: "9.99" }),
+        attempt({ taskIsExample: true, costUsd: "9.99" }),
+      ],
+      [],
+    );
+    expect(result.totals.attempts).toBe(1);
+    expect(result.totals.costUsd).toBeCloseTo(1.5);
+    expect(result.perCard).toHaveLength(1);
+  });
+
+  it("counts estimated and missing usage separately instead of hiding them", () => {
+    const result = computeInsights(
+      [
+        attempt(),
+        attempt({ usageEstimated: true }),
+        attempt({
+          tokensIn: null,
+          tokensOut: null,
+          tokensCache: null,
+          costUsd: null,
+          durationMs: null,
+          turns: null,
+        }),
+      ],
+      [],
+    );
+    expect(result.totals.estimated).toBe(1);
+    expect(result.totals.missing).toBe(1);
+    expect(result.totals.attempts).toBe(3);
+  });
+
+  it("falls back to the server-measured duration when the agent reported none", () => {
+    const result = computeInsights(
+      [attempt({ durationMs: null, serverDurationMs: 120_000 })],
+      [],
+    );
+    expect(result.totals.durationMs).toBe(120_000);
+  });
+});
+
+describe("computeInsights groups", () => {
+  it("aggregates per project, mission and model, sorted by cost", () => {
+    const rows = [
+      attempt({
+        projectId: "proj-1",
+        projectName: "OverClick",
+        missionId: "m-1",
+        missionTitle: "MVP loop",
+        model: "sonnet-5",
+        costUsd: "1.00",
+      }),
+      attempt({
+        taskId: "task-2",
+        taskShortId: "OC-2",
+        projectId: "proj-2",
+        projectName: "Site",
+        missionId: null,
+        missionTitle: null,
+        model: "opus-4-8",
+        costUsd: "4.00",
+      }),
+    ];
+    const result = computeInsights(rows, []);
+
+    expect(result.byProject.map((g) => g.label)).toEqual(["Site", "OverClick"]);
+    expect(result.byProject[0]?.costUsd).toBeCloseTo(4);
+
+    expect(result.byMission).toHaveLength(2);
+    expect(result.byMission[0]?.label).toBeNull();
+    expect(result.byMission[1]?.label).toBe("MVP loop");
+
+    expect(result.byModel.map((g) => g.label)).toEqual(["opus-4-8", "sonnet-5"]);
+  });
+
+  it("buckets attempts without a model under a null label", () => {
+    const result = computeInsights([attempt({ model: null })], []);
+    expect(result.byModel).toHaveLength(1);
+    expect(result.byModel[0]?.label).toBeNull();
+    expect(result.byModel[0]?.attempts).toBe(1);
+  });
+});
+
+describe("computeInsights reopened rate", () => {
+  it("marks a delivery reopened when a human comment lands after it", () => {
+    const rows = [
+      attempt({
+        taskId: "task-1",
+        model: "sonnet-5",
+        finishedAt: new Date("2026-08-10T12:00:00Z"),
+      }),
+      attempt({
+        taskId: "task-2",
+        taskShortId: "OC-2",
+        model: "sonnet-5",
+        finishedAt: new Date("2026-08-10T12:00:00Z"),
+      }),
+    ];
+    const reopens = [reopen("task-1", "2026-08-10T13:00:00Z")];
+    const result = computeInsights(rows, reopens);
+    expect(result.reopensByModel).toEqual([
+      { model: "sonnet-5", deliveries: 2, reopened: 1, rate: 0.5 },
+    ]);
+  });
+
+  it("does not count comments written before the delivery", () => {
+    const rows = [attempt({ finishedAt: new Date("2026-08-10T12:00:00Z") })];
+    const reopens = [reopen("task-1", "2026-08-10T11:00:00Z")];
+    const result = computeInsights(rows, reopens);
+    expect(result.reopensByModel[0]?.reopened).toBe(0);
+  });
+
+  it("only counts successful deliveries, not abandoned attempts", () => {
+    const rows = [
+      attempt({ result: "abandoned" }),
+      attempt({ result: "success" }),
+    ];
+    const result = computeInsights(rows, []);
+    expect(result.reopensByModel[0]?.deliveries).toBe(1);
+  });
+
+  it("sorts models by reopened rate", () => {
+    const rows = [
+      attempt({ taskId: "t-1", model: "a" }),
+      attempt({ taskId: "t-2", model: "b" }),
+      attempt({ taskId: "t-3", model: "b" }),
+    ];
+    const reopens = [reopen("t-2", "2026-08-11T00:00:00Z")];
+    const result = computeInsights(rows, reopens);
+    expect(result.reopensByModel.map((m) => m.model)).toEqual(["b", "a"]);
+  });
+});
+
+describe("computeInsights per card", () => {
+  it("sums the attempts of a card and keeps cost null when never reported", () => {
+    const rows = [
+      attempt({ taskId: "task-1", costUsd: "1.00", tokensIn: 100, tokensOut: 0 }),
+      attempt({ taskId: "task-1", costUsd: "0.50", tokensIn: 50, tokensOut: 0, tokensCache: null }),
+      attempt({
+        taskId: "task-2",
+        taskShortId: "OC-2",
+        costUsd: null,
+        tokensIn: 10,
+        tokensOut: 0,
+      }),
+    ];
+    const result = computeInsights(rows, []);
+    expect(result.perCard).toHaveLength(2);
+    const [first, second] = result.perCard;
+    expect(first?.shortId).toBe("OC-1");
+    expect(first?.costUsd).toBeCloseTo(1.5);
+    expect(first?.attempts).toBe(2);
+    expect(first?.tokens).toBe(150);
+    expect(second?.costUsd).toBeNull();
+  });
+
+  it("flags a card whose usage is estimated or missing", () => {
+    const rows = [
+      attempt({ taskId: "task-1", usageEstimated: true }),
+      attempt({
+        taskId: "task-2",
+        taskShortId: "OC-2",
+        tokensIn: null,
+        tokensOut: null,
+        tokensCache: null,
+        costUsd: null,
+        durationMs: null,
+        turns: null,
+      }),
+    ];
+    const result = computeInsights(rows, []);
+    const byId = new Map(result.perCard.map((c) => [c.shortId, c]));
+    expect(byId.get("OC-1")?.estimated).toBe(true);
+    expect(byId.get("OC-1")?.missing).toBe(false);
+    expect(byId.get("OC-2")?.missing).toBe(true);
+  });
+
+  it("collects the models that touched the card", () => {
+    const rows = [
+      attempt({ taskId: "task-1", model: "sonnet-5" }),
+      attempt({ taskId: "task-1", model: "opus-4-8" }),
+      attempt({ taskId: "task-1", model: "sonnet-5" }),
+    ];
+    const result = computeInsights(rows, []);
+    expect(result.perCard[0]?.models).toEqual(["sonnet-5", "opus-4-8"]);
+  });
+});
