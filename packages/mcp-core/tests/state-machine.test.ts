@@ -207,6 +207,36 @@ describe("card state machine", () => {
     }
   });
 
+  it("explains handoff from aberto in tool language, not event names", () => {
+    const result = applyTransition(card(), { type: "handoff" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe(
+        "Card is open, call task_claim before task_deliver.",
+      );
+      expect(result.error.message).not.toMatch(/handoff/i);
+    }
+  });
+
+  it("keeps every invalid-transition message free of internal event names", () => {
+    const events: CardEvent[] = [
+      { type: "claim" },
+      { type: "handoff" },
+      { type: "mark_revisado" },
+      { type: "force_reopen" },
+    ];
+    for (const status of ["aberto", "em_execucao", "feito", "validado"] as const) {
+      for (const event of events) {
+        const result = applyTransition(card({ status }), event);
+        if (result.ok) continue;
+        if (result.error.code !== "INVALID_TRANSITION") continue;
+        expect(result.error.message).not.toMatch(
+          /handoff|force_claim|force_reopen|mark_revisado|'claim'/i,
+        );
+      }
+    }
+  });
+
   it("rejects validate from aberto and em_execucao", () => {
     for (const status of ["aberto", "em_execucao"] as const) {
       const result = applyTransition(card({ status }), {

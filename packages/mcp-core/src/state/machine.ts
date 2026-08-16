@@ -47,6 +47,44 @@ function isBlank(value: string): boolean {
   return value.trim().length === 0;
 }
 
+// Error messages speak the caller's language (tool names and next steps),
+// never internal event names like "handoff" or "force_claim".
+const STATUS_LABEL: Record<CardStatus, string> = {
+  aberto: "open",
+  em_execucao: "in execution",
+  feito: "delivered and waiting for review",
+  validado: "validated and closed",
+};
+
+const NEXT_STEP: Record<CardEventType, string> = {
+  claim: "task_claim",
+  force_claim: "task_claim with force: true",
+  handoff: "task_deliver",
+  validate: "validation by a human in the board UI",
+  reopen: "reopen with a comment in the board UI",
+  mark_revisado: "task_update with revisado: true",
+  force_reopen: "force reopen in the board UI",
+};
+
+function invalidTransitionMessage(
+  card: CardSnapshot,
+  event: CardEvent,
+): string {
+  if (event.type === "handoff" && card.status === "aberto") {
+    return "Card is open, call task_claim before task_deliver.";
+  }
+  if (event.type === "handoff" && card.status === "feito") {
+    return "Card is already delivered and waiting for review. To deliver again, reopen it in the board UI and call task_claim first.";
+  }
+  if (event.type === "claim" && card.status === "feito") {
+    return "Card is already delivered and waiting for review, so task_claim is not available. Reopen it in the board UI to work on it again.";
+  }
+  const steps = VALID_EVENTS[card.status].map((type) => NEXT_STEP[type]);
+  return steps.length > 0
+    ? `Card is ${STATUS_LABEL[card.status]}. Available next steps: ${steps.join(", ")}.`
+    : `Card is ${STATUS_LABEL[card.status]}. No further transitions are possible.`;
+}
+
 export function listValidEvents(card: CardSnapshot): CardEventType[] {
   return [...VALID_EVENTS[card.status]];
 }
@@ -71,7 +109,7 @@ export function applyTransition(
   if (event.type === "reopen" && isBlank(event.comment)) {
     return err(
       "REOPEN_COMMENT_REQUIRED",
-      "Reabrir exige um comentário — o agente recebe no próximo claim.",
+      "Reopening requires a comment. The agent receives it on the next task_claim.",
     );
   }
 
@@ -79,13 +117,13 @@ export function applyTransition(
     if (event.type === "claim" && card.status === "em_execucao") {
       return err(
         "ALREADY_CLAIMED",
-        "Card já está em execução. Use force para assumir a tentativa.",
+        "Card is already in execution. Call task_claim with force: true to take over the attempt.",
         { from: card.status, event: event.type },
       );
     }
     return err(
       "INVALID_TRANSITION",
-      `Transição '${event.type}' inválida a partir de '${card.status}'.`,
+      invalidTransitionMessage(card, event),
       { from: card.status, event: event.type },
     );
   }
@@ -93,7 +131,7 @@ export function applyTransition(
   if (event.type === "validate" && event.actor !== "human") {
     return err(
       "VALIDATION_HUMAN_ONLY",
-      "Só um humano na UI marca o card como validado.",
+      "Only a human in the board UI can mark the card as validated.",
       { from: card.status, event: event.type, actor: event.actor },
     );
   }

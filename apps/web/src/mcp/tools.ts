@@ -17,6 +17,7 @@ import {
   branchConvention,
   err,
   evaluateClaim,
+  isMcpCoreError,
   isTelemetryIncomplete,
   MCP_TOOL_NAMES,
   ok,
@@ -67,64 +68,25 @@ export async function invokeTool(
   if (!parsed.success) {
     return err(
       "INVALID_ARGUMENT",
-      parsed.error.issues[0]?.message ?? "argumentos inválidos",
+      parsed.error.issues[0]?.message ?? "invalid arguments",
       parsed.error.flatten(),
     );
   }
 
   let value: unknown;
-  switch (name) {
-    case "mission_list":
-      value = await missionList(db, ctx, parsed.data as Parameters<typeof missionList>[2]);
-      break;
-    case "mission_get":
-      value = await missionGet(db, ctx, parsed.data as Parameters<typeof missionGet>[2]);
-      break;
-    case "mission_create":
-      value = await missionCreate(
-        db,
-        ctx,
-        parsed.data as Parameters<typeof missionCreate>[2],
-      );
-      break;
-    case "task_list":
-      value = await taskList(db, ctx, parsed.data as Parameters<typeof taskList>[2]);
-      break;
-    case "task_get":
-      value = await taskGet(db, ctx, parsed.data as Parameters<typeof taskGet>[2]);
-      break;
-    case "task_create":
-      value = await taskCreate(db, ctx, parsed.data as Parameters<typeof taskCreate>[2]);
-      break;
-    case "task_claim":
-      value = await taskClaim(db, ctx, parsed.data as Parameters<typeof taskClaim>[2]);
-      break;
-    case "task_update":
-      value = await taskUpdate(db, ctx, parsed.data as Parameters<typeof taskUpdate>[2]);
-      break;
-    case "task_deliver":
-      value = await taskDeliver(db, ctx, parsed.data as Parameters<typeof taskDeliver>[2]);
-      break;
-    case "task_delete":
-      value = await taskDelete(db, ctx, parsed.data as Parameters<typeof taskDelete>[2]);
-      break;
-    case "branch_register":
-      value = await branchRegister(db, ctx, parsed.data as Parameters<typeof branchRegister>[2]);
-      break;
-    case "harness_recommend":
-      value = await harnessRecommend(
-        db,
-        ctx,
-        parsed.data as Parameters<typeof harnessRecommend>[2],
-      );
-      break;
-    case "harness_list":
-      value = await harnessList(db, ctx);
-      break;
-    default: {
-      const _never: never = name;
-      return err("INVALID_ARGUMENT", `tool desconhecida: ${String(_never)}`);
+  try {
+    value = await dispatchTool(db, ctx, name, parsed.data);
+  } catch (error) {
+    // Nothing below this layer may reach the agent raw: a thrown driver error
+    // carries the failed SQL in its message.
+    if (isMcpCoreError(error)) {
+      return { ok: false, error };
     }
+    console.error(`[mcp] ${name} threw`, error);
+    return err(
+      "INTERNAL",
+      `Unexpected server error while running ${name}. Check the ids and values you passed and try again; the server logs have the details.`,
+    );
   }
 
   if (value && typeof value === "object" && "ok" in value && (value as Result<unknown>).ok === false) {
@@ -135,11 +97,74 @@ export async function invokeTool(
   if (!output.success) {
     return err(
       "INVALID_ARGUMENT",
-      `resposta inválida de ${name}: ${output.error.issues[0]?.message ?? "schema"}`,
+      `invalid response from ${name}: ${output.error.issues[0]?.message ?? "schema"}`,
       output.error.flatten(),
     );
   }
   return ok(output.data);
+}
+
+async function dispatchTool(
+  db: McpDatabase,
+  ctx: AuthContext,
+  name: McpToolName,
+  data: unknown,
+): Promise<unknown> {
+  let value: unknown;
+  switch (name) {
+    case "mission_list":
+      value = await missionList(db, ctx, data as Parameters<typeof missionList>[2]);
+      break;
+    case "mission_get":
+      value = await missionGet(db, ctx, data as Parameters<typeof missionGet>[2]);
+      break;
+    case "mission_create":
+      value = await missionCreate(
+        db,
+        ctx,
+        data as Parameters<typeof missionCreate>[2],
+      );
+      break;
+    case "task_list":
+      value = await taskList(db, ctx, data as Parameters<typeof taskList>[2]);
+      break;
+    case "task_get":
+      value = await taskGet(db, ctx, data as Parameters<typeof taskGet>[2]);
+      break;
+    case "task_create":
+      value = await taskCreate(db, ctx, data as Parameters<typeof taskCreate>[2]);
+      break;
+    case "task_claim":
+      value = await taskClaim(db, ctx, data as Parameters<typeof taskClaim>[2]);
+      break;
+    case "task_update":
+      value = await taskUpdate(db, ctx, data as Parameters<typeof taskUpdate>[2]);
+      break;
+    case "task_deliver":
+      value = await taskDeliver(db, ctx, data as Parameters<typeof taskDeliver>[2]);
+      break;
+    case "task_delete":
+      value = await taskDelete(db, ctx, data as Parameters<typeof taskDelete>[2]);
+      break;
+    case "branch_register":
+      value = await branchRegister(db, ctx, data as Parameters<typeof branchRegister>[2]);
+      break;
+    case "harness_recommend":
+      value = await harnessRecommend(
+        db,
+        ctx,
+        data as Parameters<typeof harnessRecommend>[2],
+      );
+      break;
+    case "harness_list":
+      value = await harnessList(db, ctx);
+      break;
+    default: {
+      const _never: never = name;
+      return err("INVALID_ARGUMENT", `unknown tool: ${String(_never)}`);
+    }
+  }
+  return value;
 }
 
 export function isMcpToolName(name: string): name is McpToolName {
@@ -183,7 +208,10 @@ async function missionGet(
 ) {
   const row = await findMission(db, ctx.workspaceId, input.mission_id);
   if (!row) {
-    return err("NOT_FOUND", `Missão ${input.mission_id} não encontrada.`);
+    return err(
+      "NOT_FOUND",
+      `Mission ${input.mission_id} not found. Call mission_list to see the available missions.`,
+    );
   }
   const [counted] = await db
     .select({ n: count() })
@@ -233,8 +261,24 @@ async function taskList(
   },
 ) {
   const filters = [eq(project.workspaceId, ctx.workspaceId)];
-  if (input.project_id) filters.push(eq(task.projectId, input.project_id));
-  if (input.mission_id) filters.push(eq(task.missionId, input.mission_id));
+  if (input.project_id) {
+    if (!looksLikeUuid(input.project_id)) {
+      return err(
+        "NOT_FOUND",
+        `Project ${input.project_id} not found in this workspace. Use the project_id (uuid) shown on existing cards or on the board.`,
+      );
+    }
+    filters.push(eq(task.projectId, input.project_id));
+  }
+  if (input.mission_id) {
+    if (!looksLikeUuid(input.mission_id)) {
+      return err(
+        "NOT_FOUND",
+        `Mission ${input.mission_id} not found. Call mission_list to see the available missions.`,
+      );
+    }
+    filters.push(eq(task.missionId, input.mission_id));
+  }
   if (input.priority) filters.push(eq(task.priority, input.priority));
   if (input.type) filters.push(eq(task.tipo, input.type));
 
@@ -243,11 +287,15 @@ async function taskList(
     if (input.awaiting_review_by === "me") {
       filters.push(eq(task.devolveParaKind, "agent"));
     } else {
+      // Only probe the uuid user column with a uuid; anything else is an
+      // agent ref and would otherwise blow up as a raw uuid cast error.
       filters.push(
-        or(
-          eq(task.devolveParaUserId, input.awaiting_review_by),
-          eq(task.devolveParaAgentRef, input.awaiting_review_by),
-        )!,
+        looksLikeUuid(input.awaiting_review_by)
+          ? or(
+              eq(task.devolveParaUserId, input.awaiting_review_by),
+              eq(task.devolveParaAgentRef, input.awaiting_review_by),
+            )!
+          : eq(task.devolveParaAgentRef, input.awaiting_review_by),
       );
     }
   } else if (input.status) {
@@ -288,7 +336,10 @@ async function taskGet(
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
   if (!found) {
-    return err("NOT_FOUND", `Task ${input.task_id} não encontrada.`);
+    return err(
+      "NOT_FOUND",
+      `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
+    );
   }
   return assembleTaskPayload(db, found.row, found.proj);
 }
@@ -322,22 +373,37 @@ async function taskCreate(
     origem: Task["origem"];
   },
 ) {
-  const [proj] = await db
-    .select()
-    .from(project)
-    .where(
-      and(eq(project.id, input.project_id), eq(project.workspaceId, ctx.workspaceId)),
-    )
-    .limit(1);
+  // A non-uuid project_id must never reach the driver: the uuid cast error
+  // would surface as a raw "Failed query" message.
+  const proj = looksLikeUuid(input.project_id)
+    ? (
+        await db
+          .select()
+          .from(project)
+          .where(
+            and(
+              eq(project.id, input.project_id),
+              eq(project.workspaceId, ctx.workspaceId),
+            ),
+          )
+          .limit(1)
+      )[0]
+    : undefined;
   if (!proj) {
-    return err("NOT_FOUND", `Projeto ${input.project_id} não encontrado neste workspace.`);
+    return err(
+      "NOT_FOUND",
+      `Project ${input.project_id} not found in this workspace. Use the project_id (uuid) shown on existing cards from task_list or on the board.`,
+    );
   }
 
   let missionId: string | null = null;
   if (input.mission) {
     const miss = await findMission(db, ctx.workspaceId, input.mission);
     if (!miss) {
-      return err("NOT_FOUND", `Missão ${input.mission} não encontrada.`);
+      return err(
+        "NOT_FOUND",
+        `Mission ${input.mission} not found. Call mission_list to see the available missions or mission_create to start one.`,
+      );
     }
     missionId = miss.id;
   }
@@ -346,10 +412,16 @@ async function taskCreate(
   if (input.parent) {
     const parent = await findTask(db, ctx.workspaceId, input.parent);
     if (!parent) {
-      return err("NOT_FOUND", `Task pai ${input.parent} não encontrada.`);
+      return err(
+        "NOT_FOUND",
+        `Parent task ${input.parent} not found in this workspace. Call task_list to see the available cards.`,
+      );
     }
     if (!canNestUnder({ parentId: parent.row.parentId })) {
-      return err("INVALID_ARGUMENT", "Sub-tasks só têm 1 nível — o pai já é filho.");
+      return err(
+        "INVALID_ARGUMENT",
+        "Subtasks only nest one level deep and this parent is already a subtask. Use its parent card instead.",
+      );
     }
     parentRow = parent.row;
   }
@@ -459,7 +531,10 @@ async function taskClaim(
   const claimed = await db.transaction(async (tx) => {
     const found = await findTask(tx, ctx.workspaceId, input.task_id, true);
     if (!found) {
-      return err("NOT_FOUND", `Task ${input.task_id} não encontrada.`);
+      return err(
+      "NOT_FOUND",
+      `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
+    );
     }
 
     const reopenComment = await latestReopenComment(tx, found.row);
@@ -503,7 +578,7 @@ async function taskClaim(
     if (!updated) {
       return err(
         "ALREADY_CLAIMED",
-        "Claim perdeu o compare-and-swap: o status já não é o esperado.",
+        "Another executor took the card first. Call task_get to see its current status.",
       );
     }
 
@@ -642,7 +717,10 @@ async function taskUpdate(
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
   if (!found) {
-    return err("NOT_FOUND", `Task ${input.task_id} não encontrada.`);
+    return err(
+      "NOT_FOUND",
+      `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
+    );
   }
 
   let nextRow = found.row;
@@ -725,7 +803,7 @@ async function applyUsageToLatestAttempt(
   if (!attempt) {
     return err(
       "INVALID_ARGUMENT",
-      "Sem attempt para receber usage. Faça task_claim antes de reportar usage.",
+      "No execution attempt to receive usage. Call task_claim before reporting usage.",
     );
   }
 
@@ -791,7 +869,10 @@ async function resolveHarnessAgainstExecutors(
     .where(eq(workspace.id, workspaceId))
     .limit(1);
   if (!ws) {
-    return err("NOT_FOUND", "Workspace do token não encontrado.");
+    return err(
+      "NOT_FOUND",
+      "The workspace for this token no longer exists. Generate a new token in the board Settings.",
+    );
   }
   const executors = executorsFromWorkspace(ws.executors);
   const needleModel = input.model.trim().toLowerCase();
@@ -807,7 +888,7 @@ async function resolveHarnessAgainstExecutors(
   if (needleCli && candidates.length === 0) {
     return err(
       "INVALID_ARGUMENT",
-      `CLI '${input.cli}' não está nos executores configurados.`,
+      `CLI '${input.cli}' is not among the configured executors. Call harness_list to see them.`,
     );
   }
   const matched = candidates.find((item) =>
@@ -817,8 +898,8 @@ async function resolveHarnessAgainstExecutors(
     return err(
       "INVALID_ARGUMENT",
       needleCli
-        ? `Modelo '${input.model}' não está configurado no executor '${input.cli}'.`
-        : `Modelo '${input.model}' não está nos executores configurados.`,
+        ? `Model '${input.model}' is not configured on executor '${input.cli}'. Call harness_list to see the available models.`
+        : `Model '${input.model}' is not among the configured executors. Call harness_list to see the available models.`,
     );
   }
   return ok({
@@ -845,7 +926,10 @@ async function taskDeliver(
   const persisted = await db.transaction(async (tx) => {
     const found = await findTask(tx, ctx.workspaceId, input.task_id, true);
     if (!found) {
-      return err("NOT_FOUND", `Task ${input.task_id} não encontrada.`);
+      return err(
+      "NOT_FOUND",
+      `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
+    );
     }
 
     const transition = applyTransition(
@@ -985,7 +1069,10 @@ async function taskDelete(
   return db.transaction(async (tx) => {
     const found = await findTask(tx, ctx.workspaceId, input.task_id, true);
     if (!found) {
-      return err("NOT_FOUND", `Task ${input.task_id} não encontrada.`);
+      return err(
+      "NOT_FOUND",
+      `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
+    );
     }
 
     const children = await tx
@@ -1024,7 +1111,10 @@ async function branchRegister(
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
   if (!found) {
-    return err("NOT_FOUND", `Task ${input.task_id} não encontrada.`);
+    return err(
+      "NOT_FOUND",
+      `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
+    );
   }
   const [updated] = await db
     .update(task)
@@ -1055,7 +1145,10 @@ async function harnessList(db: McpDatabase, ctx: AuthContext) {
     .where(eq(workspace.id, ctx.workspaceId))
     .limit(1);
   if (!ws) {
-    return err("NOT_FOUND", "Workspace do token não encontrado.");
+    return err(
+      "NOT_FOUND",
+      "The workspace for this token no longer exists. Generate a new token in the board Settings.",
+    );
   }
   const policy = await loadPolicy(db, ctx.workspaceId);
   return {
@@ -1092,7 +1185,10 @@ async function recommendFor(
     .where(eq(workspace.id, workspaceId))
     .limit(1);
   if (!ws) {
-    return err("NOT_FOUND", "Workspace do token não encontrado.");
+    return err(
+      "NOT_FOUND",
+      "The workspace for this token no longer exists. Generate a new token in the board Settings.",
+    );
   }
   const policy = await loadPolicy(db, workspaceId);
   return recommendHarness({

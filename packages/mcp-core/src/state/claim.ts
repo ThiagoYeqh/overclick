@@ -74,10 +74,16 @@ export function evaluateClaim(
   input: ClaimInput,
 ): Result<ClaimSuccess> {
   if (input.actor.token_revoked) {
-    return err("TOKEN_REVOKED", "Token MCP revogado.");
+    return err(
+      "TOKEN_REVOKED",
+      "MCP token was revoked. Generate a new token in the board Settings and reconnect.",
+    );
   }
   if (!card) {
-    return err("NOT_FOUND", `Task ${input.task_id} não encontrada.`);
+    return err(
+      "NOT_FOUND",
+      `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
+    );
   }
 
   const event =
@@ -90,7 +96,10 @@ export function evaluateClaim(
     if (!denied.ok) {
       return denied;
     }
-    return err("ALREADY_CLAIMED", "Card já está em execução.");
+    return err(
+      "ALREADY_CLAIMED",
+      "Card is already in execution. Call task_claim with force: true to take over the attempt.",
+    );
   }
 
   const next = applyTransition(card, event);
@@ -152,7 +161,7 @@ export function createMemoryClaimStore(
     if (!current || current.status !== proposed.cas.expected_status) {
       return err(
         "ALREADY_CLAIMED",
-        "Claim perdeu o compare-and-swap: o status já não é o esperado.",
+        "Another executor took the card first. Call task_get to see its current status.",
         {
           expected_status: proposed.cas.expected_status,
           actual_status: current?.status ?? null,

@@ -423,6 +423,72 @@ describe("MCP tool edge cases against a test db", () => {
     );
   });
 
+  it("returns a typed NOT_FOUND for task_create with an invalid project, never raw SQL", async () => {
+    world = await createTestWorld();
+    for (const bogus of ["proj-nope", "00000000-0000-4000-8000-00000000dead"]) {
+      const created = await invokeTool(world.db, ctx(), "task_create", {
+        project_id: bogus,
+        title: "Card without a home",
+        type: "feature",
+        o_que: "x",
+        por_que: "y",
+        como_confirmo: [{ step: "a", expected: "b" }],
+        origem,
+      });
+      expect(created.ok).toBe(false);
+      if (created.ok) return;
+      expect(created.error.code).toBe("NOT_FOUND");
+      expect(created.error.message).toMatch(/not found/i);
+      expect(created.error.message).toMatch(/task_list|board/i);
+      expect(created.error.message).not.toMatch(/failed query|select |sql/i);
+    }
+  });
+
+  it("returns a typed NOT_FOUND for task_list filters with bogus ids, never raw SQL", async () => {
+    world = await createTestWorld();
+    for (const args of [{ project_id: "nope" }, { mission_id: "nope" }]) {
+      const listed = await invokeTool(world.db, ctx(), "task_list", args);
+      expect(listed.ok).toBe(false);
+      if (listed.ok) return;
+      expect(listed.error.code).toBe("NOT_FOUND");
+      expect(listed.error.message).not.toMatch(/failed query|select /i);
+    }
+
+    // A non-uuid reviewer ref is a legitimate agent ref, not a uuid probe.
+    const byAgent = await invokeTool(world.db, ctx(), "task_list", {
+      awaiting_review_by: "sess_torre",
+    });
+    expect(byAgent.ok).toBe(true);
+  });
+
+  it("tells the agent to claim before delivering an open card", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Delivered too early",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "there is nothing to deliver",
+    });
+    expect(submitted.ok).toBe(false);
+    if (submitted.ok) return;
+    expect(submitted.error.code).toBe("INVALID_TRANSITION");
+    expect(submitted.error.message).toBe(
+      "Card is open, call task_claim before task_deliver.",
+    );
+    expect(submitted.error.message).not.toMatch(/handoff/i);
+  });
+
   it("returns a clean NOT_FOUND when task_create.mission is missing", async () => {
     world = await createTestWorld();
     const missing = await invokeTool(world.db, ctx(), "task_create", {
@@ -438,7 +504,7 @@ describe("MCP tool edge cases against a test db", () => {
     expect(missing.ok).toBe(false);
     if (missing.ok) return;
     expect(missing.error.code).toBe("NOT_FOUND");
-    expect(missing.error.message).toMatch(/não encontrada/i);
+    expect(missing.error.message).toMatch(/not found/i);
 
     const byTitle = await invokeTool(world.db, ctx(), "task_create", {
       mission: "Norte do board",

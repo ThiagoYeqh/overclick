@@ -266,7 +266,7 @@ export function recommendHarness(
       ...(available
         ? {}
         : {
-            divergence: `Modelo explícito '${input.explicit.model}' não está nos executores configurados.`,
+            divergence: `Explicit model '${input.explicit.model}' is not among the configured executors.`,
           }),
     });
   }
@@ -290,7 +290,7 @@ export function recommendHarness(
       matched_executor: matched,
       ...(entry.model && !matched
         ? {
-            divergence: `Modelo da política '${entry.model}' não está nos executores configurados.`,
+            divergence: `Policy model '${entry.model}' is not among the configured executors.`,
           }
         : {}),
     });
@@ -301,7 +301,7 @@ export function recommendHarness(
   if (!entry) {
     return err(
       "INVALID_ARGUMENT",
-      `Tipo de task desconhecido para o cardápio: ${String(input.type)}`,
+      `Unknown task type for the harness policy: ${String(input.type)}`,
     );
   }
 

@@ -10,6 +10,7 @@ export const ERROR_CODES = [
   "HARNESS_UNAVAILABLE",
   "TASK_NOT_CLAIMABLE",
   "VALIDATION_HUMAN_ONLY",
+  "INTERNAL",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

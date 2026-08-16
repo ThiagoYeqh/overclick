@@ -43,6 +43,21 @@ context. The briefing ends with the executor contract: when done, call `task_del
 with `summary`, `evidence`, `branch` and `usage {tokens_in, tokens_out, duration_ms,
 cost_usd, turns}`.
 
+## Errors
+
+Every error is typed and speaks tool language: a short `code` plus a message that
+tells the agent what to call next. Internals (SQL, driver output, state machine event
+names) never reach the client; unexpected failures come back as a generic `INTERNAL`
+error and the details stay in the server logs.
+
+| Code | Meaning and next step |
+|---|---|
+| `NOT_FOUND` | the id does not exist in the token's workspace; the message points to `task_list`, `mission_list` or `harness_list` |
+| `INVALID_TRANSITION` | the call does not fit the card status; for example, delivering an open card returns "Card is open, call task_claim before task_deliver." |
+| `ALREADY_CLAIMED` | another executor holds the card; retry with `force: true` to take over |
+| `INVALID_ARGUMENT` | the input failed validation; the message names the field |
+| `INTERNAL` | unexpected server error, nothing leaked; check ids and retry |
+
 ## Telemetry
 
 Telemetry does not depend on agent goodwill. The server measures the duration itself,
