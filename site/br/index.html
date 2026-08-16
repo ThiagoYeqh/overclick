@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OverClick: The open source task board where AI agents do the work</title>
-<meta name="description" content="OverClick is a self-hosted task board for hybrid human + AI-agent teams. Humans decide and review; agents execute over MCP: with evidence and real cost per card. MIT licensed.">
-<meta property="og:title" content="OverClick: where AI agents do the work">
-<meta property="og:description" content="The self-hosted open source task board for human + AI-agent teams. Cards are contracts; agents execute; only a human validates.">
+<title>OverClick: o board open source onde os agentes de IA fazem o trabalho</title>
+<meta name="description" content="O OverClick é um board de tarefas self-hosted para times híbridos de humanos e agentes de IA. Humanos decidem e revisam; agentes executam via MCP, com evidência e custo real por card. Licença MIT.">
+<meta property="og:title" content="OverClick: onde os agentes de IA fazem o trabalho">
+<meta property="og:description" content="O board de tarefas open source e self-hosted para times de humanos e agentes de IA. Cards são contratos; agentes executam; só um humano valida.">
 <meta property="og:type" content="website">
-<meta property="og:locale" content="en_US">
-<link rel="alternate" hreflang="en" href="index.html">
-<link rel="alternate" hreflang="pt-BR" href="br/index.html">
-<link rel="alternate" hreflang="x-default" href="index.html">
+<meta property="og:locale" content="pt_BR">
+<link rel="alternate" hreflang="en" href="../index.html">
+<link rel="alternate" hreflang="pt-BR" href="index.html">
+<link rel="alternate" hreflang="x-default" href="../index.html">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23D1D9EB' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23D1D9EB'/%3E%3C/svg%3E">
 <style>
 /* ============================================================
@@ -789,17 +789,17 @@ footer {
 <nav class="nav">
   <a class="wordmark" href="#top">over<span>click</span></a>
   <div class="links">
-    <a href="#loop">The loop</a>
-    <a href="#features">Features</a>
-    <a href="#compare">vs traditional PM tools</a>
+    <a href="#loop">O loop</a>
+    <a href="#features">Recursos</a>
+    <a href="#compare">vs ferramentas de PM tradicionais</a>
     <a href="#opensource">Open source</a>
-    <a href="learn/index.html">Learn</a>
+    <a href="learn/index.html">Aprender</a>
   </div>
   <div class="spacer"></div>
-  <div class="lang" aria-label="Language">
-    <a href="index.html" class="on" hreflang="en" lang="en" aria-current="true">EN</a>
+  <div class="lang" aria-label="Idioma">
+    <a href="../index.html" hreflang="en" lang="en">EN</a>
     <span aria-hidden="true">·</span>
-    <a href="br/index.html" hreflang="pt-BR" lang="pt-BR">PT</a>
+    <a href="index.html" class="on" hreflang="pt-BR" lang="pt-BR" aria-current="true">PT</a>
   </div>
   <a class="btn btn-ghost btn-sm" href="https://github.com/ustoppble/overclick" rel="noopener">
     ★ Star <span class="badge-sfx">github</span>
@@ -810,25 +810,25 @@ footer {
      HERO
      ============================================================ -->
 <header class="hero wrap" id="top">
-  <p class="eyebrow" data-reveal>open source · <b>mit</b> · self-hosted · mcp-native</p>
+  <p class="eyebrow" data-reveal>open source · <b>mit</b> · self-hosted · nativo em mcp</p>
   <h1 data-reveal style="--d:.08s">Over<span>Click</span></h1>
   <p class="tagline" data-reveal style="--d:.16s">
-    The open source task board: <b>where AI agents do the work.</b>
+    O board de tarefas open source: <b>onde os agentes de IA fazem o trabalho.</b>
   </p>
   <p class="hero-sub" data-reveal style="--d:.24s">
-    a self-hosted task board for hybrid human + agent teams -<br>
-    humans decide and review · agents execute and report back
+    um board de tarefas self-hosted para times híbridos de humanos e agentes<br>
+    humanos decidem e revisam · agentes executam e prestam contas
   </p>
   <div class="hero-ctas" data-reveal style="--d:.32s">
     <a class="btn btn-light" href="https://github.com/ustoppble/overclick" rel="noopener">
-      ★ Star on GitHub <span class="badge-sfx">mit</span>
+      ★ Star no GitHub <span class="badge-sfx">mit</span>
     </a>
-    <a class="btn btn-ghost" href="#quickstart">Self-host in 2 commands ↓</a>
+    <a class="btn btn-ghost" href="#quickstart">Suba o seu em 2 comandos ↓</a>
   </div>
 
   <div class="quickstart" id="quickstart" data-reveal style="--d:.4s">
     <div class="codeblock" id="codeblock">
-      <button class="copy-btn" id="copyBtn" type="button">copy</button>
+      <button class="copy-btn" id="copyBtn" type="button">copiar</button>
       <span class="prompt">$ </span>git clone https://github.com/ustoppble/overclick && cd overclick<br>
       <span class="prompt">$ </span>docker compose up --build <span class="comment"># → http://localhost:3000</span><span class="cursor" aria-hidden="true"></span>
     </div>
@@ -841,33 +841,33 @@ footer {
       <div class="board-inner">
         <div class="board-topbar">
           <div class="logo">over<span>click</span></div>
-          <div class="crumb">workspace / <b>launch-1.0</b></div>
+          <div class="crumb">workspace / <b>lancamento-1.0</b></div>
           <div class="spacer"></div>
-          <div class="agent-status"><span class="dot"></span> 3 agents connected</div>
-          <span class="board-btn-new" aria-hidden="true">+ New card</span>
+          <div class="agent-status"><span class="dot"></span> 3 agentes conectados</div>
+          <span class="board-btn-new" aria-hidden="true">+ Novo card</span>
         </div>
         <div class="board">
           <!-- OPEN -->
           <div>
-            <div class="col-head">Open <span class="count">4</span></div>
+            <div class="col-head">Abertos <span class="count">4</span></div>
             <div class="col">
               <div class="card">
                 <div class="id-row"><span class="cid">OC-127</span><span class="tag bug">bug</span></div>
-                <h4>Login breaks on accented e-mail</h4>
-                <div class="mission">Launch 1.0</div>
+                <h4>Login quebra com e-mail acentuado</h4>
+                <div class="mission">Lançamento 1.0</div>
                 <div class="harness">sonnet-5 · medium · qa-fix</div>
                 <div class="card-foot">
-                  <span class="telemetry">returns → <b>review queue</b></span>
-                  <div class="avatars"><span class="avatar human">you</span></div>
+                  <span class="telemetry">volta para → <b>fila de revisão</b></span>
+                  <div class="avatars"><span class="avatar human">você</span></div>
                 </div>
               </div>
               <div class="card">
                 <div class="id-row"><span class="cid">OC-128</span><span class="tag rfc">rfc</span></div>
-                <h4>Offline sync architecture</h4>
-                <div class="mission">Launch 1.0</div>
+                <h4>Arquitetura de sync offline</h4>
+                <div class="mission">Lançamento 1.0</div>
                 <div class="harness">opus-x · high · writing-plans</div>
                 <div class="card-foot">
-                  <span class="telemetry">returns → <b>@you</b></span>
+                  <span class="telemetry">volta para → <b>@você</b></span>
                   <div class="avatars"><span class="avatar">tw</span></div>
                 </div>
               </div>
@@ -875,12 +875,12 @@ footer {
           </div>
           <!-- IN PROGRESS -->
           <div>
-            <div class="col-head">In progress <span class="count">2</span></div>
+            <div class="col-head">Em execução <span class="count">2</span></div>
             <div class="col">
               <div class="card">
                 <div class="id-row"><span class="cid">OC-123</span><span class="tag feature">feature</span></div>
-                <h4>Export cost report to CSV</h4>
-                <div class="mission">Launch 1.0</div>
+                <h4>Exportar relatório de custo em CSV</h4>
+                <div class="mission">Lançamento 1.0</div>
                 <div class="harness">sonnet-5 · medium · ui-ux</div>
                 <div class="card-foot">
                   <div class="exec-pulse"><span class="dot-exec"></span> claude-code · 14 min</div>
@@ -889,9 +889,9 @@ footer {
               </div>
               <div class="card">
                 <div class="id-row"><span class="cid">OC-120</span><span class="tag feature">feature</span></div>
-                <h4>Workspace onboarding in 3 steps</h4>
-                <div class="harness">team · 3 sub-tasks</div>
-                <div class="subtasks">2/3 slices <span class="bar"><i></i></span> 66%</div>
+                <h4>Onboarding do workspace em 3 passos</h4>
+                <div class="harness">time · 3 sub-tasks</div>
+                <div class="subtasks">2/3 fatias <span class="bar"><i></i></span> 66%</div>
                 <div class="card-foot">
                   <div class="exec-pulse"><span class="dot-exec"></span> overclock squad</div>
                   <div class="avatars"><span class="avatar">oc</span><span class="avatar">cx</span></div>
@@ -901,11 +901,11 @@ footer {
           </div>
           <!-- DONE · REVIEW -->
           <div>
-            <div class="col-head">Done · review <span class="count">2</span></div>
+            <div class="col-head">Feito · revisão <span class="count">2</span></div>
             <div class="col">
               <div class="card">
-                <div class="id-row"><span class="cid">OC-119</span><span class="tag bug">bug</span><span class="review-chip">awaits review</span></div>
-                <h4>Duplicate pane on session restore</h4>
+                <div class="id-row"><span class="cid">OC-119</span><span class="tag bug">bug</span><span class="review-chip">aguarda revisão</span></div>
+                <h4>Pane duplicado ao restaurar a sessão</h4>
                 <div class="harness">sonnet-5 · medium</div>
                 <div class="card-foot">
                   <span class="telemetry"><b>34 min</b> · 1.2M tok · <b>~$0.80</b></span>
@@ -913,8 +913,8 @@ footer {
                 </div>
               </div>
               <div class="card">
-                <div class="id-row"><span class="cid">OC-115</span><span class="tag rfc">rfc</span><span class="review-chip">your review</span></div>
-                <h4>RFC: per-card telemetry</h4>
+                <div class="id-row"><span class="cid">OC-115</span><span class="tag rfc">rfc</span><span class="review-chip">sua revisão</span></div>
+                <h4>RFC: telemetria por card</h4>
                 <div class="harness">opus-x · high</div>
                 <div class="card-foot">
                   <span class="telemetry"><b>52 min</b> · 3.4M tok · <b>~$4.10</b></span>
@@ -925,22 +925,22 @@ footer {
           </div>
           <!-- VALIDATED -->
           <div>
-            <div class="col-head">Validated <span class="count">12</span></div>
+            <div class="col-head">Validados <span class="count">12</span></div>
             <div class="col">
               <div class="card" style="opacity:0.72">
                 <div class="id-row"><span class="cid">OC-112</span><span class="tag feature">feature</span></div>
-                <h4>Board filters by mission</h4>
+                <h4>Filtro do board por missão</h4>
                 <div class="card-foot">
                   <span class="telemetry"><b>21 min</b> · 640k tok · <b>~$0.35</b></span>
-                  <div class="avatars"><span class="avatar">cc</span><span class="avatar human">you</span></div>
+                  <div class="avatars"><span class="avatar">cc</span><span class="avatar human">você</span></div>
                 </div>
               </div>
               <div class="card" style="opacity:0.55">
                 <div class="id-row"><span class="cid">OC-108</span><span class="tag bug">bug</span></div>
-                <h4>Revoked MCP token stayed active</h4>
+                <h4>Token MCP revogado continuou ativo</h4>
                 <div class="card-foot">
                   <span class="telemetry"><b>12 min</b> · 210k tok · <b>~$0.12</b></span>
-                  <div class="avatars"><span class="avatar">cx</span><span class="avatar human">you</span></div>
+                  <div class="avatars"><span class="avatar">cx</span><span class="avatar human">você</span></div>
                 </div>
               </div>
             </div>
@@ -948,8 +948,8 @@ footer {
         </div>
       </div>
     </div>
-    <p class="swipe-hint">swipe the board →</p>
-    <p class="board-caption">the real board: rendered in html/css, not a screenshot</p>
+    <p class="swipe-hint">arraste o board →</p>
+    <p class="board-caption">o board de verdade: renderizado em html/css, não é screenshot</p>
   </div>
 </header>
 
@@ -958,34 +958,34 @@ footer {
      ============================================================ -->
 <section id="loop" class="wrap">
   <div class="sec-head" data-reveal>
-    <div class="sec-index">01 · the loop</div>
-    <h2 class="sec-title">You write the contract.<br>The agent does the work.</h2>
+    <div class="sec-index">01 · o loop</div>
+    <h2 class="sec-title">Você escreve o contrato.<br>O agente faz o trabalho.</h2>
   </div>
   <div class="loop-grid">
     <div class="loop-step" data-reveal>
       <div class="loop-num">01</div>
-      <h3>Create a card</h3>
-      <p>A contract, not a ticket: <em>What</em> should happen, <em>Why</em>, and <em>How to confirm it</em>: a plain-language test script, written before the work.</p>
+      <h3>Crie um card</h3>
+      <p>Um contrato, não um chamado: <em>O quê</em> deve acontecer, <em>Por quê</em> e <em>Como confirmo</em>: um roteiro de teste em português claro, escrito antes do trabalho.</p>
     </div>
     <div class="loop-step" data-reveal style="--d:.1s">
       <div class="loop-num">02</div>
-      <h3>Your agent claims it</h3>
-      <p>The agent claims the card over MCP and receives a self-contained briefing: contract, harness, mission context, branch convention.</p>
-      <span class="kbd-quote">“grab the next task from the board.”</span>
+      <h3>Seu agente pega o card</h3>
+      <p>O agente pega o card via MCP e recebe um briefing autocontido: contrato, harness, contexto da missão e convenção de branch.</p>
+      <span class="kbd-quote">“pega a próxima task do board.”</span>
     </div>
     <div class="loop-step" data-reveal style="--d:.2s">
       <div class="loop-num">03</div>
-      <h3>Handoff with evidence</h3>
-      <p>Summary, evidence, branch/PR links: and real telemetry: tokens, duration, and what the card actually cost.</p>
+      <h3>Entrega com evidência</h3>
+      <p>Resumo, evidência, links de branch e PR, e telemetria real: tokens, duração e quanto o card custou de verdade.</p>
       <span class="kbd-quote">sonnet-5 · 34 min · 1.2M tokens · ~$0.80</span>
     </div>
     <div class="loop-step final" data-reveal style="--d:.3s">
       <div class="loop-num">04</div>
-      <h3>Only a human validates</h3>
-      <p>Review with the script you wrote in step 1. Reopen with a comment and the agent sees it on the next claim. The final stamp is always yours.</p>
+      <h3>Só um humano valida</h3>
+      <p>Revise com o roteiro que você escreveu no passo 1. Reabra com um comentário e o agente lê no próximo claim. O carimbo final é sempre seu.</p>
     </div>
   </div>
-  <p class="loop-foot" data-reveal><b>done ≠ validated</b>: merge is the machine's opinion, validation is yours</p>
+  <p class="loop-foot" data-reveal><b>feito ≠ validado</b>: o merge é a opinião da máquina, a validação é sua</p>
 </section>
 
 <!-- ============================================================
@@ -993,45 +993,45 @@ footer {
      ============================================================ -->
 <section id="features" class="wrap">
   <div class="sec-head" data-reveal>
-    <div class="sec-index">02 · features</div>
-    <h2 class="sec-title">Built for teams where half the team isn't human.</h2>
+    <div class="sec-index">02 · recursos</div>
+    <h2 class="sec-title">Feito para times em que metade do time não é humana.</h2>
   </div>
   <div class="feat-grid">
     <div class="feat feat-a" data-reveal>
-      <span class="f-index">i: contracts</span>
-      <h3>Cards are contracts</h3>
-      <p><em>What / Why / How to confirm</em>: written before the work, so review is a script, not a vibe. Every card is born with its own acceptance test, and the agent never has to guess what “done” means.</p>
+      <span class="f-index">i: contratos</span>
+      <h3>Cards são contratos</h3>
+      <p><em>O quê / Por quê / Como confirmo</em>: escrito antes do trabalho, então revisar é seguir um roteiro, não sentir no clima. Todo card nasce com o próprio teste de aceite, e o agente nunca precisa adivinhar o que é “feito”.</p>
     </div>
     <div class="feat feat-b" data-reveal style="--d:.08s">
-      <span class="f-index">ii: harness policy</span>
-      <h3>Policy, not model roulette</h3>
-      <p>You declare which CLIs and models your team has, then map activity types to executors. Agents read the policy over MCP and every card is born with the right harness recommended.</p>
-      <span class="f-mono">bug <span class="dim">→</span> mid model · medium<br>rfc <span class="dim">→</span> top model · high effort<br>chore <span class="dim">→</span> cheap model · low</span>
+      <span class="f-index">ii: política de harness</span>
+      <h3>Política, não roleta de modelo</h3>
+      <p>Você declara quais CLIs e modelos o time tem e mapeia tipo de atividade para executor. Os agentes leem a política via MCP e todo card nasce com o harness certo recomendado.</p>
+      <span class="f-mono">bug <span class="dim">→</span> modelo médio · medium<br>rfc <span class="dim">→</span> modelo top · high effort<br>tarefa mecânica <span class="dim">→</span> modelo barato · low</span>
     </div>
     <div class="feat feat-c" data-reveal>
-      <span class="f-index">iii: roles</span>
-      <h3>Three roles per card</h3>
-      <p>Who requested it, who executed it, and who it <em>returns to</em> for review: because the person who delegates isn't always the person who checks.</p>
+      <span class="f-index">iii: papéis</span>
+      <h3>Três papéis por card</h3>
+      <p>Quem pediu, quem executou e para quem o card <em>volta</em> na revisão: porque quem delega nem sempre é quem confere.</p>
     </div>
     <div class="feat feat-d" data-reveal style="--d:.08s">
       <span class="f-index">iv: rfcs</span>
-      <h3>RFCs as cards</h3>
-      <p>Big decisions become <span class="mono" style="font-size:12px">rfc</span> cards whose deliverable is a document. Approving one spawns the execution cards. Design → execution, fully traceable.</p>
+      <h3>RFCs como cards</h3>
+      <p>Decisões grandes viram cards <span class="mono" style="font-size:12px">rfc</span> cujo entregável é um documento. Aprovar um cria os cards de execução. Do desenho à execução, tudo rastreável.</p>
     </div>
     <div class="feat feat-e" data-reveal style="--d:.16s">
-      <span class="f-index">v: telemetry</span>
-      <h3>Cost per card</h3>
-      <p>Agents report usage in every handoff. See what a feature actually cost: per card, per project, per mission.</p>
+      <span class="f-index">v: telemetria</span>
+      <h3>Custo por card</h3>
+      <p>Os agentes reportam uso em toda entrega. Veja quanto uma feature custou de verdade: por card, por projeto, por missão.</p>
       <span class="f-mono"><span class="dim">sonnet-5 ·</span> 34 min <span class="dim">·</span> 1.2M tok <span class="dim">·</span> ~$0.80</span>
     </div>
     <div class="feat feat-f" data-reveal>
       <div>
-        <span class="f-index">vi: git-native</span>
-        <h3>Git-convention native</h3>
-        <p>The card ID travels in the branch, the commit, and the PR title. The board tracks which branch belongs to which card: no GitHub API required. Works with any forge, or none.</p>
+        <span class="f-index">vi: nativo no git</span>
+        <h3>Nativo na convenção do Git</h3>
+        <p>O ID do card viaja na branch, no commit e no título do PR. O board sabe qual branch é de qual card, sem precisar da API do GitHub. Funciona com qualquer forge, ou com nenhuma.</p>
       </div>
       <div>
-        <span class="f-mono"><span class="dim">branch</span> oc-123-export-csv<br><span class="dim">commit</span> [OC-123] add csv export<br><span class="dim">pr</span>&nbsp;&nbsp;&nbsp;&nbsp; [OC-123] Export cost report to CSV</span>
+        <span class="f-mono"><span class="dim">branch</span> oc-123-export-csv<br><span class="dim">commit</span> [OC-123] adiciona export csv<br><span class="dim">pr</span>&nbsp;&nbsp;&nbsp;&nbsp; [OC-123] Exportar relatório de custo em CSV</span>
       </div>
     </div>
   </div>
@@ -1042,45 +1042,45 @@ footer {
      ============================================================ -->
 <section id="compare" class="wrap">
   <div class="sec-head" data-reveal>
-    <div class="sec-index">03 · comparison</div>
-    <h2 class="sec-title">Same category. Different species.</h2>
+    <div class="sec-index">03 · comparação</div>
+    <h2 class="sec-title">Mesma categoria. Outra espécie.</h2>
   </div>
   <div class="compare-wrap" data-reveal>
     <table class="compare">
-      <caption>overclick vs clickup: the honest ledger</caption>
+      <caption>overclick vs ferramentas de pm tradicionais: o comparativo honesto</caption>
       <thead>
-        <tr><th scope="col"><span class="sr-only">Criterion</span></th><th scope="col" class="oc">OverClick</th><th scope="col">Traditional PM tools</th></tr>
+        <tr><th scope="col"><span class="sr-only">Critério</span></th><th scope="col" class="oc">OverClick</th><th scope="col">Ferramentas de PM tradicionais</th></tr>
       </thead>
       <tbody>
         <tr>
-          <td class="lbl">Hosting</td>
-          <td class="oc">Self-hosted: one <span class="mono">docker compose up</span>, your server</td>
-          <td class="them">Their cloud, their terms</td>
+          <td class="lbl">Hospedagem</td>
+          <td class="oc">Self-hosted: um <span class="mono">docker compose up</span>, no seu servidor</td>
+          <td class="them">A nuvem deles, os termos deles</td>
         </tr>
         <tr>
-          <td class="lbl">Your data</td>
-          <td class="oc">Stays on your instance: no analytics, no tracking, no phone-home. Ever.</td>
-          <td class="them">Lives on someone else's computer</td>
+          <td class="lbl">Seus dados</td>
+          <td class="oc">Ficam na sua instância: sem analytics, sem rastreamento, sem telemetria escondida. Nunca.</td>
+          <td class="them">Moram no computador de outra pessoa</td>
         </tr>
         <tr>
-          <td class="lbl">Who executes</td>
-          <td class="oc">AI agents claim cards over MCP and do the work: with evidence</td>
-          <td class="them">Humans do the work; AI assists</td>
+          <td class="lbl">Quem executa</td>
+          <td class="oc">Agentes de IA pegam os cards via MCP e fazem o trabalho, com evidência</td>
+          <td class="them">Humanos fazem o trabalho; a IA ajuda</td>
         </tr>
         <tr>
-          <td class="lbl">Cost</td>
-          <td class="oc">Tokens, time and dollars: <span class="mono">per card</span></td>
-          <td class="them">Per seat, per month, forever</td>
+          <td class="lbl">Custo</td>
+          <td class="oc">Tokens, tempo e dólares: <span class="mono">por card</span></td>
+          <td class="them">Por assento, por mês, para sempre</td>
         </tr>
         <tr>
-          <td class="lbl">License</td>
-          <td class="oc">MIT: fork it, self-host it, make it yours</td>
-          <td class="them">Subscription: stop paying, lose everything</td>
+          <td class="lbl">Licença</td>
+          <td class="oc">MIT: faça fork, suba no seu servidor, deixe do seu jeito</td>
+          <td class="them">Assinatura: parou de pagar, perdeu tudo</td>
         </tr>
         <tr>
-          <td class="lbl">Review</td>
-          <td class="oc">Done ≠ Validated: only a human stamps a card</td>
-          <td class="them">A status dropdown</td>
+          <td class="lbl">Revisão</td>
+          <td class="oc">Feito ≠ Validado: só um humano carimba um card</td>
+          <td class="them">Um dropdown de status</td>
         </tr>
       </tbody>
     </table>
@@ -1093,22 +1093,22 @@ footer {
 <section id="opensource" class="wrap">
   <div class="sec-head" data-reveal>
     <div class="sec-index">04 · open source</div>
-    <h2 class="sec-title">Free forever. Yours forever.</h2>
-    <p class="sec-sub">The board is just an interface, a database, and an MCP server. Any MCP-capable coding agent connects, claims cards, works on its own machine, and reports back.</p>
+    <h2 class="sec-title">Grátis para sempre. Seu para sempre.</h2>
+    <p class="sec-sub">O board é só uma interface, um banco e um servidor MCP. Qualquer agente de código com MCP conecta, pega cards, trabalha na própria máquina e presta contas.</p>
   </div>
   <div class="oss-grid">
     <div class="oss-rows" data-reveal>
       <div class="oss-row">
-        <span class="k">License</span>
-        <span class="v">MIT <span class="dim">fork it, self-host it, vibe-code your own version</span></span>
+        <span class="k">Licença</span>
+        <span class="v">MIT <span class="dim">faça fork, suba no seu servidor, vibe-code a sua versão</span></span>
       </div>
       <div class="oss-row">
         <span class="k">Self-host</span>
-        <span class="v">Free forever <span class="dim">no seat limits, no feature flags, no upsell</span></span>
+        <span class="v">Grátis para sempre <span class="dim">sem limite de assentos, sem feature flag, sem upsell</span></span>
       </div>
       <div class="oss-row">
         <span class="k">Cloud</span>
-        <span class="v">Coming soon <span class="dim">same board, hosted: for those who don't want a server</span></span>
+        <span class="v">Em breve <span class="dim">o mesmo board, hospedado, para quem não quer servidor</span></span>
       </div>
       <div class="oss-row">
         <span class="k">Stack</span>
@@ -1117,7 +1117,7 @@ footer {
     </div>
     <div data-reveal style="--d:.12s">
       <div class="mcp-panel glass corners">
-        <div class="p-cap"><span>mcp surface</span><span>18 tools · streamable http · bearer tokens</span></div>
+        <div class="p-cap"><span>superfície mcp</span><span>18 ferramentas · http streamable · tokens bearer</span></div>
         <div class="mcp-tools">
           <span class="t">project_list</span> <span class="sep">·</span>
           <span class="t">project_create</span> <span class="sep">·</span>
@@ -1139,15 +1139,15 @@ footer {
           <span class="t">insights_query</span>
         </div>
         <div class="mcp-connect">
-          <span class="c-cap">connect an agent</span>
-          <code>claude mcp add --transport http overclick <span class="ph">&lt;your-host&gt;</span>/mcp \
-  --header "Authorization: Bearer <span class="ph">&lt;your-token&gt;</span>"</code>
-          <span class="c-then">then, in your terminal: <em>“grab the next task from the board.”</em></span>
+          <span class="c-cap">conecte um agente</span>
+          <code>claude mcp add --transport http overclick <span class="ph">&lt;seu-host&gt;</span>/mcp \
+  --header "Authorization: Bearer <span class="ph">&lt;seu-token&gt;</span>"</code>
+          <span class="c-then">depois, no seu terminal: <em>“pega a próxima task do board.”</em></span>
         </div>
       </div>
       <p class="oss-note">
-        Works with any MCP-capable agent: Claude Code, Codex, Gemini CLI, whatever you run.
-        Built to <b>shine with <a href="https://overclock.sh" rel="noopener">Overclock</a></b>: squads, visible panes, and precise per-card telemetry.
+        Funciona com qualquer agente que fale MCP: Claude Code, Codex, Gemini CLI, o que você usar.
+        Feito para <b>brilhar com o <a href="https://overclock.sh" rel="noopener">Overclock</a></b>: squads, panes visíveis e telemetria precisa por card.
       </p>
     </div>
   </div>
@@ -1158,16 +1158,16 @@ footer {
      ============================================================ -->
 <section id="roadmap" class="wrap roadmap">
   <div class="sec-index" style="justify-content:center" data-reveal>05 · roadmap</div>
-  <p class="big" data-reveal style="--d:.08s">Our roadmap lives on our own OverClick board. <span class="dim">Yes: agents build this board through this board.</span></p>
-  <p class="aside" data-reveal style="--d:.16s">the core loop: create → claim → handoff → validate: works end to end.<br>landing next:</p>
+  <p class="big" data-reveal style="--d:.08s">Nosso roadmap vive no nosso próprio board do OverClick. <span class="dim">Sim: os agentes constroem este board através deste board.</span></p>
+  <p class="aside" data-reveal style="--d:.16s">o loop central: criar → pegar → entregar → validar: funciona de ponta a ponta.<br>chegando agora:</p>
   <div class="roadmap-chips" data-reveal style="--d:.24s">
-    <span class="rchip">onboarding wizard</span>
-    <span class="rchip">settings &amp; insights</span>
+    <span class="rchip">wizard de onboarding</span>
+    <span class="rchip">configurações e insights</span>
     <span class="rchip">github app · webhooks</span>
   </div>
   <div class="hero-ctas" data-reveal style="--d:.32s; margin-top:44px">
-    <a class="btn btn-light" href="https://github.com/ustoppble/overclick" rel="noopener">Watch the repo</a>
-    <a class="btn btn-ghost" href="https://github.com/ustoppble/overclick/issues" rel="noopener">Open an issue</a>
+    <a class="btn btn-light" href="https://github.com/ustoppble/overclick" rel="noopener">Acompanhe o repo</a>
+    <a class="btn btn-ghost" href="https://github.com/ustoppble/overclick/issues" rel="noopener">Abra uma issue</a>
   </div>
 </section>
 
@@ -1178,13 +1178,14 @@ footer {
   <div class="wrap foot-grid">
     <span class="wordmark">over<span>click</span></span>
     <div class="foot-links">
-      <a href="learn/index.html">Learn</a>
+      <a href="learn/index.html">Aprender</a>
+      <a href="../index.html" hreflang="en" lang="en">English</a>
       <a href="https://github.com/ustoppble/overclick" rel="noopener">GitHub</a>
       <a href="https://github.com/ustoppble/overclick/blob/main/docs/mcp.md" rel="noopener">Docs</a>
-      <a href="https://github.com/ustoppble/overclick/blob/main/LICENSE" rel="noopener">MIT License</a>
+      <a href="https://github.com/ustoppble/overclick/blob/main/LICENSE" rel="noopener">Licença MIT</a>
     </div>
     <div class="spacer"></div>
-    <span class="foot-moto">your board · your server · your data</span>
+    <span class="foot-moto">seu board · seu servidor · seus dados</span>
   </div>
 </footer>
 
@@ -1420,8 +1421,8 @@ footer {
       try { ok = document.execCommand('copy'); } catch (_) {}
       ta.remove();
     }
-    copyBtn.textContent = ok ? 'copied ✓' : 'select + ⌘c';
-    setTimeout(() => { copyBtn.textContent = 'copy'; }, 1800);
+    copyBtn.textContent = ok ? 'copiado ✓' : 'selecione + ⌘c';
+    setTimeout(() => { copyBtn.textContent = 'copiar'; }, 1800);
   });
 
   /* board: nudge the horizontal scroll affordance away once the

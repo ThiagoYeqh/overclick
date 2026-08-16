@@ -111,6 +111,16 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 .nav .links a:hover, .nav .links a.on { color: var(--nebula-text-primary); text-decoration: none; }
 .nav .spacer { flex: 1; }
+/* language switcher: two words, the current one lit */
+.nav .lang {
+  display: flex; align-items: center; gap: 7px; margin-right: 4px;
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: var(--nebula-tracking-wide);
+  color: var(--nebula-text-tertiary);
+}
+.nav .lang a { color: var(--nebula-text-tertiary); transition: color 0.25s ease; }
+.nav .lang a:hover { color: var(--nebula-text-primary); text-decoration: none; }
+.nav .lang a.on { color: var(--nebula-text-primary); }
 
 /* buttons */
 .btn {
