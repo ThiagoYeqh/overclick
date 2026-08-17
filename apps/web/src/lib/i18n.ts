@@ -17,6 +17,11 @@ const en = {
     colInProgress: "In progress",
     colDone: "Done · review",
     colValidated: "Validated",
+    /**
+     * The phone shows one column at a time, so the column head becomes a
+     * control. This names the control, not the column it happens to be on.
+     */
+    columnShown: "Column shown",
     statusOpen: "open",
     statusInProgress: "in progress",
     statusDone: "done · review",
@@ -389,6 +394,7 @@ const ptBR: Dict = {
     colInProgress: "Em execução",
     colDone: "Feito · revisão",
     colValidated: "Validado",
+    columnShown: "Coluna exibida",
     statusOpen: "aberto",
     statusInProgress: "em execução",
     statusDone: "feito · revisão",

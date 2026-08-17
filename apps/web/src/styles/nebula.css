@@ -401,6 +401,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 
 /* ---------- board ---------- */
 .nb .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--nebula-space-4); }
+/* The phone list is in the markup at every width and waits for its media
+   query. Both layouts render the same cards, so only one may ever be on. */
+.nb .board-mobile { display: none; }
 .nb .col-head {
   display: flex; align-items: baseline; gap: var(--nebula-space-2);
   padding: 2px 6px 10px;
@@ -912,14 +915,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .btn-ghost.on { color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.4); }
 
 /* ============================================================
-   PHONE: the board as a snap carousel (AGB-58)
+   PHONE: the board as one list you can read (AGB-58, AGB-62)
 
    Below 768px, and on a phone held in landscape, the four columns stop
-   squeezing side by side and become slides with scroll snap: one column
-   fills the screen and the next one peeks in from the edge, so a swipe
-   changes the status the same way a glance does on desktop. This layout
-   keeps more cards visible than a status selector would, because the
-   selector would spend a line on chrome instead of on cards.
+   squeezing side by side. AGB-58 turned them into a snap carousel; AGB-62
+   replaced that with a single vertical list, because the carousel still kept
+   two columns fighting for the screen and the card title, the one thing
+   anyone opens the board to read, was what paid for it. Now one column shows
+   at a time, the card takes the whole width, and the column head becomes the
+   selector that switches it, carrying that column's count.
 
    The one-line rule the card footer already had now holds for everything:
    column headers, counters, empty states, the topbar crumb, the mission
@@ -953,19 +957,38 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .mf-label { max-width: 34vw; }
   .nb .mf-panel { min-width: min(280px, calc(100vw - 32px)); }
 
-  /* the carousel: full-bleed so the peeking column touches the edge */
-  .nb .board {
-    display: flex; gap: 10px;
-    overflow-x: auto; scroll-snap-type: x mandatory;
-    margin: 0 -16px; padding: 0 16px 6px;
-    scrollbar-width: none; -webkit-overflow-scrolling: touch;
-  }
-  .nb .board::-webkit-scrollbar { display: none; }
-  .nb .board > div { flex: 0 0 min(86%, 340px); min-width: 0; scroll-snap-align: start; }
-
-  .nb .col-head { white-space: nowrap; overflow: hidden; }
-  .nb .col-head .count { flex: none; }
+  /* the columns step aside for the list; the cards they hold are the same */
+  .nb .board { display: none; }
+  .nb .board-mobile { display: block; }
   .nb .col { min-height: 140px; }
+
+  /* The column head, made into a control: same label, same count, now the
+     thing that switches which column is on screen. A pill, not a bare line,
+     because on a phone it has to look like something you press. The row is
+     explicit: the global `label` rule stacks its children in a column. */
+  .nb .ml-head {
+    display: flex; flex-direction: row; align-items: center;
+    gap: var(--nebula-space-2);
+    min-width: 0; margin-bottom: var(--nebula-space-3);
+    padding: 8px 14px;
+    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+    font-family: var(--nebula-font-mono); font-size: 12px;
+    letter-spacing: var(--nebula-tracking-wide);
+    text-transform: uppercase; color: var(--nebula-text-secondary);
+  }
+  .nb .ml-status {
+    flex: 0 1 auto; min-width: 0;
+    appearance: none; background: transparent; border: 0; padding: 0;
+    color: inherit; font: inherit; letter-spacing: inherit;
+    text-transform: inherit; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nb .ml-status:focus { outline: none; }
+  .nb .ml-caret { flex: none; font-size: 9px; color: var(--nebula-text-tertiary); }
+  /* the count leans on the far edge and never shrinks: the label may lose
+     characters to an ellipsis, the number may not lose a digit */
+  .nb .ml-head .count { flex: none; margin-left: auto; color: var(--nebula-text-tertiary); }
 
   /* one line each, the ellipsis standing for the rest */
   .nb .empty-col {

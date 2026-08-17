@@ -8,7 +8,12 @@ import {
   tickValidationStepAction,
   validateTaskAction,
 } from "../../actions/review";
+import {
+  COLUMN_STATUSES,
+  type ColumnStatus,
+} from "../../lib/board-columns";
 import { dict, type Dict } from "../../lib/i18n";
+import { BoardMobileList } from "./board-mobile-list";
 
 export type BoardMissionOption = { id: string; title: string };
 
@@ -94,10 +99,6 @@ export type BoardCard = {
   transcript: TranscriptView | null;
   handoff: string | null;
 };
-
-const COLUMN_STATUSES = ["aberto", "em_execucao", "feito", "validado"] as const;
-
-type ColumnStatus = (typeof COLUMN_STATUSES)[number];
 
 function columnLabels(t: Dict): Record<ColumnStatus, string> {
   return {
@@ -827,6 +828,21 @@ export function Board({
     return () => document.removeEventListener("keydown", onKey);
   }, [onKey]);
 
+  // The same card in both layouts: the phone list is a different arrangement
+  // of this board, never a second version of it.
+  const renderCard = (card: BoardCard) => (
+    <Card
+      key={card.id}
+      card={card}
+      onOpen={setOpen}
+      showProject={showProject}
+      selectable={selectable}
+      selected={picked.has(card.id)}
+      onToggleSelect={onToggleSelect ?? (() => {})}
+      t={t}
+    />
+  );
+
   return (
     <>
       <div className="board">
@@ -841,24 +857,22 @@ export function Board({
                 {list.length === 0 ? (
                   <EmptyState status={status} t={t} />
                 ) : (
-                  list.map((card) => (
-                    <Card
-                      key={card.id}
-                      card={card}
-                      onOpen={setOpen}
-                      showProject={showProject}
-                      selectable={selectable}
-                      selected={picked.has(card.id)}
-                      onToggleSelect={onToggleSelect ?? (() => {})}
-                      t={t}
-                    />
-                  ))
+                  list.map(renderCard)
                 )}
               </div>
             </div>
           );
         })}
       </div>
+      {/* Below the mobile breakpoint the stylesheet hides the columns and
+          shows this instead: one column at a time, as a list you can read. */}
+      <BoardMobileList
+        cards={cards}
+        labels={colLabel}
+        renderCard={renderCard}
+        renderEmpty={(status) => <EmptyState status={status} t={t} />}
+        t={t}
+      />
       {open ? (
         <Detail
           card={open}
