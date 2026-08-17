@@ -15,6 +15,11 @@ import { db } from "../../lib/db";
 import { isPairInConfig, selectionFromConfig } from "../../lib/executors";
 import { loadModelPrices } from "../../lib/prices";
 import { loadUsageRecipes } from "../../lib/recipes";
+import {
+  UPDATE_COMMAND,
+  UPDATER_ENABLE_COMMAND,
+} from "../../lib/update-commands";
+import { APP_VERSION, readUpdaterState } from "../../lib/updates";
 import { SettingsClient } from "./settings-client";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +97,10 @@ export default async function SettingsPage() {
 
   const host = (await headers()).get("host") ?? "<your-host>";
 
+  // Read on the server, from the volume the sidecar shares: a mounted trigger
+  // directory says nothing, only a fresh heartbeat means somebody can pull.
+  const updater = await readUpdaterState();
+
   // Pairs observed on real connections that the config still does not cover.
   const seenSuggestions = ws.seenExecutors
     .filter((s) => !isPairInConfig(ws.executors, s.cli, s.model))
@@ -111,6 +120,10 @@ export default async function SettingsPage() {
         executors={selectionFromConfig(ws.executors)}
         lang={ws.language}
         updateCheckEnabled={ws.updateCheckEnabled}
+        version={APP_VERSION}
+        updater={updater}
+        enableCommand={UPDATER_ENABLE_COMMAND}
+        manualCommand={UPDATE_COMMAND}
         seenSuggestions={seenSuggestions}
         cardapio={cardapioRows}
         prices={prices}

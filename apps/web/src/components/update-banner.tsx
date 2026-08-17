@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react";
 import { triggerUpdateAction } from "../actions/updates";
 import { dict } from "../lib/i18n";
-
-export const UPDATE_COMMAND = "git pull && docker compose up -d --build";
+import { UPDATE_COMMAND, UPDATER_ENABLE_COMMAND } from "../lib/update-commands";
 
 export function UpdateBanner({
   version,
@@ -28,14 +27,19 @@ export function UpdateBanner({
 
   if (hidden) return null;
 
+  // With the sidecar running the button does the work and the banner stays
+  // quiet; without it, the only honest thing to offer is the two commands.
   const onUpdate = () =>
     start(async () => {
       setErr(null);
-      setShowCmd(true);
-      if (!helper) return;
+      if (!helper) {
+        setShowCmd(true);
+        return;
+      }
       const r = await triggerUpdateAction();
       if (!r.ok) setErr(r.error);
       else if (r.triggered) setRequested(true);
+      else setShowCmd(true);
     });
 
   const notes = changelog.trim();
@@ -58,10 +62,16 @@ export function UpdateBanner({
       {notes ? <pre className="ub-notes">{notes.slice(0, 800)}</pre> : null}
       {requested ? <p className="wok">{t.updates.updateRequested}</p> : null}
       {showCmd ? (
-        <div className="ub-cmd">
-          <span>{t.updates.runOnServer}</span>
-          <code>{UPDATE_COMMAND}</code>
-        </div>
+        <>
+          <div className="ub-cmd">
+            <span>{t.updates.runOnServer}</span>
+            <code>{UPDATE_COMMAND}</code>
+          </div>
+          <div className="ub-cmd">
+            <span>{t.updates.updaterAbsent}</span>
+            <code>{UPDATER_ENABLE_COMMAND}</code>
+          </div>
+        </>
       ) : null}
       {err ? <p className="werr">{err}</p> : null}
     </div>

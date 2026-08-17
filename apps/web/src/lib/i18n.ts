@@ -248,6 +248,22 @@ const en = {
     updateRequested:
       "Update requested. The helper is pulling the new image and recreating the app.",
     runOnServer: "Run this on the server:",
+    runningVersion: (v: string) => `This instance is running version ${v}.`,
+    updaterDetected:
+      "Updater sidecar running. The button below pulls the new image and recreates the app.",
+    updaterAbsent:
+      "No updater sidecar running, so nothing here can restart a container. Turn it on with:",
+    socketNote:
+      "The updater mounts the docker socket, which is root on the host: it can restart any container on this machine, so run it only where you already trust whoever can reach this board.",
+    manualPath: "Prefer to keep the socket to yourself? Update by hand instead:",
+    updating: "Updating…",
+    appRestarting: "The app is being recreated. This page comes back on its own.",
+    phase: {
+      pulling: "Pulling the new image…",
+      recreating: "Recreating the app…",
+      done: "Updated. The app is back on the new version.",
+      failed: "The update failed. Nothing was replaced.",
+    } as Record<string, string>,
     dismiss: "Dismiss",
   },
   auth: {
@@ -507,6 +523,22 @@ const ptBR: Dict = {
     updateRequested:
       "Atualização solicitada. O helper está baixando a nova imagem e recriando o app.",
     runOnServer: "Rode isto no servidor:",
+    runningVersion: (v: string) => `Esta instância está na versão ${v}.`,
+    updaterDetected:
+      "Sidecar de atualização rodando. O botão abaixo baixa a nova imagem e recria o app.",
+    updaterAbsent:
+      "Nenhum sidecar de atualização rodando, então nada aqui consegue reiniciar um container. Ligue com:",
+    socketNote:
+      "O updater monta o socket do docker, que é root no host: ele consegue reiniciar qualquer container desta máquina, então só ligue onde você já confia em quem alcança este board.",
+    manualPath: "Prefere não entregar o socket? Atualize na mão:",
+    updating: "Atualizando…",
+    appRestarting: "O app está sendo recriado. Esta página volta sozinha.",
+    phase: {
+      pulling: "Baixando a nova imagem…",
+      recreating: "Recriando o app…",
+      done: "Atualizado. O app voltou na versão nova.",
+      failed: "A atualização falhou. Nada foi substituído.",
+    } as Record<string, string>,
     dismiss: "Fechar",
   },
   auth: {

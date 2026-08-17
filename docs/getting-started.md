@@ -109,6 +109,42 @@ when creating the card: it's the contract). Then:
   features, RFCs, mechanical chores. Agents read it via the `harness_list` tool.
 - **MCP tokens**: one per agent/machine, revocable, last-use tracked. The pairing-code
   button lives here too: pair a new agent without the token ever entering a chat.
+- **Updates**: the opt-in release check, and the two ways to actually update. See below.
+
+## 8. Updating
+
+There are two honest paths, and Settings › Updates shows whichever one applies to your
+instance.
+
+**By hand (default).** Nothing on the board can restart a container, so the panel gives
+you the command and you run it on the server:
+
+```bash
+git pull && docker compose up -d --build
+```
+
+**One click (opt-in).** The compose file ships an optional `updater` sidecar behind a
+profile. Turn it on once:
+
+```bash
+docker compose --profile updater up -d
+```
+
+It writes a heartbeat into the volume it shares with the app, so Settings can tell it
+apart from the volume simply being mounted, and the Update button becomes real: it asks
+the sidecar to pull the new image and recreate the app, and reports each phase
+(pulling → recreating → done, or failed with the tail of the docker output). The app is
+recreated mid-run, so the page loses its server for a few seconds and comes back on the
+new version; the progress lives in the shared volume, not in the app, which is why it
+survives that.
+
+**The tradeoff, plainly.** That sidecar mounts `/var/run/docker.sock`. The docker socket
+is root on the host: a container holding it can start, stop and replace any container on
+that machine, board included. Enable it only where you already trust everyone who can
+reach this board, and leave it off on a shared or exposed host. Your data is not at stake
+either way (it lives in the `pgdata` volume, untouched by a pull and recreate), but the
+host is. Nothing about either path calls out of your server, except the release check you
+turn on yourself.
 
 ## Troubleshooting
 

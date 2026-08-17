@@ -23,7 +23,7 @@ import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
 import { loadModelPrices } from "../../lib/prices";
 import { loadUsageRecipes, recipeForCli } from "../../lib/recipes";
-import { checkForUpdate, updateHelperDir } from "../../lib/updates";
+import { checkForUpdate, readUpdaterState } from "../../lib/updates";
 import { decodeExecutor, parseComoConfirmo } from "../../mcp/map";
 import type { BoardCard, TranscriptView } from "./board";
 import { HomeShell } from "./home-shell";
@@ -296,6 +296,9 @@ export default async function HomePage() {
   const t = dict(ws.language);
   // Opt-in only: with the toggle off this instance makes zero outbound calls.
   const release = ws.updateCheckEnabled ? await checkForUpdate() : null;
+  // Only a live sidecar makes the banner's button do anything. Read it just
+  // when there is a banner to draw.
+  const updater = release ? await readUpdaterState() : null;
   const rows = await loadTasks(projects.map((item) => item.id));
   // Same rule as the Insights page: no money layer, no price table to read.
   const prices = ws.pricingEnabled ? await loadModelPrices(db(), ws.id) : [];
@@ -320,7 +323,7 @@ export default async function HomePage() {
           version={release.version}
           changelog={release.changelog}
           url={release.url}
-          helper={Boolean(updateHelperDir())}
+          helper={updater?.running ?? false}
           lang={ws.language}
         />
       ) : null}

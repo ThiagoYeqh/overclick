@@ -38,9 +38,12 @@ services:
   # Optional one-click updater. Enable with:
   #   docker compose --profile updater up -d
   # It watches for the trigger file the Update button writes, then pulls the
-  # new image and recreates the app. It needs the docker socket, which is why
-  # it stays behind an explicit profile. Without it the Update button shows
-  # the copy-paste command instead.
+  # new image and recreates the app, reporting each phase back into the shared
+  # volume. Settings reads the heartbeat to know it is here: the app mounts
+  # that volume either way, so only a fresh beat proves anybody is listening.
+  # It needs the docker socket, which is root on the host, which is why it
+  # stays behind an explicit profile. Without it Settings shows the command
+  # that enables it and the one that updates by hand.
   updater:
     image: docker:27-cli
     profiles: ["updater"]
@@ -53,10 +56,28 @@ services:
       - /bin/sh
       - -c
       - |
+        say() {
+          # The app is recreated mid-run and reads its progress from here, so
+          # the status has to live in the volume, not in this container's log.
+          printf '{"phase":"%s","at":"%s","detail":%s}' \
+            "$$1" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$${2:-null}" \
+            > /trigger/update-status
+        }
         while true; do
+          date -u +%Y-%m-%dT%H:%M:%SZ > /trigger/updater-alive
           if [ -f /trigger/update-requested ]; then
             rm -f /trigger/update-requested
-            docker compose pull app && docker compose up -d app
+            say pulling
+            if docker compose pull app > /trigger/update-log 2>&1; then
+              say recreating
+              if docker compose up -d app >> /trigger/update-log 2>&1; then
+                say done
+              else
+                say failed "\"$$(tail -c 400 /trigger/update-log | tr -d '\"' | tr '\n' ' ')\""
+              fi
+            else
+              say failed "\"$$(tail -c 400 /trigger/update-log | tr -d '\"' | tr '\n' ' ')\""
+            fi
           fi
           sleep 5
         done

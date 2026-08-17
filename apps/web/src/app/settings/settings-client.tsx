@@ -14,6 +14,7 @@ import {
 } from "../../actions/tokens";
 import { saveUpdateCheckAction } from "../../actions/updates";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
+import { UpdatePanel } from "../../components/update-panel";
 import {
   ExecutorsGrid,
   type ExecutorSelection,
@@ -25,6 +26,7 @@ import {
   resolveCatalogCli,
 } from "../../lib/executors";
 import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
+import type { UpdaterState } from "../../lib/updates";
 import type { ModelPriceRow, UsageRecipeRow } from "@agent-board/db";
 
 type CardapioRow = {
@@ -87,6 +89,10 @@ export function SettingsClient({
   tokens,
   lang,
   updateCheckEnabled,
+  version,
+  updater,
+  enableCommand,
+  manualCommand,
 }: {
   host: string;
   workspaceName: string;
@@ -101,6 +107,11 @@ export function SettingsClient({
   tokens: TokenRow[];
   lang: string;
   updateCheckEnabled: boolean;
+  version: string;
+  /** Read on the server: whether the optional updater sidecar is alive. */
+  updater: UpdaterState;
+  enableCommand: string;
+  manualCommand: string;
 }) {
   const t = dict(lang);
   const dateLocale = lang === "pt-BR" ? "pt-BR" : "en-US";
@@ -762,6 +773,13 @@ export function SettingsClient({
               {pending ? t.settings.saving : t.updates.saveCheck}
             </button>
           </div>
+          <UpdatePanel
+            version={version}
+            enableCommand={enableCommand}
+            manualCommand={manualCommand}
+            initialState={updater}
+            lang={lang}
+          />
         </div>
       </div>
     </>
