@@ -1,6 +1,12 @@
 import { boolean, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { DEFAULT_CARDAPIO, KNOWN_EXECUTORS } from "../defaults";
-import type { Cardapio, ExecutorConfig, SeenExecutor } from "../types";
+import type {
+  AutoUpdateRecord,
+  Cardapio,
+  ExecutorConfig,
+  SeenExecutor,
+  UpdateMode,
+} from "../types";
 
 export const workspace = pgTable("workspace", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -8,10 +14,16 @@ export const workspace = pgTable("workspace", {
   /** UI language for this workspace. English default, pt-BR first translation. */
   language: text("language").notNull().default("en"),
   /**
-   * Opt-in update check against GitHub Releases. OFF by default: the zero
-   * phone-home promise means no outbound request unless the owner turns it on.
+   * What this instance may do about new releases: nothing, check and tell, or
+   * update itself. OFF by default, because the zero phone-home promise means no
+   * outbound request unless the owner asked for one.
    */
-  updateCheckEnabled: boolean("update_check_enabled").notNull().default(false),
+  updateMode: text("update_mode").$type<UpdateMode>().notNull().default("off"),
+  /**
+   * What the last automatic update did and when. Null until one runs: the panel
+   * shows it so an update nobody watched still leaves a record.
+   */
+  updateLog: jsonb("update_log").$type<AutoUpdateRecord>(),
   /**
    * Opt-in money layer. OFF by default: tokens and time are facts on every
    * plan, while a dollar figure is fiction on a flat subscription and a price

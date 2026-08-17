@@ -1,5 +1,6 @@
 "use client";
 
+import type { AutoUpdateRecord, UpdateMode } from "@agent-board/db";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
@@ -12,7 +13,7 @@ import {
   createTokenAction,
   revokeTokenAction,
 } from "../../actions/tokens";
-import { saveUpdateCheckAction } from "../../actions/updates";
+import { saveUpdateModeAction } from "../../actions/updates";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { UpdatePanel } from "../../components/update-panel";
 import {
@@ -28,6 +29,9 @@ import {
 import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
 import type { Runtime } from "../../lib/runtime";
 import type { UpdaterState } from "../../lib/updates";
+
+/** The three modes, in the order they escalate: silence, tell, act. */
+const UPDATE_MODES: readonly UpdateMode[] = ["off", "check", "auto"];
 import type { ModelPriceRow, UsageRecipeRow } from "@agent-board/db";
 
 type CardapioRow = {
@@ -89,7 +93,8 @@ export function SettingsClient({
   recipes,
   tokens,
   lang,
-  updateCheckEnabled,
+  updateMode,
+  updateLog,
   version,
   runtime,
   updater,
@@ -109,7 +114,10 @@ export function SettingsClient({
   recipes: UsageRecipeRow[];
   tokens: TokenRow[];
   lang: string;
-  updateCheckEnabled: boolean;
+  /** What this instance may do about new releases. */
+  updateMode: UpdateMode;
+  /** What the last update did, automatic or not. Null until one runs. */
+  updateLog: AutoUpdateRecord | null;
   version: string;
   /** Read on the server: whether this instance runs from an image or a checkout. */
   runtime: Runtime;
@@ -137,12 +145,12 @@ export function SettingsClient({
     { id: "updates", label: t.updates.tabUpdates },
   ];
 
-  // ---- update check (opt-in, off by default)
-  const [updCheck, setUpdCheck] = useState(updateCheckEnabled);
+  // ---- update mode (off by default: no outbound request at all)
+  const [updMode, setUpdMode] = useState<UpdateMode>(updateMode);
   const saveUpd = () =>
     start(async () => {
       setErr(null); setMsg(null);
-      const r = await saveUpdateCheckAction(updCheck);
+      const r = await saveUpdateModeAction(updMode);
       if (!r.ok) setErr(r.error);
       else { setMsg(t.updates.checkSaved); router.refresh(); }
     });
@@ -763,14 +771,20 @@ export function SettingsClient({
 
         {/* ---- UPDATES ---- */}
         <div className={`tabpane${tab === "updates" ? " active" : ""}`}>
-          <label className="upd-toggle">
-            <input
-              type="checkbox"
-              checked={updCheck}
-              onChange={(e) => setUpdCheck(e.target.checked)}
-            />
-            <span>{t.updates.checkLabel}</span>
-          </label>
+          {UPDATE_MODES.map((mode) => (
+            <label className="upd-toggle" key={mode}>
+              <input
+                type="radio"
+                name="update-mode"
+                checked={updMode === mode}
+                onChange={() => setUpdMode(mode)}
+              />
+              <span>
+                {t.updates.mode[mode]}
+                <span className="upd-mode-note">{t.updates.modeNote[mode]}</span>
+              </span>
+            </label>
+          ))}
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
             {t.updates.checkNote}
           </div>
@@ -786,6 +800,7 @@ export function SettingsClient({
             manualCommand={manualCommand}
             sourceCommand={sourceCommand}
             initialState={updater}
+            lastUpdate={updateLog}
             lang={lang}
           />
         </div>

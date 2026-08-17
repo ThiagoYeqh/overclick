@@ -1,23 +1,21 @@
 "use server";
 
-import { execFile } from "node:child_process";
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { workspace } from "@agent-board/db";
+import { workspace, type UpdateMode } from "@agent-board/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "../lib/action-result";
+import { toRecord } from "../lib/auto-update";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
 import { detectRuntime } from "../lib/runtime";
+import type { SourceUpdateReport } from "../lib/source-update";
 import {
-  RESTART_ENV,
-  restartOptInFrom,
-  runSourceUpdate,
-  type Exec,
-  type ProcessMode,
-  type SourceUpdateReport,
-} from "../lib/source-update";
+  recordUpdate,
+  runHostSourceUpdate,
+  scheduleExit,
+} from "../lib/source-update-host";
 import {
   readUpdaterState,
   STATUS_FILE,
@@ -26,19 +24,25 @@ import {
   type UpdaterState,
 } from "../lib/updates";
 
-/** Persists the opt-in GitHub Releases update check. OFF by default. */
-export async function saveUpdateCheckAction(
-  enabled: boolean,
+const MODES: readonly UpdateMode[] = ["off", "check", "auto"];
+
+/**
+ * Persists what this instance may do about new releases. `off` is the default
+ * and the only mode that makes no outbound request at all.
+ */
+export async function saveUpdateModeAction(
+  mode: UpdateMode,
 ): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Session expired. Sign in again." };
+  if (!MODES.includes(mode)) return { ok: false, error: "Unknown update mode." };
 
   const ws = await db().query.workspace.findFirst();
   if (!ws) return { ok: false, error: "Workspace not found." };
 
   await db()
     .update(workspace)
-    .set({ updateCheckEnabled: enabled })
+    .set({ updateMode: mode })
     .where(eq(workspace.id, ws.id));
   revalidatePath("/home");
   revalidatePath("/settings");
@@ -88,46 +92,6 @@ export async function readUpdaterStateAction(): Promise<UpdaterStateResult> {
   return { ok: true, state: await readUpdaterState() };
 }
 
-/** How long any single update step may run before it is given up on. */
-const STEP_TIMEOUT_MS = 10 * 60_000;
-/** Output a step may print before the rest is dropped. Only the tail is shown. */
-const STEP_MAX_BUFFER = 4 * 1024 * 1024;
-/** Grace for the response to reach the browser before the process ends. */
-const EXIT_DELAY_MS = 1500;
-
-/**
- * Runs one command and reports how it went instead of throwing. A step that
- * fails is a result the panel shows, not an exception: the runner decides
- * whether the update can continue.
- */
-const shellExec: Exec = (command, args, cwd) =>
-  new Promise((resolve) => {
-    execFile(
-      command,
-      [...args],
-      { cwd, timeout: STEP_TIMEOUT_MS, maxBuffer: STEP_MAX_BUFFER },
-      (error, stdout, stderr) => {
-        const code =
-          error && typeof (error as { code?: unknown }).code === "number"
-            ? ((error as { code: number }).code as number)
-            : error
-              ? 1
-              : 0;
-        resolve({
-          code,
-          stdout: stdout?.toString() ?? "",
-          // A command that is not installed at all never prints anything, so
-          // the spawn error is the only sentence explaining the failure.
-          stderr: (stderr?.toString() ?? "") + (error && !stderr ? error.message : ""),
-        });
-      },
-    );
-  });
-
-function processMode(): ProcessMode {
-  return process.env.NODE_ENV === "production" ? "production" : "dev";
-}
-
 export type SourceUpdateResult =
   | { ok: true; report: SourceUpdateReport }
   | { ok: false; error: string };
@@ -153,21 +117,19 @@ export async function runSourceUpdateAction(
     };
   }
 
-  const report = await runSourceUpdate({
-    exec: shellExec,
-    cwd: process.cwd(),
-    mode: processMode(),
-    restartOptIn: restartOptInFrom(process.env[RESTART_ENV]),
-    force: options.force === true,
-  });
+  const ws = await db().query.workspace.findFirst();
+  const report = await runHostSourceUpdate(options.force === true);
 
+  // Every run leaves the same record, whoever started it: the panel says what
+  // this instance last did about an update, not just what it did unattended.
+  if (ws) {
+    await recordUpdate(ws.id, toRecord(report, null, new Date().toISOString()));
+  }
   if (report.outcome === "updated") revalidatePath("/settings");
 
   // Only after the report is on its way out: the panel has to be able to show
   // what ran before the process that ran it goes away.
-  if (report.restart === "exit") {
-    setTimeout(() => process.exit(0), EXIT_DELAY_MS).unref();
-  }
+  if (report.restart === "exit") scheduleExit();
 
   return { ok: true, report };
 }

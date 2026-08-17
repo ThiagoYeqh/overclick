@@ -240,9 +240,32 @@ const en = {
     tabUpdates: "Updates",
     checkLabel: "Check GitHub Releases for updates",
     checkNote:
-      "Off by default. When on, the board makes a single request to api.github.com to read the latest release tag and notes. Nothing about you or your instance is ever sent.",
+      "Off is the default and makes no outbound request at all. The other two make a single request to api.github.com to read the latest release tag and notes, on a one-hour interval. Nothing about you or your instance is ever sent.",
     saveCheck: "Save",
-    checkSaved: "Update check saved.",
+    checkSaved: "Update mode saved.",
+    mode: {
+      off: "Off",
+      check: "Check only",
+      auto: "Automatic",
+    } as Record<string, string>,
+    modeNote: {
+      off: "Nothing reaches the network. This instance never learns a newer version exists.",
+      check: "Tells you when a newer release exists and leaves the decision to you.",
+      auto: "Applies the update by itself when a newer release is found, on the same interval, under the same rules as the button. It refuses a dirty tree too, and a container still has to be replaced by hand.",
+    } as Record<string, string>,
+    forceBtn: "Force update",
+    forceNote:
+      "Runs the whole pipeline even when the version already matches, for an instance that is broken or ahead of its tag.",
+    outcome: {
+      updated: "updated",
+      current: "already current",
+      refused: "refused",
+      failed: "failed",
+    } as Record<string, string>,
+    lastRun: (when: string, outcome: string, version: string | null) =>
+      version
+        ? `Last update: ${outcome}, ${when}, for ${version}.`
+        : `Last update: ${outcome}, ${when}.`,
     newVersion: (v: string) => `Version ${v} is available.`,
     releaseNotes: "release notes",
     updateBtn: "Update",
@@ -554,9 +577,32 @@ const ptBR: Dict = {
     tabUpdates: "Atualizações",
     checkLabel: "Conferir novas versões no GitHub Releases",
     checkNote:
-      "Desligado por padrão. Quando ligado, o board faz uma única requisição a api.github.com para ler a tag e as notas da última release. Nada sobre você ou sua instância é enviado, nunca.",
+      "Desligado é o padrão e não faz nenhuma requisição para fora. Os outros dois fazem uma única requisição a api.github.com para ler a tag e as notas da última release, a cada uma hora. Nada sobre você ou sua instância é enviado, nunca.",
     saveCheck: "Salvar",
-    checkSaved: "Verificação de atualização salva.",
+    checkSaved: "Modo de atualização salvo.",
+    mode: {
+      off: "Desligado",
+      check: "Só avisar",
+      auto: "Automático",
+    } as Record<string, string>,
+    modeNote: {
+      off: "Nada sai para a rede. Esta instância nunca fica sabendo que existe versão nova.",
+      check: "Avisa quando existe release mais nova e deixa a decisão com você.",
+      auto: "Aplica a atualização sozinho quando encontra release mais nova, no mesmo intervalo, sob as mesmas regras do botão. Também recusa checkout sujo, e container continua sendo trocado na mão.",
+    } as Record<string, string>,
+    forceBtn: "Forçar atualização",
+    forceNote:
+      "Roda a esteira inteira mesmo quando a versão já bate, para uma instância quebrada ou à frente da própria tag.",
+    outcome: {
+      updated: "atualizou",
+      current: "já estava na última",
+      refused: "recusou",
+      failed: "falhou",
+    } as Record<string, string>,
+    lastRun: (when: string, outcome: string, version: string | null) =>
+      version
+        ? `Última atualização: ${outcome}, ${when}, para ${version}.`
+        : `Última atualização: ${outcome}, ${when}.`,
     newVersion: (v: string) => `Versão ${v} disponível.`,
     releaseNotes: "notas da release",
     updateBtn: "Atualizar",

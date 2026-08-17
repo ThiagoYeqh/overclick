@@ -109,11 +109,39 @@ when creating the card: it's the contract). Then:
   features, RFCs, mechanical chores. Agents read it via the `harness_list` tool.
 - **MCP tokens**: one per agent/machine, revocable, last-use tracked. The pairing-code
   button lives here too: pair a new agent without the token ever entering a chat.
-- **Updates**: the opt-in release check, and the update that applies to how this instance
-  actually runs: a real one-click update on a source checkout, the sidecar or a command in a
-  container. See below.
+- **Updates**: off, check only or automatic, plus the update that applies to how this
+  instance actually runs: a real one-click update on a source checkout, the sidecar or a
+  command in a container. See below.
 
 ## 8. Updating
+
+### The three modes
+
+Settings › Updates offers three states, and the conservative one is the default:
+
+| Mode | What it does |
+|---|---|
+| **Off** (default) | Nothing reaches the network. This instance never learns a newer version exists. |
+| **Check only** | One request an hour to `api.github.com` for the latest release tag and notes. It tells you; you decide. |
+| **Automatic** | The same check, and when it finds a newer release the instance applies the update itself, under exactly the rules the button follows. |
+
+Automatic is not a second, looser update path: it is the same step runner, so it refuses a
+dirty working tree the same way and records the refusal instead of forcing its way through.
+It applies only on a source checkout, because a container is replaced rather than pulled
+into and this process cannot do that to itself; there, automatic degrades to telling you.
+An attempt happens at most once an hour, so a refusal you have not resolved yet does not
+run `git` on every page render.
+
+Whatever ran last leaves a line in the panel: what it did, when, and for which release.
+
+### Force update
+
+A **Force update** button sits next to Update in every mode, including Off. It runs the
+whole pipeline even when the version already matches, which is what you want when an
+instance is broken, half-built, or ahead of the tag it reports. It refuses a dirty tree like
+everything else here.
+
+### How this instance runs
 
 The panel first works out how this instance runs, because the advice is not the same in
 both cases. It looks for the marks a container leaves (`/.dockerenv`, the podman marker,

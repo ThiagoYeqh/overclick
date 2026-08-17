@@ -1,5 +1,6 @@
 "use client";
 
+import type { AutoUpdateRecord } from "@agent-board/db";
 import { useCallback, useEffect, useState } from "react";
 import {
   readUpdaterStateAction,
@@ -39,6 +40,7 @@ export function UpdatePanel({
   manualCommand,
   sourceCommand,
   initialState,
+  lastUpdate,
   lang,
 }: {
   version: string;
@@ -47,6 +49,8 @@ export function UpdatePanel({
   manualCommand: string;
   sourceCommand: string;
   initialState: UpdaterState;
+  /** What the last update did, whoever started it. Null until one runs. */
+  lastUpdate: AutoUpdateRecord | null;
   lang: string;
 }) {
   const t = dict(lang);
@@ -113,11 +117,11 @@ export function UpdatePanel({
    * the step log: this server updates its own checkout and stays up while it
    * does, so there is nothing to poll from outside.
    */
-  const updateFromSource = async () => {
+  const updateFromSource = async (force = false) => {
     setErr(null);
     setReport(null);
     setSourceRunning(true);
-    const result = await runSourceUpdateAction().catch(() => null);
+    const result = await runSourceUpdateAction({ force }).catch(() => null);
     setSourceRunning(false);
     if (!result) {
       // Only the opt-in restart ends this process, and it answers first.
@@ -163,6 +167,16 @@ export function UpdatePanel({
         <>
           <p className="upd-state">{t.updates.sourceDetected}</p>
           <div className="save-row">
+            {/* Force is always here, in every mode: the instance that needs it
+                is the one whose version already matches and is still broken. */}
+            <button
+              className="btn-ghost"
+              disabled={sourceRunning}
+              title={t.updates.forceNote}
+              onClick={() => void updateFromSource(true)}
+            >
+              {t.updates.forceBtn}
+            </button>
             <button
               className="btn-new"
               disabled={sourceRunning}
@@ -171,6 +185,17 @@ export function UpdatePanel({
               {sourceRunning ? t.updates.updating : t.updates.sourceUpdateBtn}
             </button>
           </div>
+          {report ? null : lastUpdate ? (
+            <p className="upd-state">
+              {t.updates.lastRun(
+                new Date(lastUpdate.at).toLocaleString(
+                  lang === "pt-BR" ? "pt-BR" : "en-US",
+                ),
+                t.updates.outcome[lastUpdate.outcome],
+                lastUpdate.version,
+              )}
+            </p>
+          ) : null}
           {report ? (
             <>
               {report.outcome === "refused" ? (

@@ -24,7 +24,8 @@ import { dict, type Dict } from "../../lib/i18n";
 import { loadModelPrices } from "../../lib/prices";
 import { loadUsageRecipes, recipeForCli } from "../../lib/recipes";
 import { detectRuntime } from "../../lib/runtime";
-import { checkForUpdate, readUpdaterState } from "../../lib/updates";
+import { scheduledUpdateCheck } from "../../lib/update-scheduler";
+import { readUpdaterState } from "../../lib/updates";
 import { decodeExecutor, parseComoConfirmo } from "../../mcp/map";
 import type { BoardCard, TranscriptView } from "./board";
 import { HomeShell } from "./home-shell";
@@ -307,8 +308,9 @@ export default async function HomePage() {
     .limit(1);
 
   const t = dict(ws.language);
-  // Opt-in only: with the toggle off this instance makes zero outbound calls.
-  const release = ws.updateCheckEnabled ? await checkForUpdate() : null;
+  // Opt-in only: in the default mode this instance makes zero outbound calls.
+  // In automatic it also starts the update here, without holding the render.
+  const release = await scheduledUpdateCheck(ws);
   // Only a live sidecar makes the banner's button do anything. Read it just
   // when there is a banner to draw.
   const updater = release ? await readUpdaterState() : null;
