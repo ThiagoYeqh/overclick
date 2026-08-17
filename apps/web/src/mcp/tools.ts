@@ -886,6 +886,7 @@ async function taskUpdate(
     comment?: string;
     progress?: string;
     revisado?: boolean;
+    mission_id?: string | null;
     harness?: Harness;
     usage?: Usage;
     spawn_failure?: string;
@@ -900,6 +901,40 @@ async function taskUpdate(
   }
 
   let nextRow = found.row;
+  // A card born loose can join a mission, and one in the wrong mission can
+  // leave it. Only missions of the token's workspace qualify: an id from
+  // another workspace is a NOT_FOUND, not a silent detach.
+  let subtasksMoved: number | null = null;
+  if (input.mission_id !== undefined) {
+    let missionId: string | null = null;
+    if (input.mission_id !== null) {
+      const miss = await findMission(db, ctx.workspaceId, input.mission_id);
+      if (!miss) {
+        return err(
+          "NOT_FOUND",
+          `Mission ${input.mission_id} not found in this workspace. Call mission_list to see the available missions or mission_create to start one. Send mission_id: null to detach the card.`,
+        );
+      }
+      missionId = miss.id;
+    }
+    const moved = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(task)
+        .set({ missionId })
+        .where(eq(task.id, nextRow.id))
+        .returning();
+      // task_create puts subtasks in the parent's mission. Moving the parent
+      // keeps that true instead of leaving its children behind.
+      const children = await tx
+        .update(task)
+        .set({ missionId })
+        .where(eq(task.parentId, nextRow.id))
+        .returning({ id: task.id });
+      return { updated, children: children.length };
+    });
+    if (moved.updated) nextRow = moved.updated;
+    subtasksMoved = moved.children;
+  }
   if (input.harness) {
     const resolved = await resolveHarnessAgainstExecutors(
       db,
@@ -974,6 +1009,7 @@ async function taskUpdate(
       reopenComment: await latestReopenComment(db, nextRow),
     }),
     ...(usageRecorded ? { usage_recorded: true } : {}),
+    ...(subtasksMoved !== null ? { subtasks_moved: subtasksMoved } : {}),
   };
 }
 

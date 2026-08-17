@@ -231,6 +231,13 @@ export const TaskUpdateInputSchema = z
     comment: z.string().min(1).optional(),
     progress: z.string().min(1).optional(),
     revisado: z.boolean().optional(),
+    /**
+     * Moves the card between missions after it was created: the id of a
+     * mission of the same workspace, or null to detach it. Omitted leaves the
+     * card where it is. An id from another workspace is a NOT_FOUND, never a
+     * silent no-op.
+     */
+    mission_id: z.string().min(1).nullable().optional(),
     /** Reclassifies the card. Validated against the configured executors. */
     harness: HarnessSchema.optional(),
     /**
@@ -251,12 +258,13 @@ export const TaskUpdateInputSchema = z
       value.comment !== undefined ||
       value.progress !== undefined ||
       value.revisado !== undefined ||
+      value.mission_id !== undefined ||
       value.harness !== undefined ||
       value.usage !== undefined ||
       value.spawn_failure !== undefined,
     {
       message:
-        "provide comment, progress, revisado, harness, usage or spawn_failure",
+        "provide comment, progress, revisado, mission_id, harness, usage or spawn_failure",
     },
   );
 
@@ -264,6 +272,11 @@ export const TaskUpdateOutputSchema = z.object({
   task: TaskSchema,
   /** Present when a usage block was applied to the latest attempt. */
   usage_recorded: z.boolean().optional(),
+  /**
+   * Subtasks that followed the parent card into the mission, or out of it.
+   * Present only on a mission move, so the caller sees the whole effect.
+   */
+  subtasks_moved: z.number().int().nonnegative().optional(),
 });
 
 export const TaskDeliverInputSchema = z.object({

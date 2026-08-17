@@ -2,12 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { assignCardsToMissionAction } from "../../actions/missions";
 import {
   reopenTaskAction,
   tickValidationStepAction,
   validateTaskAction,
 } from "../../actions/review";
 import { dict, type Dict } from "../../lib/i18n";
+
+export type BoardMissionOption = { id: string; title: string };
 
 export type ConfirmStep = { step: string; expected: string };
 export type ValidationTickView = { index: number; byEmail: string; at: string };
@@ -233,10 +236,17 @@ function CardMetaTail({
 function Card({
   card,
   onOpen,
+  selectable,
+  selected,
+  onToggleSelect,
   t,
 }: {
   card: BoardCard;
   onOpen: (c: BoardCard) => void;
+  /** True while the board is picking cards to move between missions. */
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
   t: Dict;
 }) {
   const exec = card.status === "em_execucao";
@@ -248,10 +258,22 @@ function Card({
   // click away in the detail panel.
   return (
     <div
-      className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}`}
-      onClick={() => onOpen(card)}
+      className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}${
+        selectable ? " selectable" : ""
+      }${selected ? " picked" : ""}`}
+      onClick={() => (selectable ? onToggleSelect(card.id) : onOpen(card))}
     >
       <div className="id-row">
+        {selectable ? (
+          <input
+            type="checkbox"
+            className="card-pick"
+            checked={selected}
+            aria-label={card.shortId}
+            onChange={() => onToggleSelect(card.id)}
+            onClick={(event) => event.stopPropagation()}
+          />
+        ) : null}
         <span className="cid">{card.shortId}</span>
         <span className={`tag ${card.tipo}`}>{card.tipo}</span>
         {card.isExample ? <span className="selo">{t.board.example}</span> : null}
@@ -389,6 +411,67 @@ function Transcript({ view, t }: { view: TranscriptView; t: Dict }) {
   );
 }
 
+/**
+ * The mission of the card, as something a human can change. Cards created
+ * before missions existed are all loose, and until this select existed the
+ * product had no way to put them anywhere: the mission was chosen at creation
+ * or never. Picking the blank option detaches the card again.
+ */
+function MissionField({
+  card,
+  missions,
+  t,
+}: {
+  card: BoardCard;
+  missions: BoardMissionOption[];
+  t: Dict;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [value, setValue] = useState(card.missionId ?? "");
+  const [err, setErr] = useState<string | null>(null);
+
+  const change = (next: string) => {
+    const previous = value;
+    setValue(next);
+    setErr(null);
+    start(async () => {
+      const r = await assignCardsToMissionAction([card.id], next || null);
+      if (!r.ok) {
+        setValue(previous);
+        setErr(r.error);
+      } else {
+        router.refresh();
+      }
+    });
+  };
+
+  return (
+    <div>
+      <div className="lbl">{t.detail.mission}</div>
+      {missions.length === 0 ? (
+        <p>{t.detail.missionNoneAvailable}</p>
+      ) : (
+        <select
+          className="d-mission"
+          aria-label={t.detail.mission}
+          value={value}
+          disabled={pending}
+          onChange={(event) => change(event.target.value)}
+        >
+          <option value="">{t.detail.missionNone}</option>
+          {missions.map((miss) => (
+            <option key={miss.id} value={miss.id}>
+              {miss.title}
+            </option>
+          ))}
+        </select>
+      )}
+      {err ? <p className="d-err">{err}</p> : null}
+    </div>
+  );
+}
+
 /** "For checking, open...": the agent's entry point for lay validation. */
 function HowToVerify({ value, t }: { value: string; t: Dict }) {
   const isUrl = /^https?:\/\//.test(value.trim());
@@ -501,7 +584,17 @@ function DetailActions({
   );
 }
 
-function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t: Dict }) {
+function Detail({
+  card,
+  missions,
+  onClose,
+  t,
+}: {
+  card: BoardCard;
+  missions: BoardMissionOption[];
+  onClose: () => void;
+  t: Dict;
+}) {
   const router = useRouter();
   const [, start] = useTransition();
   const [ticks, setTicks] = useState<ValidationTickView[]>(card.validationTicks);
@@ -581,10 +674,7 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
           {tickErr ? <p className="d-err">{tickErr}</p> : null}
         </div>
         <div className="d-sec d-grid">
-          <div>
-            <div className="lbl">{t.detail.mission}</div>
-            <p>{card.mission ?? "—"}</p>
-          </div>
+          <MissionField card={card} missions={missions} t={t} />
           <div>
             <div className="lbl">{t.detail.harness}</div>
             <p className="d-mono">{card.harness ?? "—"}</p>
@@ -669,10 +759,25 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
   );
 }
 
-export function Board({ cards, lang }: { cards: BoardCard[]; lang: string }) {
+export function Board({
+  cards,
+  lang,
+  missions,
+  selectable = false,
+  selectedIds = [],
+  onToggleSelect,
+}: {
+  cards: BoardCard[];
+  lang: string;
+  missions: BoardMissionOption[];
+  selectable?: boolean;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string) => void;
+}) {
   const t = dict(lang);
   const colLabel = columnLabels(t);
   const [open, setOpen] = useState<BoardCard | null>(null);
+  const picked = new Set(selectedIds);
 
   const onKey = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") setOpen(null);
@@ -701,6 +806,9 @@ export function Board({ cards, lang }: { cards: BoardCard[]; lang: string }) {
                       key={card.id}
                       card={card}
                       onOpen={setOpen}
+                      selectable={selectable}
+                      selected={picked.has(card.id)}
+                      onToggleSelect={onToggleSelect ?? (() => {})}
                       t={t}
                     />
                   ))
@@ -710,7 +818,14 @@ export function Board({ cards, lang }: { cards: BoardCard[]; lang: string }) {
           );
         })}
       </div>
-      {open ? <Detail card={open} onClose={() => setOpen(null)} t={t} /> : null}
+      {open ? (
+        <Detail
+          card={open}
+          missions={missions}
+          onClose={() => setOpen(null)}
+          t={t}
+        />
+      ) : null}
     </>
   );
 }
