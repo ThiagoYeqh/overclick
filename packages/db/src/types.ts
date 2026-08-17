@@ -1,3 +1,5 @@
+import type { UsageSegment } from "./domain/usage";
+
 export type Effort = "low" | "medium" | "high";
 
 export type Harness = {
@@ -19,6 +21,12 @@ export type ExecutorConfig = {
   label: string;
   enabled: boolean;
   models: string[];
+  /**
+   * Editable model list for this CLI. The built-in catalog is only the initial
+   * suggestion; users add and remove models as free text. Absent on configs
+   * saved before this field existed.
+   */
+  catalog?: string[];
 };
 
 export type Cardapio = {
@@ -45,13 +53,45 @@ export type HandoffArtifact = {
   content: string;
 };
 
+/**
+ * Snapshot of the MCP usage contract as stored on the handoff jsonb. The MCP
+ * layer is the only writer and it writes snake_case; estimated marks numbers
+ * the executor guessed instead of measured.
+ */
 export type UsageReport = {
-  tokensIn?: number;
-  tokensOut?: number;
-  tokensCache?: number;
-  costUsd?: number;
-  durationMs?: number;
+  tokens_in?: number;
+  tokens_out?: number;
+  tokens_cache?: number;
+  cost_usd?: number;
+  duration_ms?: number;
   turns?: number;
+  estimated?: boolean;
+  /**
+   * One entry per model that ran, so a conversation that switched model is
+   * recorded truthfully. The flat counters above stay filled with what the
+   * segments add up to, for every reader written before segments existed.
+   */
+  segments?: UsageSegment[];
+};
+
+/**
+ * A cli/model pair observed on a real claim or deliver that is not part of the
+ * workspace executor config. Settings offers it as a one-click suggestion.
+ */
+export type SeenExecutor = {
+  cli: string;
+  model: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  count: number;
+};
+
+/** One ticked How-to-confirm step during human validation of a done card. */
+export type ValidationTick = {
+  index: number;
+  byUserId: string;
+  byEmail: string;
+  at: string;
 };
 
 export type TaskType = "feature" | "bug" | "rfc";

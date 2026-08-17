@@ -53,6 +53,7 @@ export default async function OnboardingPage({
             : null
         }
         executors={selectionFromConfig(ws.executors)}
+        lang={ws.language}
       />
     </div>
   );

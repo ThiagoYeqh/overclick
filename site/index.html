@@ -8,6 +8,10 @@
 <meta property="og:title" content="OverClick: where AI agents do the work">
 <meta property="og:description" content="The self-hosted open source task board for human + AI-agent teams. Cards are contracts; agents execute; only a human validates.">
 <meta property="og:type" content="website">
+<meta property="og:locale" content="en_US">
+<link rel="alternate" hreflang="en" href="index.html">
+<link rel="alternate" hreflang="pt-BR" href="br/index.html">
+<link rel="alternate" hreflang="x-default" href="index.html">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23D1D9EB' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23D1D9EB'/%3E%3C/svg%3E">
 <style>
 /* ============================================================
@@ -195,6 +199,16 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 .nav .links a:hover { color: var(--nebula-text-primary); text-decoration: none; }
 .nav .spacer { flex: 1; }
+/* language switcher: two words, the current one lit */
+.nav .lang {
+  display: flex; align-items: center; gap: 7px; margin-right: 4px;
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: var(--nebula-tracking-wide);
+  color: var(--nebula-text-tertiary);
+}
+.nav .lang a { color: var(--nebula-text-tertiary); transition: color 0.25s ease; }
+.nav .lang a:hover { color: var(--nebula-text-primary); text-decoration: none; }
+.nav .lang a.on { color: var(--nebula-text-primary); }
 
 /* buttons */
 .btn {
@@ -779,8 +793,14 @@ footer {
     <a href="#features">Features</a>
     <a href="#compare">vs traditional PM tools</a>
     <a href="#opensource">Open source</a>
+    <a href="learn/index.html">Learn</a>
   </div>
   <div class="spacer"></div>
+  <div class="lang" aria-label="Language">
+    <a href="index.html" class="on" hreflang="en" lang="en" aria-current="true">EN</a>
+    <span aria-hidden="true">·</span>
+    <a href="br/index.html" hreflang="pt-BR" lang="pt-BR">PT</a>
+  </div>
   <a class="btn btn-ghost btn-sm" href="https://github.com/ustoppble/overclick" rel="noopener">
     ★ Star <span class="badge-sfx">github</span>
   </a>
@@ -1097,19 +1117,26 @@ footer {
     </div>
     <div data-reveal style="--d:.12s">
       <div class="mcp-panel glass corners">
-        <div class="p-cap"><span>mcp surface</span><span>11 tools · streamable http · bearer tokens</span></div>
+        <div class="p-cap"><span>mcp surface</span><span>18 tools · streamable http · bearer tokens</span></div>
         <div class="mcp-tools">
+          <span class="t">project_list</span> <span class="sep">·</span>
+          <span class="t">project_create</span> <span class="sep">·</span>
           <span class="t">mission_list</span> <span class="sep">·</span>
           <span class="t">mission_get</span> <span class="sep">·</span>
+          <span class="t">mission_create</span> <span class="sep">·</span>
           <span class="t">task_list</span> <span class="sep">·</span>
           <span class="t">task_get</span> <span class="sep">·</span>
           <span class="t">task_create</span> <span class="sep">·</span>
           <span class="t">task_claim</span> <span class="sep">·</span>
           <span class="t">task_update</span> <span class="sep">·</span>
           <span class="t">task_deliver</span> <span class="sep">·</span>
+          <span class="t">task_delete</span> <span class="sep">·</span>
           <span class="t">branch_register</span> <span class="sep">·</span>
           <span class="t">harness_recommend</span> <span class="sep">·</span>
-          <span class="t">harness_list</span>
+          <span class="t">harness_list</span> <span class="sep">·</span>
+          <span class="t">harness_set</span> <span class="sep">·</span>
+          <span class="t">executors_update</span> <span class="sep">·</span>
+          <span class="t">insights_query</span>
         </div>
         <div class="mcp-connect">
           <span class="c-cap">connect an agent</span>
@@ -1151,6 +1178,7 @@ footer {
   <div class="wrap foot-grid">
     <span class="wordmark">over<span>click</span></span>
     <div class="foot-links">
+      <a href="learn/index.html">Learn</a>
       <a href="https://github.com/ustoppble/overclick" rel="noopener">GitHub</a>
       <a href="https://github.com/ustoppble/overclick/blob/main/docs/mcp.md" rel="noopener">Docs</a>
       <a href="https://github.com/ustoppble/overclick/blob/main/LICENSE" rel="noopener">MIT License</a>

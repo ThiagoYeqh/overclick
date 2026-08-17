@@ -2,29 +2,81 @@ import { describe, expect, it } from "vitest";
 import {
   TaskDeliverInputSchema,
   MCP_TOOL_NAMES,
+  MissionCreateInputSchema,
+  ProjectCreateInputSchema,
   TaskCreateInputSchema,
+  isTelemetryIncomplete,
   toolContracts,
 } from "../src/index.js";
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 11 tools", () => {
+  it("exports input and output schemas for all 18 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
+      "project_list",
+      "project_create",
       "mission_list",
       "mission_get",
+      "mission_create",
       "task_list",
       "task_get",
       "task_create",
       "task_claim",
       "task_update",
       "task_deliver",
+      "task_delete",
       "branch_register",
       "harness_recommend",
       "harness_list",
+      "harness_set",
+      "executors_update",
+      "insights_query",
     ]);
     for (const name of MCP_TOOL_NAMES) {
       expect(toolContracts[name].input).toBeDefined();
       expect(toolContracts[name].output).toBeDefined();
     }
+  });
+});
+
+describe("project_create", () => {
+  it("takes a name alone, with repo_url and id_prefix optional", () => {
+    const parsed = ProjectCreateInputSchema.parse({ name: "Agent Board" });
+    expect(parsed.name).toBe("Agent Board");
+    expect(parsed.repo_url).toBeUndefined();
+    expect(parsed.id_prefix).toBeUndefined();
+  });
+
+  it("rejects an empty name and a repo_url that is not a url", () => {
+    expect(ProjectCreateInputSchema.safeParse({ name: "" }).success).toBe(false);
+    expect(
+      ProjectCreateInputSchema.safeParse({ name: "Board", repo_url: "github" })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("mission_create", () => {
+  it("accepts title plus objective/context markdown and status", () => {
+    const parsed = MissionCreateInputSchema.parse({
+      title: "Norte do board",
+      objective: "Fechar o loop MCP.",
+      context: "O board é a fonte de verdade.",
+      status: "ativa",
+    });
+    expect(parsed.title).toBe("Norte do board");
+    expect(parsed.objective).toBe("Fechar o loop MCP.");
+    expect(parsed.context).toBe("O board é a fonte de verdade.");
+  });
+
+  it("allows title only (objective/context optional, status defaults later)", () => {
+    const parsed = MissionCreateInputSchema.parse({ title: "Loose north" });
+    expect(parsed.objective).toBeUndefined();
+    expect(parsed.context).toBeUndefined();
+    expect(parsed.status).toBeUndefined();
+  });
+
+  it("rejects an empty title", () => {
+    expect(MissionCreateInputSchema.safeParse({ title: "" }).success).toBe(false);
   });
 });
 
@@ -136,6 +188,29 @@ describe("task_create canonical flow", () => {
     expect(result.success).toBe(false);
   });
 
+  it("documents that task_id accepts a uuid or a short id", () => {
+    const schema = toolContracts.task_get.input;
+    const described = schema.shape.task_id.description ?? "";
+    expect(described.toLowerCase()).toContain("short");
+    for (const name of [
+      "task_get",
+      "task_claim",
+      "task_update",
+      "task_deliver",
+      "task_delete",
+      "branch_register",
+    ] as const) {
+      expect(
+        toolContracts[name].input.parse({
+          task_id: "AGB-5",
+          ...(name === "task_update" ? { comment: "ok" } : {}),
+          ...(name === "task_deliver" ? { summary: "ok" } : {}),
+          ...(name === "branch_register" ? { branch: "agb-5-x" } : {}),
+        }).task_id,
+      ).toBe("AGB-5");
+    }
+  });
+
   it("requires origem identity from the caller", () => {
     const result = TaskCreateInputSchema.safeParse({
       project_id: "proj_1",
@@ -168,6 +243,30 @@ describe("task_deliver usage and artifacts", () => {
     expect(parsed.artifacts?.[0]?.kind).toBe("rfc_markdown");
   });
 
+  it("accepts an optional how_to_verify entry point for lay validation", () => {
+    const parsed = TaskDeliverInputSchema.parse({
+      task_id: "OC-1",
+      summary: "pronto",
+      how_to_verify: "http://localhost:3300/home, open the card in Done",
+    });
+    expect(parsed.how_to_verify).toBe(
+      "http://localhost:3300/home, open the card in Done",
+    );
+
+    const without = TaskDeliverInputSchema.parse({
+      task_id: "OC-1",
+      summary: "pronto",
+    });
+    expect(without.how_to_verify).toBeUndefined();
+
+    const empty = TaskDeliverInputSchema.safeParse({
+      task_id: "OC-1",
+      summary: "pronto",
+      how_to_verify: "",
+    });
+    expect(empty.success).toBe(false);
+  });
+
   it("accepts the full usage block (tokens in/out/cache, cost, duration, turns)", () => {
     const parsed = TaskDeliverInputSchema.parse({
       task_id: "OC-1",
@@ -192,5 +291,64 @@ describe("task_deliver usage and artifacts", () => {
       duration_ms: 34 * 60 * 1000,
       turns: 11,
     });
+  });
+
+  it("accepts estimated usage and a usage-only task_update", () => {
+    const delivered = TaskDeliverInputSchema.parse({
+      task_id: "OC-1",
+      summary: "estimado",
+      usage: { tokens_in: 1000, tokens_out: 200, estimated: true },
+    });
+    expect(delivered.usage?.estimated).toBe(true);
+
+    const updated = toolContracts.task_update.input.parse({
+      task_id: "OC-1",
+      usage: { tokens_in: 5000, cost_usd: 0.4 },
+    });
+    expect(updated.usage?.tokens_in).toBe(5000);
+  });
+
+  it("accepts usage in segments, one per model that ran", () => {
+    const delivered = TaskDeliverInputSchema.parse({
+      task_id: "OC-1",
+      summary: "trocou de modelo",
+      usage: {
+        segments: [
+          { model: "sonnet-5", input: 1000, output: 200, cache_read: 5000 },
+          { model: "opus-5", input: 300, output: 900, cache_write: 100 },
+        ],
+        duration_ms: 900_000,
+        turns: 12,
+      },
+    });
+    expect(delivered.usage?.segments).toHaveLength(2);
+    expect(delivered.usage?.segments?.[1]?.model).toBe("opus-5");
+  });
+
+  it("counts segments as reported tokens for the telemetry flag", () => {
+    expect(
+      isTelemetryIncomplete({
+        segments: [{ model: "opus-5", input: 10, output: 20 }],
+        cost_usd: 0.1,
+        duration_ms: 1000,
+        turns: 2,
+      }),
+    ).toBe(false);
+    // No segments and no flat counters: still incomplete.
+    expect(
+      isTelemetryIncomplete({ cost_usd: 0.1, duration_ms: 1000, turns: 2 }),
+    ).toBe(true);
+    // Money is an opt-in layer the board computes itself, so a delivery that
+    // names no price is complete as long as it reported what it measured.
+    expect(
+      isTelemetryIncomplete({
+        segments: [{ model: "opus-5", input: 10, output: 20 }],
+        duration_ms: 1000,
+        turns: 2,
+      }),
+    ).toBe(false);
+    expect(
+      isTelemetryIncomplete({ tokens_in: 10, tokens_out: 20, turns: 2 }),
+    ).toBe(true);
   });
 });

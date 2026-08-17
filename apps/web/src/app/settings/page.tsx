@@ -1,15 +1,20 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, isNotNull, and } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   cardapioEntry,
+  executionAttempt,
   factoryCardapioPolicy,
+  findModelPrice,
   mcpToken,
   project,
+  task,
 } from "@agent-board/db";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
-import { selectionFromConfig } from "../../lib/executors";
+import { isPairInConfig, selectionFromConfig } from "../../lib/executors";
+import { loadModelPrices } from "../../lib/prices";
+import { loadUsageRecipes } from "../../lib/recipes";
 import { SettingsClient } from "./settings-client";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +44,8 @@ export default async function SettingsPage() {
       cli: row ? row.cli : f.cli,
       model: row ? row.model : f.model,
       effort: row ? row.effort : f.effort,
+      updatedBy: row?.updatedBy ?? null,
+      updatedAt: row ? row.updatedAt.toISOString() : null,
     };
   });
 
@@ -47,6 +54,7 @@ export default async function SettingsPage() {
       id: mcpToken.id,
       label: mcpToken.label,
       tokenPrefix: mcpToken.tokenPrefix,
+      canManage: mcpToken.canManage,
       revoked: mcpToken.revoked,
       lastUsedAt: mcpToken.lastUsedAt,
       createdAt: mcpToken.createdAt,
@@ -55,7 +63,44 @@ export default async function SettingsPage() {
     .where(eq(mcpToken.workspaceId, ws.id))
     .orderBy(desc(mcpToken.createdAt));
 
+  const prices = await loadModelPrices(db(), ws.id);
+  const recipes = await loadUsageRecipes(db(), ws.id);
+
+  // Models this board has actually run, or is configured to run, that the
+  // price table cannot price yet. Offered in Settings so nobody has to guess
+  // which name to type.
+  const ranModels = await db()
+    .selectDistinct({ model: executionAttempt.model })
+    .from(executionAttempt)
+    .innerJoin(task, eq(executionAttempt.taskId, task.id))
+    .innerJoin(project, eq(task.projectId, project.id))
+    .where(
+      and(eq(project.workspaceId, ws.id), isNotNull(executionAttempt.model)),
+    );
+  const candidates = [
+    ...ranModels.map((row) => row.model),
+    ...ws.executors.flatMap((row) => row.models),
+    ...ws.seenExecutors.map((row) => row.model),
+  ].filter((model): model is string => Boolean(model?.trim()));
+  const unpricedModels = [
+    ...new Set(
+      candidates
+        .map((model) => model.trim())
+        .filter((model) => findModelPrice(prices, model) == null),
+    ),
+  ].sort();
+
   const host = (await headers()).get("host") ?? "<your-host>";
+
+  // Pairs observed on real connections that the config still does not cover.
+  const seenSuggestions = ws.seenExecutors
+    .filter((s) => !isPairInConfig(ws.executors, s.cli, s.model))
+    .map((s) => ({
+      cli: s.cli,
+      model: s.model,
+      count: s.count,
+      lastSeenAt: s.lastSeenAt,
+    }));
 
   return (
     <div className="nb nebula-surface">
@@ -64,11 +109,19 @@ export default async function SettingsPage() {
         workspaceName={ws.name}
         projectName={proj?.name ?? ws.name}
         executors={selectionFromConfig(ws.executors)}
+        lang={ws.language}
+        updateCheckEnabled={ws.updateCheckEnabled}
+        seenSuggestions={seenSuggestions}
         cardapio={cardapioRows}
+        prices={prices}
+        unpricedModels={unpricedModels}
+        recipes={recipes}
+        pricingEnabled={ws.pricingEnabled}
         tokens={tokens.map((t) => ({
           id: t.id,
           label: t.label,
           masked: `${t.tokenPrefix ?? "ocb_"}••••••••`,
+          canManage: t.canManage,
           revoked: t.revoked,
           createdAt: t.createdAt.toISOString(),
           lastUsedAt: t.lastUsedAt?.toISOString() ?? null,

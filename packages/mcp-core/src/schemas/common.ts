@@ -86,13 +86,43 @@ export const HarnessSchema = z.object({
   effort: EffortSchema,
 });
 
+/**
+ * What one model spent inside a run. A conversation that switched model sends
+ * one segment per model instead of a single bucket that would credit the whole
+ * run to whichever model was recorded first.
+ */
+export const UsageSegmentSchema = z.object({
+  /**
+   * Null only on a segment the board folded out of a flat usage block for an
+   * attempt whose executor never named a model. Agents sending segments name
+   * the model: that is the whole point of sending them.
+   */
+  model: z.string().min(1).nullable(),
+  input: z.number().int().nonnegative().optional(),
+  output: z.number().int().nonnegative().optional(),
+  cache_read: z.number().int().nonnegative().optional(),
+  cache_write: z.number().int().nonnegative().optional(),
+});
+
 export const UsageSchema = z.object({
+  /**
+   * Tokens per model. Preferred over the flat counters below: the board keeps
+   * both, deriving the flat totals from the segments. The flat shape alone is
+   * still accepted and is stored as a single segment.
+   */
+  segments: z.array(UsageSegmentSchema).optional(),
   tokens_in: z.number().int().nonnegative().optional(),
   tokens_out: z.number().int().nonnegative().optional(),
   tokens_cache: z.number().int().nonnegative().optional(),
   cost_usd: z.number().nonnegative().optional(),
   duration_ms: z.number().int().nonnegative().optional(),
   turns: z.number().int().nonnegative().optional(),
+  /**
+   * True when the numbers are the executor's estimate instead of exact
+   * telemetry. Estimates are welcome: the card labels them "estimated"
+   * rather than showing nothing.
+   */
+  estimated: z.boolean().optional(),
 });
 
 export const EvidenceSchema = z
@@ -159,6 +189,27 @@ export const MissionSchema = MissionSummarySchema.extend({
   context: z.string(),
 });
 
+/** Cards in a project, split by status so the totals never hide the queue. */
+export const ProjectCardCountsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  aberto: z.number().int().nonnegative(),
+  em_execucao: z.number().int().nonnegative(),
+  feito: z.number().int().nonnegative(),
+  validado: z.number().int().nonnegative(),
+});
+
+export const ProjectSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** Card prefix: `AGB` gives `AGB-1`, `AGB-2`. Unique per workspace. */
+  id_prefix: z.string().min(1),
+  repo_url: z.string().nullable(),
+  /** Number the next card in this project will get. */
+  next_number: z.number().int().positive(),
+  cards: ProjectCardCountsSchema,
+  created_at: IsoDateTimeSchema,
+});
+
 export const TaskSummarySchema = z.object({
   id: z.string().min(1),
   short_id: z.string().min(1),
@@ -210,6 +261,7 @@ export const HandoffSchema = z.object({
   task_id: z.string().min(1),
   attempt_id: z.string().min(1).optional(),
   summary: z.string().min(1),
+  how_to_verify: z.string().min(1).nullable(),
   evidence: z.array(EvidenceSchema),
   artifacts: z.array(ArtifactSchema),
   branch: z.string().min(1).nullable(),
@@ -229,23 +281,44 @@ export type Origem = z.infer<typeof OrigemSchema>;
 export type Reviewer = z.infer<typeof ReviewerSchema>;
 export type Harness = z.infer<typeof HarnessSchema>;
 export type Usage = z.infer<typeof UsageSchema>;
+export type UsageSegment = z.infer<typeof UsageSegmentSchema>;
 export type Evidence = z.infer<typeof EvidenceSchema>;
 export type Artifact = z.infer<typeof ArtifactSchema>;
 export type SubtaskCreate = z.infer<typeof SubtaskCreateSchema>;
 export type Mission = z.infer<typeof MissionSchema>;
+export type Project = z.infer<typeof ProjectSchema>;
+export type ProjectCardCounts = z.infer<typeof ProjectCardCountsSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;
 export type Handoff = z.infer<typeof HandoffSchema>;
 export type BranchConvention = z.infer<typeof BranchConventionSchema>;
 
-export function isTelemetryIncomplete(usage?: Usage | null): boolean {
+/**
+ * Structural on purpose: the stored usage block allows a segment with no model
+ * (an attempt whose executor never named one), which the wire schema does not.
+ * Both shapes answer the same question about what is missing.
+ */
+export type TelemetryUsage = {
+  segments?: readonly unknown[];
+  tokens_in?: number;
+  tokens_out?: number;
+  cost_usd?: number;
+  duration_ms?: number;
+  turns?: number;
+};
+
+export function isTelemetryIncomplete(usage?: TelemetryUsage | null): boolean {
   if (!usage) {
     return true;
   }
+  // Segments carry the same tokens the flat counters used to: a run that
+  // reported per-model numbers reported its tokens. `cost_usd` is not part of
+  // the bar: money is an opt-in layer the board computes itself, so a delivery
+  // that reports tokens, time and turns is complete without naming a price.
+  const hasSegments = (usage.segments?.length ?? 0) > 0;
   return (
-    usage.tokens_in === undefined ||
-    usage.tokens_out === undefined ||
-    usage.cost_usd === undefined ||
+    (usage.tokens_in === undefined && !hasSegments) ||
+    (usage.tokens_out === undefined && !hasSegments) ||
     usage.duration_ms === undefined ||
     usage.turns === undefined
   );

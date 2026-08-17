@@ -5,7 +5,8 @@
 OverClick is a self-hosted task board for hybrid human + AI-agent teams. Humans decide and
 review; agents execute. The board is just an interface, a database, and an MCP server.
 Any MCP-capable coding agent (Claude Code, Codex, Gemini CLI, Overclock, ...) connects to
-it, claims cards, does the work on its own machine, and reports back with evidence and cost.
+it, claims cards, does the work on its own machine, and reports back with evidence and
+real telemetry: tokens per model, and time.
 
 > Your board. Your server. Your data. Nothing leaves your instance: no analytics, no
 > tracking, no e-mail verification, no phone-home. Ever.
@@ -20,11 +21,13 @@ it, claims cards, does the work on its own machine, and reports back with eviden
    card over MCP, receives a self-contained briefing (contract + harness + mission context
    + branch convention), and the card slides to *In progress*.
 3. **The agent delivers.** A handoff with summary, evidence, branch/PR links, and real
-   telemetry: tokens, duration, cost.
+   telemetry: tokens per model and duration. The briefing tells the agent exactly how to
+   read those numbers off its own session transcript, so they are measured, not guessed.
 4. **You validate.** Review with the script you wrote in step 1. Only a human stamps
    *Validated*. Reopen with a comment and the agent sees it on the next claim.
 
-Every card shows what it cost: `sonnet-5 · 34 min · 1.2M tokens · ~$0.80`.
+Every card shows what it took: `34 min · 1.2M tokens · sonnet-5 to opus-5`. Tokens and
+time, because those are facts on every plan. Money is an optional layer, off by default.
 
 ## Quickstart
 
@@ -69,17 +72,25 @@ Then, in your terminal: *"grab the next task from the board."* Watch the example
   review. The person who delegates isn't always the person who checks.
 - **RFCs as cards.** Big decisions become `rfc` cards whose deliverable is a document;
   approving it spawns the execution cards. Design to execution, fully traceable.
-- **Cost per card.** Agents report usage in every handoff. See what a feature actually
-  cost in tokens, time and dollars, per card, per project, per mission.
+- **Tokens and time per card.** Agents report usage in every handoff, split per model, so
+  a run that switched models is recorded truthfully. See what a feature actually took, per
+  card, per project, per mission. Estimates are labeled as estimates and a run that
+  reported nothing says so, instead of showing a confident zero.
+- **Money is opt-in.** On a flat subscription a dollar figure is fiction, and a price table
+  goes stale and lies with confidence. Cost is off by default; turn it on in Settings if
+  you pay per token and the board adds an approximate figure, labeled with where it came
+  from, next to the numbers it measured.
 - **Git-convention native.** `AGB-123` in the branch, the commit, and the PR title. The
   board tracks which branch belongs to which card. No GitHub API required; works with any
   forge, or none.
 
 ## MCP surface
 
-11 tools: `mission_list` · `mission_get` · `task_list` · `task_get` · `task_create` ·
-`task_claim` · `task_update` · `task_deliver` · `branch_register` · `harness_recommend`
-· `harness_list`. Streamable HTTP, bearer tokens, atomic claims, typed errors. See
+18 tools: `project_list` · `project_create` · `mission_list` · `mission_get` · `mission_create` ·
+`task_list` · `task_get` · `task_create` · `task_claim` · `task_update` · `task_deliver` ·
+`task_delete` · `branch_register` · `harness_recommend` · `harness_list` · `harness_set` ·
+`executors_update` · `insights_query`. Streamable HTTP, bearer tokens, atomic claims, typed errors. The
+configuration tools sit behind a per-token manage flag, off by default. See
 [`docs/mcp.md`](docs/mcp.md).
 
 Works with any MCP-capable agent. Built to shine with

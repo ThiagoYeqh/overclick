@@ -51,6 +51,7 @@ export async function authenticateBearer(
       tokenId: row.id,
       workspaceId: row.workspaceId,
       tokenLabel: row.label,
+      canManage: row.canManage,
     },
   };
 }

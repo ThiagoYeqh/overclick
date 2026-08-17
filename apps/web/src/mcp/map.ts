@@ -8,6 +8,8 @@ import {
   type Harness,
   type Mission,
   type Origem,
+  type Project,
+  type ProjectCardCounts,
   type Reviewer,
   type Task,
   type Usage,
@@ -155,13 +157,34 @@ export function harnessToDb(
 }
 
 export function mapMission(row: MissionRow, taskCount?: number): Mission {
+  const objective = row.objective;
+  const context = row.context || row.objective;
   return {
     id: row.id,
     title: row.title,
     status: row.status,
-    objective: row.objective,
-    context: row.objective,
+    objective,
+    context,
     ...(taskCount !== undefined ? { task_count: taskCount } : {}),
+  };
+}
+
+export function emptyCardCounts(): ProjectCardCounts {
+  return { total: 0, aberto: 0, em_execucao: 0, feito: 0, validado: 0 };
+}
+
+export function mapProject(
+  row: ProjectRow,
+  cards: ProjectCardCounts = emptyCardCounts(),
+): Project {
+  return {
+    id: row.id,
+    name: row.name,
+    id_prefix: row.idPrefix,
+    repo_url: row.repoUrl,
+    next_number: row.nextNumber,
+    cards,
+    created_at: iso(row.createdAt),
   };
 }
 
@@ -241,6 +264,7 @@ export function usageFromUnknown(raw: unknown): Usage | null {
     cost_usd: num("cost_usd") ?? num("costUsd"),
     duration_ms: num("duration_ms") ?? num("durationMs"),
     turns: num("turns"),
+    estimated: typeof rec.estimated === "boolean" ? rec.estimated : undefined,
   };
 }
 

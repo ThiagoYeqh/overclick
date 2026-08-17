@@ -5,11 +5,14 @@ export const ERROR_CODES = [
   "TOKEN_REVOKED",
   "TOKEN_MISSING",
   "UNAUTHORIZED",
+  /** Token authenticated, but not allowed to change the workspace config. */
+  "PERMISSION_DENIED",
   "INVALID_ARGUMENT",
   "REOPEN_COMMENT_REQUIRED",
   "HARNESS_UNAVAILABLE",
   "TASK_NOT_CLAIMABLE",
   "VALIDATION_HUMAN_ONLY",
+  "INTERNAL",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

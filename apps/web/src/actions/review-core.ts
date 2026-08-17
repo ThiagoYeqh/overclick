@@ -46,6 +46,7 @@ export async function reopenTask({
     .update(task)
     .set({
       status: "aberto",
+      validationTicks: [],
       ...(isStuckReopen
         ? {
             claimedAt: null,

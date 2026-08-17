@@ -7,26 +7,51 @@ import {
 import { invokeTool } from "./tools";
 import type { AuthContext, McpDatabase } from "./types";
 
+// The first sentence disambiguates the two products: field tests burned
+// sessions with agents registering activities in Overclock instead of here.
+export const SERVER_INSTRUCTIONS = [
+  "OverClick is the task board where agents claim and deliver cards (not Overclock the IDE); registering activities means task_create here.",
+  "",
+  "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, model, session_id) and returns the briefing, and when the work is done you call task_deliver with summary, evidence, branch and usage. Without exact usage numbers, estimate and set estimated: true.",
+  "Missions group cards: mission_create returns the id that task_create accepts. Every task_id argument accepts the card uuid or the workspace short id (for example AGB-5).",
+  "Cards live in projects: project_list shows the projects of the workspace and project_create starts one. task_create takes the project uuid or its card prefix (for example AGB).",
+].join("\n");
+
 const DESCRIPTIONS: Record<McpToolName, string> = {
+  project_list:
+    "Lists the workspace projects with card prefix, repo url and card counts by status. Start here on a fresh board: task_create needs a project.",
+  project_create:
+    "Creates a project (name, optional repo_url, optional id_prefix). The card prefix is derived from the name when omitted and is unique per workspace.",
   mission_list: "Lista as missões do workspace e o contexto de cada uma.",
   mission_get:
     "Devolve a missão completa (objetivo/contexto) para injetar no prompt.",
+  mission_create:
+    "Cria uma missão no workspace (title, objective/context em markdown, status). Use o id retornado em task_create.mission.",
   task_list:
-    "Fila de cards do workspace. Filtros: projeto, status, prioridade, awaiting_review_by.",
+    "Fila de cards do workspace. Filtros: projeto, missão, status, prioridade, awaiting_review_by.",
   task_get:
     "Card autocontido: contrato + harness + missão + convenção de branch (markdown).",
   task_create:
-    "Cria um card. Workspace vem do token. Missão declarada pelo caller. mode solo|team.",
+    "Cria um card. Workspace vem do token. mission é o id de uma missão existente (mission_create / mission_list); omitido → card solto. mode solo|team.",
   task_claim:
     "Pega o card (status → em execução), cria ExecutionAttempt e devolve o briefing.",
-  task_update: "Registra progresso, comentário ou marca revisado (revisor agente).",
+  task_update:
+    "Registra progresso, comentário, marca revisado, reclassifica o harness ou reporta/corrige usage do card (inclusive depois do deliver).",
   task_deliver:
-    "Entrega o resultado: resumo, evidências, artefatos, usage. Status → feito.",
+    "Entrega o resultado: resumo, evidências, artefatos, usage. usage é OBRIGATÓRIO: sem números exatos, ESTIME tokens, turns e custo e marque estimated: true — o card rotula como estimativa. A duração é medida pelo servidor do claim ao deliver. how_to_verify (URL ou comando) abre o painel de validação leiga. Status → feito.",
+  task_delete:
+    "Hard delete: remove o card com attempts, handoffs e subtasks em cascata. Irreversível.",
   branch_register: "Grava a branch criada no card.",
   harness_recommend:
     "Lookup da política do cardápio: tipo → CLI · modelo · effort.",
   harness_list:
     "Política inteira do workspace (tipo → CLI · modelo · effort) e os executores configurados.",
+  insights_query:
+    "Cost, tokens and time over the workspace, grouped by project, mission, model or card, with an optional period, plus the reopened rate per model. Same numbers the Insights page shows: estimated and unreported usage come back counted, never silently summed.",
+  executors_update:
+    "Adds or removes CLIs and models in the workspace executor config, in the same shape the Settings grid saves. Adding models turns the CLI on unless enabled:false says otherwise; remove:true drops the whole CLI. Needs a token with the manage flag.",
+  harness_set:
+    "Writes one policy line (activity type to cli, model, effort), validated against the configured executors and stamped with who changed it. Needs a token with the manage flag; a plain worker token gets PERMISSION_DENIED.",
 };
 
 function inputSchemaFor(name: McpToolName) {
@@ -39,7 +64,10 @@ export function createOverclickMcpServer(opts: {
   db: McpDatabase;
   ctx: AuthContext;
 }): McpServer {
-  const server = new McpServer({ name: "overclick", version: "0.1.0" });
+  const server = new McpServer(
+    { name: "overclick", version: "0.1.5" },
+    { instructions: SERVER_INSTRUCTIONS },
+  );
 
   for (const name of MCP_TOOL_NAMES) {
     server.registerTool(

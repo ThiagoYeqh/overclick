@@ -5,7 +5,10 @@ Takes about 10 minutes.
 
 ## 0. Requirements
 
-- Docker + Docker Compose (that's it: Postgres ships in the compose file)
+- Docker + Docker Compose (that's it: Postgres ships in the compose file).
+  No Docker yet? macOS: `brew install --cask docker && open -a Docker` (or OrbStack);
+  Linux: your distro's `docker` + `docker-compose-plugin` packages;
+  Windows: Docker Desktop with WSL2.
 - An MCP-capable coding agent on your machine: Claude Code, Codex CLI, Gemini CLI,
   [Overclock](https://overclock.sh), or any MCP client
 
@@ -34,15 +37,41 @@ Postgres. No verification e-mail, no marketing questions: it's just a login.
    branches become `agb-1-fix-login`.
 2. **Executors**: check the CLIs/models your team actually has. This feeds the harness
    policy: the board only ever recommends models you own.
-3. **Connect your agent**: generate an MCP token (shown once: store it safely) and copy
-   the ready-made command for your CLI. The indicator lights up on the first call.
+3. **Connect your agent**: two paths, both ending with the agent connected over MCP.
 
-For Claude Code, the command looks like:
+### Pairing code (recommended, the token never touches the chat)
+
+Generate a one-time 6-digit pairing code in the wizard (or later in Settings › Tokens)
+and read it to your agent, or hand it the ready-made exchange command. The agent trades
+the code for the real token on the public pairing endpoint:
+
+```bash
+curl -sX POST http://localhost:3000/api/pair \
+  -H 'Content-Type: application/json' -d '{"code":"<6 digits>"}'
+```
+
+The response carries the bearer token; the agent stores it and connects to `/mcp` with
+`Authorization: Bearer <token>`. The code works once and expires in 10 minutes, so the
+secret never appears in a conversation, a livestream, or a chat log. The indicator in
+the wizard lights up when the code is exchanged.
+
+Tell your agent something like:
+
+> pair with my OverClick board at localhost:3000 with code 483920, store the token in
+> your MCP config, and never print it
+
+### Copy command (classic)
+
+Generate an MCP token (shown once: store it safely) and copy the ready-made command for
+your CLI. For Claude Code it looks like:
 
 ```bash
 claude mcp add --transport http overclick http://localhost:3000/mcp \
   --header "Authorization: Bearer <your-token>"
 ```
+
+Prefer this path only when you are pasting into your own terminal, not into an agent
+conversation that may be logged or streamed.
 
 For Codex CLI, use the token environment variable flow:
 
@@ -86,7 +115,8 @@ when creating the card: it's the contract). Then:
 - **Executors**: add/remove CLIs and models.
 - **Harness policy**: the activity-type table: which CLI/model/effort runs bugs,
   features, RFCs, mechanical chores. Agents read it via the `harness_list` tool.
-- **MCP tokens**: one per agent/machine, revocable, last-use tracked.
+- **MCP tokens**: one per agent/machine, revocable, last-use tracked. The pairing-code
+  button lives here too: pair a new agent without the token ever entering a chat.
 
 ## Troubleshooting
 

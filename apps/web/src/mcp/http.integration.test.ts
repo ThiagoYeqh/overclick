@@ -77,4 +77,32 @@ describe("HTTP /mcp auth", () => {
     };
     expect(json.result?.serverInfo?.name).toBe("overclick");
   });
+
+  it("ships instructions that open with the board identity", async () => {
+    world = await createTestWorld();
+    const response = await handleMcpRequest(
+      new Request("http://board.local/mcp", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${world.secret}`,
+          Accept: "application/json, text/event-stream",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(initializeBody()),
+      }),
+      { db: world.db },
+    );
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      result?: { instructions?: string };
+    };
+    const instructions = json.result?.instructions ?? "";
+    // A fresh agent must learn, before any tool call, where it is and what
+    // registering an activity means.
+    expect(
+      instructions.startsWith(
+        "OverClick is the task board where agents claim and deliver cards (not Overclock the IDE); registering activities means task_create here.",
+      ),
+    ).toBe(true);
+  });
 });

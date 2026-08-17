@@ -16,6 +16,20 @@ describe("MCP bearer auth", () => {
     if (!result.ok) return;
     expect(result.ctx.workspaceId).toBe(world.workspaceId);
     expect(result.ctx.tokenId).toBe(world.tokenId);
+    // A plain worker token cannot write the workspace config.
+    expect(result.ctx.canManage).toBe(false);
+  });
+
+  it("carries the manage flag of a token that has it", async () => {
+    world = await createTestWorld();
+    const result = await authenticateBearer(
+      world.db,
+      `Bearer ${world.manageSecret}`,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.ctx.tokenId).toBe(world.manageTokenId);
+    expect(result.ctx.canManage).toBe(true);
   });
 
   it("rejects a missing Authorization header", async () => {

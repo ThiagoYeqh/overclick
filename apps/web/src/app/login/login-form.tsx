@@ -2,8 +2,10 @@
 
 import { useActionState } from "react";
 import { loginAction, type AuthState } from "../../actions/auth";
+import { dict } from "../../lib/i18n";
 
-export function LoginForm() {
+export function LoginForm({ lang }: { lang: string }) {
+  const t = dict(lang);
   const [state, action, pending] = useActionState<AuthState, FormData>(
     loginAction,
     null,
@@ -12,7 +14,7 @@ export function LoginForm() {
   return (
     <form action={action}>
       <label>
-        Email
+        {t.auth.email}
         <input
           name="email"
           type="email"
@@ -22,7 +24,7 @@ export function LoginForm() {
         />
       </label>
       <label>
-        Password
+        {t.auth.password}
         <input
           name="password"
           type="password"
@@ -32,7 +34,7 @@ export function LoginForm() {
       </label>
       {state?.error ? <p className="error">{state.error}</p> : null}
       <button type="submit" disabled={pending}>
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? t.auth.signingIn : t.auth.signIn}
       </button>
     </form>
   );

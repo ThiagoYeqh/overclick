@@ -5,9 +5,11 @@ import { eq } from "drizzle-orm";
 import type { ActionResult } from "../lib/action-result";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
+import { revalidatePath } from "next/cache";
 import {
   CUSTOM_EXECUTOR_ID,
   EXECUTOR_CATALOG,
+  resolveCatalogCli,
   type ExecutorSelection,
 } from "../lib/executors";
 
@@ -21,12 +23,37 @@ export async function saveExecutorsAction(
   const ws = await db().query.workspace.findFirst();
   if (!ws) return { ok: false, error: "Workspace not found." };
 
-  const config: ExecutorConfig[] = EXECUTOR_CATALOG.map((d) => ({
-    id: d.id,
-    label: d.label,
-    enabled: d.id in sel.enabled,
-    models: sel.enabled[d.id] ?? [],
-  }));
+  const config: ExecutorConfig[] = EXECUTOR_CATALOG.map((d) => {
+    const catalog = [
+      ...new Set(
+        (sel.models?.[d.id] ?? d.models).map((m) => m.trim()).filter(Boolean),
+      ),
+    ];
+    return {
+      id: d.id,
+      label: d.label,
+      enabled: d.id in sel.enabled,
+      models: (sel.enabled[d.id] ?? []).filter((m) => catalog.includes(m)),
+      catalog,
+    };
+  });
+  // Executors learned from real connections live outside the built-in
+  // catalog; a save from the grid must not erase them.
+  for (const id of Object.keys(sel.labels ?? {})) {
+    if (EXECUTOR_CATALOG.some((d) => d.id === id) || id === CUSTOM_EXECUTOR_ID) {
+      continue;
+    }
+    const catalog = [
+      ...new Set((sel.models?.[id] ?? []).map((m) => m.trim()).filter(Boolean)),
+    ];
+    config.push({
+      id,
+      label: sel.labels[id] ?? id,
+      enabled: id in sel.enabled,
+      models: (sel.enabled[id] ?? []).filter((m) => catalog.includes(m)),
+      catalog,
+    });
+  }
   config.push({
     id: CUSTOM_EXECUTOR_ID,
     label: sel.customName.trim() || "Custom",
@@ -35,5 +62,65 @@ export async function saveExecutorsAction(
   });
 
   await db().update(workspace).set({ executors: config }).where(eq(workspace.id, ws.id));
+  return { ok: true };
+}
+
+/**
+ * One click on a "seen in real connections" suggestion: adds the cli/model
+ * pair to the executor config (enabling it) and clears the suggestion.
+ */
+export async function addSeenExecutorAction(
+  cli: string,
+  model: string,
+): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
+
+  const ws = await db().query.workspace.findFirst();
+  if (!ws) return { ok: false, error: "Workspace not found." };
+
+  const cleanCli = cli.trim();
+  const cleanModel = model.trim();
+  if (!cleanCli || !cleanModel) {
+    return { ok: false, error: "Suggestion is missing the cli or the model." };
+  }
+
+  const targetId = resolveCatalogCli(cleanCli) ?? cleanCli.toLowerCase();
+  const config: ExecutorConfig[] = ws.executors.map((row) => ({ ...row }));
+  const existing = config.find((row) => row.id === targetId);
+  if (existing) {
+    existing.enabled = true;
+    const catalog = existing.catalog ?? [
+      ...new Set([
+        ...(EXECUTOR_CATALOG.find((d) => d.id === targetId)?.models ?? []),
+        ...existing.models,
+      ]),
+    ];
+    if (!catalog.includes(cleanModel)) catalog.push(cleanModel);
+    existing.catalog = catalog;
+    if (!existing.models.includes(cleanModel)) existing.models.push(cleanModel);
+  } else {
+    config.push({
+      id: targetId,
+      label: EXECUTOR_CATALOG.find((d) => d.id === targetId)?.label ?? cleanCli,
+      enabled: true,
+      models: [cleanModel],
+      catalog: [cleanModel],
+    });
+  }
+
+  const seen = ws.seenExecutors.filter(
+    (s) =>
+      !(
+        s.cli.trim().toLowerCase() === cleanCli.toLowerCase() &&
+        s.model.trim().toLowerCase() === cleanModel.toLowerCase()
+      ),
+  );
+
+  await db()
+    .update(workspace)
+    .set({ executors: config, seenExecutors: seen })
+    .where(eq(workspace.id, ws.id));
+  revalidatePath("/settings");
   return { ok: true };
 }

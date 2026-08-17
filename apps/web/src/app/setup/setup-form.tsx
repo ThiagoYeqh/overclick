@@ -2,8 +2,10 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { signupAction, type AuthState } from "../../actions/auth";
+import { dict } from "../../lib/i18n";
 
-export function SetupForm() {
+export function SetupForm({ lang }: { lang: string }) {
+  const t = dict(lang);
   const [state, action, pending] = useActionState<AuthState, FormData>(
     signupAction,
     null,
@@ -23,7 +25,7 @@ export function SetupForm() {
   return (
     <form action={action}>
       <label>
-        Email
+        {t.auth.email}
         <input
           name="email"
           type="email"
@@ -35,7 +37,7 @@ export function SetupForm() {
         />
       </label>
       <label>
-        Password
+        {t.auth.password}
         <input
           name="password"
           type="password"
@@ -47,7 +49,7 @@ export function SetupForm() {
         />
       </label>
       <label>
-        Confirm password
+        {t.auth.confirmPassword}
         <input
           name="confirm"
           type="password"
@@ -60,7 +62,7 @@ export function SetupForm() {
       </label>
       {state?.error ? <p className="error">{state.error}</p> : null}
       <button type="submit" disabled={!valid || pending}>
-        {pending ? "Creating…" : "Create account and continue"}
+        {pending ? t.auth.creating : t.auth.createAccount}
       </button>
     </form>
   );

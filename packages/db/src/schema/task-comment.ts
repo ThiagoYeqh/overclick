@@ -11,6 +11,9 @@ export const taskComment = pgTable("task_comment", {
     onDelete: "set null",
   }),
   authorAgentRef: text("author_agent_ref"),
+  // Timeline entry type: "comment" is prose; "executor_swap" and
+  // "spawn_failure" are typed events the board renders with their own label.
+  kind: text("kind").notNull().default("comment"),
   body: text("body").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

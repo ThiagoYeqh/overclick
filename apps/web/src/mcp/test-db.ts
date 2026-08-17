@@ -30,6 +30,9 @@ export type TestWorld = {
   revokedSecret: string;
   secondSecret: string;
   secondTokenId: string;
+  /** Token with the manage flag on: the only one allowed to write the config. */
+  manageSecret: string;
+  manageTokenId: string;
 };
 
 const TEST_EXECUTORS: ExecutorConfig[] = [
@@ -123,6 +126,19 @@ export async function createTestWorld(): Promise<TestWorld> {
     .returning({ id: mcpToken.id });
   if (!tok2) throw new Error("failed to insert second token");
 
+  const manageSecret = generateTokenSecret();
+  const [manager] = await db
+    .insert(mcpToken)
+    .values({
+      workspaceId: ws.id,
+      label: "owner-console",
+      hash: hashToken(manageSecret),
+      tokenPrefix: manageSecret.slice(0, 12),
+      canManage: true,
+    })
+    .returning({ id: mcpToken.id });
+  if (!manager) throw new Error("failed to insert manage token");
+
   const [revoked] = await db
     .insert(mcpToken)
     .values({
@@ -147,6 +163,8 @@ export async function createTestWorld(): Promise<TestWorld> {
     revokedSecret,
     secondSecret,
     secondTokenId: tok2.id,
+    manageSecret,
+    manageTokenId: manager.id,
   };
 }
 

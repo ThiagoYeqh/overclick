@@ -1,12 +1,15 @@
 import {
+  boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { UsageSegment } from "../domain/usage";
 import { task } from "./task";
 
 export const executionAttempt = pgTable(
@@ -22,12 +25,27 @@ export const executionAttempt = pgTable(
     .notNull()
     .defaultNow(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
+  /**
+   * Tokens by model, one segment per model that ran. The three flat counters
+   * below stay filled with the sum, so a reader that predates segments still
+   * gets the same totals; the segments are the truth about who spent what.
+   * Null on an attempt that reported no token counter at all.
+   */
+  usageSegments: jsonb("usage_segments").$type<UsageSegment[]>(),
   tokensIn: integer("tokens_in"),
   tokensOut: integer("tokens_out"),
   tokensCache: integer("tokens_cache"),
   costUsd: numeric("cost_usd", { precision: 12, scale: 6 }),
   durationMs: integer("duration_ms"),
+  /**
+   * Duration the SERVER measured from claim to deliver. Telemetry that does
+   * not depend on agent goodwill: it exists even when the agent reports no
+   * usage at all.
+   */
+  serverDurationMs: integer("server_duration_ms"),
   turns: integer("turns"),
+  /** True when the reported usage numbers are the executor's estimate. */
+  usageEstimated: boolean("usage_estimated").notNull().default(false),
   result: text("result"),
   resultNote: text("result_note"),
   },
