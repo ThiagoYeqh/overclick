@@ -15,6 +15,7 @@ export const SERVER_INSTRUCTIONS = [
   "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, model, session_id) and returns the briefing, and when the work is done you call task_deliver with summary, evidence, branch and usage. Without exact usage numbers, estimate and set estimated: true.",
   "Missions group cards: mission_create returns the id that task_create accepts. Every task_id argument accepts the card uuid or the workspace short id (for example AGB-5).",
   "Cards live in projects: project_list shows the projects of the workspace and project_create starts one. task_create takes the project uuid or its card prefix (for example AGB).",
+  "Reorganizing is project_update to rename, project_delete to remove (empty by default), and task_update with project_id to move a card to another project, which restamps its short id and returns the old-to-new mapping.",
 ].join("\n");
 
 const DESCRIPTIONS: Record<McpToolName, string> = {
@@ -22,6 +23,10 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
     "Lists the workspace projects with card prefix, repo url and card counts by status. Start here on a fresh board: task_create needs a project.",
   project_create:
     "Creates a project (name, optional repo_url, optional id_prefix). The card prefix is derived from the name when omitted and is unique per workspace.",
+  project_update:
+    "Renames and reconfigures a project (name, repo_url, id_prefix). The card prefix is only editable while the project has no cards, because every card carries it in its short id: to reorganize a project that holds cards, move them with task_update passing project_id.",
+  project_delete:
+    "Hard delete: removes the project. Only an empty one by default; a project with cards comes back refused with the count that blocks it, and force: true destroys the project with every card in it, and their attempts, handoffs and subtasks. Irreversible.",
   mission_list: "Lista as missões do workspace e o contexto de cada uma.",
   mission_get:
     "Devolve a missão completa (objetivo/contexto) para injetar no prompt.",
@@ -36,7 +41,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   task_claim:
     "Pega o card (status → em execução), cria ExecutionAttempt e devolve o briefing.",
   task_update:
-    "Registra progresso, comentário, marca revisado, reclassifica o harness ou reporta/corrige usage do card (inclusive depois do deliver).",
+    "Registra progresso, comentário, marca revisado, reclassifica o harness ou reporta/corrige usage do card (inclusive depois do deliver). project_id move o card para outro projeto: o short id é re-carimbado com o prefixo do destino, o antigo fica em previous_short_ids e a resposta devolve o de-para; subtasks vão junto e a missão não muda.",
   task_deliver:
     "Entrega o resultado: resumo, evidências, artefatos, usage. usage é OBRIGATÓRIO: sem números exatos, ESTIME tokens, turns e custo e marque estimated: true — o card rotula como estimativa. A duração é medida pelo servidor do claim ao deliver. how_to_verify (URL ou comando) abre o painel de validação leiga. Status → feito.",
   task_delete:
@@ -65,7 +70,7 @@ export function createOverclickMcpServer(opts: {
   ctx: AuthContext;
 }): McpServer {
   const server = new McpServer(
-    { name: "overclick", version: "0.1.9" },
+    { name: "overclick", version: "0.1.10" },
     { instructions: SERVER_INSTRUCTIONS },
   );
 
