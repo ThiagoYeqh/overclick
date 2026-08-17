@@ -1,26 +1,29 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { mission, project, user } from "@agent-board/db";
-import { ALL_PROJECTS, NO_MISSION } from "../lib/board-filter";
+import { NO_MISSION, encodeProjectSelection } from "../lib/board-filter";
 import type { ActionResult } from "../lib/action-result";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
 
 export async function setBoardFilterAction(input: {
-  projectId: string;
+  /** Empty is the All projects shortcut. */
+  projectIds: string[];
   missionId: string | null;
 }): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Not signed in." };
 
-  if (input.projectId !== ALL_PROJECTS) {
-    const [proj] = await db()
+  const projectIds = [...new Set(input.projectIds)];
+  if (projectIds.length > 0) {
+    const found = await db()
       .select({ id: project.id })
       .from(project)
-      .where(eq(project.id, input.projectId))
-      .limit(1);
-    if (!proj) return { ok: false, error: "Project not found." };
+      .where(inArray(project.id, projectIds));
+    if (found.length !== projectIds.length) {
+      return { ok: false, error: "Project not found." };
+    }
   }
 
   if (input.missionId && input.missionId !== NO_MISSION) {
@@ -35,7 +38,8 @@ export async function setBoardFilterAction(input: {
   await db()
     .update(user)
     .set({
-      boardProjectId: input.projectId,
+      // One column holds the whole selection: "all", or the ids joined.
+      boardProjectId: encodeProjectSelection(projectIds),
       boardMissionId: input.missionId,
     })
     .where(eq(user.id, session.userId));

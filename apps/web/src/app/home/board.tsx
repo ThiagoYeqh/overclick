@@ -250,9 +250,26 @@ function CardMetaTail({
   );
 }
 
+/**
+ * The project the card came from, read off its short id. With several
+ * projects on the board the prefix is what says where a card belongs, so it
+ * stops being part of the number and becomes the origin.
+ */
+function CardId({ shortId, showProject }: { shortId: string; showProject: boolean }) {
+  const cut = shortId.indexOf("-");
+  if (!showProject || cut <= 0) return <span className="cid">{shortId}</span>;
+  return (
+    <span className="cid">
+      <span className="cid-prefix">{shortId.slice(0, cut)}</span>
+      {shortId.slice(cut)}
+    </span>
+  );
+}
+
 function Card({
   card,
   onOpen,
+  showProject,
   selectable,
   selected,
   onToggleSelect,
@@ -260,6 +277,8 @@ function Card({
 }: {
   card: BoardCard;
   onOpen: (c: BoardCard) => void;
+  /** True while more than one project shares the board. */
+  showProject: boolean;
   /** True while the board is picking cards to move between missions. */
   selectable: boolean;
   selected: boolean;
@@ -291,7 +310,7 @@ function Card({
             onClick={(event) => event.stopPropagation()}
           />
         ) : null}
-        <span className="cid">{card.shortId}</span>
+        <CardId shortId={card.shortId} showProject={showProject} />
         <span className={`tag ${card.tipo}`}>{card.tipo}</span>
         {card.isExample ? <span className="selo">{t.board.example}</span> : null}
         {card.awaitingMyReview ? (
@@ -781,6 +800,7 @@ export function Board({
   cards,
   lang,
   missions,
+  showProject = false,
   selectable = false,
   selectedIds = [],
   onToggleSelect,
@@ -788,6 +808,8 @@ export function Board({
   cards: BoardCard[];
   lang: string;
   missions: BoardMissionOption[];
+  /** True while more than one project shares the board. */
+  showProject?: boolean;
   selectable?: boolean;
   selectedIds?: string[];
   onToggleSelect?: (id: string) => void;
@@ -824,6 +846,7 @@ export function Board({
                       key={card.id}
                       card={card}
                       onOpen={setOpen}
+                      showProject={showProject}
                       selectable={selectable}
                       selected={picked.has(card.id)}
                       onToggleSelect={onToggleSelect ?? (() => {})}

@@ -7,7 +7,12 @@ export const ALL_PROJECTS = "all";
 export const NO_MISSION = "none";
 
 export type BoardFilter = {
-  projectId: string;
+  /**
+   * The projects on screen. Empty is the All projects shortcut, which is every
+   * project of the workspace: work that spans projects can only be seen
+   * together if the filter takes more than one answer.
+   */
+  projectIds: string[];
   missionId: string | null;
 };
 
@@ -15,20 +20,66 @@ export function defaultProjectId(projects: { id: string }[]): string | null {
   return projects[0]?.id ?? null;
 }
 
+/**
+ * The selection as one string, which is how it persists per user: "all" for
+ * the shortcut, otherwise the project ids in workspace order.
+ */
+export function encodeProjectSelection(projectIds: string[]): string {
+  return projectIds.length === 0 ? ALL_PROJECTS : projectIds.join(",");
+}
+
+/**
+ * The stored selection read back against the projects that still exist. A
+ * selection whose projects all disappeared falls back to the first project,
+ * the same default a user who never chose anything gets.
+ */
+export function resolveProjectSelection(
+  stored: string | null,
+  projects: { id: string }[],
+): string[] {
+  if (stored === ALL_PROJECTS) return [];
+  const known = new Set(projects.map((item) => item.id));
+  const picked = (stored ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => known.has(id));
+  if (picked.length > 0) {
+    return picked.length === projects.length ? [] : picked;
+  }
+  const first = defaultProjectId(projects);
+  return first ? [first] : [];
+}
+
+/**
+ * Checking and unchecking a project, with the two edges the shortcut creates:
+ * the first click out of All narrows to the project clicked, and a selection
+ * that ends up empty or covering everything is All again. An empty board
+ * because nothing is selected would be a state with no way to read it.
+ */
+export function toggleProject(
+  current: string[],
+  projectId: string,
+  projects: { id: string }[],
+): string[] {
+  if (current.length === 0) return [projectId];
+  const next = current.includes(projectId)
+    ? current.filter((id) => id !== projectId)
+    : [...current, projectId];
+  if (next.length === 0 || next.length >= projects.length) return [];
+  // Workspace order, so the chip and the panel read the same way.
+  return projects.filter((item) => next.includes(item.id)).map((item) => item.id);
+}
+
+function inScope(filter: BoardFilter, projectId: string): boolean {
+  return filter.projectIds.length === 0 || filter.projectIds.includes(projectId);
+}
+
 export function resolveBoardFilter(
   stored: { projectId: string | null; missionId: string | null },
   projects: { id: string }[],
   missions: { id: string }[] = [],
 ): BoardFilter {
-  const projectIds = new Set(projects.map((item) => item.id));
-  let projectId: string;
-  if (stored.projectId === ALL_PROJECTS) {
-    projectId = ALL_PROJECTS;
-  } else if (stored.projectId && projectIds.has(stored.projectId)) {
-    projectId = stored.projectId;
-  } else {
-    projectId = defaultProjectId(projects) ?? ALL_PROJECTS;
-  }
+  const projectIds = resolveProjectSelection(stored.projectId, projects);
 
   const missionIds = new Set(missions.map((item) => item.id));
   const missionId =
@@ -38,16 +89,14 @@ export function resolveBoardFilter(
         ? stored.missionId
         : null;
 
-  return { projectId, missionId };
+  return { projectIds, missionId };
 }
 
 export function filterBoardCards<
   T extends { projectId: string; missionId: string | null },
 >(cards: T[], filter: BoardFilter): T[] {
   return cards.filter((card) => {
-    if (filter.projectId !== ALL_PROJECTS && card.projectId !== filter.projectId) {
-      return false;
-    }
+    if (!inScope(filter, card.projectId)) return false;
     if (filter.missionId === NO_MISSION) return card.missionId === null;
     if (filter.missionId && card.missionId !== filter.missionId) {
       return false;
@@ -56,15 +105,49 @@ export function filterBoardCards<
   });
 }
 
-/** How many cards of the current project have no mission at all. */
+/** How many cards of the current selection have no mission at all. */
 export function countLooseCards<
   T extends { projectId: string; missionId: string | null },
 >(cards: T[], filter: BoardFilter): number {
   return cards.filter(
-    (card) =>
-      card.missionId === null &&
-      (filter.projectId === ALL_PROJECTS || card.projectId === filter.projectId),
+    (card) => card.missionId === null && inScope(filter, card.projectId),
   ).length;
+}
+
+/** A project the board filter can offer, with how many cards it would show. */
+export type ProjectCount = { id: string; name: string; count: number };
+
+/**
+ * Every project of the workspace, each with the cards it would put on screen.
+ * Unlike missions, a project with nothing in it stays on the list: the filter
+ * is also how you get to a project, and an empty one is where the next card
+ * goes. The counts answer the mission filter in force, because that is what
+ * picking this project would actually show.
+ */
+export function projectFilterOptions<
+  T extends { projectId: string; missionId: string | null },
+>(
+  cards: T[],
+  projects: { id: string; name: string }[],
+  filter: BoardFilter,
+): ProjectCount[] {
+  const counts = new Map<string, number>();
+  for (const card of cards) {
+    if (filter.missionId === NO_MISSION && card.missionId !== null) continue;
+    if (
+      filter.missionId &&
+      filter.missionId !== NO_MISSION &&
+      card.missionId !== filter.missionId
+    ) {
+      continue;
+    }
+    counts.set(card.projectId, (counts.get(card.projectId) ?? 0) + 1);
+  }
+  return projects.map((proj) => ({
+    id: proj.id,
+    name: proj.name,
+    count: counts.get(proj.id) ?? 0,
+  }));
 }
 
 /** A mission the board filter can offer, with how many cards it holds here. */
@@ -91,9 +174,7 @@ export function missionFilterOptions<
 ): MissionCount[] {
   const counts = new Map<string, number>();
   for (const card of cards) {
-    if (filter.projectId !== ALL_PROJECTS && card.projectId !== filter.projectId) {
-      continue;
-    }
+    if (!inScope(filter, card.projectId)) continue;
     if (!card.missionId) continue;
     counts.set(card.missionId, (counts.get(card.missionId) ?? 0) + 1);
   }

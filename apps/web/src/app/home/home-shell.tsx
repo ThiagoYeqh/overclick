@@ -6,15 +6,17 @@ import { logoutAction } from "../../actions/auth";
 import { setBoardFilterAction } from "../../actions/board-filter";
 import { assignCardsToMissionAction } from "../../actions/missions";
 import {
-  ALL_PROJECTS,
   countLooseCards,
   filterBoardCards,
   missionFilterOptions,
+  projectFilterOptions,
+  toggleProject,
   type BoardFilter,
 } from "../../lib/board-filter";
 import { dict, type Dict } from "../../lib/i18n";
 import { Board, type BoardCard, type BoardMissionOption } from "./board";
 import { MissionFilter } from "./mission-filter";
+import { ProjectFilter } from "./project-filter";
 
 export type BoardProjectOption = { id: string; name: string };
 export type { BoardMissionOption };
@@ -117,11 +119,11 @@ export function HomeShell({
   const [picking, setPicking] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const visible = useMemo(() => filterBoardCards(cards, filter), [cards, filter]);
-  // What the mission filter may offer: the scope is the project on screen, so
-  // the options and their counts follow the project, not the mission.
+  // What the mission filter may offer: the scope is the projects on screen, so
+  // the options and their counts follow the selection, not the mission.
   const scope = useMemo(
-    () => ({ projectId: filter.projectId, missionId: null }),
-    [filter.projectId],
+    () => ({ projectIds: filter.projectIds, missionId: null }),
+    [filter.projectIds],
   );
   const missionOptions = useMemo(
     () => missionFilterOptions(cards, missions, filter),
@@ -134,6 +136,16 @@ export function HomeShell({
   const scopeCount = useMemo(
     () => filterBoardCards(cards, scope).length,
     [cards, scope],
+  );
+  const projectOptions = useMemo(
+    () => projectFilterOptions(cards, projects, filter),
+    [cards, projects, filter],
+  );
+  // The prefix earns its place on the card only when more than one project is
+  // on screen. Under a single project it would repeat itself 44 times.
+  const mixedProjects = useMemo(
+    () => new Set(visible.map((card) => card.projectId)).size > 1,
+    [visible],
   );
   const running = visible.filter((card) => card.status === "em_execucao").length;
   const review = visible.filter((card) => card.status === "feito").length;
@@ -167,20 +179,18 @@ export function HomeShell({
             {workspaceName}
           </span>
           /{" "}
-          <select
-            aria-label={t.board.allProjects}
-            value={filter.projectId}
-            onChange={(event) =>
-              apply({ ...filter, projectId: event.target.value })
+          <ProjectFilter
+            options={projectOptions}
+            value={filter.projectIds}
+            onToggle={(projectId) =>
+              apply({
+                ...filter,
+                projectIds: toggleProject(filter.projectIds, projectId, projects),
+              })
             }
-          >
-            {projects.map((proj) => (
-              <option key={proj.id} value={proj.id}>
-                {proj.name}
-              </option>
-            ))}
-            <option value={ALL_PROJECTS}>{t.board.allProjects}</option>
-          </select>
+            onAll={() => apply({ ...filter, projectIds: [] })}
+            t={t}
+          />
         </div>
         <MissionFilter
           options={missionOptions}
@@ -220,6 +230,7 @@ export function HomeShell({
         cards={visible}
         lang={lang}
         missions={missions}
+        showProject={mixedProjects}
         selectable={picking}
         selectedIds={selected}
         onToggleSelect={toggleSelect}

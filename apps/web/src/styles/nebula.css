@@ -284,6 +284,46 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .filter-chip select:focus { outline: none; }
 
+/* ---------- project filter ----------
+   The crumb keeps its shape: the trigger reads like the select it replaced,
+   the panel below it is where any combination of projects is a valid answer. */
+.nb .project-filter { position: relative; display: inline-flex; }
+.nb .pf-trigger {
+  appearance: none; background: transparent; border: 0; padding: 0 2px 0 0;
+  color: var(--nebula-text-primary); font: inherit;
+  font-weight: var(--nebula-weight-medium); letter-spacing: inherit; cursor: pointer;
+}
+.nb .pf-label {
+  display: block; max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb .pf-panel {
+  position: absolute; z-index: 20; top: calc(100% + 8px); left: 0;
+  min-width: 240px; max-width: min(320px, calc(100vw - 32px));
+  padding: 8px; background: rgba(13, 15, 19, 0.96);
+}
+.nb .pf-list { display: flex; flex-direction: column; max-height: 46vh; overflow-y: auto; }
+.nb .pf-opt {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 8px; background: transparent; border: 0; border-radius: 8px;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11px; letter-spacing: 0.04em; text-align: left; cursor: pointer;
+}
+.nb .pf-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+.nb .pf-opt.on { color: var(--nebula-text-primary); }
+.nb .pf-box {
+  flex: none; width: 14px; height: 14px; border-radius: 4px;
+  border: 1px solid var(--nebula-glass-border);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; line-height: 1;
+}
+.nb .pf-opt.on .pf-box { border-color: rgba(209,217,235,0.5); background: rgba(255,255,255,0.10); }
+.nb .pf-opt-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb .pf-opt-count { flex: none; opacity: 0.65; font-variant-numeric: tabular-nums; }
+
 /* ---------- mission filter ----------
    The chip reads as the select it replaced; the panel it opens is what a
    select could not be: counts beside each mission, a clear that costs one
@@ -395,6 +435,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .card .cid {
   font-family: var(--nebula-font-mono); font-size: 10px;
   color: var(--nebula-text-tertiary); letter-spacing: 0.06em;
+}
+/* With several projects on the board the prefix is the origin, not a number. */
+.nb .card .cid-prefix {
+  color: var(--nebula-text-secondary);
+  font-weight: var(--nebula-weight-medium);
 }
 .nb .selo {
   font-family: var(--nebula-font-mono); font-size: 8.5px; letter-spacing: 0.08em;
@@ -898,6 +943,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   }
   .nb .crumb-ws { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nb .crumb select { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
+  /* the project chip holds its one line; its panel takes the width it needs */
+  .nb .pf-label { max-width: 34vw; }
+  .nb .pf-panel { min-width: min(280px, calc(100vw - 32px)); }
   .nb .filter-chip { max-width: 44vw; }
   .nb .filter-chip select { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; }
   /* the mission chip keeps its one line; its panel takes the width it needs */

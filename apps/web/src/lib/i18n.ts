@@ -44,6 +44,12 @@ const en = {
     openShort: (value: string) => `open ${value}`,
     myReview: "My review",
     allProjects: "All projects",
+    /**
+     * The project filter takes any combination, so the chip stops naming what
+     * it holds once naming it would cost the topbar a second line.
+     */
+    projectFilter: "Filter by project",
+    projectsPicked: (n: number) => `${n} projects`,
     allMissions: "All missions",
     /**
      * The mission filter: only missions holding cards here, each with its
@@ -416,6 +422,8 @@ const ptBR: Dict = {
     cancelSelection: "Cancelar",
     myReview: "Minha revisão",
     allProjects: "Todos os projetos",
+    projectFilter: "Filtrar por projeto",
+    projectsPicked: (n: number) => `${n} projetos`,
     allMissions: "Todas as missões",
     missionFilter: "Filtrar por missão",
     clearMission: "Limpar filtro de missão",
