@@ -1,5 +1,12 @@
+import { asc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { mission, project } from "@agent-board/db";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
+import {
+  NO_MISSION,
+  boardFilterFromQuery,
+  filterBoardCards,
+} from "../../lib/board-filter";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import {
@@ -24,6 +31,29 @@ import {
 import { buildDailyTrend } from "./trend";
 
 export const dynamic = "force-dynamic";
+
+/** A query param that was given once, or not at all. */
+function one(value: string | string[] | undefined): string | null {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
+/**
+ * What this page is counting, in words, when it is not counting everything.
+ * A number that answers a filter has to say which filter, or it reads as the
+ * whole workspace and lies by omission.
+ */
+function describeFilter(
+  filter: { projectIds: string[]; missionId: string | null },
+  t: InsightsCopy,
+): string | null {
+  const parts: string[] = [];
+  if (filter.projectIds.length > 0) {
+    parts.push(t.filterProjects(filter.projectIds.length));
+  }
+  if (filter.missionId === NO_MISSION) parts.push(t.filterNoMission);
+  else if (filter.missionId) parts.push(t.filterMission);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 /** "2 estimated · 1 usage not reported", or the all-clear. Never a silent sum. */
 function honestyNote(totals: UsageTotals, t: InsightsCopy): string {
@@ -251,7 +281,11 @@ function ReopenTable({
   );
 }
 
-export default async function InsightsPage() {
+export default async function InsightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
 
@@ -260,17 +294,40 @@ export default async function InsightsPage() {
 
   // No price table to read when the money layer is off: there is nothing on
   // this page for it to fill.
-  const [attemptRows, reopenRows, prices] = await Promise.all([
+  const [attemptRows, reopenRows, prices, params] = await Promise.all([
     loadInsightAttemptRows(db(), ws.id),
     loadReopenRows(db(), ws.id),
     ws.pricingEnabled ? loadModelPrices(db(), ws.id) : Promise.resolve([]),
+    searchParams,
   ]);
-  const insights = computeInsights(attemptRows, reopenRows, prices);
+
+  // The board hands its filter over in the link. Same filter, same rows, same
+  // aggregation: the total on the topbar and the numbers here are one answer.
+  const [projectRows, missionRows] = await Promise.all([
+    db()
+      .select({ id: project.id })
+      .from(project)
+      .where(eq(project.workspaceId, ws.id))
+      .orderBy(asc(project.createdAt)),
+    db()
+      .select({ id: mission.id })
+      .from(mission)
+      .where(eq(mission.workspaceId, ws.id)),
+  ]);
   const t = insightsCopy(ws.language);
+  const filter = boardFilterFromQuery(
+    { projects: one(params.projects), mission: one(params.mission) },
+    projectRows,
+    missionRows,
+  );
+  const filtered = filterBoardCards(attemptRows, filter);
+  const filterNote = describeFilter(filter, t);
+
+  const insights = computeInsights(filtered, reopenRows, prices);
   const switchedRuns = insights.switchedRuns;
   const pricingEnabled = ws.pricingEnabled;
   const { totals } = insights;
-  const trend = buildDailyTrend(attemptRows, {
+  const trend = buildDailyTrend(filtered, {
     prices,
     pricingEnabled,
     lang: ws.language ?? "en",
@@ -298,6 +355,13 @@ export default async function InsightsPage() {
 
         <h1>{t.title}</h1>
         <p className="page-sub">{t.sub}</p>
+
+        {filterNote ? (
+          <p className="ins-filter">
+            {t.filteredBy} <b>{filterNote}</b>{" "}
+            <a href="/insights">{t.clearFilter}</a>
+          </p>
+        ) : null}
 
         {totals.attempts === 0 ? (
           <div className="ins-empty nebula-glass">{t.empty}</div>

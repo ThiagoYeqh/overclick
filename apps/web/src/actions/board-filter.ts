@@ -3,9 +3,12 @@
 import { eq, inArray } from "drizzle-orm";
 import { mission, project, user } from "@agent-board/db";
 import { NO_MISSION, encodeProjectSelection } from "../lib/board-filter";
+import { EMPTY_BOARD_TOTALS, type BoardTotals } from "../lib/board-totals";
+import { loadBoardTotals } from "../lib/board-totals-query";
 import type { ActionResult } from "../lib/action-result";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
+import { loadModelPrices } from "../lib/prices";
 
 export async function setBoardFilterAction(input: {
   /** Empty is the All projects shortcut. */
@@ -45,4 +48,27 @@ export async function setBoardFilterAction(input: {
     .where(eq(user.id, session.userId));
 
   return { ok: true };
+}
+
+/**
+ * What the current filter consumed, for the topbar total. It runs the same
+ * aggregation the Insights page runs, over the same rows, so the number on the
+ * board is the number Insights reports for that filter and not a second
+ * arithmetic that drifts from it.
+ */
+export async function boardTotalsAction(input: {
+  projectIds: string[];
+  missionId: string | null;
+}): Promise<BoardTotals> {
+  const session = await getSession();
+  if (!session) return EMPTY_BOARD_TOTALS;
+
+  const ws = await db().query.workspace.findFirst();
+  if (!ws) return EMPTY_BOARD_TOTALS;
+
+  const prices = ws.pricingEnabled ? await loadModelPrices(db(), ws.id) : [];
+  return loadBoardTotals(db(), ws.id, ws.pricingEnabled, prices, {
+    projectIds: input.projectIds,
+    missionId: input.missionId,
+  });
 }

@@ -3,7 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { logoutAction } from "../../actions/auth";
-import { setBoardFilterAction } from "../../actions/board-filter";
+import {
+  boardTotalsAction,
+  setBoardFilterAction,
+} from "../../actions/board-filter";
 import { assignCardsToMissionAction } from "../../actions/missions";
 import {
   countLooseCards,
@@ -13,8 +16,10 @@ import {
   toggleProject,
   type BoardFilter,
 } from "../../lib/board-filter";
+import type { BoardTotals } from "../../lib/board-totals";
 import { dict, type Dict } from "../../lib/i18n";
 import { Board, type BoardCard, type BoardMissionOption } from "./board";
+import { BoardTotal } from "./board-total";
 import { MissionFilter } from "./mission-filter";
 import { ProjectFilter } from "./project-filter";
 
@@ -106,6 +111,7 @@ export function HomeShell({
   missions,
   cards,
   initialFilter,
+  initialTotals,
 }: {
   workspaceName: string;
   lang: string;
@@ -113,9 +119,12 @@ export function HomeShell({
   missions: BoardMissionOption[];
   cards: BoardCard[];
   initialFilter: BoardFilter;
+  /** What the initial filter consumed, already aggregated on the server. */
+  initialTotals: BoardTotals;
 }) {
   const t = dict(lang);
   const [filter, setFilter] = useState<BoardFilter>(initialFilter);
+  const [totals, setTotals] = useState<BoardTotals>(initialTotals);
   const [picking, setPicking] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const visible = useMemo(() => filterBoardCards(cards, filter), [cards, filter]);
@@ -153,6 +162,9 @@ export function HomeShell({
   function apply(next: BoardFilter) {
     setFilter(next);
     void setBoardFilterAction(next);
+    // The total is aggregated where Insights aggregates it, so a new filter
+    // asks the server for its numbers instead of adding cards up here.
+    void boardTotalsAction(next).then(setTotals);
   }
 
   function toggleSelect(id: string) {
@@ -224,6 +236,9 @@ export function HomeShell({
             {t.board.logout}
           </button>
         </form>
+        {/* Last in the bar, hard right: the figure that justifies the board
+            is the one thing here you should be able to read at a glance. */}
+        <BoardTotal totals={totals} filter={filter} t={t} />
       </div>
 
       <Board

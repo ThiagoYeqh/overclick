@@ -70,6 +70,34 @@ export function toggleProject(
   return projects.filter((item) => next.includes(item.id)).map((item) => item.id);
 }
 
+/**
+ * The filter as a query string, so a link can hand the same selection to
+ * another page. Insights reads it back with boardFilterFromQuery, which is
+ * what makes the topbar total and the Insights page agree by construction.
+ */
+export function boardFilterToQuery(filter: BoardFilter): string {
+  const params = new URLSearchParams();
+  params.set("projects", encodeProjectSelection(filter.projectIds));
+  if (filter.missionId) params.set("mission", filter.missionId);
+  return params.toString();
+}
+
+/** The other end of boardFilterToQuery. No params at all means everything. */
+export function boardFilterFromQuery(
+  params: { projects?: string | null; mission?: string | null },
+  projects: { id: string }[],
+  missions: { id: string }[] = [],
+): BoardFilter {
+  return resolveBoardFilter(
+    {
+      projectId: params.projects ?? ALL_PROJECTS,
+      missionId: params.mission ?? null,
+    },
+    projects,
+    missions,
+  );
+}
+
 function inScope(filter: BoardFilter, projectId: string): boolean {
   return filter.projectIds.length === 0 || filter.projectIds.includes(projectId);
 }

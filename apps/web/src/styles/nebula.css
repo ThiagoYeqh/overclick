@@ -399,6 +399,44 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .btn-ghost .badge { color: var(--nebula-dust-core); font-weight: 600; }
 .nb .pill { cursor: default; }
 
+/* ---------- the running total ----------
+   The headline figure of the bar, not a caption: it is the number that
+   justifies the board, so it carries the size. Everything beside it stays
+   small, and the whole thing holds one line at any width, cut with an
+   ellipsis while the title keeps the full reading. */
+.nb .board-total {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  margin-left: 4px; padding-left: 14px;
+  border-left: 1px solid var(--nebula-glass-border);
+  text-decoration: none; cursor: pointer;
+  white-space: nowrap; overflow: hidden;
+}
+.nb .board-total .bt-lead {
+  font-family: var(--nebula-font-mono); font-size: 19px; line-height: 1;
+  color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--nebula-glow-text);
+}
+.nb .board-total:hover .bt-lead { color: var(--nebula-dust-core); }
+.nb .board-total .bt-sub {
+  font-family: var(--nebula-font-mono); font-size: 10px;
+  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+/* The estimate, the silence and the model with no price are named beside the
+   figure. None of them is ever folded into it. */
+.nb .board-total .bt-mark {
+  font-family: var(--nebula-font-mono); font-size: 9px;
+  color: var(--nebula-text-secondary);
+  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  padding: 1px 6px;
+}
+.nb .board-total .bt-none {
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  color: var(--nebula-text-secondary);
+}
+
 /* ---------- board ---------- */
 .nb .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--nebula-space-4); }
 /* The phone list is in the markup at every width and waits for its media
@@ -941,6 +979,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .spacer { display: none; }
   .nb .btn-ghost { padding: 6px 10px; font-size: 11px; white-space: nowrap; }
   .nb .agent-status { white-space: nowrap; }
+  /* the total takes another row of the bar, never a second line of its own,
+     and keeps the size that makes it the figure you read first */
+  .nb .board-total {
+    max-width: 60vw; margin-left: auto;
+    padding-left: 10px; gap: 6px;
+  }
+  .nb .board-total .bt-lead { font-size: 16px; }
   .nb .crumb {
     flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px;
     white-space: nowrap; overflow: hidden;

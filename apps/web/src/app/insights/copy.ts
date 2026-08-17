@@ -71,6 +71,15 @@ const en = {
     "No delivered work yet. When an agent claims and delivers a card, its tokens and time land here.",
   emptyReopens:
     "No deliveries to measure. The reopened rate appears after the first review cycle.",
+  /**
+   * The board hands its filter over in the link, so the page says what it is
+   * counting and offers the way back to the whole workspace.
+   */
+  filteredBy: "Counting only",
+  filterProjects: (n: number) => `${n} project${n === 1 ? "" : "s"}`,
+  filterMission: "one mission",
+  filterNoMission: "cards with no mission",
+  clearFilter: "Count everything",
 };
 
 export type InsightsCopy = typeof en;
@@ -142,6 +151,11 @@ const ptBR: InsightsCopy = {
     "Nenhuma entrega ainda. Quando um agente pegar e entregar um card, os tokens e o tempo aparecem aqui.",
   emptyReopens:
     "Nenhuma entrega para medir. A taxa de reabertura aparece depois do primeiro ciclo de revisão.",
+  filteredBy: "Contando apenas",
+  filterProjects: (n: number) => `${n} projeto${n === 1 ? "" : "s"}`,
+  filterMission: "uma missão",
+  filterNoMission: "cards sem missão",
+  clearFilter: "Contar tudo",
 };
 
 export function insightsCopy(lang: string | null | undefined): InsightsCopy {

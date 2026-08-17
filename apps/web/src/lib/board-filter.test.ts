@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_PROJECTS,
   NO_MISSION,
+  boardFilterFromQuery,
+  boardFilterToQuery,
   countLooseCards,
   encodeProjectSelection,
   filterBoardCards,
@@ -129,6 +131,27 @@ describe("several projects at once", () => {
     expect(toggleProject(["p2"], "p2", projects)).toEqual(ALL);
     // So is checking every one of them.
     expect(toggleProject(["p1", "p2"], "p3", projects)).toEqual(ALL);
+  });
+
+  it("hands the selection to another page and reads it back", () => {
+    expect(boardFilterToQuery({ projectIds: ["p1", "p2"], missionId: "m1" })).toBe(
+      "projects=p1%2Cp2&mission=m1",
+    );
+    expect(boardFilterToQuery({ projectIds: ALL, missionId: null })).toBe(
+      "projects=all",
+    );
+
+    expect(
+      boardFilterFromQuery({ projects: "p1,p2", mission: "m1" }, projects, missions),
+    ).toEqual({ projectIds: ["p1", "p2"], missionId: "m1" });
+    // No params at all is the whole workspace, not the first project.
+    expect(boardFilterFromQuery({}, projects, missions)).toEqual({
+      projectIds: ALL,
+      missionId: null,
+    });
+    expect(
+      boardFilterFromQuery({ projects: "all", mission: NO_MISSION }, projects, missions),
+    ).toEqual({ projectIds: ALL, missionId: NO_MISSION });
   });
 
   it("offers every project with what picking it would show", () => {

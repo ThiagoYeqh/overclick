@@ -48,6 +48,20 @@ const en = {
     /** The same, for the card line, where every word costs a column. */
     openShort: (value: string) => `open ${value}`,
     myReview: "My review",
+    /**
+     * The running total of the board: the same numbers Insights reports for
+     * the filter in force, on the one line the topbar has for them.
+     */
+    totalLabel: "What this board consumed",
+    totalNone: "no usage yet",
+    totalEstimated: (n: number) => `${n} estimated`,
+    totalMissing: (n: number) => `${n} usage not reported`,
+    /** The same two, short enough to sit beside the numbers. */
+    totalEstShort: (n: number) => `${n} est.`,
+    totalMissingShort: (n: number) => `${n} no usage`,
+    /** A model with no row in the price table adds nothing and says so. */
+    totalUnpriced: (n: number) => `${n} unpriced model`,
+    totalUnpricedShort: (n: number) => `${n} no price`,
     allProjects: "All projects",
     /**
      * The project filter takes any combination, so the chip stops naming what
@@ -427,6 +441,14 @@ const ptBR: Dict = {
     assigning: "Atribuindo…",
     cancelSelection: "Cancelar",
     myReview: "Minha revisão",
+    totalLabel: "O que este board consumiu",
+    totalNone: "sem uso ainda",
+    totalEstimated: (n: number) => `${n} estimados`,
+    totalMissing: (n: number) => `${n} sem uso reportado`,
+    totalEstShort: (n: number) => `${n} est.`,
+    totalMissingShort: (n: number) => `${n} sem uso`,
+    totalUnpriced: (n: number) => `${n} modelo sem preço`,
+    totalUnpricedShort: (n: number) => `${n} sem preço`,
     allProjects: "Todos os projetos",
     projectFilter: "Filtrar por projeto",
     projectsPicked: (n: number) => `${n} projetos`,
