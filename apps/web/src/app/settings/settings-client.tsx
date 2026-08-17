@@ -26,6 +26,7 @@ import {
   resolveCatalogCli,
 } from "../../lib/executors";
 import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
+import type { Runtime } from "../../lib/runtime";
 import type { UpdaterState } from "../../lib/updates";
 import type { ModelPriceRow, UsageRecipeRow } from "@agent-board/db";
 
@@ -90,9 +91,11 @@ export function SettingsClient({
   lang,
   updateCheckEnabled,
   version,
+  runtime,
   updater,
   enableCommand,
   manualCommand,
+  sourceCommand,
 }: {
   host: string;
   workspaceName: string;
@@ -108,10 +111,13 @@ export function SettingsClient({
   lang: string;
   updateCheckEnabled: boolean;
   version: string;
+  /** Read on the server: whether this instance runs from an image or a checkout. */
+  runtime: Runtime;
   /** Read on the server: whether the optional updater sidecar is alive. */
   updater: UpdaterState;
   enableCommand: string;
   manualCommand: string;
+  sourceCommand: string;
 }) {
   const t = dict(lang);
   const dateLocale = lang === "pt-BR" ? "pt-BR" : "en-US";
@@ -775,8 +781,10 @@ export function SettingsClient({
           </div>
           <UpdatePanel
             version={version}
+            runtime={runtime}
             enableCommand={enableCommand}
             manualCommand={manualCommand}
+            sourceCommand={sourceCommand}
             initialState={updater}
             lang={lang}
           />

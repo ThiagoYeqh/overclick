@@ -113,6 +113,28 @@ when creating the card: it's the contract). Then:
 
 ## 8. Updating
 
+The panel first works out how this instance runs, because the advice is not the same in
+both cases. It looks for the marks a container leaves (`/.dockerenv`, the podman marker,
+the container runtime in the init process's cgroup) and states what it found in the
+version line: *running version 0.1.6, in a container* or *from the source checkout*. Set
+`AGENT_BOARD_RUNTIME=container` or `AGENT_BOARD_RUNTIME=source` to overrule it when your
+setup hides those marks.
+
+### Running from the source checkout
+
+`pnpm dev` or a built node process on the host has no image to pull and no container to
+recreate, so the panel skips the sidecar entirely and gives the update that applies:
+
+```bash
+git pull && pnpm install && pnpm --filter @agent-board/mcp-core build
+```
+
+Then restart the process yourself, the way you started it: stop `pnpm dev` and run it
+again, or restart your service manager unit. If the pull brought new migrations, run
+`pnpm db:migrate` with `DATABASE_URL` set before starting it back up.
+
+### Running in a container
+
 There are two honest paths, and Settings › Updates shows whichever one applies to your
 instance.
 

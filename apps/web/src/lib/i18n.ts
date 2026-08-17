@@ -248,7 +248,14 @@ const en = {
     updateRequested:
       "Update requested. The helper is pulling the new image and recreating the app.",
     runOnServer: "Run this on the server:",
-    runningVersion: (v: string) => `This instance is running version ${v}.`,
+    runningVersion: (v: string, runtime: string) =>
+      `This instance is running version ${v}, ${runtime}.`,
+    runtimeContainer: "in a container",
+    runtimeSource: "from the source checkout",
+    sourceDetected:
+      "This instance runs from the source checkout, not from a container: there is no image to pull and no sidecar to enable. Update it where you started it:",
+    sourceRestart:
+      "Then restart the process yourself: stop the one you started and run it again (pnpm dev, or your service manager unit). If the pull brought new migrations, run pnpm db:migrate with DATABASE_URL set before starting it back up.",
     updaterDetected:
       "Updater sidecar running. The button below pulls the new image and recreates the app.",
     updaterAbsent:
@@ -523,7 +530,14 @@ const ptBR: Dict = {
     updateRequested:
       "Atualização solicitada. O helper está baixando a nova imagem e recriando o app.",
     runOnServer: "Rode isto no servidor:",
-    runningVersion: (v: string) => `Esta instância está na versão ${v}.`,
+    runningVersion: (v: string, runtime: string) =>
+      `Esta instância está na versão ${v}, ${runtime}.`,
+    runtimeContainer: "rodando em container",
+    runtimeSource: "rodando direto do código-fonte",
+    sourceDetected:
+      "Esta instância roda direto do código-fonte, não de um container: não existe imagem para baixar nem sidecar para ligar. Atualize onde você a iniciou:",
+    sourceRestart:
+      "Depois reinicie o processo na mão: pare o que você subiu e suba de novo (pnpm dev, ou a unit do seu gerenciador de serviço). Se o pull trouxe migrações novas, rode pnpm db:migrate com DATABASE_URL definido antes de subir.",
     updaterDetected:
       "Sidecar de atualização rodando. O botão abaixo baixa a nova imagem e recria o app.",
     updaterAbsent:

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { readUpdaterStateAction, triggerUpdateAction } from "../actions/updates";
 import { dict } from "../lib/i18n";
+import type { Runtime } from "../lib/runtime";
 import type { UpdaterState } from "../lib/updates";
 
 /** How often the panel asks the shared volume what the sidecar is doing. */
@@ -20,17 +21,25 @@ const POLL_MS = 2000;
  * Without the sidecar there is nothing on this machine allowed to restart a
  * container, so the panel says so and shows the one command that changes it,
  * with what that command costs.
+ *
+ * None of that exists when the instance runs from the checkout instead of an
+ * image: no container to recreate, no profile to enable. That branch says so
+ * and gives the only update that applies there, a pull and a restart.
  */
 export function UpdatePanel({
   version,
+  runtime,
   enableCommand,
   manualCommand,
+  sourceCommand,
   initialState,
   lang,
 }: {
   version: string;
+  runtime: Runtime;
   enableCommand: string;
   manualCommand: string;
+  sourceCommand: string;
   initialState: UpdaterState;
   lang: string;
 }) {
@@ -103,11 +112,31 @@ export function UpdatePanel({
 
   const phaseLabel = phase ? t.updates.phase[phase] : null;
 
+  const runtimeLabel =
+    runtime === "container" ? t.updates.runtimeContainer : t.updates.runtimeSource;
+
+  const commandRow = (command: string) => (
+    <div className="upd-cmd-row">
+      <code>{command}</code>
+      <button className="btn-ghost" onClick={() => void copy(command)}>
+        {copied === command ? t.detail.copied : t.wizard.copy}
+      </button>
+    </div>
+  );
+
   return (
     <div className="upd-panel">
-      <p className="upd-version">{t.updates.runningVersion(version)}</p>
+      <p className="upd-version">{t.updates.runningVersion(version, runtimeLabel)}</p>
 
-      {state.running ? (
+      {runtime === "source" ? (
+        <>
+          <p className="upd-state">{t.updates.sourceDetected}</p>
+          {commandRow(sourceCommand)}
+          <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
+            {t.updates.sourceRestart}
+          </div>
+        </>
+      ) : state.running ? (
         <>
           <p className="upd-state ok">{t.updates.updaterDetected}</p>
           <div className="save-row">
@@ -131,22 +160,12 @@ export function UpdatePanel({
       ) : (
         <>
           <p className="upd-state">{t.updates.updaterAbsent}</p>
-          <div className="upd-cmd-row">
-            <code>{enableCommand}</code>
-            <button className="btn-ghost" onClick={() => void copy(enableCommand)}>
-              {copied === enableCommand ? t.detail.copied : t.wizard.copy}
-            </button>
-          </div>
+          {commandRow(enableCommand)}
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
             {t.updates.socketNote}
           </div>
           <p className="upd-state">{t.updates.manualPath}</p>
-          <div className="upd-cmd-row">
-            <code>{manualCommand}</code>
-            <button className="btn-ghost" onClick={() => void copy(manualCommand)}>
-              {copied === manualCommand ? t.detail.copied : t.wizard.copy}
-            </button>
-          </div>
+          {commandRow(manualCommand)}
         </>
       )}
       {err ? <p className="werr">{err}</p> : null}

@@ -15,7 +15,9 @@ import { db } from "../../lib/db";
 import { isPairInConfig, selectionFromConfig } from "../../lib/executors";
 import { loadModelPrices } from "../../lib/prices";
 import { loadUsageRecipes } from "../../lib/recipes";
+import { detectRuntime } from "../../lib/runtime";
 import {
+  SOURCE_UPDATE_COMMAND,
   UPDATE_COMMAND,
   UPDATER_ENABLE_COMMAND,
 } from "../../lib/update-commands";
@@ -101,6 +103,10 @@ export default async function SettingsPage() {
   // directory says nothing, only a fresh heartbeat means somebody can pull.
   const updater = await readUpdaterState();
 
+  // Which update advice can possibly apply here: a container can be recreated,
+  // a checkout can only be pulled and restarted.
+  const runtime = detectRuntime();
+
   // Pairs observed on real connections that the config still does not cover.
   const seenSuggestions = ws.seenExecutors
     .filter((s) => !isPairInConfig(ws.executors, s.cli, s.model))
@@ -121,9 +127,11 @@ export default async function SettingsPage() {
         lang={ws.language}
         updateCheckEnabled={ws.updateCheckEnabled}
         version={APP_VERSION}
+        runtime={runtime}
         updater={updater}
         enableCommand={UPDATER_ENABLE_COMMAND}
         manualCommand={UPDATE_COMMAND}
+        sourceCommand={SOURCE_UPDATE_COMMAND}
         seenSuggestions={seenSuggestions}
         cardapio={cardapioRows}
         prices={prices}

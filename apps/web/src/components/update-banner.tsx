@@ -3,19 +3,27 @@
 import { useState, useTransition } from "react";
 import { triggerUpdateAction } from "../actions/updates";
 import { dict } from "../lib/i18n";
-import { UPDATE_COMMAND, UPDATER_ENABLE_COMMAND } from "../lib/update-commands";
+import type { Runtime } from "../lib/runtime";
+import {
+  SOURCE_UPDATE_COMMAND,
+  UPDATE_COMMAND,
+  UPDATER_ENABLE_COMMAND,
+} from "../lib/update-commands";
 
 export function UpdateBanner({
   version,
   changelog,
   url,
   helper,
+  runtime,
   lang,
 }: {
   version: string;
   changelog: string;
   url: string;
   helper: boolean;
+  /** From the checkout there is no image to pull: the commands differ. */
+  runtime: Runtime;
   lang: string;
 }) {
   const t = dict(lang);
@@ -62,16 +70,23 @@ export function UpdateBanner({
       {notes ? <pre className="ub-notes">{notes.slice(0, 800)}</pre> : null}
       {requested ? <p className="wok">{t.updates.updateRequested}</p> : null}
       {showCmd ? (
-        <>
+        runtime === "source" ? (
           <div className="ub-cmd">
-            <span>{t.updates.runOnServer}</span>
-            <code>{UPDATE_COMMAND}</code>
+            <span>{t.updates.sourceDetected}</span>
+            <code>{SOURCE_UPDATE_COMMAND}</code>
           </div>
-          <div className="ub-cmd">
-            <span>{t.updates.updaterAbsent}</span>
-            <code>{UPDATER_ENABLE_COMMAND}</code>
-          </div>
-        </>
+        ) : (
+          <>
+            <div className="ub-cmd">
+              <span>{t.updates.runOnServer}</span>
+              <code>{UPDATE_COMMAND}</code>
+            </div>
+            <div className="ub-cmd">
+              <span>{t.updates.updaterAbsent}</span>
+              <code>{UPDATER_ENABLE_COMMAND}</code>
+            </div>
+          </>
+        )
       ) : null}
       {err ? <p className="werr">{err}</p> : null}
     </div>

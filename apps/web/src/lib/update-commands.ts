@@ -17,3 +17,12 @@ export const UPDATER_ENABLE_COMMAND = "docker compose --profile updater up -d";
  * matches the documented install, a git checkout that builds its own image.
  */
 export const UPDATE_COMMAND = "git pull && docker compose up -d --build";
+
+/**
+ * What updates an instance started from the checkout itself, `next dev` or a
+ * built node process on the host. No container exists to pull or recreate, so
+ * the code is refreshed in place and the process is restarted by whoever
+ * started it.
+ */
+export const SOURCE_UPDATE_COMMAND =
+  "git pull && pnpm install && pnpm --filter @agent-board/mcp-core build";

@@ -23,6 +23,7 @@ import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
 import { loadModelPrices } from "../../lib/prices";
 import { loadUsageRecipes, recipeForCli } from "../../lib/recipes";
+import { detectRuntime } from "../../lib/runtime";
 import { checkForUpdate, readUpdaterState } from "../../lib/updates";
 import { decodeExecutor, parseComoConfirmo } from "../../mcp/map";
 import type { BoardCard, TranscriptView } from "./board";
@@ -324,6 +325,7 @@ export default async function HomePage() {
           changelog={release.changelog}
           url={release.url}
           helper={updater?.running ?? false}
+          runtime={detectRuntime()}
           lang={ws.language}
         />
       ) : null}
