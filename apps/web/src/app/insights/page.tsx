@@ -23,6 +23,7 @@ import { insightsCopy, type InsightsCopy } from "./copy";
 import { CostTable } from "./cost-table";
 import {
   fmtCostUsd,
+  fmtCostUsdOrNone,
   fmtDurationMs,
   fmtElapsedMs,
   fmtRate,
@@ -183,9 +184,40 @@ function GroupTable({
                       {name}
                     </span>
                   </td>
+                  {/* A row the board could not price says so. A zero here
+                      would read as free work and shrink every comparison it
+                      takes part in. */}
                   {pricingEnabled ? (
                     <td className="num">
-                      <b>{fmtCostUsd(row.costUsd)}</b>
+                      {row.costUsd != null ? (
+                        <>
+                          <b>{fmtCostUsd(row.costUsd)}</b>
+                          {row.unpricedTokens > 0 ? (
+                            <span
+                              className="ins-mark"
+                              title={t.noPriceTitle(fmtTokens(row.unpricedTokens))}
+                            >
+                              ⌀
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span
+                          className="ins-dim"
+                          title={
+                            row.unpricedTokens > 0
+                              ? t.noPriceTitle(fmtTokens(row.unpricedTokens))
+                              : undefined
+                          }
+                        >
+                          {/* No price and nothing reported are two different
+                              silences, and only one of them is somebody's
+                              missing row in Settings. */}
+                          {row.unpricedTokens > 0
+                            ? t.costNoPrice
+                            : t.costNotReported}
+                        </span>
+                      )}
                     </td>
                   ) : null}
                   <td className="num">
@@ -392,8 +424,23 @@ export default async function InsightsPage({
               {pricingEnabled ? (
                 <div className="ins-tile nebula-glass">
                   <div className="ins-lbl">{t.totalCost}</div>
-                  <div className="ins-num">{fmtCostUsd(totals.costUsd)}</div>
+                  {/* Nothing priced means no figure, not a figure of zero. */}
+                  <div className="ins-num">
+                    {fmtCostUsdOrNone(
+                      totals.costUsd,
+                      totals.unpricedTokens > 0
+                        ? t.costNoPrice
+                        : t.costNotReported,
+                    )}
+                  </div>
                   <div className="ins-note">{sourceNote(totals, t)}</div>
+                  {/* What the total leaves out, said in the unit it can be
+                      said in: tokens the price table cannot turn into money. */}
+                  {totals.unpricedTokens > 0 ? (
+                    <div className="ins-note">
+                      {t.unpricedTokensNote(fmtTokens(totals.unpricedTokens))}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               <div className="ins-tile nebula-glass">

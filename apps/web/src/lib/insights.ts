@@ -159,8 +159,13 @@ export function costSourceNote(totals: UsageTotals): string {
 }
 
 export type UsageTotals = {
-  /** Sum of the costs the board could establish. Unknown costs add zero. */
-  costUsd: number;
+  /**
+   * Sum of the costs the board could establish, or null when it could not
+   * establish a single one. Never a zero standing in for an unknown: a model
+   * nobody priced would read as free work and quietly shrink every total it
+   * lands in.
+   */
+  costUsd: number | null;
   /** Attempts whose cost the board computed from the price table. */
   costComputed: number;
   /** Attempts that contributed the cost figure the agent sent. */
@@ -169,6 +174,12 @@ export type UsageTotals = {
   costEstimated: number;
   /** Attempts with tokens the board could not price: no row for the model. */
   costUnpriced: number;
+  /**
+   * Tokens counted apart, spent by models with no price row. They are inside
+   * `tokens`, which is a fact, and outside `costUsd`, which cannot be computed
+   * for them: the pair is how the screen says how much of a total is missing.
+   */
+  unpricedTokens: number;
   /** tokens_in + tokens_out + tokens_cache across attempts that reported them. */
   tokens: number;
   /**
@@ -206,6 +217,13 @@ export type GroupInsight = UsageTotals & {
   sharedAttempts?: number;
 };
 
+/** A group while it is being summed, before its cost is sealed. */
+type RunningGroup = RunningTotals & {
+  key: string;
+  label: string | null;
+  sharedAttempts?: number;
+};
+
 export type ModelReopenInsight = {
   /** null when the attempt never reported a model. */
   model: string | null;
@@ -226,6 +244,12 @@ export type CardInsight = {
   costUsd: number | null;
   /** Where that figure came from, "mixed" when the attempts disagree. */
   costSource: CostSource | "mixed" | null;
+  /**
+   * Tokens on this card spent by a model with no price row. Non-zero means the
+   * cost beside it is short by whatever those tokens were worth, which is why
+   * the table says "no price" instead of showing a total that looks complete.
+   */
+  unpricedTokens: number;
   tokens: number;
   /** Execution time the agents reported on this card. */
   durationMs: number;
@@ -254,13 +278,20 @@ export type Insights = {
 const NO_MISSION = "__none__";
 const NO_MODEL = "__unknown__";
 
-function emptyTotals(): UsageTotals {
+/**
+ * Totals while they are being summed. The running cost is a number here and
+ * only becomes null at the end, when it turns out nothing fed it.
+ */
+type RunningTotals = Omit<UsageTotals, "costUsd"> & { costUsd: number };
+
+function emptyTotals(): RunningTotals {
   return {
     costUsd: 0,
     costComputed: 0,
     costReported: 0,
     costEstimated: 0,
     costUnpriced: 0,
+    unpricedTokens: 0,
     tokens: 0,
     durationMs: 0,
     elapsedMs: 0,
@@ -357,7 +388,7 @@ function segmentCost(
 }
 
 function addAttempt(
-  totals: UsageTotals,
+  totals: RunningTotals,
   a: InsightAttemptRow,
   cost: { costUsd: number | null; source: CostSource | null },
   priced: boolean,
@@ -369,7 +400,10 @@ function addAttempt(
   if (cost.source === "computed") totals.costComputed += 1;
   if (cost.source === "reported") totals.costReported += 1;
   if (cost.source === "estimated") totals.costEstimated += 1;
-  if (attemptTokens(a) > 0 && !priced) totals.costUnpriced += 1;
+  if (attemptTokens(a) > 0 && !priced) {
+    totals.costUnpriced += 1;
+    totals.unpricedTokens += attemptTokens(a);
+  }
   if (!hasReportedUsage(a)) totals.missing += 1;
   else if (a.usageEstimated) totals.estimated += 1;
 }
@@ -380,7 +414,7 @@ function addAttempt(
  * they land on every model that ran in it.
  */
 function addSegment(
-  totals: GroupInsight,
+  totals: RunningGroup,
   a: InsightAttemptRow,
   segment: UsageSegment,
   cost: ResolvedCost,
@@ -395,15 +429,35 @@ function addSegment(
   if (cost.source === "computed") totals.costComputed += 1;
   if (cost.source === "reported") totals.costReported += 1;
   if (cost.source === "estimated") totals.costEstimated += 1;
-  if (tokens > 0 && !priced) totals.costUnpriced += 1;
+  if (tokens > 0 && !priced) {
+    totals.costUnpriced += 1;
+    totals.unpricedTokens += tokens;
+  }
   if (!hasReportedUsage(a)) totals.missing += 1;
   else if (a.usageEstimated) totals.estimated += 1;
   if (shared) totals.sharedAttempts = (totals.sharedAttempts ?? 0) + 1;
 }
 
+/**
+ * Closes a running total. A sum nothing ever fed is not zero dollars, it is no
+ * answer, and it says so: with the money layer on and an unpriced model in the
+ * rows, a zero would be read as free work.
+ */
+function sealTotals<T extends RunningTotals>(
+  totals: T,
+): Omit<T, "costUsd"> & { costUsd: number | null } {
+  const established =
+    totals.costComputed + totals.costReported + totals.costEstimated;
+  return { ...totals, costUsd: established > 0 ? totals.costUsd : null };
+}
+
+/** Groups sort by what they cost; a group with no figure sorts below a real $0. */
 function sortGroups(groups: GroupInsight[]): GroupInsight[] {
   return groups.sort(
-    (a, b) => b.costUsd - a.costUsd || b.tokens - a.tokens || b.attempts - a.attempts,
+    (a, b) =>
+      (b.costUsd ?? -1) - (a.costUsd ?? -1) ||
+      b.tokens - a.tokens ||
+      b.attempts - a.attempts,
   );
 }
 
@@ -423,19 +477,23 @@ export function computeInsights(
 
   const totals = emptyTotals();
   let switchedRuns = 0;
-  const byProject = new Map<string, GroupInsight>();
-  const byMission = new Map<string, GroupInsight>();
-  const byModel = new Map<string, GroupInsight>();
+  const byProject = new Map<string, RunningGroup>();
+  const byMission = new Map<string, RunningGroup>();
+  const byModel = new Map<string, RunningGroup>();
   const byCard = new Map<
     string,
-    CardInsight & { hasCost: boolean; sources: (CostSource | null)[] }
+    Omit<CardInsight, "costUsd"> & {
+      costUsd: number;
+      hasCost: boolean;
+      sources: (CostSource | null)[];
+    }
   >();
 
   const group = (
-    map: Map<string, GroupInsight>,
+    map: Map<string, RunningGroup>,
     key: string,
     label: string | null,
-  ): GroupInsight => {
+  ): RunningGroup => {
     let entry = map.get(key);
     if (!entry) {
       entry = { key, label, ...emptyTotals() };
@@ -480,8 +538,9 @@ export function computeInsights(
         projectName: a.projectName,
         missionTitle: a.missionTitle,
         models: [],
-        costUsd: null,
+        costUsd: 0,
         costSource: null,
+        unpricedTokens: 0,
         tokens: 0,
         durationMs: 0,
         elapsedMs: 0,
@@ -497,6 +556,14 @@ export function computeInsights(
     card.tokens += attemptTokens(a);
     card.durationMs += executionOnlyMs(a);
     card.elapsedMs += elapsedOnlyMs(a);
+    // Tokens this card spent on a model nobody priced. Counted apart from the
+    // dollars beside them, never folded in at zero.
+    for (const segment of segments) {
+      const spent = segmentTotalTokens(segment);
+      if (spent > 0 && findModelPrice(prices, segment.model) == null) {
+        card.unpricedTokens += spent;
+      }
+    }
     // Every model the card ran, in the order it ran them: the footer reads
     // "sonnet-5 to opus-5" off this list.
     for (const segment of segments) {
@@ -545,7 +612,7 @@ export function computeInsights(
     .map((e) => ({ ...e, rate: e.deliveries > 0 ? e.reopened / e.deliveries : 0 }))
     .sort((a, b) => b.rate - a.rate || b.deliveries - a.deliveries);
 
-  const perCard = [...byCard.values()]
+  const perCard: CardInsight[] = [...byCard.values()]
     .map(({ hasCost, sources, ...card }) => ({
       ...card,
       costUsd: hasCost ? card.costUsd : null,
@@ -553,12 +620,15 @@ export function computeInsights(
     }))
     .sort((a, b) => (b.costUsd ?? -1) - (a.costUsd ?? -1) || b.tokens - a.tokens);
 
+  const seal = (map: Map<string, RunningGroup>): GroupInsight[] =>
+    sortGroups([...map.values()].map(sealTotals));
+
   return {
-    totals,
+    totals: sealTotals(totals),
     switchedRuns,
-    byProject: sortGroups([...byProject.values()]),
-    byMission: sortGroups([...byMission.values()]),
-    byModel: sortGroups([...byModel.values()]),
+    byProject: seal(byProject),
+    byMission: seal(byMission),
+    byModel: seal(byModel),
     reopensByModel,
     perCard,
   };

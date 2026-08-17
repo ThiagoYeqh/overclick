@@ -90,6 +90,7 @@ export function SettingsClient({
   prices,
   pricingEnabled,
   unpricedModels,
+  unpricedRanModels,
   recipes,
   tokens,
   lang,
@@ -110,7 +111,13 @@ export function SettingsClient({
   cardapio: CardapioRow[];
   prices: ModelPriceRow[];
   pricingEnabled: boolean;
+  /** Every model this board knows of, configured or seen, with no price row. */
   unpricedModels: string[];
+  /**
+   * The subset that already ran cards here. Those are the ones costing money
+   * the board cannot count, so they are flagged instead of merely listed.
+   */
+  unpricedRanModels: string[];
   recipes: UsageRecipeRow[];
   tokens: TokenRow[];
   lang: string;
@@ -275,25 +282,40 @@ export function SettingsClient({
   const addPriceRow = (model: string) => {
     const label = model.trim();
     if (!label) return;
-    if (priceRows.some((row) => row.label.toLowerCase() === label.toLowerCase())) return;
-    setPriceRows([
-      ...priceRows,
-      {
-        model: label,
-        label,
-        input: "0",
-        output: "0",
-        cache: "0",
-        source: "custom",
-        seededAt: null,
-        updatedBy: null,
-      },
-    ]);
-    setAddedModels((prev) => [...prev, label]);
+    // Functional update: filling every unpriced model at once adds several
+    // rows in one render, and each one has to see the ones before it.
+    setPriceRows((prev) =>
+      prev.some((row) => row.label.toLowerCase() === label.toLowerCase())
+        ? prev
+        : [
+            ...prev,
+            {
+              model: label,
+              label,
+              input: "0",
+              output: "0",
+              cache: "0",
+              source: "custom",
+              seededAt: null,
+              updatedBy: null,
+            },
+          ],
+    );
+    setAddedModels((prev) =>
+      prev.includes(label) ? prev : [...prev, label],
+    );
     setNewModel("");
   };
   const removePriceRow = (i: number) =>
     setPriceRows(priceRows.filter((_, j) => j !== i));
+  /** Models that ran here and are still waiting for a number in this form. */
+  const pendingRanModels = unpricedRanModels.filter(
+    (model) => !addedModels.includes(model),
+  );
+  /** Fills the table with a row per model that ran here with no price. */
+  const addAllRanModels = () => {
+    for (const model of pendingRanModels) addPriceRow(model);
+  };
   const savePrices = () =>
     start(async () => {
       setErr(null); setMsg(null);
@@ -523,6 +545,34 @@ export function SettingsClient({
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
             {pricingOn ? t.settings.pricingOnNote : t.settings.pricingOffNote}
           </div>
+
+          {/* Models that already ran cards here with nothing to price them
+              by. Every run of theirs is spending the board cannot count, so
+              this sits above the table with one click that fills them in. */}
+          {pendingRanModels.length > 0 ? (
+            <div className="seen-sugg price-alert">
+              <div className="sec-cap">
+                {t.settings.priceMissingRan(pendingRanModels.length)}
+              </div>
+              <div className="policy-note" style={{ borderTop: 0, paddingTop: 0 }}>
+                {t.settings.priceMissingRanNote}
+              </div>
+              <div className="seen-row">
+                {pendingRanModels.map((model) => (
+                  <span key={model} className="seen-chip">
+                    <b>{model}</b>
+                    <button className="seen-add" onClick={() => addPriceRow(model)}>
+                      {t.settings.add}
+                    </button>
+                  </span>
+                ))}
+                <button className="btn-new" onClick={addAllRanModels}>
+                  {t.settings.priceFillAll}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <table className="policy">
             <thead>
               <tr>
@@ -534,9 +584,26 @@ export function SettingsClient({
               </tr>
             </thead>
             <tbody>
-              {priceRows.map((row, i) => (
+              {priceRows.map((row, i) => {
+                // A row added for a model that ran here still reads as unpriced
+                // while every number in it is zero: the form was filled with
+                // placeholders, not with a price somebody looked up.
+                const ranHere = unpricedRanModels.includes(row.label);
+                const stillEmpty =
+                  ranHere &&
+                  [row.input, row.output, row.cache].every(
+                    (value) => Number(value) === 0,
+                  );
+                return (
                 <tr key={row.model}>
-                  <td className="act">{row.label}</td>
+                  <td className="act">
+                    {row.label}
+                    {stillEmpty ? (
+                      <small className="price-flag">
+                        {t.settings.priceUnpriced}
+                      </small>
+                    ) : null}
+                  </td>
                   {(["input", "output", "cache"] as const).map((field) => (
                     <td key={field}>
                       <input
@@ -566,7 +633,8 @@ export function SettingsClient({
                     ) : null}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
 

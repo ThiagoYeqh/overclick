@@ -36,6 +36,7 @@ export {
   factoryModelPrices,
   findModelPrice,
   mergeCostSources,
+  MODEL_PRICES_FAMILIES_SEEDED_AT,
   MODEL_PRICES_SEEDED_AT,
   normalizeModelKey,
   resolveAttemptCost,

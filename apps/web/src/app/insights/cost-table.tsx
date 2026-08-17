@@ -31,12 +31,21 @@ function valueOf(card: CardInsight, key: SortKey): number {
  */
 function CardFootnote({
   cards,
+  pricingEnabled,
   t,
 }: {
   cards: CardInsight[];
+  /** With money off there is no price to be missing. */
+  pricingEnabled: boolean;
   t: InsightsCopy;
 }) {
   const items: string[] = [];
+  const unpriced = pricingEnabled
+    ? cards.filter((c) => c.unpricedTokens > 0)
+    : [];
+  if (unpriced.length > 0) {
+    items.push(t.footUnpriced(unpriced.map((c) => c.shortId).join(" · ")));
+  }
   const estimated = cards.filter((c) => c.estimated);
   if (estimated.length > 0) {
     items.push(t.footEstimated(estimated.map((c) => c.shortId).join(" · ")));
@@ -174,12 +183,36 @@ export function CostTable({
                       {sourceLabel(card.costSource, t)}
                     </td>
                   ) : null}
+                  {/* Two different silences: a card whose models have no
+                      price row, and a card that reported nothing to price.
+                      Only the second one is "not reported". */}
                   {pricingEnabled ? (
                     <td className="num">
                       {card.costUsd != null ? (
-                        <b>{fmtCostUsd(card.costUsd)}</b>
+                        <>
+                          <b>{fmtCostUsd(card.costUsd)}</b>
+                          {card.unpricedTokens > 0 ? (
+                            <span
+                              className="ins-mark"
+                              title={t.noPriceTitle(fmtTokens(card.unpricedTokens))}
+                            >
+                              ⌀
+                            </span>
+                          ) : null}
+                        </>
                       ) : (
-                        <span className="ins-dim">{t.costNotReported}</span>
+                        <span
+                          className="ins-dim"
+                          title={
+                            card.unpricedTokens > 0
+                              ? t.noPriceTitle(fmtTokens(card.unpricedTokens))
+                              : undefined
+                          }
+                        >
+                          {card.unpricedTokens > 0
+                            ? t.costNoPrice
+                            : t.costNotReported}
+                        </span>
                       )}
                     </td>
                   ) : null}
@@ -214,7 +247,7 @@ export function CostTable({
           </tbody>
         </table>
       </div>
-      <CardFootnote cards={cards} t={t} />
+      <CardFootnote cards={cards} pricingEnabled={pricingEnabled} t={t} />
     </>
   );
 }

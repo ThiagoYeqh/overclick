@@ -40,6 +40,12 @@ const en = {
   noMission: "no mission",
   noModel: "model not reported",
   costNotReported: "not reported",
+  /** Never "US$ 0.00": a model nobody priced did not work for free. */
+  costNoPrice: "no price",
+  noPriceTitle: (tokens: string) =>
+    `${tokens} spent by a model with no price in Settings, counted apart from the cost`,
+  unpricedTokensNote: (tokens: string) =>
+    `${tokens} on models with no price, not in the total above`,
   estimatedTag: "estimated",
   missingTag: "usage not reported",
   colSource: "cost from",
@@ -121,6 +127,11 @@ const ptBR: InsightsCopy = {
   noMission: "sem missão",
   noModel: "modelo não reportado",
   costNotReported: "não reportado",
+  costNoPrice: "sem preço",
+  noPriceTitle: (tokens: string) =>
+    `${tokens} gastos por um modelo sem preço em Configurações, contados à parte do custo`,
+  unpricedTokensNote: (tokens: string) =>
+    `${tokens} em modelos sem preço, fora do total acima`,
   estimatedTag: "estimado",
   missingTag: "uso não reportado",
   colSource: "custo veio de",

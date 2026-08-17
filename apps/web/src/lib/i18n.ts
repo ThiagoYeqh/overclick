@@ -223,6 +223,11 @@ const en = {
     savePrices: "Save prices",
     pricesSaved: "Prices saved. Cost recomputes from the new table.",
     priceSeenModels: "seen on this board with no price",
+    priceMissingRan: (n: number) =>
+      `${n} model${n === 1 ? "" : "s"} ran cards here with no price`,
+    priceMissingRanNote:
+      "Their runs are counted apart everywhere instead of at zero: an unpriced model is not free work. Fill a price in and every total that includes them stops being short.",
+    priceFillAll: "+ Add all of them",
     tabRecipes: "Usage recipes",
     recipesSub:
       "How each CLI measures the run it just did. The recipe for the CLI that claims a card is appended to its briefing, so a transcript format changing is fixed here, once, instead of in every agent's head.",
@@ -591,6 +596,11 @@ const ptBR: Dict = {
     savePrices: "Salvar preços",
     pricesSaved: "Preços salvos. O custo é recalculado pela nova tabela.",
     priceSeenModels: "vistos neste board e ainda sem preço",
+    priceMissingRan: (n: number) =>
+      `${n} modelo${n === 1 ? " executou" : "s executaram"} cards aqui sem preço`,
+    priceMissingRanNote:
+      "As execuções deles são contadas à parte em todo lugar, nunca como zero: modelo sem preço não é trabalho de graça. Preencha o preço e todo total que os inclui deixa de ficar curto.",
+    priceFillAll: "+ Adicionar todos",
     tabRecipes: "Receitas de uso",
     recipesSub:
       "Como cada CLI mede a execução que acabou de fazer. A receita do CLI que pega o card entra no briefing dele, então uma mudança de formato do transcript se conserta aqui, uma vez, em vez de na cabeça de cada agente.",

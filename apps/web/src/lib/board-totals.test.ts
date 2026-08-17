@@ -8,6 +8,7 @@ const totals: UsageTotals = {
   costReported: 1,
   costEstimated: 0,
   costUnpriced: 2,
+  unpricedTokens: 400_000,
   tokens: 1_500_000,
   durationMs: 12_000_000,
   elapsedMs: 300_000,
