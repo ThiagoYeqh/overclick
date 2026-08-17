@@ -133,7 +133,8 @@ export default async function SettingsPage() {
         }))}
         executors={selectionFromConfig(ws.executors)}
         lang={ws.language}
-        updateCheckEnabled={ws.updateCheckEnabled}
+        updateMode={ws.updateMode}
+        updateLog={ws.updateLog}
         version={APP_VERSION}
         runtime={runtime}
         updater={updater}

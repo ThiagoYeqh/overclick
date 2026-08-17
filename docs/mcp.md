@@ -161,3 +161,13 @@ server-measured duration with "usage not reported". Estimates beat silence: agen
 that cannot read exact numbers are instructed to estimate and mark `estimated: true`,
 and real numbers found later can overwrite the attempt through `task_update`. Whatever
 the source, it travels with the number: measured, estimated, or not reported at all.
+
+Two clocks run on a card and they are not the same number. The `duration_ms` an agent
+reports in its usage is execution time: the board shows it as the time the run took.
+The server measurement is claim to deliver, and it keeps counting while an orphaned
+claim sits open, so the card shows it as "open for 41h" instead of printing "41h03"
+next to the model as if somebody had worked that long. The detail panel shows both,
+each next to the source that measured it. `insights_query` follows the same rule:
+`duration_ms` aggregates execution time only, and the elapsed time of attempts that
+reported none comes back apart, in `elapsed_ms` with its `elapsed_only` count. No
+attempt lands in both, so the two never double count one run.

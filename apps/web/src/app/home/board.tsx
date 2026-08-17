@@ -28,6 +28,26 @@ export type TranscriptView = {
   usageCommand: string | null;
 };
 
+/**
+ * The two clocks of a run, already formatted. Execution is what the agent
+ * reported working; elapsed is claim to deliver as the board measured it. The
+ * card line shows one of them, the panel shows both with their sources.
+ */
+export type DurationView = {
+  execution: string | null;
+  elapsed: string | null;
+};
+
+/**
+ * One value of the dense card line, already spelled short. `kind` is what the
+ * layout sorts by when the column runs out of room: tokens are the first to be
+ * elided, because a card that hides its cost or its clock has lost more.
+ */
+export type TelemetrySegment = {
+  kind: "duration" | "tokens" | "cost" | "note";
+  text: string;
+};
+
 export type TimelineEntry = {
   kind: "executor_swap" | "spawn_failure";
   body: string;
@@ -50,14 +70,26 @@ export type BoardCard = {
   projectId: string;
   missionId: string | null;
   mission: string | null;
+  /** Planned harness with its effort, for the detail panel. */
   harness: string | null;
+  /** Plan and reality in one value: "sonnet-5", or "sonnet-5 → fable-5". */
+  harnessChain: string | null;
+  /** What actually ran, set only when it was not what the card planned. */
+  harnessRan: string | null;
+  /** True when this card waits on the review of whoever is looking at it. */
+  awaitingMyReview: boolean;
   devolve: string;
   origem: string;
   executor: string | null;
   elapsed: string | null;
   branch: string | null;
   timeline: TimelineEntry[];
+  /** The whole breakdown in words, for the detail panel. */
   telemetry: string | null;
+  /** The same numbers spelled for the single line the card has. */
+  telemetryLine: TelemetrySegment[];
+  /** Null when neither clock ran on this card. */
+  duration: DurationView | null;
   transcript: TranscriptView | null;
   handoff: string | null;
   history: BoardCardHistoryEvent[];
@@ -129,6 +161,80 @@ function Telemetry({ text }: { text: string }) {
   );
 }
 
+/**
+ * The dense line, one value per span so the layout can pick what to elide when
+ * the column is narrow. Each segment carries its own separator, which keeps
+ * the "·" out of whatever gets truncated.
+ */
+function TelemetryLine({
+  segments,
+  lead,
+}: {
+  segments: TelemetrySegment[];
+  /** True when the harness already occupies the line and owes a separator. */
+  lead: boolean;
+}) {
+  return (
+    <>
+      {segments.map((segment, i) => (
+        <span className={`tel-seg tel-${segment.kind}`} key={i}>
+          {i > 0 || lead ? <span className="tel-sep">·</span> : null}
+          {segment.kind === "tokens" || segment.kind === "note" ? (
+            segment.text
+          ) : (
+            <b>{segment.text}</b>
+          )}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Everything after the harness on the card's one meta line. Open cards owe
+ * the reader who gets the card back, running ones how long they have been at
+ * it, delivered ones the numbers the run cost.
+ */
+function CardMetaTail({
+  card,
+  t,
+  lead,
+}: {
+  card: BoardCard;
+  t: Dict;
+  /** True when something already sits to the left on this line. */
+  lead: boolean;
+}) {
+  const sep = lead ? <span className="tel-sep">·</span> : null;
+  if (card.status === "aberto") {
+    return (
+      <span className="telemetry">
+        {sep}
+        {t.board.returnsTo} <b>{card.devolve}</b>
+      </span>
+    );
+  }
+  if (card.status === "em_execucao") {
+    return card.elapsed ? (
+      <span className="telemetry">
+        {sep}
+        <b>{card.elapsed}</b>
+      </span>
+    ) : null;
+  }
+  if (card.telemetryLine.length > 0) {
+    return <TelemetryLine segments={card.telemetryLine} lead={lead} />;
+  }
+  // Never a bare "no telemetry" on a delivered card: without any numbers the
+  // honest label is that usage went unreported.
+  return (
+    <span className="telemetry">
+      {sep}
+      {t.board.usageNotReported}
+    </span>
+  );
+}
+
 function Card({
   card,
   onOpen,
@@ -140,6 +246,11 @@ function Card({
 }) {
   const exec = card.status === "em_execucao";
   const dim = card.status === "validado";
+  const harness =
+    card.harnessChain ?? (exec ? (card.executor ?? t.board.agent) : null);
+  // Three lines and no more: what the card is, what it says, what it cost.
+  // Mission, branch, executor and the effort of the harness all stay one
+  // click away in the detail panel.
   return (
     <div
       className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}`}
@@ -149,37 +260,17 @@ function Card({
         <span className="cid">{card.shortId}</span>
         <span className={`tag ${card.tipo}`}>{card.tipo}</span>
         {card.isExample ? <span className="selo">{t.board.example}</span> : null}
-        {card.status === "feito" ? (
-          <span className="review-chip">{t.board.awaitingReview}</span>
+        {card.awaitingMyReview ? (
+          <span className="review-chip">{t.board.yourReview}</span>
         ) : null}
       </div>
       <h4>{card.title}</h4>
-      {card.mission ? <div className="mission">{card.mission}</div> : null}
-      {card.harness ? <div className="harness">{card.harness}</div> : null}
-      <div className="card-foot">
-        {card.status === "aberto" ? (
-          <span className="telemetry">
-            {t.board.returnsTo} <b>{card.devolve}</b>
-          </span>
-        ) : null}
-        {card.status === "em_execucao" ? (
-          <>
-            <div className="exec-pulse">
-              <span className="dot-exec" /> {card.executor ?? t.board.agent}
-              {card.elapsed ? ` · ${card.elapsed}` : ""}
-            </div>
-            {card.branch ? <span className="telemetry">{card.branch}</span> : null}
-          </>
-        ) : null}
-        {card.status === "feito" || card.status === "validado" ? (
-          card.telemetry ? (
-            <Telemetry text={card.telemetry} />
-          ) : (
-            // Never a bare "no telemetry" on a delivered card: without any
-            // numbers the honest label is that usage went unreported.
-            <span className="telemetry">{t.board.usageNotReported}</span>
-          )
-        ) : null}
+      <div className={`card-foot${exec ? " exec-pulse" : ""}`}>
+        {exec ? <span className="dot-exec" /> : null}
+        {harness ? <span className="meta-harness">{harness}</span> : null}
+        {/* The separator belongs to what comes after the harness, not to the
+            harness itself: an ellipsis on the model chain would eat it. */}
+        <CardMetaTail card={card} t={t} lead={harness != null} />
       </div>
     </div>
   );
@@ -539,6 +630,14 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
           <div>
             <div className="lbl">{t.detail.harness}</div>
             <p className="d-mono">{card.harness ?? "—"}</p>
+            {/* The board folds plan and reality into one value; here they
+                stay apart, so the effort planned and the model that ran are
+                both readable. */}
+            {card.harnessRan ? (
+              <p className="d-mono d-harness-ran">
+                {t.detail.harnessRan} {card.harnessRan}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="d-sec">
@@ -578,6 +677,24 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
             <div>
               <div className="lbl">{t.detail.telemetry}</div>
               <p className="d-tel">{card.telemetry}</p>
+              {/* The card line has room for one clock, this panel for both:
+                  what the agent worked, and how long the card stayed open. */}
+              {card.duration ? (
+                <div className="d-clocks">
+                  {card.duration.execution ? (
+                    <span className="d-clock">
+                      {t.detail.execution} <b>{card.duration.execution}</b>{" "}
+                      <i>{t.detail.executionSource}</i>
+                    </span>
+                  ) : null}
+                  {card.duration.elapsed ? (
+                    <span className="d-clock">
+                      {t.detail.elapsed} <b>{card.duration.elapsed}</b>{" "}
+                      <i>{t.detail.elapsedSource}</i>
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

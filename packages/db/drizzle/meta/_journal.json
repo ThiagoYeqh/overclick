@@ -120,6 +120,20 @@
       "when": 1786925583587,
       "tag": "0016_thin_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786929412773,
+      "tag": "0017_mysterious_omega_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786929426921,
+      "tag": "0018_grey_dexter_bennett",
+      "breakpoints": true
     }
   ]
 }

@@ -27,7 +27,7 @@ const en = {
     emptyInProgress: "No agent working right now.",
     emptyDone: "This is where the agent's work lands, with evidence and cost.",
     emptyValidated: "What passed your review. Only you stamp this column.",
-    awaitingReview: "awaiting review",
+    yourReview: "your review",
     example: "EXAMPLE",
     returnsTo: "returns to",
     agent: "agent",
@@ -38,6 +38,10 @@ const en = {
     costComputed: "computed",
     costReported: "agent reported",
     costEstimated: "estimated",
+    /** Server-measured claim to deliver: time the card was open, not worked. */
+    openFor: (value: string) => `open for ${value}`,
+    /** The same, for the card line, where every word costs a column. */
+    openShort: (value: string) => `open ${value}`,
     myReview: "My review",
     allProjects: "All projects",
     allMissions: "All missions",
@@ -56,11 +60,17 @@ const en = {
     validationHowToConfirm: "Validation · How to confirm",
     mission: "Mission",
     harness: "Harness",
+    harnessRan: "ran as",
     roles: "Roles",
     origin: "origin",
     executor: "executor",
     branch: "Branch",
     telemetry: "Telemetry",
+    execution: "execution",
+    elapsed: "elapsed",
+    /** Where each clock came from, so neither number travels unlabeled. */
+    executionSource: "reported by the agent",
+    elapsedSource: "claim to deliver, measured by the board",
     timeline: "Execution trace",
     executorSwap: "executor swap",
     spawnFailure: "spawn failure",
@@ -242,9 +252,32 @@ const en = {
     tabUpdates: "Updates",
     checkLabel: "Check GitHub Releases for updates",
     checkNote:
-      "Off by default. When on, the board makes a single request to api.github.com to read the latest release tag and notes. Nothing about you or your instance is ever sent.",
+      "Off is the default and makes no outbound request at all. The other two make a single request to api.github.com to read the latest release tag and notes, on a one-hour interval. Nothing about you or your instance is ever sent.",
     saveCheck: "Save",
-    checkSaved: "Update check saved.",
+    checkSaved: "Update mode saved.",
+    mode: {
+      off: "Off",
+      check: "Check only",
+      auto: "Automatic",
+    } as Record<string, string>,
+    modeNote: {
+      off: "Nothing reaches the network. This instance never learns a newer version exists.",
+      check: "Tells you when a newer release exists and leaves the decision to you.",
+      auto: "Applies the update by itself when a newer release is found, on the same interval, under the same rules as the button. It refuses a dirty tree too, and a container still has to be replaced by hand.",
+    } as Record<string, string>,
+    forceBtn: "Force update",
+    forceNote:
+      "Runs the whole pipeline even when the version already matches, for an instance that is broken or ahead of its tag.",
+    outcome: {
+      updated: "updated",
+      current: "already current",
+      refused: "refused",
+      failed: "failed",
+    } as Record<string, string>,
+    lastRun: (when: string, outcome: string, version: string | null) =>
+      version
+        ? `Last update: ${outcome}, ${when}, for ${version}.`
+        : `Last update: ${outcome}, ${when}.`,
     newVersion: (v: string) => `Version ${v} is available.`,
     releaseNotes: "release notes",
     updateBtn: "Update",
@@ -256,9 +289,40 @@ const en = {
     runtimeContainer: "in a container",
     runtimeSource: "from the source checkout",
     sourceDetected:
-      "This instance runs from the source checkout, not from a container: there is no image to pull and no sidecar to enable. Update it where you started it:",
+      "This instance runs from the source checkout, not from a container: there is no image to pull and no sidecar to enable. The button below runs the update right here, in this process's own repository.",
     sourceRestart:
-      "Then restart the process yourself: stop the one you started and run it again (pnpm dev, or your service manager unit). If the pull brought new migrations, run pnpm db:migrate with DATABASE_URL set before starting it back up.",
+      "Doing it by hand instead? After the pull, restart the process the way you started it, and run pnpm db:migrate with DATABASE_URL set if the pull brought new migrations.",
+    sourceUpdateBtn: "Update now",
+    sourceManualPath: "Prefer to run it yourself? The same update, by hand:",
+    step: {
+      pull: "Pull",
+      install: "Dependencies",
+      build: "Build",
+      migrate: "Migrations",
+      restart: "Restart",
+    } as Record<string, string>,
+    stepStatus: {
+      ok: "done",
+      skipped: "skipped",
+      failed: "failed",
+    } as Record<string, string>,
+    stepNote: {
+      "pull-current": "Nothing new to pull.",
+      "install-unchanged": "No lockfile or manifest changed.",
+      "build-unchanged": "Nothing that ships from dist changed.",
+      "restart-dev": "The dev server reloads itself: the update is live.",
+      "restart-exit":
+        "Exiting now so the supervisor starts this instance again. The page comes back on its own.",
+      "restart-manual":
+        "Restart the process yourself to finish. Set AGENT_BOARD_RESTART_ON_UPDATE=1 to let the board exit for a supervisor instead.",
+    } as Record<string, string>,
+    resultUpdated: "Updated. Every step above ran here.",
+    resultCurrent: "Already up to date. Nothing was changed.",
+    resultFailed: "The update stopped at the step marked failed. Nothing after it ran.",
+    refusedDirty:
+      "This checkout has uncommitted changes, so nothing was pulled: a pull over them would put somebody's work at risk. Commit or stash these, then press Update again.",
+    refusedNoRepo:
+      "This install is not a git checkout, so there is nothing to pull. Update it the way you deployed it.",
     updaterDetected:
       "Updater sidecar running. The button below pulls the new image and recreates the app.",
     updaterAbsent:
@@ -312,7 +376,7 @@ const ptBR: Dict = {
     emptyInProgress: "Nenhum agente trabalhando agora.",
     emptyDone: "É aqui que o trabalho do agente chega, com evidência e custo.",
     emptyValidated: "O que passou pela sua revisão. Só você carimba esta coluna.",
-    awaitingReview: "aguardando revisão",
+    yourReview: "sua revisão",
     example: "EXEMPLO",
     returnsTo: "devolve para",
     agent: "agente",
@@ -323,6 +387,8 @@ const ptBR: Dict = {
     costComputed: "calculado",
     costReported: "reportado pelo agente",
     costEstimated: "estimado",
+    openFor: (value: string) => `aberto por ${value}`,
+    openShort: (value: string) => `aberto ${value}`,
     myReview: "Minha revisão",
     allProjects: "Todos os projetos",
     allMissions: "Todas as missões",
@@ -341,11 +407,16 @@ const ptBR: Dict = {
     validationHowToConfirm: "Validação · Como confirmo",
     mission: "Missão",
     harness: "Harness",
+    harnessRan: "rodou como",
     roles: "Papéis",
     origin: "origem",
     executor: "executor",
     branch: "Branch",
     telemetry: "Telemetria",
+    execution: "execução",
+    elapsed: "decorrido",
+    executionSource: "reportado pelo agente",
+    elapsedSource: "do claim à entrega, medido pelo board",
     timeline: "Rastro de execução",
     executorSwap: "troca de executor",
     spawnFailure: "falha de boot",
@@ -527,9 +598,32 @@ const ptBR: Dict = {
     tabUpdates: "Atualizações",
     checkLabel: "Conferir novas versões no GitHub Releases",
     checkNote:
-      "Desligado por padrão. Quando ligado, o board faz uma única requisição a api.github.com para ler a tag e as notas da última release. Nada sobre você ou sua instância é enviado, nunca.",
+      "Desligado é o padrão e não faz nenhuma requisição para fora. Os outros dois fazem uma única requisição a api.github.com para ler a tag e as notas da última release, a cada uma hora. Nada sobre você ou sua instância é enviado, nunca.",
     saveCheck: "Salvar",
-    checkSaved: "Verificação de atualização salva.",
+    checkSaved: "Modo de atualização salvo.",
+    mode: {
+      off: "Desligado",
+      check: "Só avisar",
+      auto: "Automático",
+    } as Record<string, string>,
+    modeNote: {
+      off: "Nada sai para a rede. Esta instância nunca fica sabendo que existe versão nova.",
+      check: "Avisa quando existe release mais nova e deixa a decisão com você.",
+      auto: "Aplica a atualização sozinho quando encontra release mais nova, no mesmo intervalo, sob as mesmas regras do botão. Também recusa checkout sujo, e container continua sendo trocado na mão.",
+    } as Record<string, string>,
+    forceBtn: "Forçar atualização",
+    forceNote:
+      "Roda a esteira inteira mesmo quando a versão já bate, para uma instância quebrada ou à frente da própria tag.",
+    outcome: {
+      updated: "atualizou",
+      current: "já estava na última",
+      refused: "recusou",
+      failed: "falhou",
+    } as Record<string, string>,
+    lastRun: (when: string, outcome: string, version: string | null) =>
+      version
+        ? `Última atualização: ${outcome}, ${when}, para ${version}.`
+        : `Última atualização: ${outcome}, ${when}.`,
     newVersion: (v: string) => `Versão ${v} disponível.`,
     releaseNotes: "notas da release",
     updateBtn: "Atualizar",
@@ -541,9 +635,41 @@ const ptBR: Dict = {
     runtimeContainer: "rodando em container",
     runtimeSource: "rodando direto do código-fonte",
     sourceDetected:
-      "Esta instância roda direto do código-fonte, não de um container: não existe imagem para baixar nem sidecar para ligar. Atualize onde você a iniciou:",
+      "Esta instância roda direto do código-fonte, não de um container: não existe imagem para baixar nem sidecar para ligar. O botão abaixo roda a atualização aqui mesmo, no repositório deste processo.",
     sourceRestart:
-      "Depois reinicie o processo na mão: pare o que você subiu e suba de novo (pnpm dev, ou a unit do seu gerenciador de serviço). Se o pull trouxe migrações novas, rode pnpm db:migrate com DATABASE_URL definido antes de subir.",
+      "Prefere fazer na mão? Depois do pull, reinicie o processo do jeito que você subiu, e rode pnpm db:migrate com DATABASE_URL definido se o pull trouxe migrações novas.",
+    sourceUpdateBtn: "Atualizar agora",
+    sourceManualPath: "Prefere rodar você mesmo? A mesma atualização, na mão:",
+    step: {
+      pull: "Pull",
+      install: "Dependências",
+      build: "Build",
+      migrate: "Migrações",
+      restart: "Reinício",
+    } as Record<string, string>,
+    stepStatus: {
+      ok: "feito",
+      skipped: "pulado",
+      failed: "falhou",
+    } as Record<string, string>,
+    stepNote: {
+      "pull-current": "Nada novo para baixar.",
+      "install-unchanged": "Nenhum lockfile ou manifest mudou.",
+      "build-unchanged": "Nada do que roda a partir do dist mudou.",
+      "restart-dev": "O servidor de dev recarrega sozinho: a atualização já está no ar.",
+      "restart-exit":
+        "Saindo agora para o supervisor subir esta instância de novo. A página volta sozinha.",
+      "restart-manual":
+        "Reinicie o processo na mão para concluir. Defina AGENT_BOARD_RESTART_ON_UPDATE=1 para o board sair sozinho e deixar um supervisor subir de volta.",
+    } as Record<string, string>,
+    resultUpdated: "Atualizado. Todos os passos acima rodaram aqui.",
+    resultCurrent: "Já está na última versão. Nada foi alterado.",
+    resultFailed:
+      "A atualização parou no passo marcado como falhou. Nada depois dele rodou.",
+    refusedDirty:
+      "Este checkout tem alterações não commitadas, então nada foi baixado: um pull por cima delas colocaria o trabalho de alguém em risco. Commite ou dê stash e aperte Atualizar de novo.",
+    refusedNoRepo:
+      "Esta instalação não é um checkout do git, então não há o que baixar. Atualize do jeito que você fez o deploy.",
     updaterDetected:
       "Sidecar de atualização rodando. O botão abaixo baixa a nova imagem e recria o app.",
     updaterAbsent:

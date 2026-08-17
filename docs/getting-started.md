@@ -117,9 +117,39 @@ when creating the card: it's the contract). Then:
   features, RFCs, mechanical chores. Agents read it via the `harness_list` tool.
 - **MCP tokens**: one per agent/machine, revocable, last-use tracked. The pairing-code
   button lives here too: pair a new agent without the token ever entering a chat.
-- **Updates**: the opt-in release check, and the two ways to actually update. See below.
+- **Updates**: off, check only or automatic, plus the update that applies to how this
+  instance actually runs: a real one-click update on a source checkout, the sidecar or a
+  command in a container. See below.
 
 ## 8. Updating
+
+### The three modes
+
+Settings › Updates offers three states, and the conservative one is the default:
+
+| Mode | What it does |
+|---|---|
+| **Off** (default) | Nothing reaches the network. This instance never learns a newer version exists. |
+| **Check only** | One request an hour to `api.github.com` for the latest release tag and notes. It tells you; you decide. |
+| **Automatic** | The same check, and when it finds a newer release the instance applies the update itself, under exactly the rules the button follows. |
+
+Automatic is not a second, looser update path: it is the same step runner, so it refuses a
+dirty working tree the same way and records the refusal instead of forcing its way through.
+It applies only on a source checkout, because a container is replaced rather than pulled
+into and this process cannot do that to itself; there, automatic degrades to telling you.
+An attempt happens at most once an hour, so a refusal you have not resolved yet does not
+run `git` on every page render.
+
+Whatever ran last leaves a line in the panel: what it did, when, and for which release.
+
+### Force update
+
+A **Force update** button sits next to Update in every mode, including Off. It runs the
+whole pipeline even when the version already matches, which is what you want when an
+instance is broken, half-built, or ahead of the tag it reports. It refuses a dirty tree like
+everything else here.
+
+### How this instance runs
 
 The panel first works out how this instance runs, because the advice is not the same in
 both cases. It looks for the marks a container leaves (`/.dockerenv`, the podman marker,
@@ -131,15 +161,54 @@ setup hides those marks.
 ### Running from the source checkout
 
 `pnpm dev` or a built node process on the host has no image to pull and no container to
-recreate, so the panel skips the sidecar entirely and gives the update that applies:
+recreate. It does not need one: the process already owns the repository and the rights to
+change it, so the Update button runs the update itself, right there, and shows you each
+step and its result.
+
+**One click.** Press Update and the board runs, in its own checkout:
+
+1. `git pull --ff-only`, from the repository root, whatever directory the process started in.
+2. `pnpm install --frozen-lockfile`, only when the pull touched the lockfile or a
+   `package.json`. Otherwise the step says so and is skipped.
+3. `pnpm --filter @agent-board/mcp-core build`, only when that package changed. It is the
+   one the app imports from `dist` instead of source, so a stale build is a real bug.
+4. `pnpm --filter @agent-board/db migrate`, always. The migrator keeps its own journal and
+   applies exactly what is pending, which also repairs an instance that missed one earlier.
+
+Each step is reported as done, skipped or failed, with the tail of what it printed. The run
+stops at the first failure and nothing after it runs.
+
+**What it refuses to do.** Two cases end the run before anything is touched, and the panel
+says which one:
+
+- **A dirty working tree.** Uncommitted changes are somebody's work, and a pull over them is
+  worse than a button that declines. Commit or stash, then press Update again.
+- **Not a git checkout at all.** Nothing to pull; update it the way you deployed it.
+
+The action is behind the same session as everything else in Settings, and it only runs where
+the instance really runs from source. A container has an image and its own path for it.
+
+**The restart, honestly.** What happens to the process afterwards depends on how it was
+started, and the panel tells you which one applies:
+
+- Under `pnpm dev`, the dev server picks the new code up by itself. The panel says the update
+  is live and there is nothing left to do.
+- Under a production node process, the board asks you to restart it. It will not kill a
+  server nothing is watching, because that is an instance that never comes back.
+- Under a production process with a supervisor (systemd, pm2, a compose restart policy), set
+  `AGENT_BOARD_RESTART_ON_UPDATE=1` and the board exits cleanly right after answering the
+  page, so the supervisor starts it again on the new code. This is opt-in precisely because
+  only you know whether something is there to restart it.
+
+**By hand.** The same update stays on screen as a copyable command for anyone who would
+rather type it:
 
 ```bash
 git pull && pnpm install && pnpm --filter @agent-board/mcp-core build
 ```
 
-Then restart the process yourself, the way you started it: stop `pnpm dev` and run it
-again, or restart your service manager unit. If the pull brought new migrations, run
-`pnpm db:migrate` with `DATABASE_URL` set before starting it back up.
+Then restart the process the way you started it, and run `pnpm db:migrate` with
+`DATABASE_URL` set if the pull brought new migrations.
 
 ### Running in a container
 

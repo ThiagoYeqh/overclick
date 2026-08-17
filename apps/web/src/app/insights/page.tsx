@@ -11,9 +11,17 @@ import {
   type UsageTotals,
 } from "../../lib/insights";
 import { loadModelPrices } from "../../lib/prices";
+import { ShareBars, TrendChart } from "./charts";
 import { insightsCopy, type InsightsCopy } from "./copy";
 import { CostTable } from "./cost-table";
-import { fmtCostUsd, fmtDurationMs, fmtRate, fmtTokens } from "./format";
+import {
+  fmtCostUsd,
+  fmtDurationMs,
+  fmtElapsedMs,
+  fmtRate,
+  fmtTokens,
+} from "./format";
+import { buildDailyTrend } from "./trend";
 
 export const dynamic = "force-dynamic";
 
@@ -35,50 +43,157 @@ function sourceNote(totals: UsageTotals, t: InsightsCopy): string {
   return parts.length > 0 ? parts.join(" · ") : t.noCostSource;
 }
 
+/**
+ * The qualifiers a table's rows carry, as one quiet line under it. Markers on
+ * the values point here; every count the old inline badges showed is named in
+ * full, per row, out of the numeric columns.
+ */
+function GroupFootnote({
+  rows,
+  fallbackLabel,
+  pricingEnabled,
+  showUnpriced,
+  t,
+}: {
+  rows: GroupInsight[];
+  fallbackLabel: string;
+  pricingEnabled: boolean;
+  /** Only the by-model table names the models without a price row. */
+  showUnpriced: boolean;
+  t: InsightsCopy;
+}) {
+  const name = (r: GroupInsight) => r.label ?? fallbackLabel;
+  const items: string[] = [];
+  const estimated = rows.filter((r) => r.estimated > 0);
+  if (estimated.length > 0) {
+    items.push(
+      t.footEstimated(
+        estimated.map((r) => `${name(r)} ×${r.estimated}`).join(" · "),
+      ),
+    );
+  }
+  const missing = rows.filter((r) => r.missing > 0);
+  if (missing.length > 0) {
+    items.push(
+      t.footMissing(missing.map((r) => `${name(r)} ×${r.missing}`).join(" · ")),
+    );
+  }
+  const elapsed = rows.filter((r) => r.elapsedOnly > 0);
+  if (elapsed.length > 0) {
+    items.push(
+      t.footElapsed(
+        elapsed
+          .map((r) => `${name(r)} ${t.elapsedTag(fmtElapsedMs(r.elapsedMs))}`)
+          .join(" · "),
+      ),
+    );
+  }
+  if (showUnpriced && pricingEnabled) {
+    const unpriced = rows.filter((r) => r.costUnpriced > 0);
+    if (unpriced.length > 0) {
+      items.push(t.footUnpriced(unpriced.map(name).join(", ")));
+    }
+  }
+  if (items.length === 0) return null;
+  return (
+    <p className="ins-foot">
+      {items.map((item) => (
+        <span key={item} className="ins-foot-item">
+          {item}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function GroupTable({
   rows,
   fallbackLabel,
   t,
   pricingEnabled,
+  showUnpriced = false,
 }: {
   rows: GroupInsight[];
   fallbackLabel: string;
   t: InsightsCopy;
   /** Money is opt-in: with it off the cost column is not there at all. */
   pricingEnabled: boolean;
+  showUnpriced?: boolean;
 }) {
   return (
-    <table className="ins-table">
-      <thead>
-        <tr>
-          <th>{t.colName}</th>
-          {pricingEnabled ? <th className="num">{t.colCost}</th> : null}
-          <th className="num">{t.colTokens}</th>
-          <th className="num">{t.colTime}</th>
-          <th className="num">{t.colAttempts}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.key}>
-            <td>
-              {row.label ?? <span className="ins-dim">{fallbackLabel}</span>}
-              {row.estimated > 0 || row.missing > 0 ? (
-                <span className="ins-flag">{honestyNote(row, t)}</span>
-              ) : null}
-            </td>
-            {pricingEnabled ? (
-              <td className="num">
-                <b>{fmtCostUsd(row.costUsd)}</b>
-              </td>
-            ) : null}
-            <td className="num">{fmtTokens(row.tokens)}</td>
-            <td className="num">{fmtDurationMs(row.durationMs)}</td>
-            <td className="num">{row.attempts}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <div className="ins-scroll">
+        <table className="ins-table">
+          <colgroup>
+            <col />
+            {pricingEnabled ? <col className="ins-col-cost" /> : null}
+            <col className="ins-col-tokens" />
+            <col className="ins-col-time" />
+            <col className="ins-col-attempts" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>{t.colName}</th>
+              {pricingEnabled ? <th className="num">{t.colCost}</th> : null}
+              <th className="num">{t.colTokens}</th>
+              <th className="num">{t.colTime}</th>
+              <th className="num">{t.colAttempts}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const name = row.label ?? fallbackLabel;
+              return (
+                <tr key={row.key}>
+                  <td>
+                    <span
+                      className={`ins-name${row.label ? "" : " ins-dim"}`}
+                      title={name}
+                    >
+                      {name}
+                    </span>
+                  </td>
+                  {pricingEnabled ? (
+                    <td className="num">
+                      <b>{fmtCostUsd(row.costUsd)}</b>
+                    </td>
+                  ) : null}
+                  <td className="num">
+                    {fmtTokens(row.tokens)}
+                    {row.estimated > 0 || row.missing > 0 ? (
+                      <span className="ins-mark" title={honestyNote(row, t)}>
+                        {row.missing > 0 ? "○" : "≈"}
+                      </span>
+                    ) : null}
+                  </td>
+                  {/* Execution time; the elapsed clock a row also carries is a
+                      marker here and a footnote below, never added in. */}
+                  <td className="num">
+                    {fmtDurationMs(row.durationMs)}
+                    {row.elapsedOnly > 0 ? (
+                      <span
+                        className="ins-mark"
+                        title={t.elapsedTag(fmtElapsedMs(row.elapsedMs))}
+                      >
+                        +
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="num">{row.attempts}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <GroupFootnote
+        rows={rows}
+        fallbackLabel={fallbackLabel}
+        pricingEnabled={pricingEnabled}
+        showUnpriced={showUnpriced}
+        t={t}
+      />
+    </>
   );
 }
 
@@ -93,30 +208,46 @@ function ReopenTable({
     return <p className="ins-dim">{t.emptyReopens}</p>;
   }
   return (
-    <table className="ins-table">
-      <thead>
-        <tr>
-          <th>{t.colModel}</th>
-          <th className="num">{t.colDeliveries}</th>
-          <th className="num">{t.colReopened}</th>
-          <th className="num">{t.colRate}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.model ?? "__unknown__"}>
-            <td className="ins-mono">
-              {row.model ?? <span className="ins-dim">{t.noModel}</span>}
-            </td>
-            <td className="num">{row.deliveries}</td>
-            <td className="num">{row.reopened}</td>
-            <td className="num">
-              <b>{fmtRate(row.rate)}</b>
-            </td>
+    <div className="ins-scroll">
+      <table className="ins-table ins-table-slim">
+        <colgroup>
+          <col />
+          <col className="ins-col-deliveries" />
+          <col className="ins-col-deliveries" />
+          <col className="ins-col-rate" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>{t.colModel}</th>
+            <th className="num">{t.colDeliveries}</th>
+            <th className="num">{t.colReopened}</th>
+            <th className="num">{t.colRate}</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const name = row.model ?? t.noModel;
+            return (
+              <tr key={row.model ?? "__unknown__"}>
+                <td>
+                  <span
+                    className={`ins-name ins-mono${row.model ? "" : " ins-dim"}`}
+                    title={name}
+                  >
+                    {name}
+                  </span>
+                </td>
+                <td className="num">{row.deliveries}</td>
+                <td className="num">{row.reopened}</td>
+                <td className="num">
+                  <b>{fmtRate(row.rate)}</b>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -139,6 +270,13 @@ export default async function InsightsPage() {
   const switchedRuns = insights.switchedRuns;
   const pricingEnabled = ws.pricingEnabled;
   const { totals } = insights;
+  const trend = buildDailyTrend(attemptRows, {
+    prices,
+    pricingEnabled,
+    lang: ws.language ?? "en",
+  });
+  const trendFmt = trend.metric === "cost" ? fmtCostUsd : fmtTokens;
+  const unpricedModels = insights.byModel.filter((r) => r.costUnpriced > 0);
 
   return (
     <div className="nb nebula-surface">
@@ -176,6 +314,16 @@ export default async function InsightsPage() {
               <div className="ins-tile nebula-glass">
                 <div className="ins-lbl">{t.totalTime}</div>
                 <div className="ins-num">{fmtDurationMs(totals.durationMs)}</div>
+                {/* Time the cards sat claimed is not time anyone worked, so it
+                    is named apart instead of swelling the number above. */}
+                {totals.elapsedOnly > 0 ? (
+                  <div className="ins-note">
+                    {t.elapsedNote(
+                      fmtElapsedMs(totals.elapsedMs),
+                      totals.elapsedOnly,
+                    )}
+                  </div>
+                ) : null}
               </div>
               {pricingEnabled ? (
                 <div className="ins-tile nebula-glass">
@@ -190,56 +338,107 @@ export default async function InsightsPage() {
               </div>
             </div>
 
+            <div className="ins-charts">
+              <section className="ins-panel nebula-glass">
+                <div className="ins-cap">
+                  <span>
+                    {trend.metric === "cost"
+                      ? t.trendCostTitle
+                      : t.trendTokensTitle}
+                  </span>
+                  <span className="ins-cap-note">
+                    {trend.peak
+                      ? `${t.trendPeak(trendFmt(trend.max), trend.peak.label)} · ${t.trendDays(trend.points.length)}`
+                      : t.trendDays(trend.points.length)}
+                  </span>
+                </div>
+                <TrendChart trend={trend} t={t} />
+              </section>
+              <section className="ins-panel nebula-glass">
+                <div className="ins-cap">
+                  <span>
+                    {pricingEnabled ? t.shareCostTitle : t.shareTokensTitle}
+                  </span>
+                  <span className="ins-cap-note">{t.shareNote}</span>
+                </div>
+                <ShareBars
+                  rows={insights.byModel}
+                  pricingEnabled={pricingEnabled}
+                  t={t}
+                />
+                {/* Runs that switched model split their tokens but not their
+                    clock: say so instead of letting the times look additive. */}
+                {switchedRuns > 0 ? (
+                  <p className="ins-foot">{t.sharedModelsNote(switchedRuns)}</p>
+                ) : null}
+                {pricingEnabled && unpricedModels.length > 0 ? (
+                  <p className="ins-foot">
+                    <span className="ins-foot-item">
+                      {t.footUnpriced(
+                        unpricedModels.map((r) => r.label ?? t.noModel).join(", "),
+                      )}
+                    </span>
+                  </p>
+                ) : null}
+              </section>
+            </div>
+
             <div className="ins-grid">
-              <div className="ins-sec">
-                <div className="sec-cap">{t.byProject}</div>
+              <section className="ins-panel nebula-glass">
+                <div className="ins-cap">
+                  <span>{t.byProject}</span>
+                </div>
                 <GroupTable
                   rows={insights.byProject}
                   fallbackLabel="—"
                   t={t}
                   pricingEnabled={pricingEnabled}
                 />
-              </div>
-              <div className="ins-sec">
-                <div className="sec-cap">{t.byMission}</div>
+              </section>
+              <section className="ins-panel nebula-glass">
+                <div className="ins-cap">
+                  <span>{t.byMission}</span>
+                </div>
                 <GroupTable
                   rows={insights.byMission}
                   fallbackLabel={t.noMission}
                   t={t}
                   pricingEnabled={pricingEnabled}
                 />
-              </div>
-              <div className="ins-sec">
-                <div className="sec-cap">{t.byModel}</div>
-                {/* Runs that switched model split their tokens but not their
-                    clock: say so instead of letting the times look additive. */}
-                {switchedRuns > 0 ? (
-                  <p className="ins-dim">{t.sharedModelsNote(switchedRuns)}</p>
-                ) : null}
+              </section>
+              <section className="ins-panel nebula-glass">
+                <div className="ins-cap">
+                  <span>{t.byModel}</span>
+                </div>
                 <GroupTable
                   rows={insights.byModel}
                   fallbackLabel={t.noModel}
                   t={t}
                   pricingEnabled={pricingEnabled}
+                  showUnpriced
                 />
-              </div>
-              <div className="ins-sec">
-                <div className="sec-cap">{t.reopenedByModel}</div>
+              </section>
+              <section className="ins-panel nebula-glass">
+                <div className="ins-cap">
+                  <span>{t.reopenedByModel}</span>
+                </div>
                 <ReopenTable rows={insights.reopensByModel} t={t} />
-              </div>
+              </section>
             </div>
 
-            <div className="ins-sec">
-              <div className="sec-cap">
-                {pricingEnabled ? t.perCard : t.perCardNoMoney}
+            <section className="ins-panel nebula-glass ins-cards">
+              <div className="ins-cap">
+                <span>{pricingEnabled ? t.perCard : t.perCardNoMoney}</span>
+                {pricingEnabled ? (
+                  <span className="ins-cap-note">{t.pricesNote}</span>
+                ) : null}
               </div>
-              {pricingEnabled ? <p className="ins-dim">{t.pricesNote}</p> : null}
               <CostTable
                 cards={insights.perCard}
                 lang={ws.language}
                 pricingEnabled={pricingEnabled}
               />
-            </div>
+            </section>
           </>
         )}
       </div>

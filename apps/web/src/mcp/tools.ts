@@ -1513,7 +1513,11 @@ async function insightsQuery(
     cost_estimated: pricingEnabled ? row.costEstimated : 0,
     cost_unpriced: pricingEnabled ? row.costUnpriced : 0,
     tokens: row.tokens,
+    // Two clocks, never one: what the agents worked, and how long the cards
+    // that reported nothing simply stayed claimed.
     duration_ms: row.durationMs,
+    elapsed_ms: row.elapsedMs,
+    elapsed_only: row.elapsedOnly,
     attempts: row.attempts,
     estimated: row.estimated,
     missing: row.missing,
@@ -1547,6 +1551,7 @@ async function insightsQuery(
         cost_source: pricingEnabled ? card.costSource : null,
         tokens: card.tokens,
         duration_ms: card.durationMs,
+        elapsed_ms: card.elapsedMs,
         attempts: card.attempts,
         estimated: card.estimated,
         missing: card.missing,

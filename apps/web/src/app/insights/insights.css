@@ -1,10 +1,11 @@
-/* Insights page (AGB-6). Own file so the shared nebula.css stays untouched. */
+/* Insights page. Own file so the shared nebula.css stays untouched. */
 
+/* ---------- totals: the four numbers everything else breaks down from ---------- */
 .nb .ins-tiles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--nebula-space-4);
-  margin-bottom: 10px;
+  margin-bottom: var(--nebula-space-4);
 }
 .nb .ins-tile { padding: 16px 18px; border-radius: 12px; }
 .nb .ins-tile .ins-lbl {
@@ -16,10 +17,12 @@
   margin-bottom: 8px;
 }
 .nb .ins-tile .ins-num {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: var(--nebula-weight-medium);
   letter-spacing: var(--nebula-tracking-tight);
   text-shadow: var(--nebula-glow-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .nb .ins-tile .ins-note {
   margin-top: 6px;
@@ -29,18 +32,147 @@
   color: var(--nebula-text-tertiary);
 }
 
-.nb .ins-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 var(--nebula-space-8);
-  align-items: start;
+/* ---------- panels: one glass card per section, cap on top ---------- */
+.nb .ins-panel { padding: 16px 18px 14px; border-radius: 12px; }
+.nb .ins-cap {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nebula-space-3);
+  margin-bottom: 12px;
+  font-family: var(--nebula-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nebula-text-tertiary);
 }
-@media (max-width: 900px) {
-  .nb .ins-tiles { grid-template-columns: repeat(2, 1fr); }
-  .nb .ins-grid { grid-template-columns: 1fr; }
+.nb .ins-cap > span { min-width: 0; }
+.nb .ins-cap-note {
+  text-transform: none;
+  letter-spacing: 0.03em;
+  font-size: 10px;
+  color: var(--nebula-text-tertiary);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.nb .ins-table { width: 100%; border-collapse: collapse; }
+/* ---------- the visual layer: trend + share of cost ---------- */
+.nb .ins-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--nebula-space-4);
+  margin-bottom: var(--nebula-space-4);
+  align-items: stretch;
+}
+.nb .ins-trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 120px;
+}
+.nb .ins-trend-col {
+  flex: 0 1 26px;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.nb .ins-bar {
+  width: 100%;
+  min-height: 3px;
+  border-radius: 3px 3px 1px 1px;
+  background: linear-gradient(180deg, rgba(209, 217, 235, 0.75), rgba(133, 143, 163, 0.35));
+  transition: filter 0.15s;
+}
+.nb .ins-trend-col:hover .ins-bar { filter: brightness(1.35); }
+.nb .ins-bar-zero {
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.nb .ins-trend-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--nebula-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--nebula-text-tertiary);
+}
+
+.nb .ins-share-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 150px) 1fr 88px 40px;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 0;
+}
+.nb .ins-share-name {
+  font-family: var(--nebula-font-mono);
+  font-size: 11px;
+  color: var(--nebula-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nb .ins-share-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.nb .ins-share-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--nebula-mist), var(--nebula-mist-glow));
+}
+.nb .ins-share-val {
+  font-family: var(--nebula-font-mono);
+  font-size: 11px;
+  color: var(--nebula-text-primary);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.nb .ins-share-pct {
+  font-family: var(--nebula-font-mono);
+  font-size: 10px;
+  color: var(--nebula-text-tertiary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- breakdown grid, then the per-card table full width ---------- */
+.nb .ins-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--nebula-space-4);
+  align-items: start;
+  margin-bottom: var(--nebula-space-4);
+}
+
+/* ---------- tables: fixed layout, names never wrap, numbers align ---------- */
+.nb .ins-scroll { overflow-x: auto; }
+.nb .ins-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 430px;
+}
+.nb .ins-table-slim { min-width: 0; }
+.nb .ins-table-cards { min-width: 820px; }
+.nb .ins-col-cost { width: 100px; }
+.nb .ins-col-tokens { width: 96px; }
+.nb .ins-col-time { width: 92px; }
+.nb .ins-col-attempts { width: 68px; }
+.nb .ins-col-mission { width: 130px; }
+.nb .ins-col-model { width: 150px; }
+.nb .ins-col-source { width: 110px; }
+.nb .ins-col-deliveries { width: 88px; }
+.nb .ins-col-rate { width: 64px; }
 .nb .ins-table th {
   font-family: var(--nebula-font-mono);
   font-size: 10px;
@@ -48,12 +180,16 @@
   text-transform: uppercase;
   color: var(--nebula-text-tertiary);
   text-align: left;
-  padding: 0 10px 10px 0;
+  padding: 0 12px 10px 0;
   font-weight: 400;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.nb .ins-table th:last-child,
+.nb .ins-table td:last-child { padding-right: 0; }
 .nb .ins-table td {
-  padding: 8px 10px 8px 0;
+  padding: 8px 12px 8px 0;
   border-top: 1px solid var(--nebula-plan-divider);
   vertical-align: middle;
   font-size: 12.5px;
@@ -64,43 +200,74 @@
   font-size: 11.5px;
   color: var(--nebula-text-secondary);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .nb .ins-table td.num b {
   color: var(--nebula-text-primary);
   font-weight: var(--nebula-weight-medium);
 }
-.nb .ins-sort { cursor: pointer; user-select: none; transition: color 0.15s; }
-.nb .ins-sort:hover { color: var(--nebula-text-secondary); }
-.nb .ins-sort.on { color: var(--nebula-mist-glow); }
 
+/* A name cell: one line, ellipsis, full text on the title attribute. */
+.nb .ins-name {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--nebula-weight-medium);
+}
+.nb .ins-mono {
+  font-family: var(--nebula-font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--nebula-text-secondary);
+}
+.nb .ins-cardcell {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
 .nb .ins-cid {
   font-family: var(--nebula-font-mono);
   font-size: 10.5px;
   color: var(--nebula-mist-light);
   letter-spacing: 0.03em;
-  margin-right: 8px;
+  flex-shrink: 0;
 }
-.nb .ins-card-title { font-weight: var(--nebula-weight-medium); }
-.nb .ins-flag {
-  font-family: var(--nebula-font-mono);
-  font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--nebula-text-tertiary);
-  border: 1px solid var(--nebula-glass-border);
-  border-radius: 999px;
-  padding: 2px 8px;
-  margin-left: 8px;
+.nb .ins-card-title {
+  font-weight: var(--nebula-weight-medium);
   white-space: nowrap;
-}
-.nb .ins-dim { color: var(--nebula-text-tertiary); }
-.nb .ins-mono {
-  font-family: var(--nebula-font-mono);
-  font-size: 11px;
-  color: var(--nebula-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-.nb .ins-sec { margin-bottom: 6px; }
+/* The qualifier marker on a value, and the footnote it points to. */
+.nb .ins-mark {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--nebula-text-tertiary);
+  cursor: help;
+}
+.nb .ins-foot {
+  margin: 10px 0 0;
+  font-family: var(--nebula-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  line-height: 1.8;
+  color: var(--nebula-text-tertiary);
+}
+.nb .ins-foot-item {
+  display: inline;
+  margin-right: 14px;
+}
+
+.nb .ins-sort { cursor: pointer; user-select: none; transition: color 0.15s; }
+.nb .ins-sort:hover { color: var(--nebula-text-secondary); }
+.nb .ins-sort.on { color: var(--nebula-mist-glow); }
+
+.nb .ins-dim { color: var(--nebula-text-tertiary); }
+
 .nb .ins-empty {
   padding: 26px 28px;
   border-radius: 12px;
@@ -108,4 +275,22 @@
   color: var(--nebula-text-secondary);
   line-height: 1.55;
   max-width: 560px;
+}
+
+/* ---------- narrow windows: stack, tiles halve, tables scroll in-card ---------- */
+@media (max-width: 900px) {
+  .nb .ins-tiles { grid-template-columns: repeat(2, 1fr); }
+  .nb .ins-charts { grid-template-columns: 1fr; }
+  .nb .ins-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  /* Names keep ~110px; what does not fit scrolls inside the card. */
+  .nb .ins-table { min-width: 500px; }
+  .nb .ins-share-row {
+    grid-template-columns: minmax(70px, 110px) 1fr 76px 36px;
+    gap: 8px;
+  }
+}
+@media (max-width: 420px) {
+  .nb .ins-tiles { grid-template-columns: 1fr; }
 }

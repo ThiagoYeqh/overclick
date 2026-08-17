@@ -1,9 +1,15 @@
 "use client";
 
+import type { AutoUpdateRecord } from "@agent-board/db";
 import { useCallback, useEffect, useState } from "react";
-import { readUpdaterStateAction, triggerUpdateAction } from "../actions/updates";
+import {
+  readUpdaterStateAction,
+  runSourceUpdateAction,
+  triggerUpdateAction,
+} from "../actions/updates";
 import { dict } from "../lib/i18n";
 import type { Runtime } from "../lib/runtime";
+import type { SourceUpdateReport } from "../lib/source-update";
 import type { UpdaterState } from "../lib/updates";
 
 /** How often the panel asks the shared volume what the sidecar is doing. */
@@ -23,8 +29,9 @@ const POLL_MS = 2000;
  * with what that command costs.
  *
  * None of that exists when the instance runs from the checkout instead of an
- * image: no container to recreate, no profile to enable. That branch says so
- * and gives the only update that applies there, a pull and a restart.
+ * image: no container to recreate, no profile to enable. There the button runs
+ * the update itself, in this process's own repository, and reports every step
+ * it took. The commands stay on screen for whoever would rather type them.
  */
 export function UpdatePanel({
   version,
@@ -33,6 +40,7 @@ export function UpdatePanel({
   manualCommand,
   sourceCommand,
   initialState,
+  lastUpdate,
   lang,
 }: {
   version: string;
@@ -41,6 +49,8 @@ export function UpdatePanel({
   manualCommand: string;
   sourceCommand: string;
   initialState: UpdaterState;
+  /** What the last update did, whoever started it. Null until one runs. */
+  lastUpdate: AutoUpdateRecord | null;
   lang: string;
 }) {
   const t = dict(lang);
@@ -49,6 +59,8 @@ export function UpdatePanel({
   const [unreachable, setUnreachable] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [sourceRunning, setSourceRunning] = useState(false);
+  const [report, setReport] = useState<SourceUpdateReport | null>(null);
 
   const phase = state.status?.phase ?? null;
   const finished = phase === "done" || phase === "failed";
@@ -100,6 +112,29 @@ export function UpdatePanel({
     }
   };
 
+  /**
+   * The source install path. One call runs the whole thing and answers with
+   * the step log: this server updates its own checkout and stays up while it
+   * does, so there is nothing to poll from outside.
+   */
+  const updateFromSource = async (force = false) => {
+    setErr(null);
+    setReport(null);
+    setSourceRunning(true);
+    const result = await runSourceUpdateAction({ force }).catch(() => null);
+    setSourceRunning(false);
+    if (!result) {
+      // Only the opt-in restart ends this process, and it answers first.
+      setErr(t.updates.appRestarting);
+      return;
+    }
+    if (!result.ok) {
+      setErr(result.error);
+      return;
+    }
+    setReport(result.report);
+  };
+
   const copy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -131,6 +166,81 @@ export function UpdatePanel({
       {runtime === "source" ? (
         <>
           <p className="upd-state">{t.updates.sourceDetected}</p>
+          <div className="save-row">
+            {/* Force is always here, in every mode: the instance that needs it
+                is the one whose version already matches and is still broken. */}
+            <button
+              className="btn-ghost"
+              disabled={sourceRunning}
+              title={t.updates.forceNote}
+              onClick={() => void updateFromSource(true)}
+            >
+              {t.updates.forceBtn}
+            </button>
+            <button
+              className="btn-new"
+              disabled={sourceRunning}
+              onClick={() => void updateFromSource()}
+            >
+              {sourceRunning ? t.updates.updating : t.updates.sourceUpdateBtn}
+            </button>
+          </div>
+          {report ? null : lastUpdate ? (
+            <p className="upd-state">
+              {t.updates.lastRun(
+                new Date(lastUpdate.at).toLocaleString(
+                  lang === "pt-BR" ? "pt-BR" : "en-US",
+                ),
+                t.updates.outcome[lastUpdate.outcome],
+                lastUpdate.version,
+              )}
+            </p>
+          ) : null}
+          {report ? (
+            <>
+              {report.outcome === "refused" ? (
+                <p className="upd-state bad">
+                  {report.reason === "dirty-tree"
+                    ? t.updates.refusedDirty
+                    : t.updates.refusedNoRepo}
+                </p>
+              ) : null}
+              {report.steps.length ? (
+                <ul className="upd-steps">
+                  {report.steps.map((step) => (
+                    <li key={step.id} className={`upd-step ${step.status}`}>
+                      <span className="upd-step-name">{t.updates.step[step.id]}</span>{" "}
+                      <span className="upd-step-status">
+                        {t.updates.stepStatus[step.status]}
+                      </span>
+                      {step.note ? <> · {t.updates.stepNote[step.note]}</> : null}
+                      {step.detail ? <pre className="upd-log">{step.detail}</pre> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {/* The refusal already said everything: no result line on top. */}
+              {report.outcome !== "refused" ? (
+                <p
+                  className={`upd-state${
+                    report.outcome === "failed"
+                      ? " bad"
+                      : report.outcome === "updated"
+                        ? " ok"
+                        : ""
+                  }`}
+                >
+                  {report.outcome === "updated"
+                    ? t.updates.resultUpdated
+                    : report.outcome === "current"
+                      ? t.updates.resultCurrent
+                      : t.updates.resultFailed}
+                </p>
+              ) : null}
+              {report.detail ? <pre className="upd-log">{report.detail}</pre> : null}
+            </>
+          ) : null}
+          <p className="upd-state">{t.updates.sourceManualPath}</p>
           {commandRow(sourceCommand)}
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
             {t.updates.sourceRestart}

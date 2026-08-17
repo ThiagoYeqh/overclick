@@ -94,6 +94,36 @@ export type ValidationTick = {
   at: string;
 };
 
+/**
+ * What this instance is allowed to do about new releases.
+ *
+ * `off` is the default and the zero phone-home promise: no request leaves the
+ * server. `check` is the opt-in that reads the latest release tag and tells the
+ * owner, who decides. `auto` lets the instance apply the update by itself on
+ * the same interval, under exactly the rules the manual path follows.
+ */
+export type UpdateMode = "off" | "check" | "auto";
+
+/** What an automatic update did, kept so the panel can say what and when. */
+export type AutoUpdateRecord = {
+  /** When the attempt finished, ISO. */
+  at: string;
+  /** Release tag that triggered it, when a check named one. */
+  version: string | null;
+  outcome: "updated" | "current" | "refused" | "failed";
+  /** Why it would not run, on a refusal. */
+  reason: string | null;
+  /** Commits it moved between, when it moved at all. */
+  from: string | null;
+  to: string | null;
+  /**
+   * Step ids with their result, small enough to keep on the row. The note is
+   * what the step concluded on its own, which is how the panel says whether a
+   * restart already happened or is still owed.
+   */
+  steps: { id: string; status: string; note?: string }[];
+};
+
 export type TaskType = "feature" | "bug" | "rfc";
 export type TaskPriority = "urgente" | "alta" | "media" | "baixa";
 export type ReviewerKind = "human" | "agent" | "workspace_queue";
