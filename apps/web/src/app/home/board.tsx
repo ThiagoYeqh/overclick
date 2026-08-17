@@ -26,6 +26,16 @@ export type TranscriptView = {
   usageCommand: string | null;
 };
 
+/**
+ * The two clocks of a run, already formatted. Execution is what the agent
+ * reported working; elapsed is claim to deliver as the board measured it. The
+ * card line shows one of them, the panel shows both with their sources.
+ */
+export type DurationView = {
+  execution: string | null;
+  elapsed: string | null;
+};
+
 export type TimelineEntry = {
   kind: "executor_swap" | "spawn_failure";
   body: string;
@@ -63,6 +73,8 @@ export type BoardCard = {
   branch: string | null;
   timeline: TimelineEntry[];
   telemetry: string | null;
+  /** Null when neither clock ran on this card. */
+  duration: DurationView | null;
   transcript: TranscriptView | null;
   handoff: string | null;
 };
@@ -557,6 +569,24 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
             <div>
               <div className="lbl">{t.detail.telemetry}</div>
               <p className="d-tel">{card.telemetry}</p>
+              {/* The card line has room for one clock, this panel for both:
+                  what the agent worked, and how long the card stayed open. */}
+              {card.duration ? (
+                <div className="d-clocks">
+                  {card.duration.execution ? (
+                    <span className="d-clock">
+                      {t.detail.execution} <b>{card.duration.execution}</b>{" "}
+                      <i>{t.detail.executionSource}</i>
+                    </span>
+                  ) : null}
+                  {card.duration.elapsed ? (
+                    <span className="d-clock">
+                      {t.detail.elapsed} <b>{card.duration.elapsed}</b>{" "}
+                      <i>{t.detail.elapsedSource}</i>
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

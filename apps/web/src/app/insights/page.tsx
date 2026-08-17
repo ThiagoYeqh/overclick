@@ -13,7 +13,13 @@ import {
 import { loadModelPrices } from "../../lib/prices";
 import { insightsCopy, type InsightsCopy } from "./copy";
 import { CostTable } from "./cost-table";
-import { fmtCostUsd, fmtDurationMs, fmtRate, fmtTokens } from "./format";
+import {
+  fmtCostUsd,
+  fmtDurationMs,
+  fmtElapsedMs,
+  fmtRate,
+  fmtTokens,
+} from "./format";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +79,16 @@ function GroupTable({
               </td>
             ) : null}
             <td className="num">{fmtTokens(row.tokens)}</td>
-            <td className="num">{fmtDurationMs(row.durationMs)}</td>
+            {/* Execution time, and the elapsed time underneath it when some
+                runs here reported none. The two never add up into one cell. */}
+            <td className="num">
+              {fmtDurationMs(row.durationMs)}
+              {row.elapsedOnly > 0 ? (
+                <span className="ins-flag">
+                  {t.elapsedTag(fmtElapsedMs(row.elapsedMs))}
+                </span>
+              ) : null}
+            </td>
             <td className="num">{row.attempts}</td>
           </tr>
         ))}
@@ -176,6 +191,16 @@ export default async function InsightsPage() {
               <div className="ins-tile nebula-glass">
                 <div className="ins-lbl">{t.totalTime}</div>
                 <div className="ins-num">{fmtDurationMs(totals.durationMs)}</div>
+                {/* Time the cards sat claimed is not time anyone worked, so it
+                    is named apart instead of swelling the number above. */}
+                {totals.elapsedOnly > 0 ? (
+                  <div className="ins-note">
+                    {t.elapsedNote(
+                      fmtElapsedMs(totals.elapsedMs),
+                      totals.elapsedOnly,
+                    )}
+                  </div>
+                ) : null}
               </div>
               {pricingEnabled ? (
                 <div className="ins-tile nebula-glass">

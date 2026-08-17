@@ -1,7 +1,9 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import {
   areSegmentsPriced,
+  elapsedOnlyMs,
   executionAttempt,
+  executionOnlyMs,
   findModelPrice,
   mergeCostSources,
   mission,
@@ -169,8 +171,20 @@ export type UsageTotals = {
   costUnpriced: number;
   /** tokens_in + tokens_out + tokens_cache across attempts that reported them. */
   tokens: number;
-  /** Reported duration, falling back to the server-measured claim → deliver time. */
+  /**
+   * Execution time only: the sum of the durations agents reported working.
+   * Attempts that reported none add nothing here, so this total is never
+   * inflated by a claim that sat open all weekend.
+   */
   durationMs: number;
+  /**
+   * Claim to deliver on the attempts that reported no execution time. It is
+   * counted apart, never folded into `durationMs`: the two are different
+   * clocks and no attempt lands in both.
+   */
+  elapsedMs: number;
+  /** How many attempts contributed to `elapsedMs` instead of `durationMs`. */
+  elapsedOnly: number;
   /** Finished attempts aggregated here. */
   attempts: number;
   /** How many of those attempts carry usage the executor flagged as estimated. */
@@ -213,7 +227,10 @@ export type CardInsight = {
   /** Where that figure came from, "mixed" when the attempts disagree. */
   costSource: CostSource | "mixed" | null;
   tokens: number;
+  /** Execution time the agents reported on this card. */
   durationMs: number;
+  /** Claim to deliver, on the attempts of this card that reported no time. */
+  elapsedMs: number;
   attempts: number;
   estimated: boolean;
   missing: boolean;
@@ -246,6 +263,8 @@ function emptyTotals(): UsageTotals {
     costUnpriced: 0,
     tokens: 0,
     durationMs: 0,
+    elapsedMs: 0,
+    elapsedOnly: 0,
     attempts: 0,
     estimated: 0,
     missing: 0,
@@ -287,8 +306,16 @@ function hasReportedUsage(a: InsightAttemptRow): boolean {
   );
 }
 
-function attemptDurationMs(a: InsightAttemptRow): number {
-  return a.durationMs ?? a.serverDurationMs ?? 0;
+/**
+ * The two clocks of one attempt, added to a total that keeps them apart. Work
+ * is what the agent reported; the server measurement is elapsed time and only
+ * counts when there is no reported work to count instead.
+ */
+function addDurations(totals: UsageTotals, a: InsightAttemptRow): void {
+  totals.durationMs += executionOnlyMs(a);
+  const elapsed = elapsedOnlyMs(a);
+  totals.elapsedMs += elapsed;
+  if (elapsed > 0) totals.elapsedOnly += 1;
 }
 
 /** The cost of one attempt, every segment priced at its own model's rate. */
@@ -337,7 +364,7 @@ function addAttempt(
 ): void {
   totals.attempts += 1;
   totals.tokens += attemptTokens(a);
-  totals.durationMs += attemptDurationMs(a);
+  addDurations(totals, a);
   if (cost.costUsd != null) totals.costUsd += cost.costUsd;
   if (cost.source === "computed") totals.costComputed += 1;
   if (cost.source === "reported") totals.costReported += 1;
@@ -363,7 +390,7 @@ function addSegment(
   const tokens = segmentTotalTokens(segment);
   totals.attempts += 1;
   totals.tokens += tokens;
-  totals.durationMs += attemptDurationMs(a);
+  addDurations(totals, a);
   if (cost.costUsd != null) totals.costUsd += cost.costUsd;
   if (cost.source === "computed") totals.costComputed += 1;
   if (cost.source === "reported") totals.costReported += 1;
@@ -457,6 +484,7 @@ export function computeInsights(
         costSource: null,
         tokens: 0,
         durationMs: 0,
+        elapsedMs: 0,
         attempts: 0,
         estimated: false,
         missing: false,
@@ -467,7 +495,8 @@ export function computeInsights(
     }
     card.attempts += 1;
     card.tokens += attemptTokens(a);
-    card.durationMs += attemptDurationMs(a);
+    card.durationMs += executionOnlyMs(a);
+    card.elapsedMs += elapsedOnlyMs(a);
     // Every model the card ran, in the order it ran them: the footer reads
     // "sonnet-5 to opus-5" off this list.
     for (const segment of segments) {

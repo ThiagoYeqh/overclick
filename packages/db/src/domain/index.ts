@@ -20,6 +20,14 @@ export {
   isValidPassword,
 } from "./first-access";
 export { canNestUnder } from "./subtask";
+export {
+  elapsedOnlyMs,
+  executionOnlyMs,
+  resolveDuration,
+  type AttemptDurations,
+  type DurationSource,
+  type ResolvedDuration,
+} from "./duration";
 export { factoryCardapioPolicy } from "./cardapio";
 export { harnessChain } from "./harness";
 export {

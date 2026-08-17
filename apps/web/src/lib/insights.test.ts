@@ -97,12 +97,38 @@ describe("computeInsights totals", () => {
     expect(result.totals.attempts).toBe(3);
   });
 
-  it("falls back to the server-measured duration when the agent reported none", () => {
+  it("counts the server-measured time as elapsed, never as execution", () => {
     const result = computeInsights(
       [attempt({ durationMs: null, serverDurationMs: 120_000 })],
       [],
     );
-    expect(result.totals.durationMs).toBe(120_000);
+    expect(result.totals.durationMs).toBe(0);
+    expect(result.totals.elapsedMs).toBe(120_000);
+    expect(result.totals.elapsedOnly).toBe(1);
+  });
+
+  it("never mixes an orphaned claim into the execution total", () => {
+    // One real run of a minute, one claim that sat open for 41 hours. The
+    // execution total is the minute; the 41 hours are said apart.
+    const result = computeInsights(
+      [
+        attempt({ durationMs: 60_000, serverDurationMs: 65_000 }),
+        attempt({
+          taskId: "task-2",
+          taskShortId: "OC-2",
+          durationMs: null,
+          serverDurationMs: 147_780_000,
+        }),
+      ],
+      [],
+    );
+    expect(result.totals.durationMs).toBe(60_000);
+    expect(result.totals.elapsedMs).toBe(147_780_000);
+    expect(result.totals.elapsedOnly).toBe(1);
+    expect(result.perCard.find((c) => c.shortId === "OC-2")?.durationMs).toBe(0);
+    expect(result.perCard.find((c) => c.shortId === "OC-2")?.elapsedMs).toBe(
+      147_780_000,
+    );
   });
 });
 

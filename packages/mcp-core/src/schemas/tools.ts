@@ -515,7 +515,19 @@ export const UsageTotalsSchema = z.object({
   /** Attempts with tokens the board could not price: no row for the model. */
   cost_unpriced: z.number().int().nonnegative(),
   tokens: z.number().int().nonnegative(),
+  /**
+   * Execution time: the sum of the durations the agents reported working. An
+   * attempt that reported none adds nothing here, so a claim left open over a
+   * weekend never reads as work.
+   */
   duration_ms: z.number().int().nonnegative(),
+  /**
+   * Claim to deliver on the attempts that reported no execution time. A
+   * different clock, counted apart and never folded into `duration_ms`.
+   */
+  elapsed_ms: z.number().int().nonnegative(),
+  /** How many attempts contributed to `elapsed_ms` instead of `duration_ms`. */
+  elapsed_only: z.number().int().nonnegative(),
   attempts: z.number().int().nonnegative(),
   /** Attempts whose executor flagged the numbers as an estimate. */
   estimated: z.number().int().nonnegative(),
@@ -549,7 +561,10 @@ export const InsightCardSchema = z.object({
   /** Where that figure came from; "mixed" when the attempts disagree. */
   cost_source: z.enum(["computed", "reported", "estimated", "mixed"]).nullable(),
   tokens: z.number().int().nonnegative(),
+  /** Execution time the agents reported on this card. */
   duration_ms: z.number().int().nonnegative(),
+  /** Claim to deliver, on the attempts of this card that reported no time. */
+  elapsed_ms: z.number().int().nonnegative(),
   attempts: z.number().int().nonnegative(),
   estimated: z.boolean(),
   missing: z.boolean(),

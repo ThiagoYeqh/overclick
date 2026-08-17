@@ -454,6 +454,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-evid { background: rgba(8,10,13,.6); border: 1px solid var(--nebula-glass-border); border-radius: 10px;
   padding: 10px 13px; font-size: 12px; color: var(--nebula-text-secondary); line-height: 1.55; }
 .nb .d-tel { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-secondary); letter-spacing: .02em; }
+/* the two clocks of a run, each one next to the source that measured it */
+.nb .d-clocks { display: flex; flex-direction: column; gap: 3px; margin-top: 7px; }
+.nb .d-clock { font-family: var(--nebula-font-mono); font-size: 10.5px;
+  color: var(--nebula-text-tertiary); letter-spacing: .02em; }
+.nb .d-clock b { color: var(--nebula-text-secondary); font-weight: var(--nebula-weight-medium); }
+.nb .d-clock i { font-style: normal; color: var(--nebula-text-tertiary); opacity: .75; }
 .nb .d-timeline { display: flex; flex-direction: column; gap: 6px; }
 .nb .d-tl-entry { font-family: var(--nebula-font-mono); font-size: 11px; }
 .nb .d-tl-entry .tag { margin-right: 6px; }

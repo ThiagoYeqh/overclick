@@ -181,6 +181,8 @@ describe("insights_query answers what the Insights page answers", () => {
       cost_unpriced: page.totals.costUnpriced,
       tokens: page.totals.tokens,
       duration_ms: page.totals.durationMs,
+      elapsed_ms: page.totals.elapsedMs,
+      elapsed_only: page.totals.elapsedOnly,
       attempts: page.totals.attempts,
       estimated: page.totals.estimated,
       missing: page.totals.missing,
@@ -228,6 +230,8 @@ describe("insights_query answers what the Insights page answers", () => {
           cost_unpriced: row.costUnpriced,
           tokens: row.tokens,
           duration_ms: row.durationMs,
+          elapsed_ms: row.elapsedMs,
+          elapsed_only: row.elapsedOnly,
           attempts: row.attempts,
           estimated: row.estimated,
           missing: row.missing,
@@ -408,7 +412,11 @@ describe("insights_query answers what the Insights page answers", () => {
 
       // The facts survive untouched: tokens, time and the honesty note.
       expect(out.totals.tokens).toBe(2000);
-      expect(out.totals.duration_ms).toBe(6_600_000);
+      // Execution is the two attempts that reported working; the third one
+      // only ever had a claim to deliver clock, so it lands on elapsed.
+      expect(out.totals.duration_ms).toBe(5_400_000);
+      expect(out.totals.elapsed_ms).toBe(1_200_000);
+      expect(out.totals.elapsed_only).toBe(1);
       expect(out.totals.attempts).toBe(3);
       expect(out.note).toBe("1 estimated · 1 usage not reported");
     } finally {

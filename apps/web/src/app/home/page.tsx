@@ -7,12 +7,14 @@ import {
   project,
   readTranscriptRef,
   recomputeUsageCommand,
+  resolveDuration,
   resolveSegmentedCost,
   segmentModels,
   task,
   user,
   type CostSource,
   type ModelPrice,
+  type ResolvedDuration,
   type UsageRecipeRow,
 } from "@agent-board/db";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
@@ -27,7 +29,7 @@ import { detectRuntime } from "../../lib/runtime";
 import { scheduledUpdateCheck } from "../../lib/update-scheduler";
 import { readUpdaterState } from "../../lib/updates";
 import { decodeExecutor, parseComoConfirmo } from "../../mcp/map";
-import type { BoardCard, TranscriptView } from "./board";
+import type { BoardCard, DurationView, TranscriptView } from "./board";
 import { HomeShell } from "./home-shell";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +39,19 @@ function fmtDurationMs(ms: number): string {
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
   return `${h}h${String(m % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Elapsed time, rounded to the unit it can honestly claim. A claim that sat
+ * open all weekend is not precise to the minute, and "41h03" printed to the
+ * minute is exactly what makes waiting read as work.
+ */
+function fmtElapsedMs(ms: number): string {
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 72) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
 }
 
 function fmtTokens(n: number): string {
@@ -76,6 +91,30 @@ async function loadTasks(projectIds: string[]) {
       comments: true,
     },
   });
+}
+
+/**
+ * A duration on the card line always says which clock it read. The agent's own
+ * number goes bare, because that one is work; the server measurement goes as
+ * "open for 41h", because that one is only how long the card stayed claimed.
+ */
+function fmtResolvedDuration(duration: ResolvedDuration, tr: Dict): string {
+  return duration.source === "reported"
+    ? fmtDurationMs(duration.ms)
+    : tr.board.openFor(fmtElapsedMs(duration.ms));
+}
+
+/** Both clocks for the detail panel, each one only when it was measured. */
+function toDurationView(
+  duration: ResolvedDuration | null,
+): DurationView | null {
+  if (!duration) return null;
+  return {
+    execution:
+      duration.executionMs != null ? fmtDurationMs(duration.executionMs) : null,
+    elapsed:
+      duration.elapsedMs != null ? fmtElapsedMs(duration.elapsedMs) : null,
+  };
 }
 
 /** "~US$ 0.42 computed": a dollar figure never travels without its source. */
@@ -162,6 +201,8 @@ function toBoardCard(
   // duration with "usage not reported". A delivered card never shows nothing.
   let telemetry: string | null = null;
   let estimated = false;
+  // Execution and elapsed side by side, for the panel that has room for both.
+  let duration: DurationView | null = null;
   // Which models actually ran, so the card can put the plan and the reality
   // side by side instead of spending a line on each.
   let ranModels: Array<string | null> = [];
@@ -192,9 +233,11 @@ function toBoardCard(
           return folded.length > 0 ? folded : [{ model: latestAttempt.model }];
         })();
     ranModels = segmentModels(segments);
+    // Which clock the card is reading, decided once for the line and the panel.
+    const clock = resolveDuration(latestAttempt);
+    duration = toDurationView(clock);
     if (hasUsage) {
-      const duration = latestAttempt.durationMs ?? latestAttempt.serverDurationMs;
-      if (duration != null) parts.push(fmtDurationMs(duration));
+      if (clock) parts.push(fmtResolvedDuration(clock, tr));
       if (tokens > 0) parts.push(fmtTokens(tokens));
       // Money only when the workspace asked for it. When it did, the board
       // owns the arithmetic: tokens plus the price table beat the number the
@@ -208,16 +251,20 @@ function toBoardCard(
       }
       telemetry = parts.join(" · ") || null;
       estimated = latestAttempt.usageEstimated;
-    } else if (latestAttempt.serverDurationMs != null) {
+    } else if (clock) {
       telemetry = [
-        fmtDurationMs(latestAttempt.serverDurationMs),
+        fmtResolvedDuration(clock, tr),
         tr.board.usageNotReported,
       ].join(" · ");
     }
   } else if (latestHandoff?.usage) {
     const u = latestHandoff.usage;
     const parts: string[] = [];
-    if (u.duration_ms != null) parts.push(fmtDurationMs(u.duration_ms));
+    // No attempt behind it, so the only clock here is the agent's own.
+    if (u.duration_ms != null) {
+      parts.push(fmtDurationMs(u.duration_ms));
+      duration = { execution: fmtDurationMs(u.duration_ms), elapsed: null };
+    }
     const tokens = (u.tokens_in ?? 0) + (u.tokens_out ?? 0) + (u.tokens_cache ?? 0);
     if (tokens > 0) parts.push(fmtTokens(tokens));
     ranModels = segmentModels(normalizeUsageSegments(u, null));
@@ -271,6 +318,7 @@ function toBoardCard(
     branch: t.branch ?? latestHandoff?.branch ?? null,
     timeline,
     telemetry,
+    duration,
     transcript: toTranscriptView(latestAttempt, recipes),
     handoff: latestHandoff?.summary ?? null,
     howToVerify: latestHandoff?.howToVerify ?? null,

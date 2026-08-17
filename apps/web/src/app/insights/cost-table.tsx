@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { CardInsight } from "../../lib/insights";
 import { insightsCopy, type InsightsCopy } from "./copy";
-import { fmtCostUsd, fmtDurationMs, fmtTokens } from "./format";
+import { fmtCostUsd, fmtDurationMs, fmtElapsedMs, fmtTokens } from "./format";
 
 type SortKey = "cost" | "tokens" | "time" | "attempts";
 
@@ -119,7 +119,17 @@ export function CostTable({
               </td>
             ) : null}
             <td className="num">{fmtTokens(card.tokens)}</td>
-            <td className="num">{fmtDurationMs(card.durationMs)}</td>
+            {/* A card whose agents reported no execution time shows the time
+                it stayed open instead, labeled, never as if it were work. */}
+            <td className="num">
+              {card.durationMs > 0 || card.elapsedMs === 0 ? (
+                fmtDurationMs(card.durationMs)
+              ) : (
+                <span className="ins-dim">
+                  {t.elapsedTag(fmtElapsedMs(card.elapsedMs))}
+                </span>
+              )}
+            </td>
             <td className="num">{card.attempts}</td>
           </tr>
         ))}
