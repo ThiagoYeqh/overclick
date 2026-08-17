@@ -45,6 +45,14 @@ const en = {
     myReview: "My review",
     allProjects: "All projects",
     allMissions: "All missions",
+    /**
+     * The mission filter: only missions holding cards here, each with its
+     * count, a one-click way out and a search box once the list grows.
+     */
+    missionFilter: "Filter by mission",
+    clearMission: "Clear mission filter",
+    searchMissions: "Search missions",
+    noMissionMatch: "No mission matches.",
     /** Bulk move: the board's way out of an instance where every card is loose. */
     moveToMission: "Move to mission",
     pickCardsHint: "Pick the cards to move.",
@@ -409,6 +417,10 @@ const ptBR: Dict = {
     myReview: "Minha revisão",
     allProjects: "Todos os projetos",
     allMissions: "Todas as missões",
+    missionFilter: "Filtrar por missão",
+    clearMission: "Limpar filtro de missão",
+    searchMissions: "Buscar missões",
+    noMissionMatch: "Nenhuma missão corresponde.",
     settings: "Configurações",
     logout: "Sair",
     running: (n: number) => `${n} em execução`,

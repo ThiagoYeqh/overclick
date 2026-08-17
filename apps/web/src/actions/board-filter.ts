@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { mission, project, user } from "@agent-board/db";
-import { ALL_PROJECTS } from "../lib/board-filter";
+import { ALL_PROJECTS, NO_MISSION } from "../lib/board-filter";
 import type { ActionResult } from "../lib/action-result";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
@@ -23,7 +23,7 @@ export async function setBoardFilterAction(input: {
     if (!proj) return { ok: false, error: "Project not found." };
   }
 
-  if (input.missionId) {
+  if (input.missionId && input.missionId !== NO_MISSION) {
     const [miss] = await db()
       .select({ id: mission.id })
       .from(mission)

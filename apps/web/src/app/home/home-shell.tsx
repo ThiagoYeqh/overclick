@@ -7,11 +7,14 @@ import { setBoardFilterAction } from "../../actions/board-filter";
 import { assignCardsToMissionAction } from "../../actions/missions";
 import {
   ALL_PROJECTS,
+  countLooseCards,
   filterBoardCards,
+  missionFilterOptions,
   type BoardFilter,
 } from "../../lib/board-filter";
 import { dict, type Dict } from "../../lib/i18n";
 import { Board, type BoardCard, type BoardMissionOption } from "./board";
+import { MissionFilter } from "./mission-filter";
 
 export type BoardProjectOption = { id: string; name: string };
 export type { BoardMissionOption };
@@ -114,6 +117,24 @@ export function HomeShell({
   const [picking, setPicking] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const visible = useMemo(() => filterBoardCards(cards, filter), [cards, filter]);
+  // What the mission filter may offer: the scope is the project on screen, so
+  // the options and their counts follow the project, not the mission.
+  const scope = useMemo(
+    () => ({ projectId: filter.projectId, missionId: null }),
+    [filter.projectId],
+  );
+  const missionOptions = useMemo(
+    () => missionFilterOptions(cards, missions, filter),
+    [cards, missions, filter],
+  );
+  const looseCount = useMemo(
+    () => countLooseCards(cards, scope),
+    [cards, scope],
+  );
+  const scopeCount = useMemo(
+    () => filterBoardCards(cards, scope).length,
+    [cards, scope],
+  );
   const running = visible.filter((card) => card.status === "em_execucao").length;
   const review = visible.filter((card) => card.status === "feito").length;
 
@@ -161,25 +182,14 @@ export function HomeShell({
             <option value={ALL_PROJECTS}>{t.board.allProjects}</option>
           </select>
         </div>
-        <label className="filter-chip">
-          <select
-            aria-label={t.board.allMissions}
-            value={filter.missionId ?? ""}
-            onChange={(event) =>
-              apply({
-                ...filter,
-                missionId: event.target.value || null,
-              })
-            }
-          >
-            <option value="">{t.board.allMissions}</option>
-            {missions.map((miss) => (
-              <option key={miss.id} value={miss.id}>
-                {miss.title}
-              </option>
-            ))}
-          </select>
-        </label>
+        <MissionFilter
+          options={missionOptions}
+          looseCount={looseCount}
+          totalCount={scopeCount}
+          value={filter.missionId}
+          onChange={(missionId) => apply({ ...filter, missionId })}
+          t={t}
+        />
         <button
           className={`btn-ghost${picking ? " on" : ""}`}
           type="button"

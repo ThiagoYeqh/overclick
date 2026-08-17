@@ -283,6 +283,59 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-size: 11px; letter-spacing: 0.04em; cursor: pointer; max-width: 180px;
 }
 .nb .filter-chip select:focus { outline: none; }
+
+/* ---------- mission filter ----------
+   The chip reads as the select it replaced; the panel it opens is what a
+   select could not be: counts beside each mission, a clear that costs one
+   click, and a search box once the list grows past a handful. */
+.nb .mission-filter { position: relative; display: inline-flex; }
+.nb .mf-chip { gap: 6px; }
+.nb .mf-chip.on {
+  border-color: rgba(209,217,235,0.4);
+  background: rgba(255,255,255,0.06);
+}
+.nb .mf-trigger, .nb .mf-clear {
+  appearance: none; background: transparent; border: 0; padding: 0;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11px; letter-spacing: 0.04em; cursor: pointer;
+}
+.nb .mf-chip.on .mf-trigger { color: var(--nebula-text-primary); }
+.nb .mf-label {
+  display: block; max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb .mf-clear { font-size: 13px; line-height: 1; opacity: 0.7; }
+.nb .mf-clear:hover { opacity: 1; color: var(--nebula-text-primary); }
+.nb .mf-panel {
+  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
+  min-width: 240px; max-width: min(320px, calc(100vw - 32px));
+  padding: 8px; background: rgba(13, 15, 19, 0.96);
+}
+.nb .mf-search {
+  width: 100%; margin-bottom: 6px; padding: 6px 8px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--nebula-glass-border);
+  border-radius: 8px; color: var(--nebula-text-primary);
+  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+}
+.nb .mf-search:focus { outline: none; border-color: rgba(209,217,235,0.4); }
+.nb .mf-list { display: flex; flex-direction: column; max-height: 46vh; overflow-y: auto; }
+.nb .mf-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 8px; background: transparent; border: 0; border-radius: 8px;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11px; letter-spacing: 0.04em; text-align: left; cursor: pointer;
+}
+.nb .mf-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+.nb .mf-opt.on { color: var(--nebula-text-primary); background: rgba(255,255,255,0.08); }
+.nb .mf-opt-title {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb .mf-opt-count { flex: none; opacity: 0.65; font-variant-numeric: tabular-nums; }
+.nb .mf-empty {
+  margin: 0; padding: 8px; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-mono); font-size: 11px;
+}
 .nb .spacer { flex: 1; }
 /* o globals.css legado estiliza <form> como painel — na home ele é inline */
 .nb form { display: inline; background: none; border: none; padding: 0; gap: 0; }
@@ -847,6 +900,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .crumb select { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
   .nb .filter-chip { max-width: 44vw; }
   .nb .filter-chip select { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; }
+  /* the mission chip keeps its one line; its panel takes the width it needs */
+  .nb .mission-filter { max-width: 44vw; }
+  .nb .mf-label { max-width: 34vw; }
+  .nb .mf-panel { min-width: min(280px, calc(100vw - 32px)); }
 
   /* the carousel: full-bleed so the peeking column touches the edge */
   .nb .board {
