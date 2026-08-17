@@ -101,7 +101,14 @@ export function HomeShell({
         </form>
       </div>
 
-      <Board cards={visible} lang={lang} />
+      <Board
+        cards={visible}
+        lang={lang}
+        projects={projects}
+        selectedProjectId={
+          filter.projectId === ALL_PROJECTS ? projects[0]?.id ?? "" : filter.projectId
+        }
+      />
     </>
   );
 }

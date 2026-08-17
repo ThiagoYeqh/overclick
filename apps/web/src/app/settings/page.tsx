@@ -1,4 +1,4 @@
-import { desc, eq, isNotNull, and } from "drizzle-orm";
+import { asc, desc, eq, isNotNull, and } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -32,8 +32,9 @@ export default async function SettingsPage() {
 
   const ws = await db().query.workspace.findFirst();
   if (!ws) redirect("/setup");
-  const proj = await db().query.project.findFirst({
+  const projects = await db().query.project.findMany({
     where: eq(project.workspaceId, ws.id),
+    orderBy: asc(project.createdAt),
   });
 
   const entries = await db()
@@ -122,7 +123,14 @@ export default async function SettingsPage() {
       <SettingsClient
         host={host}
         workspaceName={ws.name}
-        projectName={proj?.name ?? ws.name}
+        projectName={projects[0]?.name ?? ws.name}
+        projects={projects.map((item) => ({
+          id: item.id,
+          name: item.name,
+          repoUrl: item.repoUrl ?? "",
+          prefix: item.idPrefix,
+          nextNumber: item.nextNumber,
+        }))}
         executors={selectionFromConfig(ws.executors)}
         lang={ws.language}
         updateCheckEnabled={ws.updateCheckEnabled}

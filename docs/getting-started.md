@@ -73,6 +73,14 @@ claude mcp add --transport http overclick http://localhost:3000/mcp \
 Prefer this path only when you are pasting into your own terminal, not into an agent
 conversation that may be logged or streamed.
 
+For Codex CLI, use the token environment variable flow:
+
+```bash
+export OVERCLICK_MCP_BEARER_TOKEN='<your-token>'
+codex mcp add overclick --url http://localhost:3000/mcp \
+  --bearer-token-env-var OVERCLICK_MCP_BEARER_TOKEN
+```
+
 ## 4. The first card
 
 Your board is born with one example card (`AGB-1`: "Ask your agent to grab this task").

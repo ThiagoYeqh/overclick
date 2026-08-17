@@ -23,8 +23,17 @@ claude mcp add --transport http overclick http://<your-host>/mcp \
   --header "Authorization: Bearer agb_live_••••••••••••"
 ```
 
-Other HTTP clients (Codex, Gemini CLI, Overclock) use the same URL and the same
-`Authorization: Bearer ...` header.
+Codex CLI stores the bearer value in an environment variable and references it from the
+MCP config:
+
+```bash
+export OVERCLICK_MCP_BEARER_TOKEN='ocb_••••••••••••'
+codex mcp add overclick --url http://<your-host>/mcp \
+  --bearer-token-env-var OVERCLICK_MCP_BEARER_TOKEN
+```
+
+Gemini CLI and generic HTTP clients use the same URL and the same
+`Authorization: Bearer ...` header pattern when they support custom headers.
 
 The workspace is resolved from the token. Revoked or missing token → **HTTP 401**.
 

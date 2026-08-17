@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { type FormEvent, useCallback, useEffect, useState, useTransition } from "react";
 import {
   reopenTaskAction,
   tickValidationStepAction,
   validateTaskAction,
 } from "../../actions/review";
+import { createBoardTaskAction } from "../../actions/tasks";
+import type { BoardCardHistoryEvent } from "../../lib/card-history";
 import { dict, type Dict } from "../../lib/i18n";
 
 export type ConfirmStep = { step: string; expected: string };
@@ -58,7 +60,10 @@ export type BoardCard = {
   telemetry: string | null;
   transcript: TranscriptView | null;
   handoff: string | null;
+  history: BoardCardHistoryEvent[];
 };
+
+type BoardProject = { id: string; name: string };
 
 const COLUMN_STATUSES = ["aberto", "em_execucao", "feito", "validado"] as const;
 
@@ -332,7 +337,10 @@ function DetailActions({
   const [comment, setComment] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
-  if (card.status !== "feito") return null;
+  const isDone = card.status === "feito";
+  const isStuckCandidate = card.status === "em_execucao";
+
+  if (!isDone && !isStuckCandidate) return null;
 
   const validate = (override: boolean) =>
     start(async () => {
@@ -359,11 +367,20 @@ function DetailActions({
   if (reopening) {
     return (
       <div className="d-actions d-actions-reopen">
+        {isStuckCandidate ? (
+          <p className="d-help">
+            This releases the board state for another attempt. It does not stop an external agent process.
+          </p>
+        ) : null}
         <textarea
           className="d-textarea"
           autoFocus
           rows={3}
-          placeholder={t.detail.reopenPlaceholder}
+          placeholder={
+            isStuckCandidate
+              ? "Why is this card stuck? This comment will be visible on the next claim."
+              : t.detail.reopenPlaceholder
+          }
           value={comment}
           onChange={(e) => setComment(e.target.value)}
         />
@@ -384,7 +401,7 @@ function DetailActions({
     <div className="d-actions">
       {err ? <p className="d-err">{err}</p> : null}
       <div className="d-actions-row">
-        {!allTicked ? (
+        {isDone && !allTicked ? (
           <button
             className="d-btn-ghost"
             disabled={pending}
@@ -395,16 +412,41 @@ function DetailActions({
           </button>
         ) : null}
         <button className="d-btn-sec" disabled={pending} onClick={() => setReopening(true)}>
-          {t.detail.reopenWithComment}
+          {isStuckCandidate ? "Reopen stuck card" : t.detail.reopenWithComment}
         </button>
-        <button
-          className="d-btn-pri"
-          disabled={pending || !allTicked}
-          title={allTicked ? undefined : t.detail.validateDisabledTitle}
-          onClick={() => validate(false)}
-        >
-          {pending ? t.detail.validating : t.detail.validate}
-        </button>
+        {isDone ? (
+          <button
+            className="d-btn-pri"
+            disabled={pending || !allTicked}
+            title={allTicked ? undefined : t.detail.validateDisabledTitle}
+            onClick={() => validate(false)}
+          >
+            {pending ? t.detail.validating : t.detail.validate}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function History({ card }: { card: BoardCard }) {
+  if (card.history.length === 0) return null;
+
+  return (
+    <div className="d-sec">
+      <div className="lbl">History</div>
+      <div className="history-list">
+        {card.history.map((event) => (
+          <div className="history-item" key={event.id}>
+            <div className="history-meta">
+              <span>{event.at}</span>
+              <span>{event.kind}</span>
+              <span>{event.actor}</span>
+            </div>
+            <div className="history-summary">{event.summary}</div>
+            {event.detail ? <div className="history-detail">{event.detail}</div> : null}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -546,19 +588,134 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
           </div>
         ) : null}
         {card.transcript ? <Transcript view={card.transcript} t={t} /> : null}
+        <History card={card} />
         <DetailActions card={card} allTicked={allTicked} onClose={onClose} t={t} />
       </div>
     </div>
   );
 }
 
-export function Board({ cards, lang }: { cards: BoardCard[]; lang: string }) {
+function CreateCardModal({
+  projects,
+  defaultProjectId,
+  onClose,
+}: {
+  projects: BoardProject[];
+  defaultProjectId: string;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const input = Object.fromEntries(new FormData(form));
+
+    start(async () => {
+      setErr(null);
+      const result = await createBoardTaskAction(input);
+      if (!result.ok) {
+        setErr(result.error);
+        return;
+      }
+      form.reset();
+      onClose();
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="ov" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <div className="detail create-detail nebula-glass nebula-corners">
+        <button className="d-close" onClick={onClose} aria-label="Close">✕</button>
+        <div className="d-head">
+          <span>NEW CARD</span>
+          <span className="d-status">contract</span>
+        </div>
+        <h3>Create a card</h3>
+        <p className="create-sub">
+          Write the contract before the agent starts: what changes, why it matters, and how a human confirms it.
+        </p>
+        <form className="create-form" onSubmit={submit}>
+          <div className="field">
+            <label>Project</label>
+            <select className="input" name="projectId" defaultValue={defaultProjectId}>
+              {projects.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Title</label>
+            <input className="input" name="title" maxLength={200} autoFocus required />
+          </div>
+          <div className="create-grid">
+            <div className="field">
+              <label>Type</label>
+              <select className="input" name="type" defaultValue="feature">
+                <option value="feature">Feature</option>
+                <option value="bug">Bug</option>
+                <option value="rfc">RFC</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Priority</label>
+              <select className="input" name="priority" defaultValue="media">
+                <option value="urgente">Urgent</option>
+                <option value="alta">High</option>
+                <option value="media">Medium</option>
+                <option value="baixa">Low</option>
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <label>What</label>
+            <textarea className="input create-textarea" name="what" rows={3} required />
+          </div>
+          <div className="field">
+            <label>Why</label>
+            <textarea className="input create-textarea" name="why" rows={3} required />
+          </div>
+          <div className="field">
+            <label>How to confirm</label>
+            <textarea className="input create-textarea" name="howToConfirm" rows={3} required />
+          </div>
+          {err ? <p className="d-err">{err}</p> : null}
+          <div className="d-actions-row create-actions">
+            <button className="d-btn-sec" type="button" disabled={pending} onClick={onClose}>Cancel</button>
+            <button className="d-btn-pri" type="submit" disabled={pending}>
+              {pending ? "Creating…" : "Create card"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export function Board({
+  cards,
+  lang,
+  projects,
+  selectedProjectId,
+}: {
+  cards: BoardCard[];
+  lang: string;
+  projects: BoardProject[];
+  selectedProjectId: string;
+}) {
   const t = dict(lang);
   const colLabel = columnLabels(t);
   const [open, setOpen] = useState<BoardCard | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const onKey = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") setOpen(null);
+    if (e.key === "Escape") {
+      setOpen(null);
+      setCreating(false);
+    }
   }, []);
   useEffect(() => {
     document.addEventListener("keydown", onKey);
@@ -567,6 +724,15 @@ export function Board({ cards, lang }: { cards: BoardCard[]; lang: string }) {
 
   return (
     <>
+      <div className="board-tools">
+        <div>
+          <div className="board-tools-title">Cards</div>
+          <div className="board-tools-sub">Create contracts for agents, then validate the result.</div>
+        </div>
+        <button className="btn-new" type="button" onClick={() => setCreating(true)}>
+          + New card
+        </button>
+      </div>
       <div className="board">
         {COLUMN_STATUSES.map((status) => {
           const list = cards.filter((c) => c.status === status);
@@ -594,6 +760,13 @@ export function Board({ cards, lang }: { cards: BoardCard[]; lang: string }) {
         })}
       </div>
       {open ? <Detail card={open} onClose={() => setOpen(null)} t={t} /> : null}
+      {creating ? (
+        <CreateCardModal
+          projects={projects}
+          defaultProjectId={selectedProjectId}
+          onClose={() => setCreating(false)}
+        />
+      ) : null}
     </>
   );
 }

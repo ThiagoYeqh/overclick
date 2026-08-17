@@ -42,9 +42,19 @@ executors, connect your agent. Full walkthrough: [docs/getting-started.md](docs/
 
 ### Connect an agent
 
+Claude Code:
+
 ```bash
 claude mcp add --transport http overclick http://<your-host>/mcp \
   --header "Authorization: Bearer <your-token>"
+```
+
+Codex CLI:
+
+```bash
+export OVERCLICK_MCP_BEARER_TOKEN='<your-token>'
+codex mcp add overclick --url http://<your-host>/mcp \
+  --bearer-token-env-var OVERCLICK_MCP_BEARER_TOKEN
 ```
 
 Then, in your terminal: *"grab the next task from the board."* Watch the example card move.

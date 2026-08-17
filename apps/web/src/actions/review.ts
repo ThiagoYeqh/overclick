@@ -3,7 +3,6 @@
 import {
   canTransition,
   task,
-  taskComment,
   type ValidationTick,
 } from "@agent-board/db";
 import { eq } from "drizzle-orm";
@@ -12,6 +11,7 @@ import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
 import { parseComoConfirmo } from "../mcp/map";
 import type { ActionResult } from "../lib/action-result";
+import { reopenTask } from "./review-core";
 
 /**
  * Ticks or unticks one How-to-confirm step of a done card, recording who and
@@ -97,26 +97,12 @@ export async function reopenTaskAction(
   const session = await getSession();
   if (!session) return { ok: false, error: "Session expired. Sign in again." };
 
-  const body = comment.trim();
-  if (!body) {
-    return { ok: false, error: "Describe what's missing. The agent reads it on its next claim." };
-  }
-
-  const row = await db().query.task.findFirst({ where: eq(task.id, taskId) });
-  if (!row) return { ok: false, error: "Card not found." };
-  if (!canTransition(row.status, "aberto", "human", { hasComment: true })) {
-    return { ok: false, error: "You can only reopen a card that is in done." };
-  }
-
-  await db().insert(taskComment).values({
+  const result = await reopenTask({
+    database: db(),
     taskId,
-    authorUserId: session.userId,
-    body,
+    comment,
+    userId: session.userId,
   });
-  await db()
-    .update(task)
-    .set({ status: "aberto", validationTicks: [] })
-    .where(eq(task.id, taskId));
-  revalidatePath("/home");
-  return { ok: true };
+  if (result.ok) revalidatePath("/home");
+  return result;
 }

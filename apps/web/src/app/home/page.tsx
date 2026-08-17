@@ -18,6 +18,7 @@ import {
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { UpdateBanner } from "../../components/update-banner";
 import { resolveBoardFilter } from "../../lib/board-filter";
+import { buildCardHistory } from "../../lib/card-history";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
@@ -72,7 +73,11 @@ async function loadTasks(projectIds: string[]) {
       reviewer: { columns: { email: true } },
       attempts: true,
       handoffs: true,
-      comments: true,
+      comments: {
+        with: {
+          author: { columns: { email: true } },
+        },
+      },
     },
   });
 }
@@ -263,6 +268,41 @@ function toBoardCard(
     howToVerify: latestHandoff?.howToVerify ?? null,
     projectId: t.projectId,
     missionId: t.missionId,
+    history: buildCardHistory({
+      task: {
+        id: t.id,
+        shortId: t.shortId,
+        title: t.title,
+        status: t.status,
+        createdAt: t.createdAt,
+        claimedAt: t.claimedAt,
+        claimedByExecutor: t.claimedByExecutor,
+        createdByEmail: t.createdBy?.email ?? null,
+      },
+      comments: t.comments.map((comment) => ({
+        id: comment.id,
+        body: comment.body,
+        createdAt: comment.createdAt,
+        authorEmail: comment.author?.email ?? null,
+        authorAgentRef: comment.authorAgentRef,
+      })),
+      attempts: t.attempts.map((attempt) => ({
+        id: attempt.id,
+        executor: attempt.executor,
+        model: attempt.model,
+        startedAt: attempt.startedAt,
+        finishedAt: attempt.finishedAt,
+        result: attempt.result,
+        resultNote: attempt.resultNote,
+      })),
+      handoffs: t.handoffs.map((handoff) => ({
+        id: handoff.id,
+        summary: handoff.summary,
+        branch: handoff.branch,
+        prUrl: handoff.prUrl,
+        createdAt: handoff.createdAt,
+      })),
+    }),
   };
 }
 
