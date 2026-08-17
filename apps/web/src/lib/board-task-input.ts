@@ -7,6 +7,7 @@ export type BoardTaskType = (typeof TYPES)[number];
 export type BoardTaskPriority = (typeof PRIORITIES)[number];
 
 export type BoardTaskInput = {
+  projectId?: string;
   title: string;
   type: BoardTaskType;
   priority: BoardTaskPriority;
@@ -64,6 +65,7 @@ export function parseBoardTaskInput(input: unknown): BoardTaskInputResult {
   return {
     ok: true,
     value: {
+      projectId: stringField(record, "projectId") || undefined,
       title,
       type,
       priority,

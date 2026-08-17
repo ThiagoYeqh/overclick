@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { saveCardapioAction, type CardapioInput } from "../../actions/cardapio";
 import { addSeenExecutorAction, saveExecutorsAction } from "../../actions/executors";
 import { saveLanguageAction } from "../../actions/language";
+import { saveProjectAction } from "../../actions/onboarding";
 import { savePricesAction, savePricingEnabledAction } from "../../actions/prices";
 import { saveRecipesAction } from "../../actions/recipes";
 import {
@@ -60,6 +61,13 @@ type TokenRow = {
   createdAt: string;
   lastUsedAt: string | null;
 };
+type ProjectRow = {
+  id: string;
+  name: string;
+  repoUrl: string;
+  prefix: string;
+  nextNumber: number;
+};
 
 const EFFORTS = ["low", "medium", "high"] as const;
 const CONNECT_CLIENTS = [
@@ -87,6 +95,7 @@ export function SettingsClient({
   host,
   workspaceName,
   projectName,
+  projects,
   executors,
   seenSuggestions,
   cardapio,
@@ -101,6 +110,7 @@ export function SettingsClient({
   host: string;
   workspaceName: string;
   projectName: string;
+  projects: ProjectRow[];
   executors: ExecutorSelection;
   seenSuggestions: SeenSuggestion[];
   cardapio: CardapioRow[];
@@ -115,12 +125,13 @@ export function SettingsClient({
   const t = dict(lang);
   const dateLocale = lang === "pt-BR" ? "pt-BR" : "en-US";
   const router = useRouter();
-  const [tab, setTab] = useState<string>("exec");
+  const [tab, setTab] = useState<string>("projects");
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const tabs = [
+    { id: "projects", label: t.settings.tabProjects },
     { id: "exec", label: t.settings.tabExecutors },
     { id: "policy", label: t.settings.tabPolicy },
     { id: "prices", label: t.settings.tabPrices },
@@ -129,6 +140,44 @@ export function SettingsClient({
     { id: "language", label: t.settings.tabLanguage },
     { id: "updates", label: t.updates.tabUpdates },
   ];
+
+  // ---- projects
+  const [projectRows, setProjectRows] = useState<ProjectRow[]>(projects);
+  const [newProject, setNewProject] = useState({ name: "", repoUrl: "", prefix: "" });
+  useEffect(() => setProjectRows(projects), [projects]);
+  const setProjectRow = (id: string, patch: Partial<ProjectRow>) => {
+    setProjectRows((current) =>
+      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
+  };
+  const saveProject = (row: ProjectRow) =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      const result = await saveProjectAction({
+        projectId: row.id,
+        name: row.name,
+        repoUrl: row.repoUrl,
+        prefix: row.prefix,
+      });
+      if (!result.ok) setErr(result.error);
+      else { setMsg(t.settings.projectSaved); router.refresh(); }
+    });
+  const createProject = () =>
+    start(async () => {
+      setErr(null); setMsg(null);
+      const result = await saveProjectAction({
+        createNew: true,
+        name: newProject.name,
+        repoUrl: newProject.repoUrl,
+        prefix: newProject.prefix,
+      });
+      if (!result.ok) setErr(result.error);
+      else {
+        setMsg(t.settings.projectCreated);
+        setNewProject({ name: "", repoUrl: "", prefix: "" });
+        router.refresh();
+      }
+    });
 
   // ---- update check (opt-in, off by default)
   const [updCheck, setUpdCheck] = useState(updateCheckEnabled);
@@ -411,6 +460,93 @@ export function SettingsClient({
 
         {err ? <p className="werr">{err}</p> : null}
         {msg ? <p className="wok">{msg}</p> : null}
+
+        {/* ---- PROJECTS ---- */}
+        <div className={`tabpane${tab === "projects" ? " active" : ""}`}>
+          <div className="projects-list">
+            {projectRows.map((item) => (
+              <div className="project-row nebula-glass" key={item.id}>
+                <div className="project-fields">
+                  <div className="field">
+                    <label>Project name</label>
+                    <input
+                      className="input"
+                      value={item.name}
+                      onChange={(event) => setProjectRow(item.id, { name: event.target.value })}
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Repository URL <span className="opt">optional</span></label>
+                    <input
+                      className="input mono"
+                      value={item.repoUrl}
+                      placeholder="github.com/you/repo"
+                      onChange={(event) => setProjectRow(item.id, { repoUrl: event.target.value })}
+                    />
+                  </div>
+                  <div className="field project-prefix">
+                    <label>ID prefix</label>
+                    <input
+                      className="input mono"
+                      value={item.prefix}
+                      maxLength={4}
+                      onChange={(event) =>
+                        setProjectRow(item.id, { prefix: event.target.value.toUpperCase() })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="project-meta">
+                  <span>next {item.prefix || "ID"}-{item.nextNumber}</span>
+                  <button className="btn-new" disabled={pending} onClick={() => saveProject(item)}>
+                    {pending ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="project-row project-new nebula-glass">
+            <div className="project-fields">
+              <div className="field">
+                <label>New project</label>
+                <input
+                  className="input"
+                  value={newProject.name}
+                  placeholder="API"
+                  onChange={(event) => setNewProject({ ...newProject, name: event.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Repository URL <span className="opt">optional</span></label>
+                <input
+                  className="input mono"
+                  value={newProject.repoUrl}
+                  placeholder="github.com/you/repo"
+                  onChange={(event) => setNewProject({ ...newProject, repoUrl: event.target.value })}
+                />
+              </div>
+              <div className="field project-prefix">
+                <label>ID prefix</label>
+                <input
+                  className="input mono"
+                  value={newProject.prefix}
+                  maxLength={4}
+                  placeholder="API"
+                  onChange={(event) =>
+                    setNewProject({ ...newProject, prefix: event.target.value.toUpperCase() })
+                  }
+                />
+              </div>
+            </div>
+            <div className="project-meta">
+              <span>starts at 1</span>
+              <button className="btn-new" disabled={pending} onClick={createProject}>
+                {pending ? "Creating…" : "+ Add project"}
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* ---- EXECUTORS ---- */}
         <div className={`tabpane${tab === "exec" ? " active" : ""}`}>

@@ -130,6 +130,7 @@ const en = {
     title: "Settings",
     sub: "Executors, harness policy, and MCP access for this instance.",
     backToBoard: "← Board",
+    tabProjects: "Projects",
     tabExecutors: "Executors",
     tabPolicy: "Harness policy",
     tabTokens: "MCP tokens",
@@ -218,6 +219,8 @@ const en = {
     langNote: "Applies to the board, the wizard and settings for this workspace.",
     saveLanguage: "Save language",
     langSaved: "Language saved.",
+    projectSaved: "Project saved.",
+    projectCreated: "Project created.",
   },
   cardapio: {
     bug: { label: "Bug", hint: "localized fix, repro → patch" },
@@ -380,6 +383,7 @@ const ptBR: Dict = {
     title: "Configurações",
     sub: "Executores, política de harness e acesso MCP desta instância.",
     backToBoard: "← Board",
+    tabProjects: "Projetos",
     tabExecutors: "Executores",
     tabPolicy: "Política de harness",
     tabTokens: "Tokens MCP",
@@ -468,6 +472,8 @@ const ptBR: Dict = {
     langNote: "Vale para o board, o wizard e as configurações deste workspace.",
     saveLanguage: "Salvar idioma",
     langSaved: "Idioma salvo.",
+    projectSaved: "Projeto salvo.",
+    projectCreated: "Projeto criado.",
   },
   cardapio: {
     bug: { label: "Bug", hint: "correção localizada, repro → patch" },

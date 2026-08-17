@@ -668,6 +668,21 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .save-row { margin-top: 18px; display: flex; justify-content: flex-end; }
 .nb .gen-row { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
 
+.nb .projects-list { display: flex; flex-direction: column; gap: var(--nebula-space-3); }
+.nb .project-row {
+  padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--nebula-space-3); align-items: end;
+}
+.nb .project-new { margin-top: var(--nebula-space-3); border-style: dashed; }
+.nb .project-fields { display: grid; grid-template-columns: minmax(160px, .8fr) minmax(220px, 1.1fr) 96px; gap: var(--nebula-space-3); }
+.nb .project-row .field { margin-bottom: 0; }
+.nb .project-prefix .input { text-transform: uppercase; }
+.nb .project-meta {
+  display: flex; align-items: center; gap: var(--nebula-space-3);
+  font-family: var(--nebula-font-mono); font-size: 10px; color: var(--nebula-text-tertiary);
+  white-space: nowrap;
+}
+
 .nb .policy { width: 100%; border-collapse: collapse; }
 .nb .policy th {
   font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
@@ -758,3 +773,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 /* row explicitly: the global `label` rule stacks its children in a column. */
 .nb .upd-toggle { display: flex; flex-direction: row; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; margin-top: 16px; }
 .nb .upd-toggle input { flex: 0 0 auto; }
+
+@media (max-width: 760px) {
+  .nb .project-row, .nb .project-fields { grid-template-columns: 1fr; }
+  .nb .project-meta { justify-content: space-between; }
+}
