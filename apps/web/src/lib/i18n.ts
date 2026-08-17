@@ -40,6 +40,8 @@ const en = {
     costEstimated: "estimated",
     /** Server-measured claim to deliver: time the card was open, not worked. */
     openFor: (value: string) => `open for ${value}`,
+    /** The same, for the card line, where every word costs a column. */
+    openShort: (value: string) => `open ${value}`,
     myReview: "My review",
     allProjects: "All projects",
     allMissions: "All missions",
@@ -383,6 +385,7 @@ const ptBR: Dict = {
     costReported: "reportado pelo agente",
     costEstimated: "estimado",
     openFor: (value: string) => `aberto por ${value}`,
+    openShort: (value: string) => `aberto ${value}`,
     myReview: "Minha revisão",
     allProjects: "Todos os projetos",
     allMissions: "Todas as missões",

@@ -363,17 +363,29 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   letter-spacing: var(--nebula-tracking-tight); color: var(--nebula-text-primary);
   line-height: 1.35; margin-bottom: var(--nebula-space-1);
 }
-/* one line only: planned and actual harness, then time, tokens and cost */
+/* one line only: planned and actual harness, then time, tokens and cost.
+   nowrap is the whole rule. When the column cannot hold everything, the line
+   gives up characters instead of gaining a second row: tokens shrink first
+   and end in an ellipsis, the model chain second, and the clock and the cost
+   never shrink, because those two are why anyone reads this line. */
 .nb .card-foot {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+  display: flex; align-items: center; flex-wrap: nowrap; gap: 5px;
+  overflow: hidden;
   border-top: 1px solid var(--nebula-plan-divider);
   margin-top: var(--nebula-space-1); padding-top: 6px;
   font-family: var(--nebula-font-mono); font-size: 10.5px; color: var(--nebula-text-tertiary);
 }
-.nb .card-foot .meta-harness { color: var(--nebula-mist); letter-spacing: 0.03em; }
-.nb .card-foot .meta-harness:not(:last-child)::after {
-  content: " ·"; color: var(--nebula-text-tertiary);
+.nb .card-foot > * { flex: none; min-width: 0; white-space: nowrap; }
+.nb .card-foot .meta-harness {
+  color: var(--nebula-mist); letter-spacing: 0.03em;
+  flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis;
 }
+/* the numbers: tokens give way first, eight times faster than the chain */
+.nb .card-foot .tel-tokens { flex: 0 8 auto; overflow: hidden; text-overflow: ellipsis; }
+.nb .card-foot .tel-note { flex: 0 4 auto; overflow: hidden; text-overflow: ellipsis; }
+/* a plain sentence tail (returns to, usage not reported) elides from the end */
+.nb .card-foot .telemetry { flex: 0 2 auto; overflow: hidden; text-overflow: ellipsis; }
+.nb .card-foot .tel-sep { color: var(--nebula-text-tertiary); margin-right: 4px; }
 
 /* pulse dos executores */
 .nb .exec-pulse {

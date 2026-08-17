@@ -29,7 +29,12 @@ import { detectRuntime } from "../../lib/runtime";
 import { scheduledUpdateCheck } from "../../lib/update-scheduler";
 import { readUpdaterState } from "../../lib/updates";
 import { decodeExecutor, parseComoConfirmo } from "../../mcp/map";
-import type { BoardCard, DurationView, TranscriptView } from "./board";
+import type {
+  BoardCard,
+  DurationView,
+  TelemetrySegment,
+  TranscriptView,
+} from "./board";
 import { HomeShell } from "./home-shell";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +66,43 @@ function fmtTokens(n: number): string {
   }
   if (n >= 1_000) return `${Math.round(n / 1_000)}k tok`;
   return `${n} tok`;
+}
+
+/*
+ * The card line is three lines of card and one of them is this one. Every
+ * character it spends on a unit or on a word is a character it does not have
+ * for the numbers, so the compact spellings below drop both: "5m" not "5 min",
+ * "155k" not "155k tok", "$1.21" not "~US$ 1.21 computed". Nothing is lost,
+ * the detail panel still prints the whole thing in words.
+ */
+
+function fmtDurationShort(ms: number): string {
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  return `${h}h${String(m % 60).padStart(2, "0")}`;
+}
+
+function fmtTokensShort(n: number): string {
+  if (n >= 1_000_000) {
+    const v = (n / 1_000_000).toFixed(1).replace(".0", "");
+    return `${v}M`;
+  }
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return `${n}`;
+}
+
+function fmtCostShort(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+/**
+ * The tilde says the number is not exact: an estimate the agent volunteered,
+ * or a price the board worked out from a table. One symbol replaces the word
+ * "estimated" the line used to carry at the end.
+ */
+function approx(text: string, isApprox: boolean): string {
+  return isApprox ? `~${text}` : text;
 }
 
 function fmtElapsed(from: Date, t: Dict): string {
@@ -102,6 +144,21 @@ function fmtResolvedDuration(duration: ResolvedDuration, tr: Dict): string {
   return duration.source === "reported"
     ? fmtDurationMs(duration.ms)
     : tr.board.openFor(fmtElapsedMs(duration.ms));
+}
+
+/**
+ * The same duration for the one line: "5m" for work, "open 41h" for a card
+ * that only sat claimed. The elapsed label keeps its word because a bare
+ * number there would be the very confusion this line is trying to avoid.
+ */
+function fmtShortDuration(
+  duration: ResolvedDuration,
+  isEstimate: boolean,
+  tr: Dict,
+): string {
+  return duration.source === "reported"
+    ? approx(fmtDurationShort(duration.ms), isEstimate)
+    : tr.board.openShort(fmtElapsedMs(duration.ms));
 }
 
 /** Both clocks for the detail panel, each one only when it was measured. */
@@ -200,6 +257,9 @@ function toBoardCard(
   // Footer ladder: full usage > estimated usage (labeled) > server-measured
   // duration with "usage not reported". A delivered card never shows nothing.
   let telemetry: string | null = null;
+  // The same numbers spelled for the one line the card has: no unit words, no
+  // "estimated" at the end, a tilde on whatever is not exact.
+  let telemetryLine: TelemetrySegment[] = [];
   let estimated = false;
   // Execution and elapsed side by side, for the panel that has room for both.
   let duration: DurationView | null = null;
@@ -237,8 +297,21 @@ function toBoardCard(
     const clock = resolveDuration(latestAttempt);
     duration = toDurationView(clock);
     if (hasUsage) {
-      if (clock) parts.push(fmtResolvedDuration(clock, tr));
-      if (tokens > 0) parts.push(fmtTokens(tokens));
+      const isEstimate = latestAttempt.usageEstimated;
+      if (clock) {
+        parts.push(fmtResolvedDuration(clock, tr));
+        telemetryLine.push({
+          kind: "duration",
+          text: fmtShortDuration(clock, isEstimate, tr),
+        });
+      }
+      if (tokens > 0) {
+        parts.push(fmtTokens(tokens));
+        telemetryLine.push({
+          kind: "tokens",
+          text: approx(fmtTokensShort(tokens), isEstimate),
+        });
+      }
       // Money only when the workspace asked for it. When it did, the board
       // owns the arithmetic: tokens plus the price table beat the number the
       // agent volunteered, and every model is priced at its own rate.
@@ -247,34 +320,63 @@ function toBoardCard(
           costUsd: latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null,
           usageEstimated: latestAttempt.usageEstimated,
         });
-        if (cost.costUsd != null) parts.push(fmtCost(cost.costUsd, cost.source, tr));
+        if (cost.costUsd != null) {
+          parts.push(fmtCost(cost.costUsd, cost.source, tr));
+          // A price off a table is approximate whatever fed it, so the tilde
+          // stays; what goes is the word saying where the figure came from.
+          telemetryLine.push({
+            kind: "cost",
+            text: approx(fmtCostShort(cost.costUsd), true),
+          });
+        }
       }
       telemetry = parts.join(" · ") || null;
-      estimated = latestAttempt.usageEstimated;
+      estimated = isEstimate;
     } else if (clock) {
       telemetry = [
         fmtResolvedDuration(clock, tr),
         tr.board.usageNotReported,
       ].join(" · ");
+      telemetryLine = [
+        { kind: "duration", text: fmtShortDuration(clock, false, tr) },
+        { kind: "note", text: tr.board.usageNotReported },
+      ];
     }
   } else if (latestHandoff?.usage) {
     const u = latestHandoff.usage;
     const parts: string[] = [];
+    const isEstimate = u.estimated ?? false;
     // No attempt behind it, so the only clock here is the agent's own.
     if (u.duration_ms != null) {
       parts.push(fmtDurationMs(u.duration_ms));
       duration = { execution: fmtDurationMs(u.duration_ms), elapsed: null };
+      telemetryLine.push({
+        kind: "duration",
+        text: approx(fmtDurationShort(u.duration_ms), isEstimate),
+      });
     }
     const tokens = (u.tokens_in ?? 0) + (u.tokens_out ?? 0) + (u.tokens_cache ?? 0);
-    if (tokens > 0) parts.push(fmtTokens(tokens));
+    if (tokens > 0) {
+      parts.push(fmtTokens(tokens));
+      telemetryLine.push({
+        kind: "tokens",
+        text: approx(fmtTokensShort(tokens), isEstimate),
+      });
+    }
     ranModels = segmentModels(normalizeUsageSegments(u, null));
     // No attempt to price: this is the agent's own number, labeled as such.
     if (pricingEnabled && u.cost_usd != null) {
       parts.push(fmtCost(u.cost_usd, u.estimated ? "estimated" : "reported", tr));
+      telemetryLine.push({
+        kind: "cost",
+        text: approx(fmtCostShort(u.cost_usd), true),
+      });
     }
     telemetry = parts.join(" · ") || null;
-    estimated = u.estimated ?? false;
+    estimated = isEstimate;
   }
+  // The words go on the panel's copy of the numbers only. On the card line the
+  // tilde already carries "estimated", and one line is the whole point.
   if (telemetry && estimated) {
     telemetry += ` · ${tr.board.estimated}`;
   } else if (telemetry && t.telemetryIncomplete && !telemetry.includes(tr.board.usageNotReported)) {
@@ -318,6 +420,7 @@ function toBoardCard(
     branch: t.branch ?? latestHandoff?.branch ?? null,
     timeline,
     telemetry,
+    telemetryLine,
     duration,
     transcript: toTranscriptView(latestAttempt, recipes),
     handoff: latestHandoff?.summary ?? null,

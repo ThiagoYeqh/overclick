@@ -36,6 +36,16 @@ export type DurationView = {
   elapsed: string | null;
 };
 
+/**
+ * One value of the dense card line, already spelled short. `kind` is what the
+ * layout sorts by when the column runs out of room: tokens are the first to be
+ * elided, because a card that hides its cost or its clock has lost more.
+ */
+export type TelemetrySegment = {
+  kind: "duration" | "tokens" | "cost" | "note";
+  text: string;
+};
+
 export type TimelineEntry = {
   kind: "executor_swap" | "spawn_failure";
   body: string;
@@ -72,7 +82,10 @@ export type BoardCard = {
   elapsed: string | null;
   branch: string | null;
   timeline: TimelineEntry[];
+  /** The whole breakdown in words, for the detail panel. */
   telemetry: string | null;
+  /** The same numbers spelled for the single line the card has. */
+  telemetryLine: TelemetrySegment[];
   /** Null when neither clock ran on this card. */
   duration: DurationView | null;
   transcript: TranscriptView | null;
@@ -144,24 +157,77 @@ function Telemetry({ text }: { text: string }) {
 }
 
 /**
+ * The dense line, one value per span so the layout can pick what to elide when
+ * the column is narrow. Each segment carries its own separator, which keeps
+ * the "·" out of whatever gets truncated.
+ */
+function TelemetryLine({
+  segments,
+  lead,
+}: {
+  segments: TelemetrySegment[];
+  /** True when the harness already occupies the line and owes a separator. */
+  lead: boolean;
+}) {
+  return (
+    <>
+      {segments.map((segment, i) => (
+        <span className={`tel-seg tel-${segment.kind}`} key={i}>
+          {i > 0 || lead ? <span className="tel-sep">·</span> : null}
+          {segment.kind === "tokens" || segment.kind === "note" ? (
+            segment.text
+          ) : (
+            <b>{segment.text}</b>
+          )}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
  * Everything after the harness on the card's one meta line. Open cards owe
  * the reader who gets the card back, running ones how long they have been at
  * it, delivered ones the numbers the run cost.
  */
-function CardMetaTail({ card, t }: { card: BoardCard; t: Dict }) {
+function CardMetaTail({
+  card,
+  t,
+  lead,
+}: {
+  card: BoardCard;
+  t: Dict;
+  /** True when something already sits to the left on this line. */
+  lead: boolean;
+}) {
+  const sep = lead ? <span className="tel-sep">·</span> : null;
   if (card.status === "aberto") {
     return (
       <span className="telemetry">
+        {sep}
         {t.board.returnsTo} <b>{card.devolve}</b>
       </span>
     );
   }
   if (card.status === "em_execucao") {
-    return card.elapsed ? <Telemetry text={card.elapsed} /> : null;
+    return card.elapsed ? (
+      <span className="telemetry">
+        {sep}
+        <b>{card.elapsed}</b>
+      </span>
+    ) : null;
+  }
+  if (card.telemetryLine.length > 0) {
+    return <TelemetryLine segments={card.telemetryLine} lead={lead} />;
   }
   // Never a bare "no telemetry" on a delivered card: without any numbers the
   // honest label is that usage went unreported.
-  return <Telemetry text={card.telemetry ?? t.board.usageNotReported} />;
+  return (
+    <span className="telemetry">
+      {sep}
+      {t.board.usageNotReported}
+    </span>
+  );
 }
 
 function Card({
@@ -175,6 +241,8 @@ function Card({
 }) {
   const exec = card.status === "em_execucao";
   const dim = card.status === "validado";
+  const harness =
+    card.harnessChain ?? (exec ? (card.executor ?? t.board.agent) : null);
   // Three lines and no more: what the card is, what it says, what it cost.
   // Mission, branch, executor and the effort of the harness all stay one
   // click away in the detail panel.
@@ -194,12 +262,10 @@ function Card({
       <h4>{card.title}</h4>
       <div className={`card-foot${exec ? " exec-pulse" : ""}`}>
         {exec ? <span className="dot-exec" /> : null}
-        {card.harnessChain ? (
-          <span className="meta-harness">{card.harnessChain}</span>
-        ) : exec ? (
-          <span className="meta-harness">{card.executor ?? t.board.agent}</span>
-        ) : null}
-        <CardMetaTail card={card} t={t} />
+        {harness ? <span className="meta-harness">{harness}</span> : null}
+        {/* The separator belongs to what comes after the harness, not to the
+            harness itself: an ellipsis on the model chain would eat it. */}
+        <CardMetaTail card={card} t={t} lead={harness != null} />
       </div>
     </div>
   );
