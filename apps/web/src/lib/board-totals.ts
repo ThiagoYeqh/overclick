@@ -40,8 +40,29 @@ export const EMPTY_BOARD_TOTALS: BoardTotals = {
   missing: 0,
 };
 
+/**
+ * The fields of the Insights aggregation this line actually reads. Naming
+ * them keeps the topbar out of the way while that aggregation grows: a new
+ * counter on the page is not a break here.
+ */
+export type TotalsInput = Pick<
+  UsageTotals,
+  | "attempts"
+  | "tokens"
+  | "durationMs"
+  | "elapsedMs"
+  | "elapsedOnly"
+  | "costUsd"
+  | "costComputed"
+  | "costReported"
+  | "costEstimated"
+  | "costUnpriced"
+  | "estimated"
+  | "missing"
+>;
+
 export function toBoardTotals(
-  totals: UsageTotals,
+  totals: TotalsInput,
   pricingEnabled: boolean,
 ): BoardTotals {
   const priced =
