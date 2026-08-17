@@ -126,9 +126,14 @@ const STATUS_CHIP: Record<ColumnStatus, string> = {
 
 /** Empty-state microcopy (briefing §4.2). */
 function EmptyState({ status, t }: { status: ColumnStatus; t: Dict }) {
+  // On the phone layout this holds one line and truncates; the title keeps
+  // the full sentence reachable.
   if (status === "aberto") {
     return (
-      <div className="empty-col">
+      <div
+        className="empty-col"
+        title={`${t.board.emptyOpenBefore}${t.board.emptyOpenCmd}${t.board.emptyOpenAfter}`}
+      >
         {t.board.emptyOpenBefore}
         <i>{t.board.emptyOpenCmd}</i>
         {t.board.emptyOpenAfter}
@@ -136,12 +141,24 @@ function EmptyState({ status, t }: { status: ColumnStatus; t: Dict }) {
     );
   }
   if (status === "em_execucao") {
-    return <div className="empty-col">{t.board.emptyInProgress}</div>;
+    return (
+      <div className="empty-col" title={t.board.emptyInProgress}>
+        {t.board.emptyInProgress}
+      </div>
+    );
   }
   if (status === "feito") {
-    return <div className="empty-col">{t.board.emptyDone}</div>;
+    return (
+      <div className="empty-col" title={t.board.emptyDone}>
+        {t.board.emptyDone}
+      </div>
+    );
   }
-  return <div className="empty-col">{t.board.emptyValidated}</div>;
+  return (
+    <div className="empty-col" title={t.board.emptyValidated}>
+      {t.board.emptyValidated}
+    </div>
+  );
 }
 
 function Telemetry({ text }: { text: string }) {
@@ -281,7 +298,8 @@ function Card({
           <span className="review-chip">{t.board.yourReview}</span>
         ) : null}
       </div>
-      <h4>{card.title}</h4>
+      {/* One line on the phone: the ellipsis points here and to the panel. */}
+      <h4 title={card.title}>{card.title}</h4>
       <div className={`card-foot${exec ? " exec-pulse" : ""}`}>
         {exec ? <span className="dot-exec" /> : null}
         {harness ? <span className="meta-harness">{harness}</span> : null}

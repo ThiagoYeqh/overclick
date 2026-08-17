@@ -142,7 +142,10 @@ export function HomeShell({
           over<span>click</span>
         </div>
         <div className="crumb">
-          {workspaceName} /{" "}
+          <span className="crumb-ws" title={workspaceName}>
+            {workspaceName}
+          </span>
+          /{" "}
           <select
             aria-label={t.board.allProjects}
             value={filter.projectId}

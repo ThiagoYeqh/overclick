@@ -812,3 +812,65 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .bulk-err { font-size: 12px; color: #e8a1a1; max-width: 320px; }
 .nb .btn-ghost.on { color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.4); }
+
+/* ============================================================
+   PHONE: the board as a snap carousel (AGB-58)
+
+   Below 768px, and on a phone held in landscape, the four columns stop
+   squeezing side by side and become slides with scroll snap: one column
+   fills the screen and the next one peeks in from the edge, so a swipe
+   changes the status the same way a glance does on desktop. This layout
+   keeps more cards visible than a status selector would, because the
+   selector would spend a line on chrome instead of on cards.
+
+   The one-line rule the card footer already had now holds for everything:
+   column headers, counters, empty states, the topbar crumb, the mission
+   chip and card titles each take exactly one line. Whatever cannot fit
+   truncates with an ellipsis and stays reachable whole: the card title
+   opens in the detail panel, the selects list their full options natively,
+   and the truncated texts carry a title attribute.
+   ============================================================ */
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+  .nb { padding: 16px 16px 48px; }
+
+  /* topbar: a control may take another row, never another line */
+  .nb .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; margin-bottom: 14px; }
+  .nb .topbar > * { flex: none; }
+  .nb .spacer { display: none; }
+  .nb .btn-ghost { padding: 6px 10px; font-size: 11px; white-space: nowrap; }
+  .nb .agent-status { white-space: nowrap; }
+  .nb .crumb {
+    flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .nb .crumb-ws { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nb .crumb select { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
+  .nb .filter-chip { max-width: 44vw; }
+  .nb .filter-chip select { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; }
+
+  /* the carousel: full-bleed so the peeking column touches the edge */
+  .nb .board {
+    display: flex; gap: 10px;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    margin: 0 -16px; padding: 0 16px 6px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .nb .board::-webkit-scrollbar { display: none; }
+  .nb .board > div { flex: 0 0 min(86%, 340px); min-width: 0; scroll-snap-align: start; }
+
+  .nb .col-head { white-space: nowrap; overflow: hidden; }
+  .nb .col-head .count { flex: none; }
+  .nb .col { min-height: 140px; }
+
+  /* one line each, the ellipsis standing for the rest */
+  .nb .empty-col {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 14px 10px;
+  }
+  .nb .card h4 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nb .card .id-row { white-space: nowrap; overflow: hidden; }
+
+  /* the overlays meet the same width */
+  .nb .ov { padding: 20px 10px; }
+  .nb .bulk-bar { max-width: calc(100vw - 20px); flex-wrap: wrap; row-gap: 8px; }
+}
