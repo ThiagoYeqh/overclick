@@ -24,6 +24,49 @@ function valueOf(card: CardInsight, key: SortKey): number {
   return card.attempts;
 }
 
+/**
+ * The qualifiers the rows carry, as one quiet line under the table. Markers
+ * on the values point here; the counts the old inline badges showed are named
+ * per card, out of the numeric columns.
+ */
+function CardFootnote({
+  cards,
+  t,
+}: {
+  cards: CardInsight[];
+  t: InsightsCopy;
+}) {
+  const items: string[] = [];
+  const estimated = cards.filter((c) => c.estimated);
+  if (estimated.length > 0) {
+    items.push(t.footEstimated(estimated.map((c) => c.shortId).join(" · ")));
+  }
+  const missing = cards.filter((c) => c.missing);
+  if (missing.length > 0) {
+    items.push(t.footMissing(missing.map((c) => c.shortId).join(" · ")));
+  }
+  const elapsed = cards.filter((c) => c.elapsedMs > 0);
+  if (elapsed.length > 0) {
+    items.push(
+      t.footElapsed(
+        elapsed
+          .map((c) => `${c.shortId} ${t.elapsedTag(fmtElapsedMs(c.elapsedMs))}`)
+          .join(" · "),
+      ),
+    );
+  }
+  if (items.length === 0) return null;
+  return (
+    <p className="ins-foot">
+      {items.map((item) => (
+        <span key={item} className="ins-foot-item">
+          {item}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 /** The per-card table. Sort state is view-only, so it stays client-side. */
 export function CostTable({
   cards,
@@ -67,73 +110,111 @@ export function CostTable({
   ];
 
   return (
-    <table className="ins-table">
-      <thead>
-        <tr>
-          <th>{t.colCard}</th>
-          <th>{t.colMission}</th>
-          <th>{t.colModel}</th>
-          {pricingEnabled ? <th>{t.colSource}</th> : null}
-          {sortable.map((col) => (
-            <th
-              key={col.key}
-              className={`ins-sort num${col.key === sortKey ? " on" : ""}`}
-              onClick={() => toggle(col.key)}
-              title={t.sortHint}
-            >
-              {col.label}
-              {arrow(col.key)}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.map((card) => (
-          <tr key={card.taskId}>
-            <td>
-              <span className="ins-cid">{card.shortId}</span>
-              <span className="ins-card-title">{card.title}</span>
-              {card.estimated ? (
-                <span className="ins-flag">{t.estimatedTag}</span>
-              ) : null}
-              {card.missing ? (
-                <span className="ins-flag">{t.missingTag}</span>
-              ) : null}
-            </td>
-            <td className="ins-dim">{card.missionTitle ?? t.noMission}</td>
-            <td className="ins-mono">
-              {card.models.length > 0 ? card.models.join(", ") : t.noModel}
-            </td>
-            {pricingEnabled ? (
-              <td className={card.costSource ? "" : "ins-dim"}>
-                {sourceLabel(card.costSource, t)}
-              </td>
-            ) : null}
-            {pricingEnabled ? (
-              <td className="num">
-                {card.costUsd != null ? (
-                  <b>{fmtCostUsd(card.costUsd)}</b>
-                ) : (
-                  <span className="ins-dim">{t.costNotReported}</span>
-                )}
-              </td>
-            ) : null}
-            <td className="num">{fmtTokens(card.tokens)}</td>
-            {/* A card whose agents reported no execution time shows the time
-                it stayed open instead, labeled, never as if it were work. */}
-            <td className="num">
-              {card.durationMs > 0 || card.elapsedMs === 0 ? (
-                fmtDurationMs(card.durationMs)
-              ) : (
-                <span className="ins-dim">
-                  {t.elapsedTag(fmtElapsedMs(card.elapsedMs))}
-                </span>
-              )}
-            </td>
-            <td className="num">{card.attempts}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <div className="ins-scroll">
+        <table className="ins-table ins-table-cards">
+          <colgroup>
+            <col />
+            <col className="ins-col-mission" />
+            <col className="ins-col-model" />
+            {pricingEnabled ? <col className="ins-col-source" /> : null}
+            {pricingEnabled ? <col className="ins-col-cost" /> : null}
+            <col className="ins-col-tokens" />
+            <col className="ins-col-time" />
+            <col className="ins-col-attempts" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>{t.colCard}</th>
+              <th>{t.colMission}</th>
+              <th>{t.colModel}</th>
+              {pricingEnabled ? <th>{t.colSource}</th> : null}
+              {sortable.map((col) => (
+                <th
+                  key={col.key}
+                  className={`ins-sort num${col.key === sortKey ? " on" : ""}`}
+                  onClick={() => toggle(col.key)}
+                  title={t.sortHint}
+                >
+                  {col.label}
+                  {arrow(col.key)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((card) => {
+              const models =
+                card.models.length > 0 ? card.models.join(", ") : t.noModel;
+              return (
+                <tr key={card.taskId}>
+                  <td>
+                    <div className="ins-cardcell">
+                      <span className="ins-cid">{card.shortId}</span>
+                      <span className="ins-card-title" title={card.title}>
+                        {card.title}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      className={`ins-name ins-dim`}
+                      title={card.missionTitle ?? t.noMission}
+                    >
+                      {card.missionTitle ?? t.noMission}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="ins-name ins-mono" title={models}>
+                      {models}
+                    </span>
+                  </td>
+                  {pricingEnabled ? (
+                    <td className={card.costSource ? "" : "ins-dim"}>
+                      {sourceLabel(card.costSource, t)}
+                    </td>
+                  ) : null}
+                  {pricingEnabled ? (
+                    <td className="num">
+                      {card.costUsd != null ? (
+                        <b>{fmtCostUsd(card.costUsd)}</b>
+                      ) : (
+                        <span className="ins-dim">{t.costNotReported}</span>
+                      )}
+                    </td>
+                  ) : null}
+                  <td className="num">
+                    {fmtTokens(card.tokens)}
+                    {card.estimated || card.missing ? (
+                      <span
+                        className="ins-mark"
+                        title={
+                          card.missing ? t.missingCount(1) : t.estimatedCount(1)
+                        }
+                      >
+                        {card.missing ? "○" : "≈"}
+                      </span>
+                    ) : null}
+                  </td>
+                  {/* A card whose agents reported no execution time shows the
+                      time it stayed open instead, labeled, never as work. */}
+                  <td className="num">
+                    {card.durationMs > 0 || card.elapsedMs === 0 ? (
+                      fmtDurationMs(card.durationMs)
+                    ) : (
+                      <span className="ins-dim">
+                        {t.elapsedTag(fmtElapsedMs(card.elapsedMs))}
+                      </span>
+                    )}
+                  </td>
+                  <td className="num">{card.attempts}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <CardFootnote cards={cards} t={t} />
+    </>
   );
 }

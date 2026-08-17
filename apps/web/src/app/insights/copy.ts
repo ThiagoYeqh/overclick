@@ -54,6 +54,19 @@ const en = {
   noCostSource: "no cost to attribute",
   pricesNote: "Cost is computed from the price table in Settings whenever an attempt reports tokens.",
   sortHint: "click a column to sort",
+  trendCostTitle: "Spend over time",
+  trendTokensTitle: "Tokens over time",
+  trendAttempts: (n: number) => `${n} run${n === 1 ? "" : "s"}`,
+  trendPeak: (value: string, day: string) => `peak ${value} · ${day}`,
+  trendDays: (n: number) => `${n} day${n === 1 ? "" : "s"}`,
+  shareCostTitle: "Share of cost by model",
+  shareTokensTitle: "Share of tokens by model",
+  shareNote: "share among the models below",
+  /** Footnote qualifiers: the marker, what it means, then the rows it hits. */
+  footEstimated: (items: string) => `≈ estimated: ${items}`,
+  footMissing: (items: string) => `○ usage not reported: ${items}`,
+  footElapsed: (items: string) => `+ elapsed, never added: ${items}`,
+  footUnpriced: (items: string) => `no price: ${items}`,
   empty:
     "No delivered work yet. When an agent claims and delivers a card, its tokens and time land here.",
   emptyReopens:
@@ -113,6 +126,18 @@ const ptBR: InsightsCopy = {
   noCostSource: "nenhum custo para atribuir",
   pricesNote: "O custo é calculado pela tabela de preços em Configurações sempre que uma execução reporta tokens.",
   sortHint: "clique numa coluna para ordenar",
+  trendCostTitle: "Gasto ao longo do tempo",
+  trendTokensTitle: "Tokens ao longo do tempo",
+  trendAttempts: (n: number) => `${n} execuç${n === 1 ? "ão" : "ões"}`,
+  trendPeak: (value: string, day: string) => `pico ${value} · ${day}`,
+  trendDays: (n: number) => `${n} dia${n === 1 ? "" : "s"}`,
+  shareCostTitle: "Participação no custo por modelo",
+  shareTokensTitle: "Participação nos tokens por modelo",
+  shareNote: "participação entre os modelos abaixo",
+  footEstimated: (items: string) => `≈ estimado: ${items}`,
+  footMissing: (items: string) => `○ sem uso reportado: ${items}`,
+  footElapsed: (items: string) => `+ decorrido, não somado: ${items}`,
+  footUnpriced: (items: string) => `sem preço: ${items}`,
   empty:
     "Nenhuma entrega ainda. Quando um agente pegar e entregar um card, os tokens e o tempo aparecem aqui.",
   emptyReopens:
