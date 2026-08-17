@@ -48,7 +48,14 @@ export type BoardCard = {
   projectId: string;
   missionId: string | null;
   mission: string | null;
+  /** Planned harness with its effort, for the detail panel. */
   harness: string | null;
+  /** Plan and reality in one value: "sonnet-5", or "sonnet-5 → fable-5". */
+  harnessChain: string | null;
+  /** What actually ran, set only when it was not what the card planned. */
+  harnessRan: string | null;
+  /** True when this card waits on the review of whoever is looking at it. */
+  awaitingMyReview: boolean;
   devolve: string;
   origem: string;
   executor: string | null;
@@ -124,6 +131,27 @@ function Telemetry({ text }: { text: string }) {
   );
 }
 
+/**
+ * Everything after the harness on the card's one meta line. Open cards owe
+ * the reader who gets the card back, running ones how long they have been at
+ * it, delivered ones the numbers the run cost.
+ */
+function CardMetaTail({ card, t }: { card: BoardCard; t: Dict }) {
+  if (card.status === "aberto") {
+    return (
+      <span className="telemetry">
+        {t.board.returnsTo} <b>{card.devolve}</b>
+      </span>
+    );
+  }
+  if (card.status === "em_execucao") {
+    return card.elapsed ? <Telemetry text={card.elapsed} /> : null;
+  }
+  // Never a bare "no telemetry" on a delivered card: without any numbers the
+  // honest label is that usage went unreported.
+  return <Telemetry text={card.telemetry ?? t.board.usageNotReported} />;
+}
+
 function Card({
   card,
   onOpen,
@@ -135,6 +163,9 @@ function Card({
 }) {
   const exec = card.status === "em_execucao";
   const dim = card.status === "validado";
+  // Three lines and no more: what the card is, what it says, what it cost.
+  // Mission, branch, executor and the effort of the harness all stay one
+  // click away in the detail panel.
   return (
     <div
       className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}`}
@@ -144,37 +175,19 @@ function Card({
         <span className="cid">{card.shortId}</span>
         <span className={`tag ${card.tipo}`}>{card.tipo}</span>
         {card.isExample ? <span className="selo">{t.board.example}</span> : null}
-        {card.status === "feito" ? (
-          <span className="review-chip">{t.board.awaitingReview}</span>
+        {card.awaitingMyReview ? (
+          <span className="review-chip">{t.board.yourReview}</span>
         ) : null}
       </div>
       <h4>{card.title}</h4>
-      {card.mission ? <div className="mission">{card.mission}</div> : null}
-      {card.harness ? <div className="harness">{card.harness}</div> : null}
-      <div className="card-foot">
-        {card.status === "aberto" ? (
-          <span className="telemetry">
-            {t.board.returnsTo} <b>{card.devolve}</b>
-          </span>
+      <div className={`card-foot${exec ? " exec-pulse" : ""}`}>
+        {exec ? <span className="dot-exec" /> : null}
+        {card.harnessChain ? (
+          <span className="meta-harness">{card.harnessChain}</span>
+        ) : exec ? (
+          <span className="meta-harness">{card.executor ?? t.board.agent}</span>
         ) : null}
-        {card.status === "em_execucao" ? (
-          <>
-            <div className="exec-pulse">
-              <span className="dot-exec" /> {card.executor ?? t.board.agent}
-              {card.elapsed ? ` · ${card.elapsed}` : ""}
-            </div>
-            {card.branch ? <span className="telemetry">{card.branch}</span> : null}
-          </>
-        ) : null}
-        {card.status === "feito" || card.status === "validado" ? (
-          card.telemetry ? (
-            <Telemetry text={card.telemetry} />
-          ) : (
-            // Never a bare "no telemetry" on a delivered card: without any
-            // numbers the honest label is that usage went unreported.
-            <span className="telemetry">{t.board.usageNotReported}</span>
-          )
-        ) : null}
+        <CardMetaTail card={card} t={t} />
       </div>
     </div>
   );
@@ -497,6 +510,14 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
           <div>
             <div className="lbl">{t.detail.harness}</div>
             <p className="d-mono">{card.harness ?? "—"}</p>
+            {/* The board folds plan and reality into one value; here they
+                stay apart, so the effort planned and the model that ran are
+                both readable. */}
+            {card.harnessRan ? (
+              <p className="d-mono d-harness-ran">
+                {t.detail.harnessRan} {card.harnessRan}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="d-sec">

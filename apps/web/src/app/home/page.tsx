@@ -1,8 +1,8 @@
 import { asc, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import {
+  harnessChain,
   mission,
-  modelChain,
   normalizeUsageSegments,
   project,
   readTranscriptRef,
@@ -122,10 +122,12 @@ function toBoardCard(
   /** Money is opt-in: with it off the footer is tokens and time only. */
   pricingEnabled: boolean,
   recipes: readonly UsageRecipeRow[],
+  /** Who is looking, so the card can tell whose review it waits on. */
+  viewerId: string,
 ): BoardCard {
   const h = t.harness;
-  const harness =
-    [h?.model ?? h?.modelTier, h?.effort].filter(Boolean).join(" · ") || null;
+  const plannedModel = h?.model ?? h?.modelTier ?? null;
+  const harness = [plannedModel, h?.effort].filter(Boolean).join(" · ") || null;
 
   const devolve =
     t.devolveParaKind === "human"
@@ -159,6 +161,9 @@ function toBoardCard(
   // duration with "usage not reported". A delivered card never shows nothing.
   let telemetry: string | null = null;
   let estimated = false;
+  // Which models actually ran, so the card can put the plan and the reality
+  // side by side instead of spending a line on each.
+  let ranModels: Array<string | null> = [];
   if (latestAttempt) {
     const parts: string[] = [];
     const tokens =
@@ -185,13 +190,11 @@ function toBoardCard(
           );
           return folded.length > 0 ? folded : [{ model: latestAttempt.model }];
         })();
-    // One model, or the chain a run that switched models actually walked.
-    const chain = modelChain(segmentModels(segments));
+    ranModels = segmentModels(segments);
     if (hasUsage) {
       const duration = latestAttempt.durationMs ?? latestAttempt.serverDurationMs;
       if (duration != null) parts.push(fmtDurationMs(duration));
       if (tokens > 0) parts.push(fmtTokens(tokens));
-      if (chain) parts.push(chain);
       // Money only when the workspace asked for it. When it did, the board
       // owns the arithmetic: tokens plus the price table beat the number the
       // agent volunteered, and every model is priced at its own rate.
@@ -207,11 +210,8 @@ function toBoardCard(
     } else if (latestAttempt.serverDurationMs != null) {
       telemetry = [
         fmtDurationMs(latestAttempt.serverDurationMs),
-        chain,
         tr.board.usageNotReported,
-      ]
-        .filter(Boolean)
-        .join(" · ");
+      ].join(" · ");
     }
   } else if (latestHandoff?.usage) {
     const u = latestHandoff.usage;
@@ -219,8 +219,7 @@ function toBoardCard(
     if (u.duration_ms != null) parts.push(fmtDurationMs(u.duration_ms));
     const tokens = (u.tokens_in ?? 0) + (u.tokens_out ?? 0) + (u.tokens_cache ?? 0);
     if (tokens > 0) parts.push(fmtTokens(tokens));
-    const chain = modelChain(segmentModels(normalizeUsageSegments(u, null)));
-    if (chain) parts.push(chain);
+    ranModels = segmentModels(normalizeUsageSegments(u, null));
     // No attempt to price: this is the agent's own number, labeled as such.
     if (pricingEnabled && u.cost_usd != null) {
       parts.push(fmtCost(u.cost_usd, u.estimated ? "estimated" : "reported", tr));
@@ -233,6 +232,11 @@ function toBoardCard(
   } else if (telemetry && t.telemetryIncomplete && !telemetry.includes(tr.board.usageNotReported)) {
     telemetry += ` · ${tr.board.telemetryIncomplete}`;
   }
+
+  // The board says the plan and the reality in one value; the detail panel
+  // still names what ran on its own, next to the effort the card asked for.
+  const ranChain = harnessChain(null, ranModels);
+  const plannedChain = harnessChain(plannedModel);
 
   return {
     id: t.id,
@@ -251,6 +255,14 @@ function toBoardCard(
     })),
     mission: t.mission?.title ?? null,
     harness,
+    harnessChain: harnessChain(plannedModel, ranModels),
+    harnessRan: ranChain && ranChain !== plannedChain ? ranChain : null,
+    // The column already says "done · review". A chip only earns its place by
+    // saying something the column cannot: that this one is waiting on you.
+    awaitingMyReview:
+      t.status === "feito" &&
+      t.devolveParaKind === "human" &&
+      t.devolveParaUserId === viewerId,
     devolve,
     origem: `${origem} · ${fmtDate(t.createdAt)}`,
     executor: t.claimedByExecutor ?? latestAttempt?.executor ?? null,
@@ -307,7 +319,7 @@ export default async function HomePage() {
   // command is the one that measured the run, pinned to its transcript.
   const recipes = await loadUsageRecipes(db(), ws.id);
   const cards = rows.map((row) =>
-    toBoardCard(row, t, prices, ws.pricingEnabled, recipes),
+    toBoardCard(row, t, prices, ws.pricingEnabled, recipes, session.userId),
   );
   const initialFilter = resolveBoardFilter(
     { projectId: me?.boardProjectId ?? null, missionId: me?.boardMissionId ?? null },

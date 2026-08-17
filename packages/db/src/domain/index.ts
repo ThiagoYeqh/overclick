@@ -21,6 +21,7 @@ export {
 } from "./first-access";
 export { canNestUnder } from "./subtask";
 export { factoryCardapioPolicy } from "./cardapio";
+export { harnessChain } from "./harness";
 export {
   areSegmentsPriced,
   computeCostUsd,

@@ -326,7 +326,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .empty-col i { font-style: italic; }
 
 .nb .card {
-  padding: var(--nebula-space-3) var(--nebula-space-4); position: relative; cursor: pointer;
+  padding: var(--nebula-space-2) var(--nebula-space-4); position: relative; cursor: pointer;
   transition:
     transform 0.35s var(--nebula-ease-atmosphere),
     border-color 0.35s var(--nebula-ease-atmosphere),
@@ -338,7 +338,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   border-color: rgba(255, 255, 255, 0.16);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), var(--nebula-glass-highlight);
 }
-.nb .card .id-row { display: flex; align-items: center; gap: var(--nebula-space-2); margin-bottom: var(--nebula-space-2); }
+.nb .card .id-row { display: flex; align-items: center; gap: var(--nebula-space-2); margin-bottom: var(--nebula-space-1); }
 .nb .card .cid {
   font-family: var(--nebula-font-mono); font-size: 10px;
   color: var(--nebula-text-tertiary); letter-spacing: 0.06em;
@@ -361,21 +361,18 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .card h4 {
   font-size: 14px; font-weight: var(--nebula-weight-medium);
   letter-spacing: var(--nebula-tracking-tight); color: var(--nebula-text-primary);
-  line-height: 1.35; margin-bottom: var(--nebula-space-2);
+  line-height: 1.35; margin-bottom: var(--nebula-space-1);
 }
-.nb .mission { font-size: 11px; color: var(--nebula-text-tertiary); margin-bottom: var(--nebula-space-2); }
-.nb .mission::before { content: "◆ "; color: var(--nebula-star-far); font-size: 8px; }
-.nb .harness {
-  font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: 0.03em;
-  color: var(--nebula-mist); background: rgba(133,143,163,0.06);
-  border: 1px solid rgba(133,143,163,0.12); border-radius: 8px; padding: 3px 8px;
-  display: inline-block; margin-bottom: var(--nebula-space-1);
-}
+/* one line only: planned and actual harness, then time, tokens and cost */
 .nb .card-foot {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
   border-top: 1px solid var(--nebula-plan-divider);
-  margin-top: var(--nebula-space-3); padding-top: var(--nebula-space-2);
+  margin-top: var(--nebula-space-1); padding-top: 6px;
   font-family: var(--nebula-font-mono); font-size: 10.5px; color: var(--nebula-text-tertiary);
+}
+.nb .card-foot .meta-harness { color: var(--nebula-mist); letter-spacing: 0.03em; }
+.nb .card-foot .meta-harness:not(:last-child)::after {
+  content: " ·"; color: var(--nebula-text-tertiary);
 }
 
 /* pulse dos executores */
@@ -449,6 +446,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-sec p { font-size: 12.5px; color: var(--nebula-text-secondary); line-height: 1.55; white-space: pre-line; }
 .nb .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 26px; }
 .nb .d-mono { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-mist-light); }
+/* what really ran, under the harness the card planned */
+.nb .d-harness-ran { color: var(--nebula-text-tertiary); margin-top: 2px; }
 .nb .d-roles { display: flex; gap: var(--nebula-space-2) var(--nebula-space-4); flex-wrap: wrap; }
 .nb .d-roles .rl { font-size: 11.5px; color: var(--nebula-text-tertiary); }
 .nb .d-roles .rl b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); margin-left: 2px; }
