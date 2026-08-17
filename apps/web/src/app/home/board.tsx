@@ -11,6 +11,21 @@ import { dict, type Dict } from "../../lib/i18n";
 
 export type ConfirmStep = { step: string; expected: string };
 export type ValidationTickView = { index: number; byEmail: string; at: string };
+/**
+ * Where the run's transcript lives, plus the two commands that act on it.
+ * The board holds the pointer only: the file itself never left the machine
+ * that ran the card, which is also the only place these commands work.
+ */
+export type TranscriptView = {
+  cli: string | null;
+  sessionId: string | null;
+  path: string | null;
+  /** Reopens the session in that CLI. Null when the CLI has no known flag. */
+  resume: string | null;
+  /** Recipe command pinned to this transcript. Null without a path. */
+  usageCommand: string | null;
+};
+
 export type TimelineEntry = {
   kind: "executor_swap" | "spawn_failure";
   body: string;
@@ -41,6 +56,7 @@ export type BoardCard = {
   branch: string | null;
   timeline: TimelineEntry[];
   telemetry: string | null;
+  transcript: TranscriptView | null;
   handoff: string | null;
 };
 
@@ -226,6 +242,58 @@ function ConfirmChecklist({
           </label>
         );
       })}
+    </div>
+  );
+}
+
+function CopyButton({ label, value, t }: { label: string; value: string; t: Dict }) {
+  const [done, setDone] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setDone(true);
+      setTimeout(() => setDone(false), 1600);
+    } catch {
+      // Clipboard denied (http origin, or the browser said no): the path and
+      // the commands are on screen, so there is still something to select.
+      setDone(false);
+    }
+  };
+
+  return (
+    <button className={`d-copy${done ? " done" : ""}`} onClick={copy} title={value}>
+      {done ? t.detail.copied : label}
+    </button>
+  );
+}
+
+/**
+ * The pointer back to the session that did the work: the path, the command
+ * that reopens it in that CLI, and the command that recomputes usage from it.
+ * A button only appears for something the board actually knows.
+ */
+function Transcript({ view, t }: { view: TranscriptView; t: Dict }) {
+  const head = [view.cli, view.sessionId ? `${t.detail.transcriptSession} ${view.sessionId}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <div className="d-sec">
+      <div className="lbl">{t.detail.transcript}</div>
+      {head ? <p className="d-mono">{head}</p> : null}
+      <p className="d-transcript-path d-mono">
+        {view.path ?? t.detail.transcriptNoPath}
+      </p>
+      <div className="d-copy-row">
+        {view.path ? <CopyButton label={t.detail.copyPath} value={view.path} t={t} /> : null}
+        {view.resume ? (
+          <CopyButton label={t.detail.copyResume} value={view.resume} t={t} />
+        ) : null}
+        {view.usageCommand ? (
+          <CopyButton label={t.detail.copyRecompute} value={view.usageCommand} t={t} />
+        ) : null}
+      </div>
+      <p className="d-transcript-note">{t.detail.transcriptNote}</p>
     </div>
   );
 }
@@ -477,6 +545,7 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
             <div className="d-evid">{card.handoff}</div>
           </div>
         ) : null}
+        {card.transcript ? <Transcript view={card.transcript} t={t} /> : null}
         <DetailActions card={card} allTicked={allTicked} onClose={onClose} t={t} />
       </div>
     </div>

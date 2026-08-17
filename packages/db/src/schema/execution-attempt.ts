@@ -9,6 +9,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { TranscriptRef } from "../domain/transcript";
 import type { UsageSegment } from "../domain/usage";
 import { task } from "./task";
 
@@ -21,6 +22,13 @@ export const executionAttempt = pgTable(
     .references(() => task.id, { onDelete: "cascade" }),
   executor: text("executor"),
   model: text("model"),
+  /**
+   * Pointer to the agent's own session transcript: cli, session id, the path
+   * on the machine that ran the card and the command that reopens it. The
+   * reference only, never the content: the file lives on the agent machine
+   * and the board has no business holding a stale copy of it.
+   */
+  transcript: jsonb("transcript").$type<TranscriptRef>(),
   startedAt: timestamp("started_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

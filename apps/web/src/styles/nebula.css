@@ -459,6 +459,17 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-tl-entry { font-family: var(--nebula-font-mono); font-size: 11px; }
 .nb .d-tl-entry .tag { margin-right: 6px; }
 .nb .d-tl-meta { color: var(--nebula-text-tertiary); }
+.nb .d-transcript-path { font-family: var(--nebula-font-mono); font-size: 11px;
+  color: var(--nebula-text-secondary); word-break: break-all; margin-top: 4px; }
+.nb .d-copy-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 9px; }
+.nb .d-copy { font-family: var(--nebula-font-mono); font-size: 10.5px; letter-spacing: .02em;
+  background: rgba(8,10,13,.6); border: 1px solid var(--nebula-glass-border); border-radius: 8px;
+  padding: 5px 10px; color: var(--nebula-text-secondary); cursor: pointer;
+  transition: border-color .15s, color .15s; max-width: 100%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.nb .d-copy:hover { border-color: var(--nebula-mist-light); color: var(--nebula-text-primary); }
+.nb .d-copy.done { border-color: rgba(125,214,160,.45); color: #7dd6a0; }
+.nb .d-transcript-note { font-size: 11px; color: var(--nebula-text-tertiary); margin-top: 8px; }
 
 /* ---------- validation panel (Done · review) ---------- */
 .nb .d-verify { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;

@@ -235,6 +235,95 @@ describe("MCP tool edge cases against a test db", () => {
     expect(TaskGetOutputSchema.parse(got.value).usage_recipe?.cli).toBe("generic");
   });
 
+  it("turns the claim session id into a transcript reference the delivery completes", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Referência do transcript",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "O card precisa apontar de volta para a sessão.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    // The claim only knows the session: the path exists once the run is done.
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "claude", model: "sonnet-5", session_id: "sess-42" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const attemptOut = TaskClaimOutputSchema.parse(claimed.value).attempt;
+    expect(attemptOut.transcript).toEqual({
+      cli: "claude",
+      session_id: "sess-42",
+      path: null,
+      resume: "claude --resume sess-42",
+    });
+
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entregue",
+      transcript: { path: "/home/dev/.claude/projects/repo/sess-42.jsonl" },
+    });
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const delivered = TaskDeliverOutputSchema.parse(submitted.value);
+    // The delivery adds the path and keeps everything the claim recorded.
+    expect(delivered.transcript).toEqual({
+      cli: "claude",
+      session_id: "sess-42",
+      path: "/home/dev/.claude/projects/repo/sess-42.jsonl",
+      resume: "claude --resume sess-42",
+    });
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.transcript).toEqual({
+      cli: "claude",
+      sessionId: "sess-42",
+      path: "/home/dev/.claude/projects/repo/sess-42.jsonl",
+      resume: "claude --resume sess-42",
+    });
+  });
+
+  it("leaves the transcript reference null when the executor names no session", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Sem sessão",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "Nem todo executor identifica a sessão.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    expect(TaskClaimOutputSchema.parse(claimed.value).attempt.transcript).toBeNull();
+
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entregue",
+    });
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    expect(TaskDeliverOutputSchema.parse(submitted.value).transcript).toBeNull();
+  });
+
   it("stores usage in segments per model and derives the flat totals", async () => {
     world = await createTestWorld();
     const created = await invokeTool(world.db, ctx(), "task_create", {

@@ -97,6 +97,10 @@ export function renderBriefingMarkdown(input: {
       "`{segments: [{model, input, output, cache_read, cache_write}], " +
       "duration_ms, turns}` — the command above prints exactly that shape. " +
       "Without exact numbers, ESTIMATE and set `estimated: true`. " +
-      "Real numbers found later? Correct them with `task_update` passing usage.",
+      "Real numbers found later? Correct them with `task_update` passing usage.\n\n" +
+      "Send `transcript: {path}` too, with the transcript the command read. " +
+      "The board stores the reference only, never the content: the file stays " +
+      "on your machine, and the card gets a way back to this session for " +
+      "auditing it, resuming it, or recomputing usage later.",
   ].join("\n");
 }

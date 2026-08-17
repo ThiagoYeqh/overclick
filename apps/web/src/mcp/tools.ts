@@ -6,13 +6,16 @@ import {
   factoryCardapioPolicy,
   handoff,
   isValidPrefix,
+  mergeTranscriptRef,
   mission,
   nextShortId,
   normalizeShortId,
   project,
+  readTranscriptRef,
   resolveUsageSegments,
   task,
   taskComment,
+  transcriptRef,
   workspace,
   type ExecutorConfig,
   type UsageReport,
@@ -37,6 +40,7 @@ import {
   type Result,
   type Reviewer,
   type Task,
+  type TranscriptRefWire,
   type Usage,
 } from "@agent-board/mcp-core";
 import { and, asc, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
@@ -68,6 +72,7 @@ import {
   reviewerFromRow,
   reviewerToColumns,
   serializeComoConfirmo,
+  transcriptToWire,
   type ProjectRow,
   type TaskRow,
 } from "./map";
@@ -664,8 +669,19 @@ async function taskClaim(
       agent?: string;
       session_id?: string;
     };
+    transcript?: TranscriptRefWire;
   },
 ) {
+  // The session id an executor already sends becomes the transcript
+  // reference: an old claim that only knew its session still lands on a card
+  // that can point back at it.
+  const claimTranscript = transcriptRef({
+    cli: input.transcript?.cli ?? input.executor?.cli,
+    sessionId: input.transcript?.session_id ?? input.executor?.session_id,
+    path: input.transcript?.path,
+    resume: input.transcript?.resume,
+  });
+
   const claimed = await db.transaction(async (tx) => {
     const found = await findTask(tx, ctx.workspaceId, input.task_id, true);
     if (!found) {
@@ -743,6 +759,7 @@ async function taskClaim(
           session_id: input.executor?.session_id,
         }),
         model: input.executor?.model ?? null,
+        transcript: claimTranscript,
       })
       .returning();
     if (!attempt) throw new Error("failed to insert execution_attempt");
@@ -811,6 +828,7 @@ async function taskClaim(
         : null,
       usage: null,
       result: null,
+      transcript: transcriptToWire(claimed.value.attempt.transcript),
     },
     briefing_markdown: payload.briefing_markdown,
     branch_convention: payload.branch_convention,
@@ -1103,6 +1121,7 @@ async function taskDeliver(
     branch?: string;
     pull_request_url?: string;
     usage?: Usage;
+    transcript?: TranscriptRefWire;
   },
 ) {
   const persisted = await db.transaction(async (tx) => {
@@ -1144,6 +1163,28 @@ async function taskDeliver(
       : undefined;
     const incomplete = isTelemetryIncomplete(usage);
 
+    // The delivery usually knows the path the claim could not: the recipe
+    // only prints it once the run is done. Fields it omits keep the claimed
+    // value, and an attempt claimed before this column existed falls back to
+    // the session id already inside its executor blob.
+    const claimExecutor = openAttempt
+      ? decodeExecutor(openAttempt.executor, openAttempt.model)
+      : {};
+    const transcript = mergeTranscriptRef(
+      readTranscriptRef(openAttempt?.transcript, {
+        cli: claimExecutor.cli,
+        sessionId: claimExecutor.session_id,
+      }),
+      input.transcript
+        ? {
+            cli: input.transcript.cli,
+            sessionId: input.transcript.session_id,
+            path: input.transcript.path,
+            resume: input.transcript.resume,
+          }
+        : null,
+    );
+
     if (openAttempt) {
       const finishedAt = new Date();
       await tx
@@ -1166,6 +1207,7 @@ async function taskDeliver(
           ),
           turns: usage?.turns,
           usageEstimated: usage?.estimated ?? false,
+          transcript,
         })
         .where(eq(executionAttempt.id, openAttempt.id));
     }
@@ -1208,9 +1250,8 @@ async function taskDeliver(
       incomplete,
       usage,
       routedTo: reviewerFromRow(updated),
-      attemptExecutor: openAttempt
-        ? decodeExecutor(openAttempt.executor, openAttempt.model)
-        : null,
+      attemptExecutor: openAttempt ? claimExecutor : null,
+      transcript,
     });
   });
 
@@ -1242,6 +1283,7 @@ async function taskDeliver(
       created_at: iso(persisted.value.saved.createdAt),
     },
     telemetry_incomplete: persisted.value.incomplete,
+    transcript: transcriptToWire(persisted.value.transcript),
     ...(input.usage
       ? {}
       : {

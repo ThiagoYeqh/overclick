@@ -125,6 +125,32 @@ export const UsageSchema = z.object({
   estimated: z.boolean().optional(),
 });
 
+/**
+ * Where the run's own transcript lives. The board stores this reference and
+ * never the content: the file is on the machine that ran the card, which is
+ * also the only machine where the resume and recompute commands make sense.
+ * `path` is usually only known at deliver time, so a claim may send just the
+ * session and fill the rest later.
+ */
+export const TranscriptRefSchema = z.object({
+  /** CLI that owns the session. Defaults to the claim executor's cli. */
+  cli: z.string().min(1).nullable().optional(),
+  /** Defaults to the claim executor's session_id. */
+  session_id: z.string().min(1).nullable().optional(),
+  /** Path on the agent machine, as the usage recipe prints it. */
+  path: z.string().min(1).nullable().optional(),
+  /** Command that reopens the session. Derived for known CLIs when omitted. */
+  resume: z.string().min(1).nullable().optional(),
+});
+
+/** The stored reference, with every field resolved or explicitly absent. */
+export const StoredTranscriptRefSchema = z.object({
+  cli: z.string().min(1).nullable(),
+  session_id: z.string().min(1).nullable(),
+  path: z.string().min(1).nullable(),
+  resume: z.string().min(1).nullable(),
+});
+
 export const EvidenceSchema = z
   .object({
     text: z.string().min(1).optional(),
@@ -254,6 +280,8 @@ export const ExecutionAttemptSchema = z.object({
   finished_at: IsoDateTimeSchema.nullable(),
   usage: UsageSchema.nullable(),
   result: z.enum(["success", "failure", "abandoned"]).nullable(),
+  /** Null when the executor sent no session and its cli has no resume hint. */
+  transcript: StoredTranscriptRefSchema.nullable().optional(),
 });
 
 export const HandoffSchema = z.object({
@@ -282,6 +310,8 @@ export type Reviewer = z.infer<typeof ReviewerSchema>;
 export type Harness = z.infer<typeof HarnessSchema>;
 export type Usage = z.infer<typeof UsageSchema>;
 export type UsageSegment = z.infer<typeof UsageSegmentSchema>;
+export type TranscriptRefWire = z.infer<typeof TranscriptRefSchema>;
+export type StoredTranscriptRefWire = z.infer<typeof StoredTranscriptRefSchema>;
 export type Evidence = z.infer<typeof EvidenceSchema>;
 export type Artifact = z.infer<typeof ArtifactSchema>;
 export type SubtaskCreate = z.infer<typeof SubtaskCreateSchema>;

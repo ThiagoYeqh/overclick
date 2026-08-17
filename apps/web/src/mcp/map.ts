@@ -1,4 +1,9 @@
-import type { Cardapio, ExecutorConfig, Harness as DbHarness } from "@agent-board/db";
+import type {
+  Cardapio,
+  ExecutorConfig,
+  Harness as DbHarness,
+  TranscriptRef,
+} from "@agent-board/db";
 import {
   DEFAULT_CARDAPIO,
   DEFAULT_REVIEWER,
@@ -11,6 +16,7 @@ import {
   type Project,
   type ProjectCardCounts,
   type Reviewer,
+  type StoredTranscriptRefWire,
   type Task,
   type Usage,
 } from "@agent-board/mcp-core";
@@ -265,6 +271,22 @@ export function usageFromUnknown(raw: unknown): Usage | null {
     duration_ms: num("duration_ms") ?? num("durationMs"),
     turns: num("turns"),
     estimated: typeof rec.estimated === "boolean" ? rec.estimated : undefined,
+  };
+}
+
+/**
+ * The stored transcript reference on the wire: camelCase column, snake_case
+ * contract. Null stays null so a card with nothing to point at says so.
+ */
+export function transcriptToWire(
+  ref: TranscriptRef | null | undefined,
+): StoredTranscriptRefWire | null {
+  if (!ref) return null;
+  return {
+    cli: ref.cli,
+    session_id: ref.sessionId,
+    path: ref.path,
+    resume: ref.resume,
   };
 }
 

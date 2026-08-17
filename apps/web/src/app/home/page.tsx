@@ -5,12 +5,15 @@ import {
   modelChain,
   normalizeUsageSegments,
   project,
+  readTranscriptRef,
+  recomputeUsageCommand,
   resolveSegmentedCost,
   segmentModels,
   task,
   user,
   type CostSource,
   type ModelPrice,
+  type UsageRecipeRow,
 } from "@agent-board/db";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { UpdateBanner } from "../../components/update-banner";
@@ -19,9 +22,10 @@ import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
 import { loadModelPrices } from "../../lib/prices";
+import { loadUsageRecipes, recipeForCli } from "../../lib/recipes";
 import { checkForUpdate, updateHelperDir } from "../../lib/updates";
-import { parseComoConfirmo } from "../../mcp/map";
-import type { BoardCard } from "./board";
+import { decodeExecutor, parseComoConfirmo } from "../../mcp/map";
+import type { BoardCard, TranscriptView } from "./board";
 import { HomeShell } from "./home-shell";
 
 export const dynamic = "force-dynamic";
@@ -83,12 +87,40 @@ function fmtCost(value: number, source: CostSource | null, tr: Dict): string {
   return `~US$ ${value.toFixed(2)} ${label}`;
 }
 
+/**
+ * The transcript reference of an attempt, with the two commands that act on
+ * it. Attempts claimed before the reference existed only ever recorded the
+ * session id inside the executor blob, and still resolve here: what is
+ * missing is the path, not the whole section.
+ */
+function toTranscriptView(
+  attempt: TaskRow["attempts"][number] | undefined,
+  recipes: readonly UsageRecipeRow[],
+): TranscriptView | null {
+  if (!attempt) return null;
+  const executor = decodeExecutor(attempt.executor, attempt.model);
+  const ref = readTranscriptRef(attempt.transcript, {
+    cli: executor.cli,
+    sessionId: executor.session_id,
+  });
+  if (!ref) return null;
+  const recipe = recipeForCli(recipes, ref.cli);
+  return {
+    cli: ref.cli,
+    sessionId: ref.sessionId,
+    path: ref.path,
+    resume: ref.resume,
+    usageCommand: recomputeUsageCommand(recipe?.command, ref.path),
+  };
+}
+
 function toBoardCard(
   t: TaskRow,
   tr: Dict,
   prices: readonly ModelPrice[],
   /** Money is opt-in: with it off the footer is tokens and time only. */
   pricingEnabled: boolean,
+  recipes: readonly UsageRecipeRow[],
 ): BoardCard {
   const h = t.harness;
   const harness =
@@ -225,6 +257,7 @@ function toBoardCard(
     branch: t.branch ?? latestHandoff?.branch ?? null,
     timeline,
     telemetry,
+    transcript: toTranscriptView(latestAttempt, recipes),
     handoff: latestHandoff?.summary ?? null,
     howToVerify: latestHandoff?.howToVerify ?? null,
     projectId: t.projectId,
@@ -266,7 +299,12 @@ export default async function HomePage() {
   const rows = await loadTasks(projects.map((item) => item.id));
   // Same rule as the Insights page: no money layer, no price table to read.
   const prices = ws.pricingEnabled ? await loadModelPrices(db(), ws.id) : [];
-  const cards = rows.map((row) => toBoardCard(row, t, prices, ws.pricingEnabled));
+  // The same recipes the briefing hands agents, so the card's recompute
+  // command is the one that measured the run, pinned to its transcript.
+  const recipes = await loadUsageRecipes(db(), ws.id);
+  const cards = rows.map((row) =>
+    toBoardCard(row, t, prices, ws.pricingEnabled, recipes),
+  );
   const initialFilter = resolveBoardFilter(
     { projectId: me?.boardProjectId ?? null, missionId: me?.boardMissionId ?? null },
     projects,

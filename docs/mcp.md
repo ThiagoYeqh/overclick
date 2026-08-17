@@ -95,6 +95,16 @@ being stored.
 `segments`, one per model that ran, plus `duration_ms` and `turns`; without exact
 numbers, estimate and set `estimated: true`.
 
+**The transcript reference.** `task_claim` and `task_deliver` both accept
+`transcript {cli, session_id, path, resume}`, and the card detail shows it with three copy
+actions: the path, the command that reopens the session in that CLI, and the recipe
+command pinned to that transcript with `TRANSCRIPT_PATH`. Send `path` at deliver time,
+when the recipe has printed it; fields you omit keep what the claim recorded, and the
+`session_id` an executor already sends becomes the reference on its own, so a card claimed
+before this existed still points somewhere. The board stores the reference and never the
+content: the transcript lives on the agent machine, which is also the only place those two
+commands run.
+
 ## The manage flag
 
 Reading the board is what a worker token is for. Rewriting the workspace configuration is

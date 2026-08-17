@@ -19,10 +19,12 @@ import {
   PrioritySchema,
   ProjectSchema,
   ReviewerSchema,
+  StoredTranscriptRefSchema,
   SubtaskCreateSchema,
   TaskSchema,
   TaskSummarySchema,
   TaskTypeSchema,
+  TranscriptRefSchema,
   UsageSchema,
 } from "./common.js";
 
@@ -199,6 +201,12 @@ export const TaskClaimInputSchema = z.object({
       session_id: z.string().optional(),
     })
     .optional(),
+  /**
+   * Pointer to this run's transcript. Omit it and the board still builds one
+   * from the executor's cli and session_id; send the path at deliver time,
+   * when the usage recipe has printed it.
+   */
+  transcript: TranscriptRefSchema.optional(),
 });
 
 export const HarnessDivergenceSchema = z.object({
@@ -279,6 +287,13 @@ export const TaskDeliverInputSchema = z.object({
    * "usage not reported". Duration is measured server-side regardless.
    */
   usage: UsageSchema.optional(),
+  /**
+   * Where this run's transcript ended up. Send `path` here: the card then
+   * links back to the session that did the work, and whoever reviews it can
+   * reopen it or recompute the usage on the machine that ran it. Fields you
+   * omit keep whatever the claim recorded.
+   */
+  transcript: TranscriptRefSchema.optional(),
 });
 
 export const TaskDeliverOutputSchema = z.object({
@@ -287,6 +302,8 @@ export const TaskDeliverOutputSchema = z.object({
   telemetry_incomplete: z.boolean(),
   /** Actionable warning returned when the delivery came without usage. */
   usage_warning: z.string().optional(),
+  /** The reference the card now shows, claim and delivery merged. */
+  transcript: StoredTranscriptRefSchema.nullable().optional(),
   routed_to: ReviewerSchema,
 });
 

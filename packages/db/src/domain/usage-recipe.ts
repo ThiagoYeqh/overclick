@@ -42,12 +42,16 @@ export const GENERIC_RECIPE_CLI = "generic";
 const CLAUDE_COMMAND = `python3 - <<'PY'
 import collections, glob, json, os
 
-# Claude Code writes one jsonl per session under ~/.claude/projects/<cwd slug>.
-folder = os.path.expanduser("~/.claude/projects/" + os.getcwd().replace("/", "-"))
-session = os.environ.get("CLAUDE_CODE_SESSION_ID")
-path = os.path.join(folder, session + ".jsonl") if session else max(
-    glob.glob(folder + "/*.jsonl"), key=os.path.getmtime
-)
+# TRANSCRIPT_PATH pins one transcript, which is what the card's recompute
+# button sets. Without it, Claude Code writes one jsonl per session under
+# ~/.claude/projects/<cwd slug>.
+path = os.environ.get("TRANSCRIPT_PATH")
+if not path:
+    folder = os.path.expanduser("~/.claude/projects/" + os.getcwd().replace("/", "-"))
+    session = os.environ.get("CLAUDE_CODE_SESSION_ID")
+    path = os.path.join(folder, session + ".jsonl") if session else max(
+        glob.glob(folder + "/*.jsonl"), key=os.path.getmtime
+    )
 
 seg, turns = collections.defaultdict(collections.Counter), 0
 for line in open(path):
@@ -69,16 +73,21 @@ for line in open(path):
 print(json.dumps({
     "segments": [dict(model=model, **dict(counter)) for model, counter in seg.items()],
     "turns": turns,
+    "transcript": path,
 }, indent=2))
 PY`;
 
 const CODEX_COMMAND = `python3 - <<'PY'
 import collections, glob, json, os
 
-# Codex writes one rollout jsonl per session under ~/.codex/sessions/<date>/.
-paths = glob.glob(os.path.expanduser("~/.codex/sessions/**/rollout-*.jsonl"), recursive=True)
-here = [p for p in paths if os.getcwd() in open(p).readline()]
-path = max(here or paths, key=os.path.getmtime)
+# TRANSCRIPT_PATH pins one transcript, which is what the card's recompute
+# button sets. Without it, Codex writes one rollout jsonl per session under
+# ~/.codex/sessions/<date>/.
+path = os.environ.get("TRANSCRIPT_PATH")
+if not path:
+    paths = glob.glob(os.path.expanduser("~/.codex/sessions/**/rollout-*.jsonl"), recursive=True)
+    here = [p for p in paths if os.getcwd() in open(p).readline()]
+    path = max(here or paths, key=os.path.getmtime)
 
 seg, model, turns = collections.defaultdict(collections.Counter), "unknown", 0
 for line in open(path):
@@ -103,6 +112,7 @@ for line in open(path):
 print(json.dumps({
     "segments": [dict(model=model, **dict(counter)) for model, counter in seg.items()],
     "turns": turns,
+    "transcript": path,
 }, indent=2))
 PY`;
 
@@ -112,7 +122,7 @@ const SEED: UsageRecipe[] = [
     label: "Claude Code",
     yields: "tokens_per_model",
     instructions:
-      "Run this from the repo you worked in. It reads your own session transcript and prints tokens grouped by model, ready to paste into task_deliver as usage.segments. Numbers from the transcript are measured, not guessed, so deliver them without estimated.",
+      "Run this from the repo you worked in. It reads your own session transcript and prints tokens grouped by model, ready to paste into task_deliver as usage.segments. Numbers from the transcript are measured, not guessed, so deliver them without estimated. It also prints the transcript path: send it as transcript.path and the card links back to this run.",
     command: CLAUDE_COMMAND,
   },
   {
@@ -120,7 +130,7 @@ const SEED: UsageRecipe[] = [
     label: "Codex",
     yields: "tokens_per_model",
     instructions:
-      "Run this from the repo you worked in. It reads the session rollout, attributes each turn to the model that was active, and prints tokens grouped by model for usage.segments. Check that the totals look like your session before sending: with several Codex sessions open it picks the newest rollout whose recorded cwd is this one.",
+      "Run this from the repo you worked in. It reads the session rollout, attributes each turn to the model that was active, and prints tokens grouped by model for usage.segments. Check that the totals look like your session before sending: with several Codex sessions open it picks the newest rollout whose recorded cwd is this one. It also prints the rollout path: send it as transcript.path and the card links back to this run.",
     command: CODEX_COMMAND,
   },
   {

@@ -78,6 +78,15 @@ const en = {
     cancel: "Cancel",
     reopen: "Reopen",
     reopening: "Reopening…",
+    transcript: "Transcript",
+    transcriptNote:
+      "Reference only. The transcript stays on the machine that ran the card, so these commands run there.",
+    transcriptSession: "session",
+    transcriptNoPath: "path not reported by this run",
+    copyPath: "Copy path",
+    copyResume: "Copy resume command",
+    copyRecompute: "Copy usage command",
+    copied: "Copied",
   },
   wizard: {
     stepProject: "01 · project",
@@ -328,6 +337,15 @@ const ptBR: Dict = {
     cancel: "Cancelar",
     reopen: "Reabrir",
     reopening: "Reabrindo…",
+    transcript: "Transcript",
+    transcriptNote:
+      "Só a referência. O transcript fica na máquina que executou o card, então estes comandos rodam lá.",
+    transcriptSession: "sessão",
+    transcriptNoPath: "esta execução não reportou o caminho",
+    copyPath: "Copiar caminho",
+    copyResume: "Copiar comando de retomada",
+    copyRecompute: "Copiar comando de usage",
+    copied: "Copiado",
   },
   wizard: {
     stepProject: "01 · projeto",

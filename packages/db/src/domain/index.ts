@@ -53,6 +53,16 @@ export {
   type UsageSegment,
 } from "./usage";
 export {
+  mergeTranscriptRef,
+  readTranscriptRef,
+  recomputeUsageCommand,
+  resumeHintFor,
+  transcriptRef,
+  TRANSCRIPT_PATH_ENV,
+  type TranscriptRef,
+  type TranscriptRefInput,
+} from "./transcript";
+export {
   factoryUsageRecipes,
   findUsageRecipe,
   GENERIC_RECIPE_CLI,
