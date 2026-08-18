@@ -406,6 +406,14 @@ function toBoardCard(
     })),
     mission: t.mission?.title ?? null,
     harness,
+    plannedCli: h?.cli ?? null,
+    // The claim records the CLI as a plain name; older attempts only ever
+    // wrote it inside the executor blob, which still answers here.
+    ranCli:
+      t.claimedByExecutor ??
+      (latestAttempt
+        ? (decodeExecutor(latestAttempt.executor, latestAttempt.model).cli ?? null)
+        : null),
     harnessChain: harnessChain(plannedModel, ranModels),
     harnessRan: ranChain && ranChain !== plannedChain ? ranChain : null,
     // The column already says "done · review". A chip only earns its place by

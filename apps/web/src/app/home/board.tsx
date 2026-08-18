@@ -13,7 +13,9 @@ import {
   type ColumnStatus,
 } from "../../lib/board-columns";
 import { pickRowNumber, typeInitial } from "../../lib/board-row";
+import { cliDiffers } from "../../lib/cli-mark";
 import { dict, type Dict } from "../../lib/i18n";
+import { CliMark } from "../../components/cli-mark";
 import { BoardMobileList } from "./board-mobile-list";
 
 export type BoardMissionOption = { id: string; title: string };
@@ -79,6 +81,10 @@ export type BoardCard = {
   mission: string | null;
   /** Planned harness with its effort, for the detail panel. */
   harness: string | null;
+  /** The CLI the card planned, for its brand mark. Null when it planned none. */
+  plannedCli: string | null;
+  /** The CLI that actually claimed the card, for its brand mark. */
+  ranCli: string | null;
   /** Plan and reality in one value: "sonnet-5", or "sonnet-5 → fable-5". */
   harnessChain: string | null;
   /** What actually ran, set only when it was not what the card planned. */
@@ -253,6 +259,31 @@ function CardMetaTail({
 }
 
 /**
+ * The CLI of a card, as the brand mark the app already ships (AGB-66). The
+ * plan's mark leads, and when another CLI actually took the card its mark
+ * follows: the same planned to actual reading the model chain has, in the
+ * width a glyph costs instead of the width a word costs.
+ */
+function CardCli({ card }: { card: BoardCard }) {
+  const swapped = cliDiffers(card.plannedCli, card.ranCli);
+  const lead = card.plannedCli ?? card.ranCli;
+  if (!lead) return null;
+  return (
+    <span className="meta-cli">
+      <CliMark cli={lead} />
+      {swapped ? (
+        <>
+          <span className="meta-cli-arrow" aria-hidden="true">
+            →
+          </span>
+          <CliMark cli={card.ranCli} />
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+/**
  * The project the card came from, read off its short id. With several
  * projects on the board the prefix is what says where a card belongs, so it
  * stops being part of the number and becomes the origin.
@@ -323,6 +354,8 @@ function Card({
       <h4 title={card.title}>{card.title}</h4>
       <div className={`card-foot${exec ? " exec-pulse" : ""}`}>
         {exec ? <span className="dot-exec" /> : null}
+        {/* The line leads with who ran it and follows with what it ran. */}
+        <CardCli card={card} />
         {harness ? <span className="meta-harness">{harness}</span> : null}
         {/* The separator belongs to what comes after the harness, not to the
             harness itself: an ellipsis on the model chain would eat it. */}
@@ -396,6 +429,9 @@ function CardRow({
       {card.awaitingMyReview ? (
         <span className="ml-flag" aria-label={t.board.yourReview} />
       ) : null}
+      {/* Who ran it, in the width a glyph costs: the spelled name never fit
+          this row, and the mark is read faster than the word anyway. */}
+      <CliMark cli={card.ranCli ?? card.plannedCli} />
       {num ? <span className={`ml-num tel-${num.kind}`}>{num.text}</span> : null}
     </div>
   );
@@ -785,7 +821,10 @@ function Detail({
           <MissionField card={card} missions={missions} t={t} />
           <div>
             <div className="lbl">{t.detail.harness}</div>
-            <p className="d-mono">{card.harness ?? "—"}</p>
+            <p className="d-mono d-harness">
+              <CardCli card={card} />
+              <span>{card.harness ?? "—"}</span>
+            </p>
             {/* The board folds plan and reality into one value; here they
                 stay apart, so the effort planned and the model that ran are
                 both readable. */}
@@ -800,7 +839,12 @@ function Detail({
           <div className="lbl">{t.detail.roles}</div>
           <div className="d-roles">
             <span className="rl">{t.detail.origin} <b>{card.origem}</b></span>
-            <span className="rl">{t.detail.executor} <b>{card.executor ?? "—"}</b></span>
+            <span className="rl">
+              {t.detail.executor} <CliMark cli={card.ranCli} />
+              {/* The claim's own name, which is the CLI whenever it sent one
+                  and whatever else it sent when it did not. */}
+              <b>{card.ranCli ?? card.executor ?? "—"}</b>
+            </span>
             <span className="rl">{t.board.returnsTo} <b>{card.devolve}</b></span>
           </div>
         </div>
