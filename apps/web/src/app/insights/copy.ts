@@ -73,8 +73,10 @@ const en = {
   footMissing: (items: string) => `○ usage not reported: ${items}`,
   footElapsed: (items: string) => `+ elapsed, never added: ${items}`,
   footUnpriced: (items: string) => `no price: ${items}`,
+  emptyTitle: "Nothing measured yet.",
   empty:
     "No delivered work yet. When an agent claims and delivers a card, its tokens and time land here.",
+  emptyCta: "Open the board",
   emptyReopens:
     "No deliveries to measure. The reopened rate appears after the first review cycle.",
   /**
@@ -158,8 +160,10 @@ const ptBR: InsightsCopy = {
   footMissing: (items: string) => `○ sem uso reportado: ${items}`,
   footElapsed: (items: string) => `+ decorrido, não somado: ${items}`,
   footUnpriced: (items: string) => `sem preço: ${items}`,
+  emptyTitle: "Nada medido ainda.",
   empty:
     "Nenhuma entrega ainda. Quando um agente pegar e entregar um card, os tokens e o tempo aparecem aqui.",
+  emptyCta: "Abrir o board",
   emptyReopens:
     "Nenhuma entrega para medir. A taxa de reabertura aparece depois do primeiro ciclo de revisão.",
   filteredBy: "Contando apenas",

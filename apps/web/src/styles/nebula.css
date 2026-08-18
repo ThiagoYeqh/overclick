@@ -1939,3 +1939,180 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .exec-grid { grid-template-columns: 1fr; }
   .nb .settabs { gap: 14px; }
 }
+
+/* ============================================================
+   AGB-76: the wizard and the auth screens use the space they are given
+
+   These three screens were laid out for a panel and never for a page. On a
+   1440 desktop the wizard stood as a 760px column with three hundred pixels
+   of empty glass under every short step, and login met a new instance with a
+   420px card floating in the middle of nothing. Meanwhile their own contents
+   were the cramped part: a lone prefix field with half a row to itself, model
+   chips clipped by a fixed max-height, and a 9.5px line of mono running the
+   full width of the panel with no leading under it.
+
+   Nothing here is a new idea: same panel, same field, same mono caption, same
+   white pill. What changes is where the room goes. Prose keeps a reading
+   measure, the wide screen gets a second column that carries meaning, and the
+   air that was pooling at the bottom of a panel is spent between the things
+   that needed it.
+   ============================================================ */
+
+/* ---------- wizard: the rail beside the step ---------- */
+/* Single column below the two-column width. The gap under the landmarks was
+   44px and put the question of the step almost a hundred pixels below the top
+   of the panel, which is space no one asked for on any screen. */
+.nb .steps-ind { margin-bottom: 30px; }
+.nb .wiz-steps { min-width: 0; }
+
+/* The three fields of the first step are one row, so the prefix stops being
+   an orphan with half a line to itself. It is four characters wide and it is
+   sized for four characters. */
+@media (min-width: 769px) {
+  .nb .wiz-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 168px;
+    align-items: start;
+  }
+}
+
+@media (min-width: 1120px) {
+  .nb .wizard { --wiz-pad: 44px; width: 1060px; }
+  .nb .wiz-body {
+    display: grid;
+    grid-template-columns: 216px minmax(0, 1fr);
+    gap: 52px;
+    align-items: start;
+  }
+  /* the landmarks become a rail: one under the next, each on the line that
+     says where the person is, with the state carried by the edge beside it */
+  .nb .wiz-body .steps-ind {
+    flex-direction: column;
+    gap: 0;
+    margin: 4px 0 0;
+    position: sticky; top: 34px;
+  }
+  .nb .wiz-body .steps-ind li {
+    padding: 9px 0 9px 14px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: normal; overflow: visible;
+    transition: opacity .3s, color .3s, border-color .3s;
+  }
+  .nb .wiz-body .steps-ind li.cur { border-left-color: var(--nebula-mist-glow); }
+  .nb .wiz-body .steps-ind li.done { border-left-color: rgba(125, 214, 160, .55); }
+  /* A question set at 26px across 700px is a headline nobody reads as one
+     line; it is given the measure a headline is read at, and the sentence
+     under it the measure a sentence is read at. */
+  .nb .wstep h2 { max-width: 26ch; }
+  .nb .wstep .sub { max-width: 62ch; }
+  /* a floor so the footer does not jump between steps, and no more than a
+     floor: the rest of the panel belongs to whatever the step has to say */
+  .nb .wstep { min-height: 300px; }
+  /* the convention line is prose in mono, and it reads at a measure too */
+  .nb .preview { max-width: 80ch; }
+}
+
+/* The chips of a checked CLI were clipped by a fixed 90px: the last row of
+   models, and the field that adds one, were cut in half by the box that was
+   supposed to reveal them. The cap is now high enough to hold what is there,
+   and it is still a cap, so the open and closed states still animate. */
+.nb .wizard .exec.on .models { max-height: 260px; }
+.nb .wizard .exec-add.on .models { max-height: 300px; }
+
+/* ---------- wizard: the notes under the terminal blocks ---------- */
+/* 9.5px of mono with no leading, run across the full width of the panel, was
+   the least readable text in the product. It gets a line height and a measure
+   and stops being a wall. */
+.nb .tok-note { line-height: 1.6; max-width: 78ch; }
+
+/* The code and the sentence that says what to do with it, side by side. */
+.nb .pair-head {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 10px 22px; margin-bottom: 14px;
+}
+.nb .pair-head .pair-code { margin: 0; }
+.nb .pair-head .pair-hint {
+  flex: 1 1 280px; min-width: 0; margin: 0; max-width: 52ch;
+}
+
+/* The waiting card laid its caption over its own second line with an absolute
+   corner. Two columns instead: the state on the left, the caption on the
+   right, and neither can ever reach the other. */
+.nb .conn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 16px;
+  padding: 14px 16px;
+}
+.nb .conn .l1, .nb .conn .l2 { grid-column: 1; }
+.nb .conn .cap {
+  position: static;
+  grid-column: 2; grid-row: 1 / span 2;
+  align-self: center; text-align: right;
+}
+
+/* ---------- auth: the first screen an instance ever shows ---------- */
+/* Below the two-column width nothing changes: one card, centred, as before. */
+.nb-auth .auth-shell {
+  display: flex; justify-content: center;
+  width: 100%;
+}
+.nb-auth .auth-aside { display: none; }
+
+/* Wide enough for a second column, the void beside the card becomes the one
+   thing a person needs on the way in: what this is, and the three facts that
+   are the whole reason it is self-hosted. The card keeps its 420px, because
+   a form does not get better by getting wider. */
+@media (min-width: 1000px) {
+  .nb-auth .auth-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 420px;
+    gap: 84px;
+    align-items: center;
+    width: min(1000px, 100%);
+  }
+  .nb-auth .auth-aside { display: block; }
+  /* the aside says it once, in full: the card's own strip would repeat it */
+  .nb-auth .auth-card .brand { display: none; }
+  .nb-auth .auth-card { padding-top: 34px; }
+}
+
+.nb-auth .auth-mark {
+  margin: 0 0 22px;
+  font-size: 15px;
+  font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight);
+  text-shadow: var(--nebula-glow-text);
+}
+.nb-auth .auth-mark span { color: var(--nebula-mist); }
+.nb-auth .auth-lead {
+  margin: 0 0 28px;
+  max-width: 20ch;
+  font-size: 30px; line-height: 1.24;
+  font-weight: var(--nebula-weight-light);
+  letter-spacing: var(--nebula-tracking-tight);
+  color: var(--nebula-text-primary);
+}
+.nb-auth .auth-facts {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 11px;
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: .04em; line-height: 1.5;
+  color: var(--nebula-text-tertiary);
+}
+.nb-auth .auth-facts li { display: flex; align-items: flex-start; gap: 11px; }
+.nb-auth .auth-facts li::before {
+  content: ""; flex: none;
+  /* centred on the first line of its own item, whatever that line wraps to */
+  width: 4px; height: 4px; margin-top: 6px; border-radius: 50%;
+  background: var(--nebula-mist); opacity: .75;
+}
+
+/* One rhythm down the form: label to field, field to field, and the rule a
+   field carries reading as part of that field instead of crowding the label
+   of the next one. */
+.nb-auth .field { margin-bottom: 16px; }
+.nb-auth .field label { margin-bottom: 6px; }
+.nb-auth .auth-rule { margin-top: 7px; line-height: 1.5; }
+.nb-auth .btn-next { margin-top: 20px; }
+.nb-auth .foot { margin-top: 22px; }

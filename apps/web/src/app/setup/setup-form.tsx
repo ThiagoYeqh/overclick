@@ -58,8 +58,14 @@ export function SetupForm({ lang }: { lang: string }) {
         {/* The rule is stated before it is broken. The submit below is gated
             on it, and a button that is dead for a reason nobody printed is
             the same thing as a button that is broken. */}
+        {/* Neutral while nothing has been typed, met once it is met, and
+            broken only when somebody actually contradicts it: a five character
+            password is the one case where the rule is not guidance any more,
+            and it is the case where the dead submit needs explaining. */}
         <p
-          className={`auth-rule${longEnough ? " ok" : ""}`}
+          className={`auth-rule${
+            longEnough ? " ok" : password.length > 0 ? " bad" : ""
+          }`}
           id="setup-password-rule"
         >
           {t.auth.passwordRule}

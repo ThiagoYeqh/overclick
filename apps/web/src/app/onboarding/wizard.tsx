@@ -199,193 +199,209 @@ export function Wizard({
       <NebulaAtmosphere />
       <div className="stage">
         <div className="panel wizard">
-          <ol className="steps-ind">
-            {[t.wizard.stepProject, t.wizard.stepExecutors, t.wizard.stepAgent].map(
-              (stepLabel, i) => {
-                const n = i + 1;
-                return (
-                  <li
-                    key={stepLabel}
-                    className={step === n ? "cur" : step > n ? "done" : ""}
-                    aria-current={step === n ? "step" : undefined}
-                    title={stepLabel}
-                  >
-                    {stepLabel}
-                  </li>
-                );
-              },
-            )}
-          </ol>
+          {/* The rail and the step column are one body: on a wide screen the
+              three landmarks stand beside the step instead of running as a
+              line across the top of a panel that then had nothing under it
+              for three hundred pixels. Narrower than that, the body is the
+              single column it always was. */}
+          <div className="wiz-body">
+            <ol className="steps-ind">
+              {[t.wizard.stepProject, t.wizard.stepExecutors, t.wizard.stepAgent].map(
+                (stepLabel, i) => {
+                  const n = i + 1;
+                  return (
+                    <li
+                      key={stepLabel}
+                      className={step === n ? "cur" : step > n ? "done" : ""}
+                      aria-current={step === n ? "step" : undefined}
+                      title={stepLabel}
+                    >
+                      {stepLabel}
+                    </li>
+                  );
+                },
+              )}
+            </ol>
+            <div className="wiz-steps">
 
-          {/* T1: project */}
-          <div className={`wstep${step === 1 ? " active" : ""}`}>
-            <h2>{t.wizard.t1Title}</h2>
-            <p className="sub">{t.wizard.t1Sub}</p>
-            <div className="grid2">
-              <div className="field">
-                <label>{t.wizard.projectName}</label>
+            {/* T1: project */}
+            <div className={`wstep${step === 1 ? " active" : ""}`}>
+              <h2>{t.wizard.t1Title}</h2>
+              <p className="sub">{t.wizard.t1Sub}</p>
+              <div className="grid2 wiz-fields">
+                <div className="field">
+                  <label>{t.wizard.projectName}</label>
+                  <input
+                    className="input"
+                    value={name}
+                    placeholder="Agent Board"
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (!prefixTouched) setPrefix(derivePrefix(e.target.value));
+                    }}
+                  />
+                </div>
+                <div className="field">
+                  <label>
+                    <span className="lbl-text">{t.wizard.repoUrl}</span>
+                    <span className="opt">{t.wizard.optional}</span>
+                  </label>
+                  <input
+                    className="input mono"
+                    value={repo}
+                    placeholder="github.com/you/repo"
+                    onChange={(e) => setRepo(e.target.value)}
+                  />
+                </div>
+                <div className="field field-prefix">
+                  <label>{t.wizard.idPrefix}</label>
+                  <input
+                    className="input mono"
+                    value={prefix}
+                    maxLength={4}
+                    placeholder="AGB"
+                    style={{ textTransform: "uppercase" }}
+                    onChange={(e) => {
+                      setPrefixTouched(true);
+                      setPrefix(e.target.value.toUpperCase());
+                    }}
+                  />
+                </div>
+              </div>
+              <div className={`preview${prefix.length >= 2 ? "" : " ghost"}`}>
+                <span className="cap">{t.wizard.previewCap}</span>
+                {t.wizard.previewCards} <b>{prefix || "…"}-{nextNumber}</b>,{" "}
+                <b>{prefix || "…"}-{nextNumber + 1}</b>… {t.wizard.previewBranches}{" "}
+                <b>{(prefix || "…").toLowerCase()}-{nextNumber}-card-name</b>.
+              </div>
+            </div>
+
+            {/* T2: executors */}
+            <div className={`wstep${step === 2 ? " active" : ""}`}>
+              <h2>{t.wizard.t2Title}</h2>
+              <p className="sub">{t.wizard.t2Sub}</p>
+              <ExecutorsGrid value={sel} onChange={setSel} />
+              <div className="hint">
+                <b>{t.wizard.t2HintStrong}</b> {t.wizard.t2Hint}
+              </div>
+            </div>
+
+            {/* T3: connect the agent */}
+            <div className={`wstep${step === 3 ? " active" : ""}`}>
+              <h2>{t.wizard.t3Title}</h2>
+              <p className="sub">{t.wizard.t3Sub}</p>
+              <div className="field" style={{ maxWidth: 420 }}>
+                <label>{t.wizard.tokenName}</label>
                 <input
                   className="input"
-                  value={name}
-                  placeholder="Agent Board"
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    if (!prefixTouched) setPrefix(derivePrefix(e.target.value));
-                  }}
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  disabled={Boolean(token)}
                 />
               </div>
-              <div className="field">
-                <label>
-                  <span className="lbl-text">{t.wizard.repoUrl}</span>
-                  <span className="opt">{t.wizard.optional}</span>
-                </label>
-                <input
-                  className="input mono"
-                  value={repo}
-                  placeholder="github.com/you/repo"
-                  onChange={(e) => setRepo(e.target.value)}
-                />
+              <div className="tabs" role="tablist" aria-label={t.wizard.t3Title}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "pair"}
+                  className={mode === "pair" ? "on" : ""}
+                  onClick={() => setMode("pair")}
+                >
+                  {t.wizard.pairTab}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "command"}
+                  className={mode === "command" ? "on" : ""}
+                  onClick={() => setMode("command")}
+                >
+                  {t.wizard.commandTab}
+                </button>
               </div>
-            </div>
-            <div className="field" style={{ maxWidth: 180 }}>
-              <label>{t.wizard.idPrefix}</label>
-              <input
-                className="input mono"
-                value={prefix}
-                maxLength={4}
-                placeholder="AGB"
-                style={{ textTransform: "uppercase" }}
-                onChange={(e) => {
-                  setPrefixTouched(true);
-                  setPrefix(e.target.value.toUpperCase());
-                }}
-              />
-            </div>
-            <div className={`preview${prefix.length >= 2 ? "" : " ghost"}`}>
-              <span className="cap">{t.wizard.previewCap}</span>
-              {t.wizard.previewCards} <b>{prefix || "…"}-{nextNumber}</b>,{" "}
-              <b>{prefix || "…"}-{nextNumber + 1}</b>… {t.wizard.previewBranches}{" "}
-              <b>{(prefix || "…").toLowerCase()}-{nextNumber}-card-name</b>.
-            </div>
-          </div>
-
-          {/* T2: executors */}
-          <div className={`wstep${step === 2 ? " active" : ""}`}>
-            <h2>{t.wizard.t2Title}</h2>
-            <p className="sub">{t.wizard.t2Sub}</p>
-            <ExecutorsGrid value={sel} onChange={setSel} />
-            <div className="hint">
-              <b>{t.wizard.t2HintStrong}</b> {t.wizard.t2Hint}
-            </div>
-          </div>
-
-          {/* T3: connect the agent */}
-          <div className={`wstep${step === 3 ? " active" : ""}`}>
-            <h2>{t.wizard.t3Title}</h2>
-            <p className="sub">{t.wizard.t3Sub}</p>
-            <div className="field" style={{ maxWidth: 420 }}>
-              <label>{t.wizard.tokenName}</label>
-              <input
-                className="input"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                disabled={Boolean(token)}
-              />
-            </div>
-            <div className="tabs" role="tablist" aria-label={t.wizard.t3Title}>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mode === "pair"}
-                className={mode === "pair" ? "on" : ""}
-                onClick={() => setMode("pair")}
-              >
-                {t.wizard.pairTab}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={mode === "command"}
-                className={mode === "command" ? "on" : ""}
-                onClick={() => setMode("command")}
-              >
-                {t.wizard.commandTab}
-              </button>
-            </div>
-            {mode === "pair" ? (
-              !pair ? (
-                <>
-                  <p className="sub">{t.wizard.pairSub}</p>
-                  <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genPair}>
-                    {pending ? t.wizard.generating : t.wizard.generateCode}
-                  </button>
-                </>
+              {mode === "pair" ? (
+                !pair ? (
+                  <>
+                    <p className="sub">{t.wizard.pairSub}</p>
+                    <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genPair}>
+                      {pending ? t.wizard.generating : t.wizard.generateCode}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* The six digits and the sentence that says what to do
+                        with them belong side by side: the hint used to run the
+                        full width of the panel under the code, at 9.5px, which
+                        is the longest and smallest line on the screen. */}
+                    <div className="pair-head">
+                      <div className="pair-code">{pair.code}</div>
+                      <p className="tok-note pair-hint">{t.wizard.pairHint}</p>
+                    </div>
+                    <div className="cmd">
+                      {pairCmd}
+                      <button className={`copy${copied ? " ok" : ""}`} onClick={copyPairCmd}>
+                        {copied ? t.wizard.copied : t.wizard.copy}
+                      </button>
+                    </div>
+                    <div className="tok-note">{t.wizard.pairNote}</div>
+                  </>
+                )
+              ) : !token ? (
+                <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genToken}>
+                  {pending ? t.wizard.generating : t.wizard.generateToken}
+                </button>
               ) : (
                 <>
-                  <div className="pair-code">{pair.code}</div>
-                  <div className="tok-note">{t.wizard.pairHint}</div>
+                  <div className="tabs" role="tablist" aria-label={t.wizard.commandTab}>
+                    {CMD_TABS.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={tab === c.id}
+                        className={tab === c.id ? "on" : ""}
+                        onClick={() => setTab(c.id)}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
                   <div className="cmd">
-                    {pairCmd}
-                    <button className={`copy${copied ? " ok" : ""}`} onClick={copyPairCmd}>
+                    {commandFor(tab, baseUrl, revealed ? token.secret : maskedSecret)}
+                    <button className={`copy${copied ? " ok" : ""}`} onClick={copyCmd}>
                       {copied ? t.wizard.copied : t.wizard.copy}
                     </button>
                   </div>
-                  <div className="tok-note">{t.wizard.pairNote}</div>
+                  <div className="tok-note">
+                    {t.wizard.tokNote}{" "}
+                    <span className="reveal" onClick={() => setRevealed(!revealed)}>
+                      {revealed ? t.wizard.hide : t.wizard.reveal}
+                    </span>
+                  </div>
                 </>
-              )
-            ) : !token ? (
-              <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genToken}>
-                {pending ? t.wizard.generating : t.wizard.generateToken}
-              </button>
-            ) : (
-              <>
-                <div className="tabs" role="tablist" aria-label={t.wizard.commandTab}>
-                  {CMD_TABS.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={tab === c.id}
-                      className={tab === c.id ? "on" : ""}
-                      onClick={() => setTab(c.id)}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
+              )}
+              {(mode === "pair" ? pair : token) ? (
+                <div className={`conn${connected ? " lit" : ""}`}>
+                  <div className="l1">
+                    <span className={`pip${connected ? " green" : ""}`} />
+                    <span>{connected ? t.wizard.connected : t.wizard.waiting}</span>
+                  </div>
+                  <div className="l2">
+                    {connected
+                      ? `${label} · ${t.wizard.justNow}`
+                      : mode === "pair"
+                        ? t.wizard.pairWaiting
+                        : t.wizard.pasteCmd}
+                  </div>
+                  <div className="cap">{connected ? t.wizard.firstCall : t.wizard.polling}</div>
                 </div>
-                <div className="cmd">
-                  {commandFor(tab, baseUrl, revealed ? token.secret : maskedSecret)}
-                  <button className={`copy${copied ? " ok" : ""}`} onClick={copyCmd}>
-                    {copied ? t.wizard.copied : t.wizard.copy}
-                  </button>
-                </div>
-                <div className="tok-note">
-                  {t.wizard.tokNote}{" "}
-                  <span className="reveal" onClick={() => setRevealed(!revealed)}>
-                    {revealed ? t.wizard.hide : t.wizard.reveal}
-                  </span>
-                </div>
-              </>
-            )}
-            {(mode === "pair" ? pair : token) ? (
-              <div className={`conn${connected ? " lit" : ""}`}>
-                <div className="l1">
-                  <span className={`pip${connected ? " green" : ""}`} />
-                  <span>{connected ? t.wizard.connected : t.wizard.waiting}</span>
-                </div>
-                <div className="l2">
-                  {connected
-                    ? `${label} · ${t.wizard.justNow}`
-                    : mode === "pair"
-                      ? t.wizard.pairWaiting
-                      : t.wizard.pasteCmd}
-                </div>
-                <div className="cap">{connected ? t.wizard.firstCall : t.wizard.polling}</div>
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
 
-          {err ? <p className="werr" role="alert">{err}</p> : null}
+            {err ? <p className="werr" role="alert">{err}</p> : null}
+
+            </div>
+          </div>
 
           <div className="wfoot">
             <div

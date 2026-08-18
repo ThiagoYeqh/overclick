@@ -1,5 +1,38 @@
 /* Insights page. Own file so the shared nebula.css stays untouched. */
 
+/* ---------- the page: one rhythm, one measure ----------
+   AGB-76. The page was capped at the 1020px the settings screens use, so on a
+   1440 desktop it sat in the middle of 400px of void while its own tables
+   truncated every card title. Data wants the width; prose does not. The page
+   grows to 1320 and every line of running text is capped at a reading
+   measure, so nothing is stretched to fill the room the tables asked for.
+
+   One rhythm for the whole page: the gap inside a grid and the gap between
+   two sections are the same number, and that number grows once at the width
+   where the page stops being a column and starts being a layout. */
+.nb .ins-page {
+  --ins-rhythm: var(--nebula-space-4);
+  --ins-measure: 68ch;
+  max-width: 1320px;
+}
+/* The heading block is one group with one gap, so the filter line can appear
+   and disappear without any margin having to be corrected against another. */
+.nb .ins-head {
+  display: flex; flex-direction: column; align-items: flex-start;
+  gap: 6px;
+  margin-bottom: var(--ins-rhythm);
+}
+.nb .ins-head > h1,
+.nb .ins-head > .page-sub,
+.nb .ins-head > .ins-filter { margin: 0; }
+/* Running text keeps a reading measure whatever the page is worth. */
+.nb .ins-head > .page-sub { max-width: var(--ins-measure); line-height: 1.55; }
+.nb .ins-head > .ins-filter { max-width: var(--ins-measure); }
+
+@media (min-width: 1100px) {
+  .nb .ins-page { --ins-rhythm: var(--nebula-space-6); }
+}
+
 /* ---------- totals: the four numbers everything else breaks down from ---------- */
 .nb .ins-tiles {
   display: grid;
@@ -7,12 +40,22 @@
      and a fixed four-column grid gave the row a hole where the fourth would
      have been. The tiles now share whatever width there is. */
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: var(--nebula-space-4);
-  margin-bottom: var(--nebula-space-4);
+  gap: var(--ins-rhythm, var(--nebula-space-4));
+  margin-bottom: var(--ins-rhythm, var(--nebula-space-4));
 }
 .nb .ins-tile {
   display: flex; flex-direction: column;
   padding: 16px 18px; border-radius: 12px;
+}
+/* A total is the largest thing on the page and it was set at the same 24px on
+   a phone and on a 1440 desktop. It follows the room it is given, up to the
+   point where a bigger figure stops helping anyone read it. */
+@media (min-width: 1100px) {
+  .nb .ins-tile { padding: 18px 20px; }
+  .nb .ins-tile .ins-num { font-size: 28px; }
+  /* with the page this wide the note beside a caption fits whole, and a
+     caption truncated at 46% of a 1288px panel was truncated for nothing */
+  .nb .ins-cap .ins-cap-note { max-width: 62%; }
 }
 /* the notes sit at the foot of the tile, so four tiles of different note
    lengths still show their four figures on one line */
@@ -77,8 +120,8 @@
 .nb .ins-charts {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  gap: var(--nebula-space-4);
-  margin-bottom: var(--nebula-space-4);
+  gap: var(--ins-rhythm, var(--nebula-space-4));
+  margin-bottom: var(--ins-rhythm, var(--nebula-space-4));
   align-items: stretch;
 }
 .nb .ins-panel-trend { display: flex; flex-direction: column; }
@@ -88,7 +131,9 @@
   align-items: flex-end;
   gap: 5px;
   flex: 1;
-  min-height: 120px;
+  /* the plot answers the width it was given: on a wide page a 120px band of
+     bars under a panel that is 600px across reads as an afterthought */
+  min-height: clamp(120px, 11vw, 168px);
 }
 .nb .ins-trend-col {
   /* share the width instead of claiming a fixed 26px and leaving the rest of
@@ -172,9 +217,9 @@
 .nb .ins-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--nebula-space-4);
+  gap: var(--ins-rhythm, var(--nebula-space-4));
   align-items: start;
-  margin-bottom: var(--nebula-space-4);
+  margin-bottom: var(--ins-rhythm, var(--nebula-space-4));
 }
 
 /* ---------- tables: fixed layout, names never wrap, numbers align ---------- */
@@ -297,18 +342,24 @@
   color: var(--nebula-text-tertiary);
   cursor: help;
 }
+/* The footnote is where every qualifier on the table above is spelled out. As
+   one run-on paragraph it grew to the full width of the page and became the
+   least readable text on it. One qualifier per line, at a measure, is the same
+   information a person can actually find their way through. */
 .nb .ins-foot {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
+  max-width: 96ch;
   font-family: var(--nebula-font-mono);
   font-size: 10px;
   letter-spacing: 0.03em;
-  line-height: 1.8;
+  line-height: 1.7;
   color: var(--nebula-text-tertiary);
 }
 .nb .ins-foot-item {
-  display: inline;
-  margin-right: 14px;
+  display: block;
+  margin: 0 0 3px;
 }
+.nb .ins-foot-item:last-child { margin-bottom: 0; }
 
 .nb .ins-sort { padding: 0; }
 .nb .ins-sort button {
@@ -328,13 +379,32 @@
 
 .nb .ins-dim { color: var(--nebula-text-tertiary); }
 
+/* The empty state, designed rather than defaulted: a headline that names the
+   state, one line that says what fills it, and the single action that leads
+   there. Nothing on this page exists until a card is delivered, so the way to
+   deliver one is the only thing worth putting in front of a person here. */
 .nb .ins-empty {
-  padding: 26px 28px;
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 30px 32px;
   border-radius: 12px;
-  font-size: 13px;
-  color: var(--nebula-text-secondary);
-  line-height: 1.55;
   max-width: 560px;
+}
+.nb .ins-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight);
+  color: var(--nebula-text-primary);
+}
+.nb .ins-empty-body {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--nebula-text-secondary);
+}
+.nb .ins-empty-cta {
+  display: inline-flex; align-items: center;
+  margin-top: 18px; min-height: var(--nebula-tap); padding: 7px 18px;
 }
 
 /* The filter the board handed over, named so the numbers are not read as
@@ -345,7 +415,17 @@
   letter-spacing: 0.04em; color: var(--nebula-text-secondary);
 }
 .nb .ins-filter b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); }
-.nb .ins-filter a { margin-left: 8px; color: var(--nebula-text-secondary); }
+/* The way back to counting everything is a link, so it is underlined: two
+   mono words in the same colour, one of them clickable, is not an affordance. */
+.nb .ins-filter a {
+  margin-left: 8px; color: var(--nebula-text-secondary);
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: rgba(255, 255, 255, 0.28);
+}
+.nb .ins-filter a:hover {
+  color: var(--nebula-text-primary);
+  text-decoration-color: currentColor;
+}
 
 /* ---------- narrow windows: stack, tiles halve, tables scroll in-card ---------- */
 @media (max-width: 900px) {
@@ -372,7 +452,7 @@
   .nb .ins-panel { padding: 14px 14px 12px; }
   .nb .ins-cap { flex-direction: column; align-items: stretch; gap: 3px; }
   .nb .ins-cap .ins-cap-note { max-width: 100%; text-align: left; }
-  .nb .ins-empty { padding: 20px 18px; }
+  .nb .ins-empty { padding: 22px 18px; }
 }
 /* Under this the two columns stop being two readable numbers and start being
    two truncated ones, so the row gives up and stacks. */

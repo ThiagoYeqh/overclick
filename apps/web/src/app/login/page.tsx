@@ -23,12 +23,29 @@ export default async function LoginPage() {
     <div className="nb nebula-surface nb-center nb-auth">
       <NebulaAtmosphere />
       <div className="stage">
-        <div className="panel auth-card nebula-glass">
-          <p className="brand">{t.auth.brand}</p>
-          <h1>{t.auth.loginTitle}</h1>
-          <p className="sub">{t.auth.loginSub}</p>
-          <LoginForm lang={ws?.language ?? "en"} />
-          <p className="foot">v0.1.11 · {t.auth.foot}</p>
+        <div className="auth-shell">
+          {/* The wide screen gets the one thing a person needs on the way in:
+              what this is, and the facts that are the reason it runs on their
+              own machine. Narrower than that it is hidden and the card is
+              the whole screen, exactly as before. */}
+          <aside className="auth-aside">
+            <p className="auth-mark">
+              over<span>click</span>
+            </p>
+            <p className="auth-lead">{t.auth.asideLead}</p>
+            <ul className="auth-facts">
+              <li>{t.auth.factHosted}</li>
+              <li>{t.auth.factOpen}</li>
+              <li>{t.auth.factAgents}</li>
+            </ul>
+          </aside>
+          <div className="panel auth-card nebula-glass">
+            <p className="brand">{t.auth.brand}</p>
+            <h1>{t.auth.loginTitle}</h1>
+            <p className="sub">{t.auth.loginSub}</p>
+            <LoginForm lang={ws?.language ?? "en"} />
+            <p className="foot">v0.1.11 · {t.auth.foot}</p>
+          </div>
         </div>
       </div>
     </div>

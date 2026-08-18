@@ -405,6 +405,13 @@ const en = {
   auth: {
     brand: "self-hosted · open source · mit",
     foot: "local instance · no data sent anywhere",
+    /** The column beside the card on a wide screen: what this is, in one
+        line, and the three facts that are the reason it runs on your own
+        machine. Never shown on a narrow screen, where the card is the page. */
+    asideLead: "One board for the people and the agents doing the work.",
+    factHosted: "Self-hosted. The database is yours.",
+    factOpen: "Open source, MIT licensed.",
+    factAgents: "Agents claim cards over MCP.",
     setupTitle: "Your board just came up.",
     setupSub:
       "Create this instance's admin account. It lives in your database, nothing leaves this server.",
@@ -419,6 +426,16 @@ const en = {
     creating: "Creating…",
     signIn: "Sign in",
     signingIn: "Signing in…",
+    /** What the server answers when a submit fails. These are the only words
+        on the screen a person reads twice, so they are read in the language
+        the workspace is set to, like everything else on it. */
+    errEmail: "Use a valid email. It only identifies the local account.",
+    errPassword: "The password needs at least 8 characters.",
+    errMismatch: "The passwords do not match.",
+    errAdminExists:
+      "This instance already has an admin. Sign in with the existing account.",
+    errCreate: "Could not create the account.",
+    errCredentials: "Invalid email or password.",
   },
 };
 
@@ -789,6 +806,10 @@ const ptBR: Dict = {
   auth: {
     brand: "self-hosted · open source · mit",
     foot: "instância local · nenhum dado enviado a lugar nenhum",
+    asideLead: "Um board para as pessoas e os agentes que fazem o trabalho.",
+    factHosted: "Self-hosted. O banco de dados é seu.",
+    factOpen: "Código aberto, licença MIT.",
+    factAgents: "Agentes pegam cards via MCP.",
     setupTitle: "Seu board acabou de subir.",
     setupSub:
       "Crie a conta admin desta instância. Ela mora no seu banco de dados, nada sai deste servidor.",
@@ -803,6 +824,13 @@ const ptBR: Dict = {
     creating: "Criando…",
     signIn: "Entrar",
     signingIn: "Entrando…",
+    errEmail: "Use um email válido. Ele só identifica a conta local.",
+    errPassword: "A senha precisa de pelo menos 8 caracteres.",
+    errMismatch: "As senhas não conferem.",
+    errAdminExists:
+      "Esta instância já tem um admin. Entre com a conta existente.",
+    errCreate: "Não foi possível criar a conta.",
+    errCredentials: "Email ou senha inválidos.",
   },
 };
 

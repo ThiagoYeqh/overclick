@@ -371,7 +371,7 @@ export default async function InsightsPage({
     <div className="nb nebula-surface">
       <NebulaAtmosphere />
 
-      <div className="page">
+      <div className="page ins-page">
         <div className="topbar nebula-glass">
           <div className="logo">
             over<span>click</span>
@@ -385,18 +385,30 @@ export default async function InsightsPage({
           </a>
         </div>
 
-        <h1>{t.title}</h1>
-        <p className="page-sub">{t.sub}</p>
-
-        {filterNote ? (
-          <p className="ins-filter">
-            {t.filteredBy} <b>{filterNote}</b>{" "}
-            <a href="/insights">{t.clearFilter}</a>
-          </p>
-        ) : null}
+        {/* Title, what the page counts and the filter that qualifies both are
+            one group with one gap, instead of three margins that had to be
+            corrected against each other whenever the filter appeared. */}
+        <header className="ins-head">
+          <h1>{t.title}</h1>
+          <p className="page-sub">{t.sub}</p>
+          {filterNote ? (
+            <p className="ins-filter">
+              {t.filteredBy} <b>{filterNote}</b>{" "}
+              <a href="/insights">{t.clearFilter}</a>
+            </p>
+          ) : null}
+        </header>
 
         {totals.attempts === 0 ? (
-          <div className="ins-empty nebula-glass">{t.empty}</div>
+          /* An empty page is a state, not a missing one: it says what is
+             missing, what fills it, and offers the one way to go do that. */
+          <div className="ins-empty nebula-glass">
+            <p className="ins-empty-title">{t.emptyTitle}</p>
+            <p className="ins-empty-body">{t.empty}</p>
+            <a className="btn-ghost ins-empty-cta" href="/home">
+              {t.emptyCta}
+            </a>
+          </div>
         ) : (
           <>
             <div className="ins-tiles">
