@@ -39,6 +39,7 @@ const SETTINGS_TABS = new Set([
   "prices",
   "recipes",
   "tokens",
+  "claims",
   "language",
   "updates",
 ]);
@@ -229,6 +230,7 @@ export default async function SettingsPage({
         recipes={recipes}
         coverage={coverage}
         pricingEnabled={ws.pricingEnabled}
+        claimTimeoutMinutes={ws.claimTimeoutMinutes}
         initialTab={initialTab}
         tokens={tokens.map((t) => ({
           id: t.id,

@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { assignCardsToMissionAction } from "../../actions/missions";
+import { releaseClaimAction } from "../../actions/claims";
 import {
   reopenTaskAction,
   tickValidationStepAction,
@@ -82,7 +83,13 @@ export type TelemetrySegment = {
 };
 
 export type TimelineEntry = {
-  kind: "executor_swap" | "spawn_failure" | "report" | "comment";
+  kind:
+    | "executor_swap"
+    | "spawn_failure"
+    | "report"
+    | "comment"
+    | "claim_release"
+    | "claim_stale";
   body: string;
   author: string | null;
   at: string;
@@ -120,6 +127,10 @@ export type BoardCard = {
   origem: string;
   executor: string | null;
   elapsed: string | null;
+  /** Lease age, independent from total time since claim. */
+  claimInactive: string | null;
+  /** True once another executor may reclaim without force. */
+  claimStale: boolean;
   branch: string | null;
   resolvedIn: string | null;
   reportsCount: number;
@@ -292,10 +303,11 @@ function CardMetaTail({
     );
   }
   if (card.status === "em_execucao") {
-    return card.elapsed ? (
+    const activity = card.claimInactive ?? card.elapsed;
+    return activity ? (
       <span className="telemetry">
         {sep}
-        <b>{card.elapsed}</b>
+        <b>{activity}</b>
       </span>
     ) : null;
   }
@@ -771,6 +783,39 @@ function DetailActions({
   const [comment, setComment] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
+  const release = () =>
+    start(async () => {
+      setErr(null);
+      const r = await releaseClaimAction(card.id);
+      if (!r.ok) setErr(r.error);
+      else {
+        onClose();
+        router.refresh();
+      }
+    });
+
+  if (card.status === "em_execucao") {
+    return (
+      <div className="d-actions">
+        {err ? <p className="d-err">{err}</p> : null}
+        <div className="d-actions-row">
+          <span className={card.claimStale ? "d-usage-warning" : "d-empty"}>
+            {card.claimInactive}
+            {card.claimStale ? ` · ${t.detail.claimExpired}` : ""}
+          </span>
+          <button
+            className="d-btn-sec"
+            disabled={pending}
+            onClick={release}
+            title={t.detail.releaseClaimTitle}
+          >
+            {pending ? t.detail.releasingClaim : t.detail.releaseClaim}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (card.status !== "feito") return null;
 
   const validate = (override: boolean) =>
@@ -1065,6 +1110,10 @@ function Detail({
                     >
                       {entry.kind === "spawn_failure"
                         ? t.detail.spawnFailure
+                        : entry.kind === "claim_release"
+                          ? t.detail.claimRelease
+                          : entry.kind === "claim_stale"
+                            ? t.detail.claimStale
                         : entry.kind === "report"
                           ? t.detail.report
                           : entry.kind === "comment"
