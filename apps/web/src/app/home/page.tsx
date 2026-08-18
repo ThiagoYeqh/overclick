@@ -203,7 +203,11 @@ function toTranscriptView(
   recipes: readonly UsageRecipeRow[],
 ): TranscriptView | null {
   if (!attempt) return null;
-  const executor = decodeExecutor(attempt.executor, attempt.model);
+  const executor = decodeExecutor(
+    attempt.executor,
+    attempt.model,
+    attempt.modelSource,
+  );
   const ref = readTranscriptRef(attempt.transcript, {
     cli: executor.cli,
     sessionId: executor.session_id,
@@ -479,10 +483,15 @@ function toBoardCard(
     ranCli:
       t.claimedByExecutor ??
       (latestAttempt
-        ? (decodeExecutor(latestAttempt.executor, latestAttempt.model).cli ?? null)
+        ? (decodeExecutor(
+            latestAttempt.executor,
+            latestAttempt.model,
+            latestAttempt.modelSource,
+          ).cli ?? null)
         : null),
     harnessChain: harnessChain(plannedModel, ranModels),
     harnessRan: ranChain && ranChain !== plannedChain ? ranChain : null,
+    modelSource: latestAttempt?.modelSource ?? null,
     // The column already says "done · review". A chip only earns its place by
     // saying something the column cannot: that this one is waiting on you.
     awaitingMyReview:

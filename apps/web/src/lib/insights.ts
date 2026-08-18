@@ -21,6 +21,7 @@ import {
   type CostBreakdownSegment,
   type CostStatus,
   type Database,
+  type AttemptModelSource,
   type ModelPrice,
   type ResolvedCost,
   type UsageSegment,
@@ -44,6 +45,7 @@ export type InsightAttemptRow = {
   missionTitle: string | null;
   model: string | null;
   executor: string | null;
+  modelSource: AttemptModelSource | null;
   result: string | null;
   finishedAt: Date | null;
   /** Tokens by model. Null on attempts recorded before segments existed. */
@@ -89,6 +91,7 @@ export async function loadInsightAttemptRows(
       missionTitle: mission.title,
       model: executionAttempt.model,
       executor: executionAttempt.executor,
+      modelSource: executionAttempt.modelSource,
       result: executionAttempt.result,
       finishedAt: executionAttempt.finishedAt,
       usageSegments: executionAttempt.usageSegments,
@@ -274,6 +277,8 @@ export type CardInsight = {
   projectName: string;
   missionTitle: string | null;
   models: string[];
+  /** Origin of each current attempt model, for labels such as "via harness". */
+  modelOrigins: Array<{ model: string; source: AttemptModelSource }>;
   /** null when no attempt on the card has a cost. Distinct from a real $0. */
   costUsd: number | null;
   /** Where that figure came from, "mixed" when the attempts disagree. */
@@ -729,6 +734,7 @@ export function computeInsights(
         projectName: a.projectName,
         missionTitle: a.missionTitle,
         models: [],
+        modelOrigins: [],
         costUsd: 0,
         costSource: null,
         unpricedTokens: 0,
@@ -781,6 +787,17 @@ export function computeInsights(
     for (const segment of segments) {
       if (segment.model && !card.models.includes(segment.model)) {
         card.models.push(segment.model);
+      }
+    }
+    if (a.model && a.modelSource) {
+      const model = normalizeModelKey(a.model);
+      if (
+        model &&
+        !card.modelOrigins.some(
+          (origin) => origin.model === model && origin.source === a.modelSource,
+        )
+      ) {
+        card.modelOrigins.push({ model, source: a.modelSource });
       }
     }
     if (!a.usageSuspect && cost.costUsd != null) {

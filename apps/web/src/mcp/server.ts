@@ -14,7 +14,7 @@ import type { AuthContext, McpDatabase } from "./types";
 export const SERVER_INSTRUCTIONS = [
   "OverClick is the task board where agents claim and deliver cards (not Overclock the IDE); registering activities means task_create here.",
   "",
-  "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, model, session_id) and returns the briefing, and when the work is done you call task_deliver with summary, evidence, branch and usage. Without exact usage numbers, estimate and set estimated: true.",
+  "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, exact session model from --model, session_id) and returns the briefing, and when the work is done you call task_deliver with summary, evidence, branch and usage. Without exact usage numbers, estimate and set estimated: true.",
   "If an executor must stop, task_release returns its card to the queue without deleting the attempt. Long runs may call task_heartbeat; an inactive claim expires at the workspace timeout and the next task_claim reports reclaimed_stale: true.",
   "Missions group cards: mission_create returns the id that task_create accepts. Every task_id argument accepts the card uuid or the workspace short id (for example AGB-5).",
   "Round-wide conventions belong in mission context: edit them with mission_update. Remove empty mission shells with mission_delete.",
@@ -79,7 +79,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   task_create:
     "Cria um card. Workspace vem do token. mission é o id de uma missão existente (mission_create / mission_list); omitido → card solto. mode solo|team. supersedes descarta atomicamente o card anterior em execução; inherit reutiliza o contrato sem copiar comentários.",
   task_claim:
-    "Pega o card (status → em execução), cria ExecutionAttempt e devolve o briefing. Um claim sem atividade além do timeout do workspace é abandonado como stale e pode ser retomado sem force; a resposta marca reclaimed_stale: true.",
+    "Pega o card (status → em execução), cria ExecutionAttempt e devolve o briefing. Codex deve declarar o modelo exato de --model (por exemplo gpt-5.6-sol), nunca só gpt-5. Um claim sem atividade além do timeout do workspace é abandonado como stale e pode ser retomado sem force; a resposta marca reclaimed_stale: true.",
   task_release:
     "Solta o claim atual: o card volta a aberto e o attempt vira abandoned com o reason, preservando usage. Permitido ao mesmo token que fez o claim ou a um token com manage.",
   task_heartbeat:
