@@ -7,11 +7,23 @@ export type ExecutorDef = {
 
 export const EXECUTOR_CATALOG: readonly ExecutorDef[] = [
   { id: "claude-code", label: "Claude Code", models: ["fable-5", "opus-5", "sonnet-5", "haiku-4-5"] },
-  { id: "gemini-cli", label: "Gemini", models: ["3.5-flash", "3.1-pro", "3-flash"] },
+  {
+    id: "gemini-cli",
+    label: "Gemini",
+    models: ["3.5-flash", "3.1-pro", "3.1-flash-lite", "3-pro", "3-flash", "2.5-pro", "2.5-flash"],
+  },
   {
     id: "codex",
     label: "Codex",
-    models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4-mini"],
+    models: [
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex-spark",
+    ],
   },
   {
     id: "kimi",
@@ -29,7 +41,18 @@ export const EXECUTOR_CATALOG: readonly ExecutorDef[] = [
   {
     id: "opencode",
     label: "OpenCode",
-    models: ["big-pickle", "deepseek-v4-flash-free", "mimo-v2.5-free"],
+    // OpenCode's own models. The CLI also fronts the whole Hugging Face
+    // catalog, which is dozens of entries and belongs in the free-text field,
+    // not in a suggestion grid.
+    models: [
+      "big-pickle",
+      "deepseek-v4-flash-free",
+      "hy3-free",
+      "laguna-s-2.1-free",
+      "mimo-v2.5-free",
+      "nemotron-3-ultra-free",
+      "nemotron-3.5-lightning-free",
+    ],
   },
   { id: "muse-code", label: "Muse Code", models: ["muse-spark-1.2"] },
 ];

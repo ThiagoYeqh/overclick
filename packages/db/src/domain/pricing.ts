@@ -120,6 +120,10 @@ const SEED: SeedPrice[] = [
   // a model nobody priced: this row says the run really cost nothing.
   p1("deepseek-v4-flash-free", 0, 0, 0),
   p1("mimo-v2-5-free", 0, 0, 0),
+  p1("hy3-free", 0, 0, 0),
+  p1("laguna-s-2-1-free", 0, 0, 0),
+  p1("nemotron-3-ultra-free", 0, 0, 0),
+  p1("nemotron-3-5-lightning-free", 0, 0, 0),
 ];
 
 /** The seeded price list, each row stamped with the date it was captured. */
