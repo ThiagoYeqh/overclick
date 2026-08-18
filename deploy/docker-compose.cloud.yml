@@ -5,7 +5,7 @@
 name: overclick
 
 services:
-  postgres:
+  overclick-db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -27,10 +27,10 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
-      postgres:
+      overclick-db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://overclick:${POSTGRES_PASSWORD}@postgres:5432/overclick
+      DATABASE_URL: postgres://overclick:${POSTGRES_PASSWORD}@overclick-db:5432/overclick
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in deploy/.env (32+ chars)}
       NEXT_TELEMETRY_DISABLED: "1"
       PORT: "3000"
