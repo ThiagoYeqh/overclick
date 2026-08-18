@@ -16,6 +16,7 @@ export const SERVER_INSTRUCTIONS = [
   "",
   "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, model, session_id) and returns the briefing, and when the work is done you call task_deliver with summary, evidence, branch and usage. Without exact usage numbers, estimate and set estimated: true.",
   "Missions group cards: mission_create returns the id that task_create accepts. Every task_id argument accepts the card uuid or the workspace short id (for example AGB-5).",
+  "Round-wide conventions belong in mission context: edit them with mission_update. Remove empty mission shells with mission_delete.",
   "Cards live in projects: project_list shows the projects of the workspace and project_create starts one. task_create takes the project uuid or its card prefix (for example AGB).",
   "Reorganizing is project_update to rename, project_delete to remove (empty by default), and task_update with project_id to move a card to another project, which restamps its short id and returns the old-to-new mapping.",
 ].join("\n");
@@ -63,6 +64,10 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
     "Devolve a missão completa (objetivo/contexto) para injetar no prompt.",
   mission_create:
     "Cria uma missão no workspace (title, objective/context em markdown, status). Use o id retornado em task_create.mission.",
+  mission_update:
+    "Updates a mission in place (title, objective/context markdown, status). Omitted fields stay unchanged; conventions for one round belong in the mission context.",
+  mission_delete:
+    "Deletes an empty mission shell. A mission with cards is refused with its count unless force: true explicitly detaches those cards first.",
   task_list:
     "Fila de cards do workspace. Filtros: projeto, missão, status, prioridade, awaiting_review_by.",
   task_get:

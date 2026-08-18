@@ -121,6 +121,8 @@ mission context — then dispatch with the one line above.
   model.
 - `mission_get` carries the objective the card belongs to. When a briefing has
   mission context, that context is part of the contract.
+- Conventions for one round belong in mission context. Edit them with
+  `mission_update`, and remove empty mission shells with `mission_delete`.
 
 ## Honesty rules that make the board worth having
 

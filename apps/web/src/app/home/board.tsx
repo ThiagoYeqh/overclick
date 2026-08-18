@@ -29,7 +29,20 @@ import { Markdown } from "../../components/markdown";
 import { Icon, type IconName } from "../../components/icon";
 import { BoardMobileList } from "./board-mobile-list";
 
-export type BoardMissionOption = { id: string; title: string };
+export type BoardMissionOption = {
+  id: string;
+  title: string;
+  status: "ativa" | "pausada" | "concluida";
+  objective: string;
+  context: string;
+  counts: {
+    total: number;
+    aberto: number;
+    em_execucao: number;
+    feito: number;
+    validado: number;
+  };
+};
 
 export type ConfirmStep = { step: string; expected: string };
 export type ValidationTickView = { index: number; byEmail: string; at: string };

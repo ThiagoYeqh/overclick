@@ -213,6 +213,20 @@ async function dispatchTool(
         data as Parameters<typeof missionCreate>[2],
       );
       break;
+    case "mission_update":
+      value = await missionUpdate(
+        db,
+        ctx,
+        data as Parameters<typeof missionUpdate>[2],
+      );
+      break;
+    case "mission_delete":
+      value = await missionDelete(
+        db,
+        ctx,
+        data as Parameters<typeof missionDelete>[2],
+      );
+      break;
     case "task_list":
       value = await taskList(db, ctx, data as Parameters<typeof taskList>[2]);
       break;
@@ -671,6 +685,114 @@ async function missionCreate(
     throw new Error("failed to insert mission");
   }
   return { mission: mapMission(row, 0) };
+}
+
+async function missionUpdate(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: {
+    mission_id: string;
+    title?: string;
+    objective?: string;
+    context?: string;
+    status?: "ativa" | "pausada" | "concluida";
+  },
+) {
+  const current = await findMission(db, ctx.workspaceId, input.mission_id);
+  if (!current) {
+    return err(
+      "NOT_FOUND",
+      `Mission ${input.mission_id} not found in this workspace. Call mission_list to see the available missions.`,
+    );
+  }
+
+  const patch: {
+    title?: string;
+    objective?: string;
+    context?: string;
+    status?: "ativa" | "pausada" | "concluida";
+  } = {};
+  if (input.title !== undefined) patch.title = input.title.trim();
+  if (input.objective !== undefined) patch.objective = input.objective.trim();
+  if (input.context !== undefined) patch.context = input.context.trim();
+  if (input.status !== undefined) patch.status = input.status;
+
+  if (Object.keys(patch).length === 0) {
+    const [counted] = await db
+      .select({ n: count() })
+      .from(task)
+      .where(eq(task.missionId, current.id));
+    return { mission: mapMission(current, Number(counted?.n ?? 0)) };
+  }
+
+  const [row] = await db
+    .update(mission)
+    .set(patch)
+    .where(
+      and(
+        eq(mission.id, current.id),
+        eq(mission.workspaceId, ctx.workspaceId),
+      ),
+    )
+    .returning();
+  if (!row) throw new Error("failed to update mission");
+
+  const [counted] = await db
+    .select({ n: count() })
+    .from(task)
+    .where(eq(task.missionId, row.id));
+  return { mission: mapMission(row, Number(counted?.n ?? 0)) };
+}
+
+async function missionDelete(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: { mission_id: string; force?: boolean },
+) {
+  const current = await findMission(db, ctx.workspaceId, input.mission_id);
+  if (!current) {
+    return err(
+      "NOT_FOUND",
+      `Mission ${input.mission_id} not found in this workspace. Call mission_list to see the available missions.`,
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const [counted] = await tx
+      .select({ n: count() })
+      .from(task)
+      .where(eq(task.missionId, current.id));
+    const taskCount = Number(counted?.n ?? 0);
+
+    if (taskCount > 0 && input.force !== true) {
+      return err(
+        "INVALID_ARGUMENT",
+        `Mission '${current.title}' holds ${taskCount} card${taskCount === 1 ? "" : "s"}. Move or detach them first with task_update passing mission_id: null, or repeat this call with force: true to detach all ${taskCount} card${taskCount === 1 ? "" : "s"} and delete the mission.`,
+      );
+    }
+
+    if (taskCount > 0) {
+      await tx
+        .update(task)
+        .set({ missionId: null })
+        .where(eq(task.missionId, current.id));
+    }
+    await tx
+      .delete(mission)
+      .where(
+        and(
+          eq(mission.id, current.id),
+          eq(mission.workspaceId, ctx.workspaceId),
+        ),
+      );
+
+    return {
+      deleted: true as const,
+      mission_id: current.id,
+      title: current.title,
+      tasks_detached: taskCount,
+    };
+  });
 }
 
 async function taskList(

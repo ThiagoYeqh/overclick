@@ -2,8 +2,10 @@ import {
   TaskDeliverOutputSchema,
   HarnessRecommendOutputSchema,
   MissionCreateOutputSchema,
+  MissionDeleteOutputSchema,
   MissionGetOutputSchema,
   MissionListOutputSchema,
+  MissionUpdateOutputSchema,
   TaskClaimOutputSchema,
   TaskCreateOutputSchema,
   TaskDeleteOutputSchema,
@@ -1002,6 +1004,109 @@ describe("MCP tool edge cases against a test db", () => {
     expect(claimOut.briefing_markdown).toContain(
       "Agents must inherit this context in the briefing.",
     );
+  });
+
+  it("partially updates a mission and scopes edits to the token workspace", async () => {
+    world = await createTestWorld();
+
+    const updated = await invokeTool(world.db, ctx(), "mission_update", {
+      mission_id: world.missionId,
+      title: "  New mission north  ",
+      context: "## Convention\n\nOne round only.",
+      status: "pausada",
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const miss = MissionUpdateOutputSchema.parse(updated.value).mission;
+    expect(miss.title).toBe("New mission north");
+    expect(miss.context).toBe("## Convention\n\nOne round only.");
+    expect(miss.objective).toBe("Fechar o loop MCP do MVP.");
+    expect(miss.status).toBe("pausada");
+
+    const invalid = await invokeTool(world.db, ctx(), "mission_update", {
+      mission_id: world.missionId,
+      status: "archived",
+    });
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.error.code).toBe("INVALID_ARGUMENT");
+
+    const [otherWs] = await world.db
+      .insert(workspace)
+      .values({ name: "Other mission workspace", executors: [] })
+      .returning({ id: workspace.id });
+    if (!otherWs) throw new Error("failed to insert other workspace");
+    const [otherMission] = await world.db
+      .insert(mission)
+      .values({
+        workspaceId: otherWs.id,
+        title: "Other mission",
+        objective: "Out of scope.",
+      })
+      .returning({ id: mission.id });
+    if (!otherMission) throw new Error("failed to insert other mission");
+
+    const refused = await invokeTool(world.db, ctx(), "mission_update", {
+      mission_id: otherMission.id,
+      title: "Must not change",
+    });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("NOT_FOUND");
+  });
+
+  it("deletes empty missions, refuses occupied ones, and detaches cards under force", async () => {
+    world = await createTestWorld();
+
+    const empty = await invokeTool(world.db, ctx(), "mission_create", {
+      title: "Empty shell",
+    });
+    if (!empty.ok) throw new Error("mission_create failed");
+    const emptyMission = MissionCreateOutputSchema.parse(empty.value).mission;
+    const deleted = await invokeTool(world.db, ctx(), "mission_delete", {
+      mission_id: emptyMission.id,
+    });
+    expect(deleted.ok).toBe(true);
+    if (!deleted.ok) return;
+    expect(MissionDeleteOutputSchema.parse(deleted.value)).toMatchObject({
+      mission_id: emptyMission.id,
+      tasks_detached: 0,
+    });
+
+    const card = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      mission: world.missionId,
+      title: "Card keeps living",
+      type: "feature",
+      o_que: "Detach on forced mission deletion.",
+      por_que: "A mission is grouping, not ownership.",
+      como_confirmo: [{ step: "list card", expected: "mission is null" }],
+      origem,
+    });
+    if (!card.ok) throw new Error("task_create failed");
+    const createdCard = TaskCreateOutputSchema.parse(card.value).task;
+
+    const refused = await invokeTool(world.db, ctx(), "mission_delete", {
+      mission_id: world.missionId,
+    });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) {
+      expect(refused.error.code).toBe("INVALID_ARGUMENT");
+      expect(refused.error.message).toContain("1 card");
+      expect(refused.error.message).toContain("force: true");
+    }
+
+    const forced = await invokeTool(world.db, ctx(), "mission_delete", {
+      mission_id: world.missionId,
+      force: true,
+    });
+    expect(forced.ok).toBe(true);
+    if (!forced.ok) return;
+    expect(MissionDeleteOutputSchema.parse(forced.value).tasks_detached).toBe(1);
+
+    const [stillThere] = await world.db
+      .select({ missionId: task.missionId })
+      .from(task)
+      .where(eq(task.id, createdCard.id));
+    expect(stillThere?.missionId).toBeNull();
   });
 
   async function createPlainCard(title: string) {

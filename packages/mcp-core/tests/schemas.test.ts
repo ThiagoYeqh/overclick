@@ -3,6 +3,8 @@ import {
   TaskDeliverInputSchema,
   MCP_TOOL_NAMES,
   MissionCreateInputSchema,
+  MissionDeleteInputSchema,
+  MissionUpdateInputSchema,
   PROJECT_CONTEXT_MAX_CHARS,
   ProjectCreateInputSchema,
   TaskCreateInputSchema,
@@ -11,7 +13,7 @@ import {
 } from "../src/index.js";
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 22 tools", () => {
+  it("exports input and output schemas for all 24 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "project_list",
       "project_get",
@@ -21,6 +23,8 @@ describe("MCP tool contracts", () => {
       "mission_list",
       "mission_get",
       "mission_create",
+      "mission_update",
+      "mission_delete",
       "task_list",
       "task_get",
       "task_search",
@@ -98,6 +102,47 @@ describe("mission_create", () => {
 
   it("rejects an empty title", () => {
     expect(MissionCreateInputSchema.safeParse({ title: "" }).success).toBe(false);
+  });
+});
+
+describe("mission_update and mission_delete", () => {
+  it("accepts partial mission edits and trims the title", () => {
+    expect(
+      MissionUpdateInputSchema.parse({
+        mission_id: "mission-1",
+        title: "  New north  ",
+        status: "pausada",
+      }),
+    ).toEqual({
+      mission_id: "mission-1",
+      title: "New north",
+      status: "pausada",
+    });
+  });
+
+  it("rejects blank or oversized titles and invalid statuses", () => {
+    expect(
+      MissionUpdateInputSchema.safeParse({ mission_id: "mission-1", title: "  " })
+        .success,
+    ).toBe(false);
+    expect(
+      MissionUpdateInputSchema.safeParse({
+        mission_id: "mission-1",
+        title: "x".repeat(201),
+      }).success,
+    ).toBe(false);
+    expect(
+      MissionUpdateInputSchema.safeParse({
+        mission_id: "mission-1",
+        status: "archived",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps force optional on mission_delete", () => {
+    expect(
+      MissionDeleteInputSchema.parse({ mission_id: "mission-1" }),
+    ).toEqual({ mission_id: "mission-1" });
   });
 });
 

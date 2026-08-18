@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, count, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import {
   harnessChain,
@@ -501,11 +501,59 @@ export default async function HomePage() {
   );
   if (projects.length === 0) redirect("/setup");
 
-  const missions = await db().query.mission.findMany({
+  const missionRows = await db().query.mission.findMany({
     where: eq(mission.workspaceId, ws.id),
     orderBy: asc(mission.createdAt),
-    columns: { id: true, title: true },
+    columns: {
+      id: true,
+      title: true,
+      status: true,
+      objective: true,
+      context: true,
+    },
   });
+  const missionCountRows =
+    missionRows.length === 0
+      ? []
+      : await db()
+          .select({ missionId: task.missionId, status: task.status, n: count() })
+          .from(task)
+          .where(inArray(task.missionId, missionRows.map((item) => item.id)))
+          .groupBy(task.missionId, task.status);
+  const missionCounts = new Map<
+    string,
+    {
+      total: number;
+      aberto: number;
+      em_execucao: number;
+      feito: number;
+      validado: number;
+    }
+  >();
+  for (const row of missionCountRows) {
+    if (!row.missionId) continue;
+    const counts = missionCounts.get(row.missionId) ?? {
+      total: 0,
+      aberto: 0,
+      em_execucao: 0,
+      feito: 0,
+      validado: 0,
+    };
+    const value = Number(row.n);
+    counts[row.status] += value;
+    counts.total += value;
+    missionCounts.set(row.missionId, counts);
+  }
+  const missions = missionRows.map((item) => ({
+    ...item,
+    counts: missionCounts.get(item.id) ?? {
+      total: 0,
+      aberto: 0,
+      em_execucao: 0,
+      feito: 0,
+      validado: 0,
+    },
+  }));
 
   const [me] = await db()
     .select({

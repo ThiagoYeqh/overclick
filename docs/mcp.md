@@ -47,6 +47,8 @@ context are listed there with a short excerpt and a pointer to `project_get`.
 | | only an **empty** project by default; one that holds cards is refused with the count that blocks it and the way out (move the cards, or repeat with force). `force: true` destroys the project with every card in it, and their attempts, handoffs and subtasks, with the count stated in the response (`tasks_deleted`, `attempts_deleted`, `handoffs_deleted`) |
 | `mission_list` / `mission_get` | missions and the context to inject into the prompt |
 | `mission_create` | creates a mission (`title`, objective/context markdown, `status`) and returns its id |
+| `mission_update` | partially edits a mission (`title`, objective/context markdown, `status`); omitted fields stay unchanged. Put conventions for one round in mission context and update them here |
+| `mission_delete` | removes an empty mission shell. A mission holding cards is refused with its count; `force: true` detaches those cards (`mission_id: null`) and returns `tasks_detached` before deleting the mission |
 | `task_list` | the queue (project, `mission_id`, status, priority, `awaiting_review_by`) |
 | `task_get` | self-contained md briefing (contract + harness + mission + complete project context + branch), plus the latest attempt's frozen `cost_usd`, `cost_source`, `cost_status` and `cost_unpriced_models` |
 | `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin) |
@@ -87,6 +89,11 @@ starts a project, so an agent can go from an empty board to its first card witho
 reading the database. Reorganizing later is the same surface: `project_update` renames,
 `task_update` with `project_id` consolidates two projects into one card by card, and
 `project_delete` removes what is left over.
+
+Mission context is the shared place for conventions that apply to one round of work:
+edit it in place with `mission_update` instead of repeating it on every card. Empty
+mission shells can be removed with `mission_delete`; occupied missions require an
+explicit move/detach or `force: true`.
 
 `task_claim` and `task_get` return the briefing. The executor needs no other source of
 context. `## Project context` comes immediately after the mission and carries the

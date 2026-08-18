@@ -10,6 +10,7 @@ import {
 } from "../../actions/board-filter";
 import { assignCardsToMissionAction } from "../../actions/missions";
 import {
+  NO_MISSION,
   countLooseCards,
   filterBoardCards,
   missionFilterOptions,
@@ -24,6 +25,7 @@ import { Icon } from "../../components/icon";
 import { Board, type BoardCard, type BoardMissionOption } from "./board";
 import { BoardTotal, BoardTotalLink } from "./board-total";
 import { FacetFilters } from "./facet-filters";
+import { MissionHeader } from "./mission-header";
 import { MissionFilter } from "./mission-filter";
 import { ProjectFilter } from "./project-filter";
 
@@ -249,6 +251,10 @@ export function HomeShell({
   );
   const running = visible.filter((card) => card.status === "em_execucao").length;
   const review = visible.filter((card) => card.status === "feito").length;
+  const selectedMission =
+    filter.missionId && filter.missionId !== NO_MISSION
+      ? missions.find((item) => item.id === filter.missionId) ?? null
+      : null;
   const defaultProject = projects[0]?.id;
   const hasActiveFilters =
     filter.projectIds.length !== (defaultProject ? 1 : 0) ||
@@ -315,6 +321,7 @@ export function HomeShell({
             totalCount={scopeCount}
             value={filter.missionId}
             onChange={(missionId) => apply({ ...filter, missionId })}
+            onCreated={(missionId) => apply({ ...filter, missionId })}
             t={t}
           />
           <FacetFilters
@@ -390,6 +397,14 @@ export function HomeShell({
           is open, which the desktop never does. */}
       {filtersOpen ? (
         <div className="menu-backdrop" onClick={() => setFiltersOpen(false)} />
+      ) : null}
+
+      {selectedMission ? (
+        <MissionHeader
+          mission={selectedMission}
+          t={t}
+          onDeleted={() => apply({ ...filter, missionId: null })}
+        />
       ) : null}
 
       <Board

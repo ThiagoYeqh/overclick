@@ -61,6 +61,44 @@ export const MissionCreateOutputSchema = z.object({
   mission: MissionSchema,
 });
 
+/**
+ * Partial mission edits. Omitted fields stay untouched; markdown fields may
+ * intentionally be cleared with an empty string. The title is trimmed before
+ * validation so whitespace cannot become a mission name.
+ */
+export const MissionUpdateInputSchema = z.object({
+  mission_id: z.string().min(1),
+  title: z.string().trim().min(1).max(200).optional(),
+  objective: z.string().optional(),
+  context: z.string().optional(),
+  status: MissionStatusSchema.optional(),
+});
+
+export const MissionUpdateOutputSchema = z.object({
+  mission: MissionSchema,
+});
+
+/**
+ * Empty missions can be removed directly. A mission holding cards is refused
+ * unless force explicitly asks to detach those cards first.
+ */
+export const MissionDeleteInputSchema = z.object({
+  mission_id: z.string().min(1),
+  force: z
+    .boolean()
+    .optional()
+    .describe(
+      "Deletes the mission even when it holds cards, detaching them first. Omitted or false, a mission with cards is refused with the count that blocks it.",
+    ),
+});
+
+export const MissionDeleteOutputSchema = z.object({
+  deleted: z.literal(true),
+  mission_id: z.string().min(1),
+  title: z.string().min(1),
+  tasks_detached: z.number().int().min(0),
+});
+
 const ProjectRefSchema = z
   .string()
   .min(1)
@@ -895,6 +933,8 @@ export const MCP_TOOL_NAMES = [
   "mission_list",
   "mission_get",
   "mission_create",
+  "mission_update",
+  "mission_delete",
   "task_list",
   "task_get",
   "task_search",
@@ -945,6 +985,14 @@ export const toolContracts = {
   mission_create: {
     input: MissionCreateInputSchema,
     output: MissionCreateOutputSchema,
+  },
+  mission_update: {
+    input: MissionUpdateInputSchema,
+    output: MissionUpdateOutputSchema,
+  },
+  mission_delete: {
+    input: MissionDeleteInputSchema,
+    output: MissionDeleteOutputSchema,
   },
   task_list: {
     input: TaskListInputSchema,
@@ -1017,6 +1065,10 @@ export type MissionListInput = z.infer<typeof MissionListInputSchema>;
 export type MissionGetInput = z.infer<typeof MissionGetInputSchema>;
 export type MissionCreateInput = z.infer<typeof MissionCreateInputSchema>;
 export type MissionCreateOutput = z.infer<typeof MissionCreateOutputSchema>;
+export type MissionUpdateInput = z.infer<typeof MissionUpdateInputSchema>;
+export type MissionUpdateOutput = z.infer<typeof MissionUpdateOutputSchema>;
+export type MissionDeleteInput = z.infer<typeof MissionDeleteInputSchema>;
+export type MissionDeleteOutput = z.infer<typeof MissionDeleteOutputSchema>;
 export type TaskListInput = z.infer<typeof TaskListInputSchema>;
 export type TaskGetInput = z.infer<typeof TaskGetInputSchema>;
 export type TaskSearchInput = z.infer<typeof TaskSearchInputSchema>;
