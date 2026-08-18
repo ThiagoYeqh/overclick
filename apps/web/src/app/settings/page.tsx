@@ -8,11 +8,16 @@ import {
   findModelPrice,
   mcpToken,
   project,
+  recipeCoverage,
   task,
 } from "@agent-board/db";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
-import { isPairInConfig, selectionFromConfig } from "../../lib/executors";
+import {
+  EXECUTOR_CATALOG,
+  isPairInConfig,
+  selectionFromConfig,
+} from "../../lib/executors";
 import { loadModelPrices } from "../../lib/prices";
 import { loadUsageRecipes } from "../../lib/recipes";
 import { detectRuntime } from "../../lib/runtime";
@@ -76,6 +81,22 @@ export default async function SettingsPage() {
 
   const prices = await loadModelPrices(db(), ws.id);
   const recipes = await loadUsageRecipes(db(), ws.id);
+  // Coverage is computed here and not in the client component: importing
+  // the helper there would pull the db package's postgres client into the
+  // browser bundle. Executors learned from real connections carry their
+  // own label, catalog ones take the catalog's.
+  const coverage = recipeCoverage(
+    recipes,
+    ws.executors
+      .filter((row) => row.enabled)
+      .map((row) => ({
+        id: row.id,
+        label:
+          row.label ||
+          EXECUTOR_CATALOG.find((d) => d.id === row.id)?.label ||
+          row.id,
+      })),
+  );
 
   // Models this board has actually run, or is configured to run, that the
   // price table cannot price yet. Offered in Settings so nobody has to guess
@@ -164,6 +185,7 @@ export default async function SettingsPage() {
         unpricedModels={unpricedModels}
         unpricedRanModels={unpricedRanModels}
         recipes={recipes}
+        coverage={coverage}
         pricingEnabled={ws.pricingEnabled}
         tokens={tokens.map((t) => ({
           id: t.id,

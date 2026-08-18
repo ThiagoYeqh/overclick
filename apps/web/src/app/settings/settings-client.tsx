@@ -33,7 +33,11 @@ import type { UpdaterState } from "../../lib/updates";
 
 /** The three modes, in the order they escalate: silence, tell, act. */
 const UPDATE_MODES: readonly UpdateMode[] = ["off", "check", "auto"];
-import type { ModelPriceRow, UsageRecipeRow } from "@agent-board/db";
+import type {
+  ModelPriceRow,
+  RecipeCoverage,
+  UsageRecipeRow,
+} from "@agent-board/db";
 
 type CardapioRow = {
   activityType: string;
@@ -99,6 +103,7 @@ export function SettingsClient({
   unpricedModels,
   unpricedRanModels,
   recipes,
+  coverage,
   tokens,
   lang,
   updateMode,
@@ -127,6 +132,12 @@ export function SettingsClient({
    */
   unpricedRanModels: string[];
   recipes: UsageRecipeRow[];
+  /**
+   * Which of the CLIs this workspace runs have a recipe of their own.
+   * Computed on the server: importing the helper here would drag the whole
+   * db package, and its postgres client, into the browser bundle.
+   */
+  coverage: RecipeCoverage[];
   tokens: TokenRow[];
   lang: string;
   /** What this instance may do about new releases. */
@@ -364,6 +375,7 @@ export function SettingsClient({
     setRecipesSeen(recipes);
     setRecipeRows(recipes);
   }
+  const uncovered = coverage.filter((row) => !row.covered);
   const setRecipe = (i: number, patch: Partial<UsageRecipeRow>) =>
     setRecipeRows(recipeRows.map((row, j) => (j === i ? { ...row, ...patch } : row)));
   const saveRecipes = () =>
@@ -766,6 +778,36 @@ export function SettingsClient({
           aria-labelledby="settab-recipes"
         >
           <p className="page-sub">{t.settings.recipesSub}</p>
+          {/* A missing recipe used to be invisible: the tab listed the recipes
+              that exist and said nothing about the CLIs falling through to the
+              generic one, which is where precision is lost silently. */}
+          {coverage.length > 0 && (
+            <div className="set-card rec-cover">
+              <div className="rec-head">
+                <span className="rec-name">{t.settings.recipeCoverageTitle}</span>
+                <span className="sec-cap" style={{ margin: 0 }}>
+                  {uncovered.length === 0
+                    ? t.settings.recipeCoverageAllCovered
+                    : `${uncovered.length}/${coverage.length} ${t.settings.recipeCoverageFallback}`}
+                </span>
+              </div>
+              <ul className="cover-list">
+                {coverage.map((row) => (
+                  <li key={row.cli} className={row.covered ? "has" : "missing"}>
+                    <span className="cover-cli">{row.label}</span>
+                    <span className="cover-state">
+                      {row.covered
+                        ? t.settings.recipeCoverageOwn
+                        : t.settings.recipeCoverageFallback}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {uncovered.length > 0 && (
+                <p className="sec-cap">{t.settings.recipeCoverageNote}</p>
+              )}
+            </div>
+          )}
           {/* One recipe is a heading and two fields, so it gets the shape of a
               group: four of them in a row used to read as one long page with
               no seam between the CLI you meant to edit and the next one. */}

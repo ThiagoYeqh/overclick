@@ -116,6 +116,113 @@ print(json.dumps({
 }, indent=2))
 PY`;
 
+const GROK_COMMAND = `python3 - <<'PY'
+import collections, glob, json, os, urllib.parse
+
+# TRANSCRIPT_PATH pins one transcript, which is what the card's recompute
+# button sets. Without it, Grok writes one updates.jsonl per session under
+# ~/.grok/sessions/<cwd percent-encoded>/<session uuid>/.
+path = os.environ.get("TRANSCRIPT_PATH")
+if not path:
+    root = os.path.expanduser("~/.grok/sessions")
+    folder = os.path.join(root, urllib.parse.quote(os.getcwd(), safe=""))
+    session = os.environ.get("GROK_SESSION_ID")
+    if session:
+        path = os.path.join(folder, session, "updates.jsonl")
+    else:
+        here = glob.glob(folder + "/*/updates.jsonl")
+        path = max(here or glob.glob(root + "/*/*/updates.jsonl"), key=os.path.getmtime)
+
+seg, turns = collections.defaultdict(collections.Counter), 0
+for line in open(path):
+    try:
+        entry = json.loads(line)
+    except ValueError:
+        continue
+    update = (entry.get("params") or {}).get("update") or {}
+    if update.get("sessionUpdate") != "turn_completed":
+        continue
+    usage = update.get("usage") or {}
+    # A turn that ended on an error carries no usage. Counting it would put a
+    # row of zeros where the honest answer is that nothing was spent.
+    if not usage:
+        continue
+    turns += usage.get("numTurns") or usage.get("modelCalls", 0)
+    # modelUsage splits the turn per model, which is what a session that
+    # switched model needs; a turn without it is all one model.
+    for model, block in (usage.get("modelUsage") or {"unknown": usage}).items():
+        counter = seg[model]
+        cached = block.get("cachedReadTokens", 0)
+        # inputTokens already contains the cached read, so the plain input is
+        # what is left after taking it out.
+        counter["input"] += block.get("inputTokens", 0) - cached
+        counter["cache_read"] += cached
+        counter["cache_write"] += block.get("cacheCreationTokens", 0)
+        counter["output"] += block.get("outputTokens", 0)
+
+print(json.dumps({
+    "segments": [dict(model=model, **dict(counter)) for model, counter in seg.items()],
+    "turns": turns,
+    "transcript": path,
+}, indent=2))
+PY`;
+
+const KIMI_COMMAND = `python3 - <<'PY'
+import collections, glob, json, os
+
+# TRANSCRIPT_PATH pins one session directory, which is what the card's
+# recompute button sets. Without it, the index Kimi keeps in its home maps
+# every session to the directory it ran in, including sessions stored outside
+# that home, so it beats globbing for them.
+home = os.environ.get("KIMI_HOME") or os.path.expanduser("~/.kimi-code")
+path = os.environ.get("TRANSCRIPT_PATH")
+if not path:
+    here, session = os.path.realpath(os.getcwd()), os.environ.get("KIMI_SESSION_ID")
+    rows = []
+    for line in open(os.path.join(home, "session_index.jsonl")):
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if not os.path.isdir(row.get("sessionDir", "")):
+            continue
+        if session and row.get("sessionId") != session:
+            continue
+        if not session and os.path.realpath(row.get("workDir", "")) != here:
+            continue
+        rows.append(row["sessionDir"])
+    path = max(rows, key=os.path.getmtime)
+
+# One wire log per agent: main plus every subagent it spawned, so the tokens a
+# subagent spent land on the card that spawned it instead of nowhere.
+logs = sorted(glob.glob(os.path.join(path, "agents", "*", "wire.jsonl")))
+seg, turns = collections.defaultdict(collections.Counter), 0
+for log in logs:
+    for line in open(log):
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        # Kimi writes one record per model call with usageScope "turn", and a
+        # cumulative "session" record at the end. Summing both counts the
+        # session twice.
+        if entry.get("type") != "usage.record" or entry.get("usageScope") != "turn":
+            continue
+        usage = entry.get("usage") or {}
+        turns += 1
+        counter = seg[entry.get("model") or "unknown"]
+        counter["input"] += usage.get("inputOther", 0)
+        counter["cache_read"] += usage.get("inputCacheRead", 0)
+        counter["cache_write"] += usage.get("inputCacheCreation", 0)
+        counter["output"] += usage.get("output", 0)
+
+print(json.dumps({
+    "segments": [dict(model=model, **dict(counter)) for model, counter in seg.items()],
+    "turns": turns,
+    "transcript": path,
+}, indent=2))
+PY`;
+
 const SEED: UsageRecipe[] = [
   {
     cli: "claude-code",
@@ -142,6 +249,22 @@ const SEED: UsageRecipe[] = [
     command: "",
   },
   {
+    cli: "grok",
+    label: "Grok",
+    yields: "tokens_per_model",
+    instructions:
+      "Run this from the repo you worked in. Grok closes every turn with a turn_completed line carrying usage.modelUsage, tokens already split per model, and this totals them into usage.segments. inputTokens there includes the cached read, so the command subtracts it and reports input and cache_read apart, the way the board counts them. A turn that ended on an error carries no usage and is skipped, so an aborted session reports nothing instead of a row of zeros. It also prints the transcript path: send it as transcript.path and the card links back to this run.",
+    command: GROK_COMMAND,
+  },
+  {
+    cli: "kimi",
+    label: "Kimi",
+    yields: "tokens_per_model",
+    instructions:
+      "Run this from the repo you worked in. Kimi writes one usage.record per model call into the wire log of every agent in the session, main and subagents, and this totals them per model for usage.segments. It reads only the records scoped to a turn: the cumulative session record at the end would count the whole run twice. The session is found through the index Kimi keeps in its home, which maps each session to the directory it ran in. It also prints the session path: send it as transcript.path and the card links back to this run.",
+    command: KIMI_COMMAND,
+  },
+  {
     cli: GENERIC_RECIPE_CLI,
     label: "Any other CLI",
     yields: "no_tokens",
@@ -159,6 +282,43 @@ export function factoryUsageRecipes(): UsageRecipeRow[] {
     updatedBy: null,
     updatedAt: null,
   }));
+}
+
+/** One CLI in the coverage list: its own recipe, or the generic fallback. */
+export type RecipeCoverage = {
+  cli: string;
+  label: string;
+  /** False when nothing names this CLI and the generic recipe answers for it. */
+  covered: boolean;
+};
+
+/**
+ * Which of the CLIs a workspace actually runs have a recipe of their own.
+ *
+ * A CLI with no recipe still gets an answer, the generic one, which asks the
+ * agent to go looking and estimate. That is silent: the card comes back with an
+ * estimate and nothing says the exact numbers were sitting in a transcript
+ * nobody read. Listing the fallbacks makes the cost of a missing recipe visible
+ * at the one place somebody can fix it.
+ */
+export function recipeCoverage(
+  recipes: readonly UsageRecipe[],
+  executors: readonly { id: string; label: string }[],
+): RecipeCoverage[] {
+  const own = new Set(
+    recipes
+      .map((recipe) => recipe.cli.trim().toLowerCase())
+      .filter((cli) => cli !== GENERIC_RECIPE_CLI),
+  );
+  const seen = new Set<string>();
+  const rows: RecipeCoverage[] = [];
+  for (const executor of executors) {
+    const cli = executor.id.trim().toLowerCase();
+    if (!cli || seen.has(cli)) continue;
+    seen.add(cli);
+    rows.push({ cli, label: executor.label, covered: own.has(cli) });
+  }
+  return rows;
 }
 
 /**

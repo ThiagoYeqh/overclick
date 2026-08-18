@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   factoryUsageRecipes,
   findUsageRecipe,
+  recipeCoverage,
   GENERIC_RECIPE_CLI,
 } from "./usage-recipe";
 
@@ -14,6 +15,8 @@ describe("usage collection recipes", () => {
       "codex",
       "gemini-cli",
       GENERIC_RECIPE_CLI,
+      "grok",
+      "kimi",
     ]);
     expect(recipes.every((r) => r.source === "seed")).toBe(true);
   });
@@ -40,6 +43,70 @@ describe("usage collection recipes", () => {
     expect(gemini?.yields).toBe("no_tokens");
     expect(gemini?.command).toBe("");
     expect(gemini?.instructions).toContain("estimated: true");
+  });
+
+
+  it("gives Grok a command that reads the usage its turns close with", () => {
+    const grok = findUsageRecipe(recipes, "grok");
+    expect(grok?.yields).toBe("tokens_per_model");
+    expect(grok?.command).toContain("turn_completed");
+    expect(grok?.command).toContain("modelUsage");
+    expect(grok?.command).toContain("cachedReadTokens");
+    expect(grok?.command).toContain("segments");
+  });
+
+  it("gives Kimi a command that totals every agent's wire log", () => {
+    const kimi = findUsageRecipe(recipes, "kimi");
+    expect(kimi?.yields).toBe("tokens_per_model");
+    expect(kimi?.command).toContain("usage.record");
+    expect(kimi?.command).toContain("session_index.jsonl");
+    // The cumulative record at the end would count the run twice.
+    expect(kimi?.command).toContain('usageScope") != "turn"');
+    expect(kimi?.command).toContain("segments");
+  });
+
+  describe("coverage", () => {
+    const executors = [
+      { id: "claude-code", label: "Claude Code" },
+      { id: "grok", label: "Grok" },
+      { id: "cursor", label: "Cursor" },
+    ];
+
+    it("separates the CLIs with their own recipe from the ones falling back", () => {
+      expect(recipeCoverage(recipes, executors)).toEqual([
+        { cli: "claude-code", label: "Claude Code", covered: true },
+        { cli: "grok", label: "Grok", covered: true },
+        { cli: "cursor", label: "Cursor", covered: false },
+      ]);
+    });
+
+    it("never counts the generic recipe as covering a CLI named generic", () => {
+      const rows = recipeCoverage(recipes, [
+        { id: GENERIC_RECIPE_CLI, label: "Any other CLI" },
+      ]);
+      expect(rows).toEqual([
+        { cli: GENERIC_RECIPE_CLI, label: "Any other CLI", covered: false },
+      ]);
+    });
+
+    it("matches the CLI case-insensitively and lists each one once", () => {
+      const rows = recipeCoverage(recipes, [
+        { id: "KIMI", label: "Kimi" },
+        { id: "kimi", label: "Kimi again" },
+      ]);
+      expect(rows).toEqual([{ cli: "kimi", label: "Kimi", covered: true }]);
+    });
+
+    it("counts a workspace recipe with no command as covering the CLI", () => {
+      // Gemini's shipped recipe honestly says there is nothing on disk. It is
+      // still its own recipe, not the generic fallback.
+      const rows = recipeCoverage(recipes, [
+        { id: "gemini-cli", label: "Gemini" },
+      ]);
+      expect(rows).toEqual([
+        { cli: "gemini-cli", label: "Gemini", covered: true },
+      ]);
+    });
   });
 
   it("falls back to the generic recipe, never to nothing", () => {

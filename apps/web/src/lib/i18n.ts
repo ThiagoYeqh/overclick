@@ -252,6 +252,19 @@ const en = {
     recipeYieldsNone: "no tokens on disk · estimate and label",
     recipeShipped: "shipped with the board",
     recipeEdited: "edited here",
+    /**
+     * The recipes tab used to list only the recipes that exist, so a CLI with
+     * none was invisible: it fell back to the generic recipe, delivered an
+     * estimate, and nothing said the exact numbers were in a transcript nobody
+     * read. This strip names the CLIs this workspace runs and which side they
+     * are on.
+     */
+    recipeCoverageTitle: "The CLIs this board runs",
+    recipeCoverageOwn: "own recipe",
+    recipeCoverageFallback: "falls back to the generic recipe",
+    recipeCoverageAllCovered: "Every CLI configured here has a recipe of its own.",
+    recipeCoverageNote:
+      "A CLI with no recipe of its own still gets an answer, the generic one, which asks the agent to go looking and estimate. Write its command here and every agent on it reports measured numbers instead.",
     saveRecipes: "Save recipes",
     recipesSaved: "Recipes saved. New claims get them in the briefing.",
     seenCap: "seen in real connections",
@@ -669,6 +682,12 @@ const ptBR: Dict = {
     recipeYieldsNone: "sem tokens em disco · estime e rotule",
     recipeShipped: "vem com o board",
     recipeEdited: "editado aqui",
+    recipeCoverageTitle: "Os CLIs que este board roda",
+    recipeCoverageOwn: "receita própria",
+    recipeCoverageFallback: "cai na receita genérica",
+    recipeCoverageAllCovered: "Todo CLI configurado aqui tem receita própria.",
+    recipeCoverageNote:
+      "Um CLI sem receita própria ainda recebe uma resposta, a genérica, que pede ao agente procurar e estimar. Escreva o comando dele aqui e todo agente nesse CLI passa a reportar números medidos.",
     saveRecipes: "Salvar receitas",
     recipesSaved: "Receitas salvas. Novos claims recebem no briefing.",
     seenCap: "vistos em conexões reais",

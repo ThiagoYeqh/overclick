@@ -75,7 +75,9 @@ export {
 export {
   factoryUsageRecipes,
   findUsageRecipe,
+  recipeCoverage,
   GENERIC_RECIPE_CLI,
+  type RecipeCoverage,
   type RecipeSource,
   type RecipeYield,
   type UsageRecipe,
