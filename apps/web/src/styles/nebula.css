@@ -866,6 +866,93 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-btn-ghost:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ============================================================
+   AGB-74 — THE CARD DETAIL USES THE DESKTOP IT IS GIVEN
+
+   The panel was 700px of column on any screen, so on a 1440 the review was
+   a 700px ribbon with ten sections stacked in it and 740px of board sitting
+   dark on either side. Reading a delivered card meant scrolling past the
+   contract, past the harness, past the branch and the telemetry and the
+   transcript, and the two buttons the review exists for were off the bottom
+   the whole time. A person had to scroll back up to remember what they were
+   validating and back down to validate it.
+
+   Above this width the panel is two columns instead of one. The main column
+   holds what the review acts on: the contract, the reasons, and the
+   checklist that is ticked. The rail holds what is read to decide and never
+   touched: the mission, the harness, the roles, the branch, the telemetry,
+   what the agent handed back and where its transcript lives. The head, the
+   title and the actions span both, so the card still reads as one object.
+
+   The panel is bounded by the window rather than by its content, and the two
+   columns scroll inside it. That is what keeps Validate and Reopen on screen
+   while the contract is being read: they are not at the end of a long page,
+   they are the floor of the panel. A card whose sections fit simply renders
+   a shorter panel, because the height is a maximum and not a height.
+
+   Below this width nothing here applies. The two wrappers are display:
+   contents at every other size, which means at 1024, at 768 and at 390 the
+   browser lays out exactly the elements it laid out before this card, in the
+   order it laid them out, and the full screen sheet AGB-72 built is
+   untouched.
+   ============================================================ */
+
+/* the wrappers exist for the desktop only; everywhere else they are not
+   there at all, so the single column is the same single column it was */
+.nb .d-main, .nb .d-rail { display: contents; }
+
+/* 1200 is where the second column earns its place: the panel is 1060 wide,
+   so below this the board around it shrinks to a strip and the detail stops
+   being a window over the board and starts being the screen. The min-height
+   is the other half of the same rule, and it also keeps this off the
+   landscape phone, which AGB-72 already sends to the sheet. */
+@media (min-width: 1200px) and (min-height: 600px) {
+  .nb .detail {
+    width: min(1060px, 94vw);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    /* the reading row is the one that gives: minmax(0, 1fr) lets it shrink
+       under its own content, which is what turns the columns into scrollers
+       once the card is longer than the window */
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "head  head"
+      "title title"
+      "main  rail"
+      "actions actions";
+    column-gap: 30px;
+    /* a maximum, never a height: a short card still gets a short panel */
+    max-height: calc(100vh - 96px);
+    overflow: hidden;
+  }
+  .nb .d-head { grid-area: head; }
+  .nb .detail h3 { grid-area: title; }
+  .nb .d-main { grid-area: main; }
+  .nb .d-rail { grid-area: rail; }
+  .nb .d-actions { grid-area: actions; }
+
+  .nb .d-main, .nb .d-rail {
+    display: block; min-height: 0;
+    overflow-y: auto; overscroll-behavior: contain;
+    /* room for the focus ring, which a scroll container would otherwise cut
+       off the left edge of a checklist row */
+    padding-left: 3px; margin-left: -3px;
+  }
+  /* the rail is the quieter half and the rule between them says so */
+  .nb .d-rail {
+    border-left: 1px solid var(--nebula-plan-divider);
+    padding-left: 26px; margin-left: 0;
+  }
+  /* two-up pairs are not two-up inside a 320px rail */
+  .nb .d-rail .d-grid { grid-template-columns: 1fr; gap: var(--nebula-space-3) 0; }
+  /* the title already separates the columns from the head, so the first rule
+     of each one would be a line drawn under a line */
+  .nb .d-main > .d-sec:first-child,
+  .nb .d-rail > .d-sec:first-child { border-top: 0; padding-top: 0; }
+  /* the actions sit on the floor of the panel, not at the end of the page */
+  .nb .d-actions { margin-top: 0; }
+}
+
+/* ============================================================
    ONBOARDING (wizard T1–T3) + SETTINGS — mesma base Nebula
    ============================================================ */
 .nb a { color: inherit; text-decoration: none; }

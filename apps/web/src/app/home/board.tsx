@@ -949,129 +949,145 @@ function Detail({
           </span>
         </div>
         <h3 id={titleId}>{card.title}</h3>
-        <div className="d-sec">
-          <SectionLabel icon="spec" text={t.detail.what} />
-          <p>{card.oQue}</p>
-        </div>
-        <div className="d-sec">
-          <SectionLabel icon="reason" text={t.detail.why} />
-          <p>{card.porQue}</p>
-        </div>
-        <div className={`d-sec${reviewing ? " d-sec-validate" : ""}`}>
-          <SectionLabel
-            icon="checklist"
-            text={reviewing ? t.detail.validationHowToConfirm : t.detail.howToConfirm}
-            right={
-              (card.status === "feito" || card.status === "validado") &&
-              card.comoConfirmo.length > 0 ? (
-                <span className={`d-progress${allTicked ? " done" : ""}`}>
-                  {ticks.length}/{card.comoConfirmo.length}
-                </span>
-              ) : undefined
-            }
-          />
-          {reviewing && card.howToVerify ? <HowToVerify value={card.howToVerify} t={t} /> : null}
-          {card.comoConfirmo.length === 0 ? (
-            /* An empty contract is a fact about the card, not a dash. */
-            <p className="d-empty">{t.detail.noSteps}</p>
-          ) : (
-            <ConfirmChecklist
-              card={card}
-              ticks={ticks}
-              onToggle={reviewing ? toggleTick : undefined}
-              t={t}
-            />
-          )}
-          {tickErr ? <p className="d-err">{tickErr}</p> : null}
-        </div>
-        <div className="d-sec d-grid">
-          <MissionField card={card} missions={missions} t={t} />
-          <div>
-            <SectionLabel icon="harness" text={t.detail.harness} />
-            <p className="d-mono d-harness">
-              <CardCli card={card} />
-              <span>{card.harness ?? "—"}</span>
-            </p>
-            {/* The board folds plan and reality into one value; here they
-                stay apart, so the effort planned and the model that ran are
-                both readable. */}
-            {card.harnessRan ? (
-              <p className="d-mono d-harness-ran">
-                {t.detail.harnessRan} {card.harnessRan}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        <div className="d-sec">
-          <SectionLabel icon="roles" text={t.detail.roles} />
-          <div className="d-roles">
-            <span className="rl">{t.detail.origin} <b>{card.origem}</b></span>
-            <span className="rl">
-              {t.detail.executor} <CliMark cli={card.ranCli} />
-              {/* The claim's own name, which is the CLI whenever it sent one
-                  and whatever else it sent when it did not. */}
-              <b>{card.ranCli ?? card.executor ?? "—"}</b>
-            </span>
-            <span className="rl">{t.board.returnsTo} <b>{card.devolve}</b></span>
-          </div>
-        </div>
-        {card.timeline.length > 0 ? (
+        {/* AGB-74: the contract and the checklist, which is what a review
+            acts on. On a wide screen this is the main column and the
+            metadata sits beside it; below the sheet breakpoint both
+            wrappers become display: contents, so the phone reads the very
+            same single column it read before, in the same DOM order it
+            always had. */}
+        <div className="d-main">
           <div className="d-sec">
-            <SectionLabel icon="timeline" text={t.detail.timeline} />
-            <div className="d-timeline">
-              {card.timeline.map((entry, index) => (
-                <div className="d-evid d-tl-entry" key={index}>
-                  <span className={`tag ${entry.kind === "spawn_failure" ? "bug" : "feature"}`}>
-                    {entry.kind === "spawn_failure"
-                      ? t.detail.spawnFailure
-                      : t.detail.executorSwap}
-                  </span>{" "}
-                  {entry.body}
-                  <span className="d-tl-meta">
-                    {" "}· {entry.author ?? "agent"} · {entry.at}
+            <SectionLabel icon="spec" text={t.detail.what} />
+            <p>{card.oQue}</p>
+          </div>
+          <div className="d-sec">
+            <SectionLabel icon="reason" text={t.detail.why} />
+            <p>{card.porQue}</p>
+          </div>
+          <div className={`d-sec${reviewing ? " d-sec-validate" : ""}`}>
+            <SectionLabel
+              icon="checklist"
+              text={reviewing ? t.detail.validationHowToConfirm : t.detail.howToConfirm}
+              right={
+                (card.status === "feito" || card.status === "validado") &&
+                card.comoConfirmo.length > 0 ? (
+                  <span className={`d-progress${allTicked ? " done" : ""}`}>
+                    {ticks.length}/{card.comoConfirmo.length}
                   </span>
-                </div>
-              ))}
-            </div>
+                ) : undefined
+              }
+            />
+            {reviewing && card.howToVerify ? <HowToVerify value={card.howToVerify} t={t} /> : null}
+            {card.comoConfirmo.length === 0 ? (
+              /* An empty contract is a fact about the card, not a dash. */
+              <p className="d-empty">{t.detail.noSteps}</p>
+            ) : (
+              <ConfirmChecklist
+                card={card}
+                ticks={ticks}
+                onToggle={reviewing ? toggleTick : undefined}
+                t={t}
+              />
+            )}
+            {tickErr ? <p className="d-err">{tickErr}</p> : null}
           </div>
-        ) : null}
-        <div className="d-sec d-grid">
-          <div>
-            <SectionLabel icon="branch" text={t.detail.branch} />
-            <p className="d-mono">{card.branch ?? "—"}</p>
-          </div>
-          {card.telemetry ? (
+        </div>
+        {/* What is read rather than acted upon. Beside the contract on a
+            desktop instead of a screen below it, which is what turned a
+            review into scrolling past everything twice. */}
+        <div className="d-rail">
+          <div className="d-sec d-grid">
+            <MissionField card={card} missions={missions} t={t} />
             <div>
-              <SectionLabel icon="telemetry" text={t.detail.telemetry} />
-              <p className="d-tel">{card.telemetry}</p>
-              {/* The card line has room for one clock, this panel for both:
-                  what the agent worked, and how long the card stayed open. */}
-              {card.duration ? (
-                <div className="d-clocks">
-                  {card.duration.execution ? (
-                    <span className="d-clock">
-                      {t.detail.execution} <b>{card.duration.execution}</b>{" "}
-                      <i>{t.detail.executionSource}</i>
-                    </span>
-                  ) : null}
-                  {card.duration.elapsed ? (
-                    <span className="d-clock">
-                      {t.detail.elapsed} <b>{card.duration.elapsed}</b>{" "}
-                      <i>{t.detail.elapsedSource}</i>
-                    </span>
-                  ) : null}
-                </div>
+              <SectionLabel icon="harness" text={t.detail.harness} />
+              <p className="d-mono d-harness">
+                <CardCli card={card} />
+                <span>{card.harness ?? "—"}</span>
+              </p>
+              {/* The board folds plan and reality into one value; here they
+                  stay apart, so the effort planned and the model that ran are
+                  both readable. */}
+              {card.harnessRan ? (
+                <p className="d-mono d-harness-ran">
+                  {t.detail.harnessRan} {card.harnessRan}
+                </p>
               ) : null}
             </div>
-          ) : null}
-        </div>
-        {card.handoff ? (
-          <div className="d-sec">
-            <SectionLabel icon="handoff" text={t.detail.agentHandoff} />
-            <div className="d-evid">{card.handoff}</div>
           </div>
-        ) : null}
-        {card.transcript ? <Transcript view={card.transcript} t={t} /> : null}
+          <div className="d-sec">
+            <SectionLabel icon="roles" text={t.detail.roles} />
+            <div className="d-roles">
+              <span className="rl">{t.detail.origin} <b>{card.origem}</b></span>
+              <span className="rl">
+                {t.detail.executor} <CliMark cli={card.ranCli} />
+                {/* The claim's own name, which is the CLI whenever it sent one
+                    and whatever else it sent when it did not. */}
+                <b>{card.ranCli ?? card.executor ?? "—"}</b>
+              </span>
+              <span className="rl">{t.board.returnsTo} <b>{card.devolve}</b></span>
+            </div>
+          </div>
+          {card.timeline.length > 0 ? (
+            <div className="d-sec">
+              <SectionLabel icon="timeline" text={t.detail.timeline} />
+              <div className="d-timeline">
+                {card.timeline.map((entry, index) => (
+                  <div className="d-evid d-tl-entry" key={index}>
+                    <span className={`tag ${entry.kind === "spawn_failure" ? "bug" : "feature"}`}>
+                      {entry.kind === "spawn_failure"
+                        ? t.detail.spawnFailure
+                        : t.detail.executorSwap}
+                    </span>{" "}
+                    {entry.body}
+                    <span className="d-tl-meta">
+                      {" "}· {entry.author ?? "agent"} · {entry.at}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="d-sec d-grid">
+            <div>
+              <SectionLabel icon="branch" text={t.detail.branch} />
+              <p className="d-mono">{card.branch ?? "—"}</p>
+            </div>
+            {card.telemetry ? (
+              <div>
+                <SectionLabel icon="telemetry" text={t.detail.telemetry} />
+                <p className="d-tel">{card.telemetry}</p>
+                {/* The card line has room for one clock, this panel for both:
+                    what the agent worked, and how long the card stayed open. */}
+                {card.duration ? (
+                  <div className="d-clocks">
+                    {card.duration.execution ? (
+                      <span className="d-clock">
+                        {t.detail.execution} <b>{card.duration.execution}</b>{" "}
+                        <i>{t.detail.executionSource}</i>
+                      </span>
+                    ) : null}
+                    {card.duration.elapsed ? (
+                      <span className="d-clock">
+                        {t.detail.elapsed} <b>{card.duration.elapsed}</b>{" "}
+                        <i>{t.detail.elapsedSource}</i>
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          {card.handoff ? (
+            <div className="d-sec">
+              <SectionLabel icon="handoff" text={t.detail.agentHandoff} />
+              <div className="d-evid">{card.handoff}</div>
+            </div>
+          ) : null}
+          {card.transcript ? <Transcript view={card.transcript} t={t} /> : null}
+        </div>
+        {/* Last in the panel and last in the reading, so it is the row the
+            whole card leads to. On a desktop it holds the bottom of the
+            panel while the two columns scroll under it (AGB-74). */}
         <DetailActions card={card} allTicked={allTicked} onClose={onClose} t={t} />
       </div>
     </div>
