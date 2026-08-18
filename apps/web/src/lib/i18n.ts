@@ -73,6 +73,8 @@ const en = {
     /** A model with no row in the price table adds nothing and says so. */
     totalUnpriced: (n: number) => `${n} unpriced model`,
     totalUnpricedShort: (n: number) => `${n} no price`,
+    /** The popover behind the stat sends you to the same filter in Insights. */
+    totalOpenInsights: "Open in Insights",
     allProjects: "All projects",
     /**
      * The project filter takes any combination, so the chip stops naming what
@@ -101,10 +103,15 @@ const en = {
     settings: "Settings",
     logout: "Log out",
     /**
-     * The one button the phone bar keeps for everything that left it: the
-     * filters and the account actions live behind it (AGB-65).
+     * The one button the phone bar keeps for the filters: they live behind
+     * its panel (AGB-65, OCL-20).
      */
-    menu: "Menu",
+    filters: "Filters",
+    /**
+     * The button on the hard right of the bar: navigation and the account
+     * live behind it (OCL-20).
+     */
+    accountMenu: "Account and navigation",
     running: (n: number) => `${n} in progress`,
     noAgentRunning: "no agent running",
     minAgo: (m: number) => `${m} min ago`,
@@ -533,6 +540,7 @@ const ptBR: Dict = {
     totalSuspectShort: (n: number) => `${n} suspeito${n === 1 ? "" : "s"}`,
     totalUnpriced: (n: number) => `${n} modelo sem preço`,
     totalUnpricedShort: (n: number) => `${n} sem preço`,
+    totalOpenInsights: "Abrir no Insights",
     allProjects: "Todos os projetos",
     projectFilter: "Filtrar por projeto",
     projectsPicked: (n: number) => `${n} projetos`,
@@ -543,7 +551,8 @@ const ptBR: Dict = {
     noMissionMatch: "Nenhuma missão corresponde.",
     settings: "Configurações",
     logout: "Sair",
-    menu: "Menu",
+    filters: "Filtros",
+    accountMenu: "Conta e navegação",
     running: (n: number) => `${n} em execução`,
     noAgentRunning: "nenhum agente rodando",
     minAgo: (m: number) => `há ${m} min`,

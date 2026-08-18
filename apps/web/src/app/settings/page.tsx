@@ -31,9 +31,32 @@ import { SettingsClient } from "./settings-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+/** The tabs the client knows, so a link can land on one (OCL-20). */
+const SETTINGS_TABS = new Set([
+  "exec",
+  "policy",
+  "prices",
+  "recipes",
+  "tokens",
+  "language",
+  "updates",
+]);
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  // The topbar's unpriced-model warning links here straight to the price
+  // table; an unknown tab is the same as no tab.
+  const tabParam = (await searchParams).tab;
+  const initialTab =
+    typeof tabParam === "string" && SETTINGS_TABS.has(tabParam)
+      ? tabParam
+      : "exec";
 
   const ws = await db().query.workspace.findFirst();
   if (!ws) redirect("/setup");
@@ -189,6 +212,7 @@ export default async function SettingsPage() {
         recipes={recipes}
         coverage={coverage}
         pricingEnabled={ws.pricingEnabled}
+        initialTab={initialTab}
         tokens={tokens.map((t) => ({
           id: t.id,
           label: t.label,

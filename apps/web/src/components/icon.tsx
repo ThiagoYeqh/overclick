@@ -66,6 +66,14 @@ const ART = {
     </>
   ),
   filter: <path d="M3.5 5h17l-6.6 7.9V19l-3.8-2.3v-3.8z" />,
+  /** A menu with more in it than the bar has room for: the three dots. */
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.1" />
+      <circle cx="12" cy="12" r="1.1" />
+      <circle cx="19" cy="12" r="1.1" />
+    </>
+  ),
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   chevronDown: <path d="M6 9.5l6 6 6-6" />,
   chevronUp: <path d="M6 14.5l6-6 6 6" />,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { logoutAction } from "../../actions/auth";
 import { Wordmark } from "../../components/wordmark";
 import {
@@ -21,7 +21,7 @@ import type { BoardTotals } from "../../lib/board-totals";
 import { dict, type Dict } from "../../lib/i18n";
 import { Icon } from "../../components/icon";
 import { Board, type BoardCard, type BoardMissionOption } from "./board";
-import { BoardTotal } from "./board-total";
+import { BoardTotal, BoardTotalLink } from "./board-total";
 import { MissionFilter } from "./mission-filter";
 import { ProjectFilter } from "./project-filter";
 
@@ -106,6 +106,80 @@ function BulkMissionBar({
   );
 }
 
+/**
+ * The account and navigation menu (OCL-20): one button on the hard right of
+ * the bar holding what is not a filter and not work state — Insights,
+ * Settings and the way out. Under 1100px it also carries the telemetry stat,
+ * which the bar can no longer hold next to whole filter labels. The dropdown
+ * closes on the same gesture as every other panel here: click away, Escape.
+ */
+function AccountMenu({
+  totals,
+  filter,
+  t,
+}: {
+  totals: BoardTotals;
+  filter: BoardFilter;
+  t: Dict;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="account-menu" ref={root}>
+      <button
+        type="button"
+        className="am-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t.board.accountMenu}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {/* The button is named, so the three dots stay silent. */}
+        <Icon name="more" label={null} size={16} />
+      </button>
+      {open ? (
+        <div className="am-panel nebula-glass" role="menu" aria-label={t.board.accountMenu}>
+          {/* In the bar at full width; here only when the bar gave it up. */}
+          <div className="am-total">
+            <BoardTotalLink totals={totals} filter={filter} t={t} />
+          </div>
+          <a className="am-opt" role="menuitem" href="/insights">
+            <Icon name="insights" label={null} size={14} />
+            Insights
+          </a>
+          <a className="am-opt" role="menuitem" href="/settings">
+            <Icon name="settings" label={null} size={14} />
+            {t.board.settings}
+          </a>
+          <form action={logoutAction}>
+            <button className="am-opt" role="menuitem" type="submit">
+              <Icon name="logout" label={null} size={14} />
+              {t.board.logout}
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function HomeShell({
   lang,
   projects,
@@ -127,9 +201,10 @@ export function HomeShell({
   const [totals, setTotals] = useState<BoardTotals>(initialTotals);
   const [picking, setPicking] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  // Phone only: everything that left the compact bar lives behind this one
-  // button. On the desktop the menu never opens because the button is hidden.
-  const [menuOpen, setMenuOpen] = useState(false);
+  // Phone only: the filters leave the compact bar for the panel behind this
+  // one button. On the desktop the panel never opens because the button is
+  // hidden and the wrapper is transparent to the bar.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const visible = useMemo(() => filterBoardCards(cards, filter), [cards, filter]);
   // What the mission filter may offer: the scope is the projects on screen, so
   // the options and their counts follow the selection, not the mission.
@@ -187,25 +262,28 @@ export function HomeShell({
     <>
       <div className="topbar nebula-glass">
         <Wordmark label={t.board.homeLink} current />
-        <div className="crumb">
-          <ProjectFilter
-            options={projectOptions}
-            value={filter.projectIds}
-            onToggle={(projectId) =>
-              apply({
-                ...filter,
-                projectIds: toggleProject(filter.projectIds, projectId, projects),
-              })
-            }
-            onAll={() => apply({ ...filter, projectIds: [] })}
-            t={t}
-          />
-        </div>
-        {/* The desktop bar lays these out inline (display: contents, so the
-            wrapper costs it nothing). On the phone they collapse behind the
-            menu button, and the wrapper becomes the panel that holds them:
-            same controls, same order, nothing dropped (AGB-65). */}
-        <div className={`topbar-more${menuOpen ? " open" : ""}`}>
+        {/* OCL-20: the bar is two zones now. On the left, the filters — what
+            the person on the board uses most — with the room the right side
+            used to spend. On the right, the work state (review, running),
+            the telemetry stat and the account menu, nothing else. On the
+            phone the left zone collapses behind the Filtros button and the
+            wrapper becomes the panel that holds it: same controls, same
+            order, nothing dropped (AGB-65). */}
+        <div className={`topbar-more${filtersOpen ? " open" : ""}`}>
+          <div className="crumb">
+            <ProjectFilter
+              options={projectOptions}
+              value={filter.projectIds}
+              onToggle={(projectId) =>
+                apply({
+                  ...filter,
+                  projectIds: toggleProject(filter.projectIds, projectId, projects),
+                })
+              }
+              onAll={() => apply({ ...filter, projectIds: [] })}
+              t={t}
+            />
+          </div>
           <MissionFilter
             options={missionOptions}
             looseCount={looseCount}
@@ -218,58 +296,48 @@ export function HomeShell({
             className={`btn-ghost${picking ? " on" : ""}`}
             type="button"
             onClick={() => {
-              setMenuOpen(false);
+              setFiltersOpen(false);
               if (picking) stopPicking();
               else setPicking(true);
             }}
           >
             {picking ? t.board.cancelSelection : t.board.moveToMission}
           </button>
-          <div className="spacer" />
-          <span className="btn-ghost pill">
-            {t.board.myReview} <span className="badge">{review}</span>
-          </span>
-          <div className="agent-status">
-            <span className={`dot${running === 0 ? " idle" : ""}`} />
-            {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
-          </div>
-          {/* AGB-73 deliberately puts no mark on these three. The bar has no
-              width left to give: AGB-71 spent it all buying whole labels, and
-              measured here a 13px mark plus its gap on each destination costs
-              the workspace name its last twenty pixels and starts the crumb
-              truncating at 1440, where every word used to print. A mark that
-              is read by eliding the name beside it is not scannability. The
-              set is there and the marks exist; this bar is simply the one
-              place in the app that cannot afford them. */}
-          <a className="btn-ghost" href="/insights">Insights</a>
-          <a className="btn-ghost" href="/settings">
-            {t.board.settings}
-          </a>
-          <form action={logoutAction}>
-            <button className="btn-ghost" type="submit">
-              {t.board.logout}
-            </button>
-          </form>
         </div>
         <button
-          className="menu-btn"
+          className="filters-btn"
           type="button"
-          aria-expanded={menuOpen}
-          aria-label={t.board.menu}
-          onClick={() => setMenuOpen((open) => !open)}
+          aria-expanded={filtersOpen}
+          aria-label={t.board.filters}
+          onClick={() => setFiltersOpen((open) => !open)}
         >
-          {/* The button already says what it is, so the glyph stays silent
-              and only shows which of the two states it is in (AGB-73). */}
-          <Icon name={menuOpen ? "close" : "menu"} label={null} size={18} />
+          <Icon name="filter" label={null} size={14} />
+          <span>{t.board.filters}</span>
         </button>
-        {/* Last in the bar, hard right: the figure that justifies the board
-            is the one thing here you should be able to read at a glance. */}
+        <div className="spacer" />
+        {/* Work state stays visible: it is not navigation, it is what the
+            board is doing. Each chip jumps to the column it counts. */}
+        <a className="state-chip" href="#board-col-feito">
+          <Icon name="review" label={null} size={13} />
+          <span className="sc-label">{t.board.myReview}</span>
+          <span className="badge">{review}</span>
+        </a>
+        <a className="state-chip agent-status" href="#board-col-em_execucao">
+          <span className={`dot${running === 0 ? " idle" : ""}`} />
+          {running > 0 ? <span className="badge">{running}</span> : null}
+          <span className="sc-label">
+            {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
+          </span>
+        </a>
+        {/* The figure that justifies the board stays readable at a glance;
+            the reading of it moved into the popover it opens. */}
         <BoardTotal totals={totals} filter={filter} t={t} />
+        <AccountMenu totals={totals} filter={filter} t={t} />
       </div>
-      {/* Tap-away target for the phone menu; rendered only while it is open,
-          which the desktop never does. */}
-      {menuOpen ? (
-        <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
+      {/* Tap-away target for the phone filters panel; rendered only while it
+          is open, which the desktop never does. */}
+      {filtersOpen ? (
+        <div className="menu-backdrop" onClick={() => setFiltersOpen(false)} />
       ) : null}
 
       <Board

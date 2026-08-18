@@ -219,21 +219,21 @@ const MEASURE = `(() => {
     contentWidth: Math.round(bar.scrollWidth),
     overflow: Math.max(0, Math.round(bar.scrollWidth - bar.clientWidth)),
     menuVisible: (() => {
-      const btn = bar.querySelector(".menu-btn");
+      const btn = bar.querySelector(".filters-btn");
       return Boolean(btn && getComputedStyle(btn).display !== "none");
     })(),
   };
 })()`;
 
 const OPEN_MENU = `(() => {
-  const btn = document.querySelector(".topbar .menu-btn");
+  const btn = document.querySelector(".topbar .filters-btn");
   if (!btn || getComputedStyle(btn).display === "none") return false;
   if (btn.getAttribute("aria-expanded") !== "true") btn.click();
   return true;
 })()`;
 
 const CLOSE_MENU = `(() => {
-  const btn = document.querySelector(".topbar .menu-btn");
+  const btn = document.querySelector(".topbar .filters-btn");
   if (btn && btn.getAttribute("aria-expanded") === "true") btn.click();
   return true;
 })()`;

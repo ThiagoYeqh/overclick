@@ -1193,7 +1193,9 @@ export function Board({
         {COLUMN_STATUSES.map((status) => {
           const list = cards.filter((c) => c.status === status);
           return (
-            <div key={status}>
+            // The id is the target of the topbar state chips (OCL-20): the
+            // review and running counts jump to the column they count.
+            <div key={status} id={`board-col-${status}`}>
               <div className="col-head">
                 {/* The mark anchors the column, the word still names it. */}
                 <Icon

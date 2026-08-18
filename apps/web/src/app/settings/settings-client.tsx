@@ -100,6 +100,8 @@ export function SettingsClient({
   cardapio,
   prices,
   pricingEnabled,
+  /** The tab a link asked for (OCL-20), already validated on the server. */
+  initialTab,
   unpricedModels,
   unpricedRanModels,
   recipes,
@@ -124,6 +126,7 @@ export function SettingsClient({
   cardapio: CardapioRow[];
   prices: ModelPriceRow[];
   pricingEnabled: boolean;
+  initialTab: string;
   /** Every model this board knows of, configured or seen, with no price row. */
   unpricedModels: string[];
   /**
@@ -156,7 +159,7 @@ export function SettingsClient({
   const t = dict(lang);
   const dateLocale = lang === "pt-BR" ? "pt-BR" : "en-US";
   const router = useRouter();
-  const [tab, setTab] = useState<string>("exec");
+  const [tab, setTab] = useState<string>(initialTab);
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);

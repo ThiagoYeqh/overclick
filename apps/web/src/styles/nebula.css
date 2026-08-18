@@ -249,7 +249,7 @@
 .nb .d-sec .lbl-name { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 
 /* the way out, and the phone's menu: a glyph centred in its own circle */
-.nb .d-close, .nb .menu-btn { display: inline-flex; align-items: center; justify-content: center; }
+.nb .d-close, .nb .filters-btn, .nb .am-trigger { display: inline-flex; align-items: center; justify-content: center; }
 
 /* the copy chips: mark, then the word for what is being copied */
 .nb .d-copy { display: inline-flex; align-items: center; gap: 6px; }
@@ -344,9 +344,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   padding: var(--nebula-space-3) 18px; margin-bottom: 22px;
 }
 /* AGB-65: on the desktop the wrapper is transparent to the bar, the controls
-   inside it lay out exactly as before, and the phone-only menu stays hidden. */
+   inside it lay out exactly as before, and the phone-only filters button
+   stays hidden. */
 .nb .topbar-more { display: contents; }
-.nb .menu-btn { display: none; }
+.nb .filters-btn { display: none; }
 .nb .menu-backdrop { display: none; }
 .nb .logo {
   font-weight: var(--nebula-weight-medium);
@@ -401,7 +402,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-weight: var(--nebula-weight-medium); letter-spacing: inherit; cursor: pointer;
 }
 .nb .pf-label {
-  display: block; max-width: 220px;
+  display: block; max-width: 260px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nb .pf-panel {
@@ -448,7 +449,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .mf-chip.on .mf-trigger { color: var(--nebula-text-primary); }
 .nb .mf-label {
-  display: block; max-width: 180px;
+  /* OCL-20: the mission title is the filter people read, so it prints whole
+     up to ~40ch; past that it truncates and the title attribute keeps the
+     full reading. */
+  display: block; max-width: 40ch;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nb .mf-clear { font-size: 13px; line-height: 1; opacity: 0.7; }
@@ -504,7 +508,62 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .btn-ghost:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.25); }
 .nb .btn-ghost .badge { color: var(--nebula-dust-core); font-weight: 600; }
-.nb .pill { cursor: default; }
+
+/* ---------- the work-state chips (OCL-20) ----------
+   Review and running are not navigation: they are what the board is doing,
+   so they stay on the bar at every width. Each is a jump to the column it
+   counts, at the smallest width that still reads. */
+.nb .state-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.05em;
+  color: var(--nebula-text-secondary); text-decoration: none; cursor: pointer;
+  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  padding: 5px 10px; background: rgba(255,255,255,0.03);
+  white-space: nowrap;
+  transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
+}
+.nb .state-chip:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.25); }
+.nb .state-chip .badge { color: var(--nebula-dust-core); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* on the desktop the running chip spells its count out in words */
+.nb .agent-status .badge { display: none; }
+
+/* ---------- the account menu (OCL-20) ----------
+   One button on the hard right of the bar for everything that is not a
+   filter and not work state: navigation and the way out. The panel hangs
+   off the button and closes on the gesture every other panel here uses. */
+.nb .account-menu { position: relative; display: inline-flex; }
+.nb .am-trigger {
+  appearance: none; background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
+  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  padding: 6px 11px; cursor: pointer;
+  backdrop-filter: blur(var(--nebula-btn-account-blur));
+  -webkit-backdrop-filter: blur(var(--nebula-btn-account-blur));
+  transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
+}
+.nb .am-trigger:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.25); }
+.nb .am-panel {
+  position: absolute; z-index: 40; top: calc(100% + 8px); right: 0;
+  min-width: 200px; max-width: min(300px, calc(100vw - 32px));
+  padding: 8px; background: rgba(13, 15, 19, 0.96);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.nb .am-panel form { display: block; }
+.nb .am-opt {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 10px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11.5px; letter-spacing: 0.04em; text-align: left; cursor: pointer;
+  text-decoration: none;
+}
+.nb .am-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+/* the telemetry line lives in the menu only once the bar gave the stat up
+   (the 1100px step below) */
+.nb .am-total { display: none; padding: 4px 10px 8px; border-bottom: 1px solid var(--nebula-glass-border); margin-bottom: 4px; }
+.nb .am-total-line {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.nb .am-total-line .bt-lead { font-size: 15px; }
 
 /* ---------- the one-line rule on the bar (AGB-71) ----------
    The rule the phone block already stated, now stated where it always
@@ -556,15 +615,19 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mf-trigger { display: inline-flex; }
 .nb .mf-label { min-width: 0; }
 
-/* ---------- the running total ----------
+/* ---------- the running total (OCL-20) ----------
    The headline figure of the bar, not a caption: it is the number that
-   justifies the board, so it carries the size. Everything beside it stays
-   small, and the whole thing holds one line at any width, cut with an
-   ellipsis while the title keeps the full reading. */
+   justifies the board, so it carries the size. The stat is a button now: the
+   reading of the figure — what is computed, reported, estimated, missing —
+   lives in the popover it opens, and the bar keeps the figure plus a discreet
+   count of the caveats instead of a badge per caveat. */
+.nb .board-total-wrap { position: relative; display: inline-flex; min-width: 0; }
 .nb .board-total {
+  appearance: none; background: transparent; border: 0; padding: 0;
   display: inline-flex; align-items: baseline; gap: 7px;
   margin-left: 4px; padding-left: 14px;
   border-left: 1px solid var(--nebula-glass-border);
+  color: inherit; font: inherit;
   text-decoration: none; cursor: pointer;
   white-space: nowrap; overflow: hidden;
 }
@@ -581,9 +644,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   letter-spacing: 0.04em; color: var(--nebula-text-secondary);
   font-variant-numeric: tabular-nums;
 }
-/* The estimate, the silence and the model with no price are named beside the
-   figure. None of them is ever folded into it. */
-.nb .board-total .bt-mark {
+/* How many caveats ride with the figure, not which: the "what" and the
+   "why" are one click into the popover. */
+.nb .bt-warn {
   font-family: var(--nebula-font-mono); font-size: 9px;
   color: var(--nebula-text-secondary);
   border: 1px solid var(--nebula-glass-border); border-radius: 999px;
@@ -593,6 +656,35 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-family: var(--nebula-font-mono); font-size: 11px;
   color: var(--nebula-text-secondary);
 }
+/* The reading of the figure, one line per fact, each caveat linked to where
+   it is resolved. */
+.nb .bt-popover {
+  position: absolute; z-index: 40; top: calc(100% + 8px); right: 0;
+  min-width: 260px; max-width: min(340px, calc(100vw - 32px));
+  padding: 12px; background: rgba(13, 15, 19, 0.96);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.nb .bt-popover .bt-figure { display: flex; align-items: baseline; gap: 7px; }
+.nb .bt-popover .bt-figure .bt-lead {
+  font-family: var(--nebula-font-mono); font-size: 19px; line-height: 1;
+  color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium);
+  font-variant-numeric: tabular-nums; text-shadow: var(--nebula-glow-text);
+}
+.nb .bt-popover .bt-figure .bt-sub {
+  font-family: var(--nebula-font-mono); font-size: 10px;
+  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.nb .bt-line {
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+}
+.nb a.bt-line { text-decoration: none; }
+.nb a.bt-line:hover { color: var(--nebula-text-primary); }
+.nb .bt-insights { margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--nebula-glass-border); }
+
+/* the columns the state chips jump to clear the bar on the way (OCL-20) */
+.nb [id^="board-col-"] { scroll-margin-top: 76px; }
 
 /* ---------- board ---------- */
 /* minmax(0, 1fr), not bare 1fr: a bare fr track is minmax(auto, 1fr), so the
@@ -1722,22 +1814,37 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .board-total .bt-sub { display: none; }
 }
 
-/* Step two: there is nothing left to truncate, so the control set moves
-   behind the one button. Same controls, same order, one per row, which is the
-   panel AGB-65 already built for the phone. The bar keeps what scanning uses:
-   the crumb that says where you are and the total that says what it cost. */
-@media (max-width: 1199px), (orientation: landscape) and (max-height: 500px) {
-  /* the panel hangs off the bar, so the bar has to be its origin */
-  .nb .topbar { position: relative; }
-  .nb .spacer { display: none; }
-  .nb .crumb { flex: 1 1 auto; }
-  .nb .board-total { flex: none; margin-left: auto; }
-  /* the one button the bar keeps for everything that left it */
-  .nb .menu-btn {
-    display: inline-flex; align-items: center; justify-content: center;
+/* Step two (OCL-20): what is not a filter and not work state leaves the bar.
+   The telemetry stat moves into the account menu, which keeps a line for the
+   numbers beside the Insights entry; the filters — what the person uses most
+   — keep the width that frees, down to the phone step below. */
+@media (max-width: 1099px) {
+  .nb .topbar > .board-total-wrap, .nb .topbar > .board-total { display: none; }
+  .nb .am-total { display: block; }
+}
+
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+  .nb { padding: 16px 16px 48px; }
+
+  /* AGB-65 + OCL-20: the chrome collapses to one compact bar. The bar keeps
+     what scanning uses — the Filtros button, the work-state chips and the
+     account menu — and it sticks to the top so the list scrolls under it.
+     Nothing wraps: the bar is one row by construction, and every piece
+     inside it already holds its own one line. */
+  .nb .topbar {
+    position: sticky; top: 8px; z-index: 30;
+    gap: 8px; padding: 10px 12px; margin-bottom: 14px;
+  }
+  .nb .logo { display: none; }
+  .nb .topbar .btn-ghost { padding: 6px 10px; font-size: 11px; }
+  /* the one button the bar keeps for the filters that left it; the panel
+     hangs off the bar, which being sticky is already its origin */
+  .nb .filters-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
     border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-    font-size: 13px; line-height: 1; padding: 6px 11px; cursor: pointer;
+    font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+    padding: 6px 11px; cursor: pointer;
   }
   .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
   /* the panel behind the button: same controls, same order, one per row */
@@ -1751,36 +1858,17 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     background: var(--nebula-panel-solid);
   }
   /* in the panel every row owns its width, so nothing in it has to shrink */
+  .nb .topbar-more .crumb { align-self: stretch; }
+  .nb .topbar-more .pf-label { max-width: none; }
   .nb .topbar-more .btn-ghost { display: block; width: 100%; text-align: left; }
-  .nb .topbar-more .agent-status { padding: 6px 10px; }
   .nb .topbar-more .mission-filter { max-width: none; }
   .nb .topbar-more .mf-label { max-width: none; }
   .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
   .nb .topbar-more .filter-chip select { max-width: none; flex: 1; }
-}
-
-@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
-  .nb { padding: 16px 16px 48px; }
-
-  /* AGB-65: the chrome collapses to one compact bar plus the selector. The
-     bar keeps only what scanning uses, the crumb, the menu button and the
-     total, and it sticks to the top so the list scrolls under it. Nothing
-     wraps: the bar is one row by construction, and every piece inside it
-     already holds its own one line. */
-  .nb .topbar {
-    position: sticky; top: 8px; z-index: 30;
-    gap: 8px; padding: 10px 12px; margin-bottom: 14px;
-  }
-  .nb .logo { display: none; }
-  .nb .topbar .btn-ghost { padding: 6px 10px; font-size: 11px; }
-  /* the total keeps the size that makes it the figure you read first, now
-     sharing the bar's one row instead of taking a row of its own. The figure
-     and its marks stay, and the whole reading is one tap away in Insights
-     (and on the title). The figure never clips: what shrinks is the room
-     beside it. */
-  .nb .board-total { padding-left: 10px; gap: 6px; }
-  .nb .board-total .bt-lead { font-size: 16px; flex: none; }
-  .nb .board-total .bt-mark { flex: none; }
+  /* the state chips shrink to mark and count; the word returns with width */
+  .nb .state-chip { padding: 5px 8px; }
+  .nb .state-chip .sc-label { display: none; }
+  .nb .agent-status .badge { display: inline; }
   .nb .crumb:has(> .project-filter) { gap: 2px; }
   .nb .crumb select { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
   /* the project chip holds its one line; its panel takes the width it needs */
