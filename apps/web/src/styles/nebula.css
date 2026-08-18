@@ -487,6 +487,35 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   margin: 0; padding: 8px; color: var(--nebula-text-secondary);
   font-family: var(--nebula-font-mono); font-size: 11px;
 }
+
+/* ---------- type + priority facets (OCL-1) ----------
+   Seven direct chips make multi-selection one gesture per answer. The two
+   labelled groups stay compact in the desktop bar and wrap in the narrow
+   filters panel without changing controls or losing state. */
+.nb .facet-filters { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.nb .facet-group { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
+.nb .facet-label, .nb .filter-result {
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.nb .facet-chip {
+  appearance: none; border: 1px solid var(--nebula-glass-border);
+  border-radius: 999px; padding: 4px 7px;
+  background: rgba(255,255,255,0.025); color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-mono); font-size: 9px;
+  letter-spacing: 0.035em; line-height: 1; cursor: pointer; white-space: nowrap;
+}
+.nb .facet-chip:hover { color: var(--nebula-text-primary); background: rgba(255,255,255,0.06); }
+.nb .facet-chip.on {
+  color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.5);
+  background: rgba(209,217,235,0.12); box-shadow: 0 0 12px rgba(209,217,235,0.07);
+}
+.nb .facet-chip:focus-visible {
+  outline: none; box-shadow: var(--nebula-focus-ring-offset);
+}
+.nb .filter-result { padding-left: 8px; border-left: 1px solid var(--nebula-glass-border); }
+.nb .clear-board-filters { color: var(--nebula-text-secondary); }
 .nb .spacer { flex: 1; }
 /* o globals.css legado estiliza <form> como painel — na home ele é inline */
 .nb form { display: inline; background: none; border: none; padding: 0; gap: 0; }
@@ -1861,6 +1890,37 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .am-total { display: block; }
 }
 
+/* At the narrow desktop width the board still keeps its four columns, but
+   the new facet chips move behind the same Filters control used on phones.
+   This prevents the topbar from clipping while preserving the desktop board. */
+@media (min-width: 769px) and (max-width: 1050px) {
+  .nb .topbar { position: relative; z-index: 30; }
+  .nb .filters-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
+    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+    font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+    padding: 6px 11px; cursor: pointer;
+  }
+  .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
+  .nb .topbar-more { display: none; }
+  .nb .topbar-more.open {
+    display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 40;
+    padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: 16px;
+    background: var(--nebula-panel-solid);
+  }
+  .nb .topbar-more .crumb { align-self: stretch; }
+  .nb .topbar-more .pf-label, .nb .topbar-more .mf-label { max-width: none; }
+  .nb .topbar-more .mission-filter { max-width: none; }
+  .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
+  .nb .topbar-more .facet-filters { flex-direction: column; align-items: stretch; }
+  .nb .topbar-more .facet-group { flex-wrap: wrap; }
+  .nb .topbar-more .facet-label { width: 70px; }
+  .nb .topbar-more .filter-result { align-self: flex-start; }
+  .nb .topbar-more .btn-ghost { display: block; width: 100%; text-align: left; }
+}
+
 @media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
   .nb { padding: 16px 16px 48px; }
 
@@ -1903,6 +1963,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-more .mf-label { max-width: none; }
   .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
   .nb .topbar-more .filter-chip select { max-width: none; flex: 1; }
+  .nb .topbar-more .facet-filters { flex-direction: column; align-items: stretch; }
+  .nb .topbar-more .facet-group { flex-wrap: wrap; }
+  .nb .topbar-more .facet-label { width: 70px; }
+  .nb .topbar-more .filter-result { align-self: flex-start; }
   /* the state chips shrink to mark and count; the word returns with width */
   .nb .state-chip { padding: 5px 8px; }
   .nb .state-chip .sc-label { display: none; }

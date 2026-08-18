@@ -1,3 +1,5 @@
+import type { TaskPriority, TaskType } from "@agent-board/db";
+
 export const ALL_PROJECTS = "all";
 /**
  * The cards nobody put in a mission. A bucket, not a mission: without it a
@@ -5,6 +7,14 @@ export const ALL_PROJECTS = "all";
  * being invisible on a board with 44 cards.
  */
 export const NO_MISSION = "none";
+
+export const TASK_TYPES: readonly TaskType[] = ["bug", "feature", "rfc"];
+export const TASK_PRIORITIES: readonly TaskPriority[] = [
+  "urgente",
+  "alta",
+  "media",
+  "baixa",
+];
 
 export type BoardFilter = {
   /**
@@ -14,6 +24,24 @@ export type BoardFilter = {
    */
   projectIds: string[];
   missionId: string | null;
+  /** Empty means every task type. */
+  types: TaskType[];
+  /** Empty means every priority. */
+  priorities: TaskPriority[];
+};
+
+type StoredBoardFilter = {
+  projectId: string | null;
+  missionId: string | null;
+  types?: string | string[] | null;
+  priorities?: string | string[] | null;
+};
+
+type FilterableCard = {
+  projectId: string;
+  missionId: string | null;
+  tipo: TaskType;
+  priority: TaskPriority;
 };
 
 export function defaultProjectId(projects: { id: string }[]): string | null {
@@ -26,6 +54,31 @@ export function defaultProjectId(projects: { id: string }[]): string | null {
  */
 export function encodeProjectSelection(projectIds: string[]): string {
   return projectIds.length === 0 ? ALL_PROJECTS : projectIds.join(",");
+}
+
+/** Empty is stored as null, the backwards-compatible value for "all". */
+export function encodeFacetSelection(values: readonly string[]): string | null {
+  return values.length > 0 ? values.join(",") : null;
+}
+
+function resolveFacetSelection<T extends string>(
+  stored: string | string[] | null | undefined,
+  known: readonly T[],
+): T[] {
+  const requested = new Set(
+    (Array.isArray(stored) ? stored : (stored ?? "").split(","))
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  return known.filter((value) => requested.has(value));
+}
+
+export function isTaskType(value: string): value is TaskType {
+  return (TASK_TYPES as readonly string[]).includes(value);
+}
+
+export function isTaskPriority(value: string): value is TaskPriority {
+  return (TASK_PRIORITIES as readonly string[]).includes(value);
 }
 
 /**
@@ -79,12 +132,21 @@ export function boardFilterToQuery(filter: BoardFilter): string {
   const params = new URLSearchParams();
   params.set("projects", encodeProjectSelection(filter.projectIds));
   if (filter.missionId) params.set("mission", filter.missionId);
+  if (filter.types.length > 0) params.set("types", filter.types.join(","));
+  if (filter.priorities.length > 0) {
+    params.set("priorities", filter.priorities.join(","));
+  }
   return params.toString();
 }
 
 /** The other end of boardFilterToQuery. No params at all means everything. */
 export function boardFilterFromQuery(
-  params: { projects?: string | null; mission?: string | null },
+  params: {
+    projects?: string | null;
+    mission?: string | null;
+    types?: string | null;
+    priorities?: string | null;
+  },
   projects: { id: string }[],
   missions: { id: string }[] = [],
 ): BoardFilter {
@@ -92,6 +154,8 @@ export function boardFilterFromQuery(
     {
       projectId: params.projects ?? ALL_PROJECTS,
       missionId: params.mission ?? null,
+      types: params.types,
+      priorities: params.priorities,
     },
     projects,
     missions,
@@ -103,7 +167,7 @@ function inScope(filter: BoardFilter, projectId: string): boolean {
 }
 
 export function resolveBoardFilter(
-  stored: { projectId: string | null; missionId: string | null },
+  stored: StoredBoardFilter,
   projects: { id: string }[],
   missions: { id: string }[] = [],
 ): BoardFilter {
@@ -117,14 +181,32 @@ export function resolveBoardFilter(
         ? stored.missionId
         : null;
 
-  return { projectIds, missionId };
+  return {
+    projectIds,
+    missionId,
+    types: resolveFacetSelection(stored.types, TASK_TYPES),
+    priorities: resolveFacetSelection(stored.priorities, TASK_PRIORITIES),
+  };
 }
 
-export function filterBoardCards<
-  T extends { projectId: string; missionId: string | null },
->(cards: T[], filter: BoardFilter): T[] {
+function matchesFacets(card: FilterableCard, filter: BoardFilter): boolean {
+  if (filter.types.length > 0 && !filter.types.includes(card.tipo)) return false;
+  if (
+    filter.priorities.length > 0 &&
+    !filter.priorities.includes(card.priority)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function filterBoardCards<T extends FilterableCard>(
+  cards: T[],
+  filter: BoardFilter,
+): T[] {
   return cards.filter((card) => {
     if (!inScope(filter, card.projectId)) return false;
+    if (!matchesFacets(card, filter)) return false;
     if (filter.missionId === NO_MISSION) return card.missionId === null;
     if (filter.missionId && card.missionId !== filter.missionId) {
       return false;
@@ -134,11 +216,15 @@ export function filterBoardCards<
 }
 
 /** How many cards of the current selection have no mission at all. */
-export function countLooseCards<
-  T extends { projectId: string; missionId: string | null },
->(cards: T[], filter: BoardFilter): number {
+export function countLooseCards<T extends FilterableCard>(
+  cards: T[],
+  filter: BoardFilter,
+): number {
   return cards.filter(
-    (card) => card.missionId === null && inScope(filter, card.projectId),
+    (card) =>
+      card.missionId === null &&
+      inScope(filter, card.projectId) &&
+      matchesFacets(card, filter),
   ).length;
 }
 
@@ -152,15 +238,14 @@ export type ProjectCount = { id: string; name: string; count: number };
  * goes. The counts answer the mission filter in force, because that is what
  * picking this project would actually show.
  */
-export function projectFilterOptions<
-  T extends { projectId: string; missionId: string | null },
->(
+export function projectFilterOptions<T extends FilterableCard>(
   cards: T[],
   projects: { id: string; name: string }[],
   filter: BoardFilter,
 ): ProjectCount[] {
   const counts = new Map<string, number>();
   for (const card of cards) {
+    if (!matchesFacets(card, filter)) continue;
     if (filter.missionId === NO_MISSION && card.missionId !== null) continue;
     if (
       filter.missionId &&
@@ -193,9 +278,7 @@ export type MissionCount = { id: string; title: string; count: number };
  * every mission of the workspace, because a mission crosses projects and this
  * card may be the first of that mission here.
  */
-export function missionFilterOptions<
-  T extends { projectId: string; missionId: string | null },
->(
+export function missionFilterOptions<T extends FilterableCard>(
   cards: T[],
   missions: { id: string; title: string }[],
   filter: BoardFilter,
@@ -203,6 +286,7 @@ export function missionFilterOptions<
   const counts = new Map<string, number>();
   for (const card of cards) {
     if (!inScope(filter, card.projectId)) continue;
+    if (!matchesFacets(card, filter)) continue;
     if (!card.missionId) continue;
     counts.set(card.missionId, (counts.get(card.missionId) ?? 0) + 1);
   }

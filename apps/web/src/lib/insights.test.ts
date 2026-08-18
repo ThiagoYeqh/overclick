@@ -15,6 +15,8 @@ function attempt(overrides: Partial<InsightAttemptRow> = {}): InsightAttemptRow 
     taskShortId: "OC-1",
     taskTitle: "First card",
     taskIsExample: false,
+    tipo: "feature",
+    priority: "media",
     projectId: "proj-1",
     projectName: "OverClick",
     missionId: null,

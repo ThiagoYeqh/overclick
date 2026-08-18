@@ -12,6 +12,10 @@ export const user = pgTable("user", {
    * cards nobody put in a mission a place you can actually go to.
    */
   boardMissionId: text("board_mission_id"),
+  /** Comma-separated task types. Null means every type. */
+  boardTaskTypes: text("board_task_types"),
+  /** Comma-separated task priorities. Null means every priority. */
+  boardPriorities: text("board_priorities"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

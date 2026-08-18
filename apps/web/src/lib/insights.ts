@@ -35,6 +35,8 @@ export type InsightAttemptRow = {
   taskShortId: string;
   taskTitle: string;
   taskIsExample: boolean;
+  tipo: "feature" | "bug" | "rfc";
+  priority: "urgente" | "alta" | "media" | "baixa";
   projectId: string;
   projectName: string;
   missionId: string | null;
@@ -76,6 +78,8 @@ export async function loadInsightAttemptRows(
       taskShortId: task.shortId,
       taskTitle: task.title,
       taskIsExample: task.isExample,
+      tipo: task.tipo,
+      priority: task.priority,
       projectId: project.id,
       projectName: project.name,
       missionId: task.missionId,

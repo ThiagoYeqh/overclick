@@ -433,6 +433,7 @@ function toBoardCard(
     shortId: t.shortId,
     title: t.title,
     tipo: t.tipo,
+    priority: t.priority,
     status: t.status,
     isExample: t.isExample,
     oQue: t.oQue,
@@ -504,6 +505,8 @@ export default async function HomePage() {
     .select({
       boardProjectId: user.boardProjectId,
       boardMissionId: user.boardMissionId,
+      boardTaskTypes: user.boardTaskTypes,
+      boardPriorities: user.boardPriorities,
     })
     .from(user)
     .where(eq(user.id, session.userId))
@@ -526,7 +529,12 @@ export default async function HomePage() {
     toBoardCard(row, t, ws.pricingEnabled, recipes, session.userId),
   );
   const initialFilter = resolveBoardFilter(
-    { projectId: me?.boardProjectId ?? null, missionId: me?.boardMissionId ?? null },
+    {
+      projectId: me?.boardProjectId ?? null,
+      missionId: me?.boardMissionId ?? null,
+      types: me?.boardTaskTypes ?? null,
+      priorities: me?.boardPriorities ?? null,
+    },
     projects,
     missions,
   );

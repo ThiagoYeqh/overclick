@@ -5,6 +5,7 @@ import {
   boardFilterFromQuery,
   boardFilterToQuery,
   countLooseCards,
+  encodeFacetSelection,
   encodeProjectSelection,
   filterBoardCards,
   missionFilterOptions,
@@ -14,6 +15,7 @@ import {
   searchMissions,
   shouldSearchMissions,
   toggleProject,
+  type BoardFilter,
 } from "./board-filter";
 
 const projects = [{ id: "p1" }, { id: "p2" }, { id: "p3" }];
@@ -29,17 +31,29 @@ const titled = [
   { id: "m3", title: "Empty elsewhere" },
 ];
 const cards = [
-  { id: "a", projectId: "p1", missionId: "m1" },
-  { id: "b", projectId: "p1", missionId: null },
-  { id: "c", projectId: "p2", missionId: "m2" },
+  { id: "a", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const },
+  { id: "b", projectId: "p1", missionId: null, tipo: "bug" as const, priority: "alta" as const },
+  { id: "c", projectId: "p2", missionId: "m2", tipo: "bug" as const, priority: "media" as const },
 ];
 const ALL: string[] = [];
+
+function boardFilter(overrides: Partial<BoardFilter> = {}): BoardFilter {
+  return {
+    projectIds: ALL,
+    missionId: null,
+    types: [],
+    priorities: [],
+    ...overrides,
+  };
+}
 
 describe("board filters", () => {
   it("defaults to the first project when the user has no stored choice", () => {
     expect(resolveBoardFilter({ projectId: null, missionId: null }, projects, missions)).toEqual({
       projectIds: ["p1"],
       missionId: null,
+      types: [],
+      priorities: [],
     });
   });
 
@@ -50,7 +64,7 @@ describe("board filters", () => {
         projects,
         missions,
       ),
-    ).toEqual({ projectIds: ALL, missionId: "m2" });
+    ).toEqual(boardFilter({ missionId: "m2" }));
   });
 
   it("falls back when the stored project or mission disappeared", () => {
@@ -60,17 +74,20 @@ describe("board filters", () => {
         projects,
         missions,
       ),
-    ).toEqual({ projectIds: ["p1"], missionId: null });
+    ).toEqual(boardFilter({ projectIds: ["p1"] }));
   });
 
   it("filters cards by project and mission; counters follow the list", () => {
-    const onlyP1 = filterBoardCards(cards, { projectIds: ["p1"], missionId: null });
+    const onlyP1 = filterBoardCards(cards, boardFilter({ projectIds: ["p1"] }));
     expect(onlyP1.map((card) => card.id)).toEqual(["a", "b"]);
 
-    const mission = filterBoardCards(cards, { projectIds: ALL, missionId: "m2" });
+    const mission = filterBoardCards(cards, boardFilter({ missionId: "m2" }));
     expect(mission.map((card) => card.id)).toEqual(["c"]);
 
-    const both = filterBoardCards(cards, { projectIds: ["p1"], missionId: "m1" });
+    const both = filterBoardCards(
+      cards,
+      boardFilter({ projectIds: ["p1"], missionId: "m1" }),
+    );
     expect(both.map((card) => card.id)).toEqual(["a"]);
   });
 
@@ -81,31 +98,70 @@ describe("board filters", () => {
         projects,
         missions,
       ),
-    ).toEqual({ projectIds: ALL, missionId: NO_MISSION });
+    ).toEqual(boardFilter({ missionId: NO_MISSION }));
 
-    const loose = filterBoardCards(cards, {
-      projectIds: ALL,
-      missionId: NO_MISSION,
-    });
+    const loose = filterBoardCards(cards, boardFilter({ missionId: NO_MISSION }));
     expect(loose.map((card) => card.id)).toEqual(["b"]);
   });
 
   it("counts the loose cards of the selection on screen", () => {
-    expect(countLooseCards(cards, { projectIds: ["p1"], missionId: null })).toBe(1);
-    expect(countLooseCards(cards, { projectIds: ["p2"], missionId: null })).toBe(0);
-    expect(countLooseCards(cards, { projectIds: ALL, missionId: "m1" })).toBe(1);
+    expect(countLooseCards(cards, boardFilter({ projectIds: ["p1"] }))).toBe(1);
+    expect(countLooseCards(cards, boardFilter({ projectIds: ["p2"] }))).toBe(0);
+    expect(countLooseCards(cards, boardFilter({ missionId: "m1" }))).toBe(1);
+  });
+
+  it("combines project, mission, type and priority with OR inside facets", () => {
+    const filtered = filterBoardCards(
+      cards,
+      boardFilter({
+        projectIds: ["p1", "p2"],
+        types: ["bug"],
+        priorities: ["urgente", "alta"],
+      }),
+    );
+    expect(filtered.map((card) => card.id)).toEqual(["b"]);
+
+    const urgentOrMediumBugs = filterBoardCards(
+      cards,
+      boardFilter({
+        types: ["bug"],
+        priorities: ["urgente", "media"],
+      }),
+    );
+    expect(urgentOrMediumBugs.map((card) => card.id)).toEqual(["c"]);
+  });
+
+  it("stores and restores type and priority selections", () => {
+    expect(encodeFacetSelection([])).toBeNull();
+    expect(encodeFacetSelection(["bug", "rfc"])).toBe("bug,rfc");
+    expect(
+      resolveBoardFilter(
+        {
+          projectId: "p1",
+          missionId: "m1",
+          types: "bug,rfc,unknown",
+          priorities: "urgente,alta,unknown",
+        },
+        projects,
+        missions,
+      ),
+    ).toEqual(
+      boardFilter({
+        projectIds: ["p1"],
+        missionId: "m1",
+        types: ["bug", "rfc"],
+        priorities: ["urgente", "alta"],
+      }),
+    );
   });
 });
 
 describe("several projects at once", () => {
   it("shows the selected projects together", () => {
-    const two = filterBoardCards(cards, {
-      projectIds: ["p1", "p2"],
-      missionId: null,
-    });
+    const two = filterBoardCards(cards, boardFilter({ projectIds: ["p1", "p2"] }));
     expect(two.map((card) => card.id)).toEqual(["a", "b", "c"]);
 
-    const one = filterBoardCards(cards, { projectIds: ["p2"], missionId: null });
+    const one = filterBoardCards(cards, boardFilter({ projectIds: ["p2"] }));
     expect(one.map((card) => card.id)).toEqual(["c"]);
   });
 
@@ -134,28 +190,49 @@ describe("several projects at once", () => {
   });
 
   it("hands the selection to another page and reads it back", () => {
-    expect(boardFilterToQuery({ projectIds: ["p1", "p2"], missionId: "m1" })).toBe(
-      "projects=p1%2Cp2&mission=m1",
+    expect(
+      boardFilterToQuery(
+        boardFilter({
+          projectIds: ["p1", "p2"],
+          missionId: "m1",
+          types: ["bug", "feature"],
+          priorities: ["urgente", "alta"],
+        }),
+      ),
+    ).toBe(
+      "projects=p1%2Cp2&mission=m1&types=bug%2Cfeature&priorities=urgente%2Calta",
     );
-    expect(boardFilterToQuery({ projectIds: ALL, missionId: null })).toBe(
+    expect(boardFilterToQuery(boardFilter())).toBe(
       "projects=all",
     );
 
     expect(
       boardFilterFromQuery({ projects: "p1,p2", mission: "m1" }, projects, missions),
-    ).toEqual({ projectIds: ["p1", "p2"], missionId: "m1" });
+    ).toEqual(boardFilter({ projectIds: ["p1", "p2"], missionId: "m1" }));
     // No params at all is the whole workspace, not the first project.
     expect(boardFilterFromQuery({}, projects, missions)).toEqual({
       projectIds: ALL,
       missionId: null,
+      types: [],
+      priorities: [],
     });
     expect(
       boardFilterFromQuery({ projects: "all", mission: NO_MISSION }, projects, missions),
-    ).toEqual({ projectIds: ALL, missionId: NO_MISSION });
+    ).toEqual(boardFilter({ missionId: NO_MISSION }));
+
+    expect(
+      boardFilterFromQuery(
+        { types: "bug,rfc,unknown", priorities: "alta,baixa,unknown" },
+        projects,
+        missions,
+      ),
+    ).toEqual(
+      boardFilter({ types: ["bug", "rfc"], priorities: ["alta", "baixa"] }),
+    );
   });
 
   it("offers every project with what picking it would show", () => {
-    expect(projectFilterOptions(cards, named, { projectIds: ["p1"], missionId: null })).toEqual([
+    expect(projectFilterOptions(cards, named, boardFilter({ projectIds: ["p1"] }))).toEqual([
       { id: "p1", name: "Board", count: 2 },
       { id: "p2", name: "Funnel", count: 1 },
       { id: "p3", name: "Empty", count: 0 },
@@ -163,13 +240,13 @@ describe("several projects at once", () => {
   });
 
   it("counts what the mission in force would leave on screen", () => {
-    expect(projectFilterOptions(cards, named, { projectIds: ALL, missionId: "m1" })).toEqual([
+    expect(projectFilterOptions(cards, named, boardFilter({ missionId: "m1" }))).toEqual([
       { id: "p1", name: "Board", count: 1 },
       { id: "p2", name: "Funnel", count: 0 },
       { id: "p3", name: "Empty", count: 0 },
     ]);
     expect(
-      projectFilterOptions(cards, named, { projectIds: ALL, missionId: NO_MISSION }),
+      projectFilterOptions(cards, named, boardFilter({ missionId: NO_MISSION })),
     ).toEqual([
       { id: "p1", name: "Board", count: 1 },
       { id: "p2", name: "Funnel", count: 0 },
@@ -181,14 +258,11 @@ describe("several projects at once", () => {
 describe("the missions the filter offers", () => {
   it("offers only what holds cards here, each with its count", () => {
     expect(
-      missionFilterOptions(cards, titled, { projectIds: ["p1"], missionId: null }),
+      missionFilterOptions(cards, titled, boardFilter({ projectIds: ["p1"] })),
     ).toEqual([{ id: "m1", title: "Onboarding", count: 1 }]);
 
     expect(
-      missionFilterOptions(cards, titled, {
-        projectIds: ALL,
-        missionId: null,
-      }),
+      missionFilterOptions(cards, titled, boardFilter()),
     ).toEqual([
       { id: "m1", title: "Onboarding", count: 1 },
       { id: "m2", title: "Cobrança", count: 1 },
@@ -197,23 +271,24 @@ describe("the missions the filter offers", () => {
 
   it("narrows to the missions inside the selection", () => {
     expect(
-      missionFilterOptions(cards, titled, {
-        projectIds: ["p1", "p2"],
-        missionId: null,
-      }),
+      missionFilterOptions(cards, titled, boardFilter({ projectIds: ["p1", "p2"] })),
     ).toEqual([
       { id: "m1", title: "Onboarding", count: 1 },
       { id: "m2", title: "Cobrança", count: 1 },
     ]);
 
     expect(
-      missionFilterOptions(cards, titled, { projectIds: ["p2"], missionId: null }),
+      missionFilterOptions(cards, titled, boardFilter({ projectIds: ["p2"] })),
     ).toEqual([{ id: "m2", title: "Cobrança", count: 1 }]);
   });
 
   it("keeps the mission being filtered by, so it can be cleared", () => {
     expect(
-      missionFilterOptions(cards, titled, { projectIds: ["p1"], missionId: "m2" }),
+      missionFilterOptions(
+        cards,
+        titled,
+        boardFilter({ projectIds: ["p1"], missionId: "m2" }),
+      ),
     ).toEqual([
       { id: "m1", title: "Onboarding", count: 1 },
       { id: "m2", title: "Cobrança", count: 0 },
@@ -223,11 +298,11 @@ describe("the missions the filter offers", () => {
   it("counts every card of the mission, not just the first", () => {
     const many = [
       ...cards,
-      { id: "d", projectId: "p1", missionId: "m1" },
-      { id: "e", projectId: "p1", missionId: "m1" },
+      { id: "d", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const },
+      { id: "e", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const },
     ];
     expect(
-      missionFilterOptions(many, titled, { projectIds: ["p1"], missionId: null }),
+      missionFilterOptions(many, titled, boardFilter({ projectIds: ["p1"] })),
     ).toEqual([{ id: "m1", title: "Onboarding", count: 3 }]);
   });
 

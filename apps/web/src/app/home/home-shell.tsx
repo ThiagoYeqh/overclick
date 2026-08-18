@@ -23,6 +23,7 @@ import { dict, type Dict } from "../../lib/i18n";
 import { Icon } from "../../components/icon";
 import { Board, type BoardCard, type BoardMissionOption } from "./board";
 import { BoardTotal, BoardTotalLink } from "./board-total";
+import { FacetFilters } from "./facet-filters";
 import { MissionFilter } from "./mission-filter";
 import { ProjectFilter } from "./project-filter";
 
@@ -211,8 +212,13 @@ export function HomeShell({
   // What the mission filter may offer: the scope is the projects on screen, so
   // the options and their counts follow the selection, not the mission.
   const scope = useMemo(
-    () => ({ projectIds: filter.projectIds, missionId: null }),
-    [filter.projectIds],
+    () => ({
+      projectIds: filter.projectIds,
+      missionId: null,
+      types: filter.types,
+      priorities: filter.priorities,
+    }),
+    [filter.projectIds, filter.types, filter.priorities],
   );
   const missionOptions = useMemo(
     () => missionFilterOptions(cards, missions, filter),
@@ -238,6 +244,13 @@ export function HomeShell({
   );
   const running = visible.filter((card) => card.status === "em_execucao").length;
   const review = visible.filter((card) => card.status === "feito").length;
+  const defaultProject = projects[0]?.id;
+  const hasActiveFilters =
+    filter.projectIds.length !== (defaultProject ? 1 : 0) ||
+    (defaultProject ? filter.projectIds[0] !== defaultProject : false) ||
+    filter.missionId !== null ||
+    filter.types.length > 0 ||
+    filter.priorities.length > 0;
 
   // MCP writes happen outside this React tree. Refreshing the dynamic route
   // pulls projects, cards and their latest attempts together, so every part
@@ -299,6 +312,32 @@ export function HomeShell({
             onChange={(missionId) => apply({ ...filter, missionId })}
             t={t}
           />
+          <FacetFilters
+            types={filter.types}
+            priorities={filter.priorities}
+            onTypesChange={(types) => apply({ ...filter, types })}
+            onPrioritiesChange={(priorities) =>
+              apply({ ...filter, priorities })
+            }
+            t={t}
+          />
+          <span className="filter-result">{t.board.cardsShown(visible.length)}</span>
+          {hasActiveFilters ? (
+            <button
+              className="btn-ghost clear-board-filters"
+              type="button"
+              onClick={() =>
+                apply({
+                  projectIds: defaultProject ? [defaultProject] : [],
+                  missionId: null,
+                  types: [],
+                  priorities: [],
+                })
+              }
+            >
+              {t.board.clearFilters}
+            </button>
+          ) : null}
           <button
             className={`btn-ghost${picking ? " on" : ""}`}
             type="button"
@@ -320,6 +359,7 @@ export function HomeShell({
         >
           <Icon name="filter" label={null} size={14} />
           <span>{t.board.filters}</span>
+          <span className="badge">{visible.length}</span>
         </button>
         <div className="spacer" />
         {/* Work state stays visible: it is not navigation, it is what the

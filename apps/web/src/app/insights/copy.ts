@@ -95,6 +95,16 @@ const en = {
   filterProjects: (n: number) => `${n} project${n === 1 ? "" : "s"}`,
   filterMission: "one mission",
   filterNoMission: "cards with no mission",
+  filterTypes: (values: string[]) => `type ${values.join(" or ")}`,
+  filterPriorities: (values: string[]) => {
+    const labels: Record<string, string> = {
+      urgente: "urgent",
+      alta: "high",
+      media: "medium",
+      baixa: "low",
+    };
+    return `priority ${values.map((value) => labels[value] ?? value).join(" or ")}`;
+  },
   clearFilter: "Count everything",
 };
 
@@ -186,6 +196,16 @@ const ptBR: InsightsCopy = {
   filterProjects: (n: number) => `${n} projeto${n === 1 ? "" : "s"}`,
   filterMission: "uma missão",
   filterNoMission: "cards sem missão",
+  filterTypes: (values) => `tipo ${values.join(" ou ")}`,
+  filterPriorities: (values) => {
+    const labels: Record<string, string> = {
+      urgente: "urgente",
+      alta: "alta",
+      media: "média",
+      baixa: "baixa",
+    };
+    return `prioridade ${values.map((value) => labels[value] ?? value).join(" ou ")}`;
+  },
   clearFilter: "Contar tudo",
 };
 

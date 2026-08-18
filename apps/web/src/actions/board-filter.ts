@@ -2,7 +2,14 @@
 
 import { eq, inArray } from "drizzle-orm";
 import { mission, project, user } from "@agent-board/db";
-import { NO_MISSION, encodeProjectSelection } from "../lib/board-filter";
+import {
+  NO_MISSION,
+  encodeFacetSelection,
+  encodeProjectSelection,
+  isTaskPriority,
+  isTaskType,
+  type BoardFilter,
+} from "../lib/board-filter";
 import { EMPTY_BOARD_TOTALS, type BoardTotals } from "../lib/board-totals";
 import { loadBoardTotals } from "../lib/board-totals-query";
 import type { ActionResult } from "../lib/action-result";
@@ -10,11 +17,9 @@ import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
 import { loadModelPrices } from "../lib/prices";
 
-export async function setBoardFilterAction(input: {
-  /** Empty is the All projects shortcut. */
-  projectIds: string[];
-  missionId: string | null;
-}): Promise<ActionResult> {
+export async function setBoardFilterAction(
+  input: BoardFilter,
+): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Not signed in." };
 
@@ -38,12 +43,21 @@ export async function setBoardFilterAction(input: {
     if (!miss) return { ok: false, error: "Mission not found." };
   }
 
+  if (!input.types.every(isTaskType)) {
+    return { ok: false, error: "Task type not found." };
+  }
+  if (!input.priorities.every(isTaskPriority)) {
+    return { ok: false, error: "Task priority not found." };
+  }
+
   await db()
     .update(user)
     .set({
       // One column holds the whole selection: "all", or the ids joined.
       boardProjectId: encodeProjectSelection(projectIds),
       boardMissionId: input.missionId,
+      boardTaskTypes: encodeFacetSelection([...new Set(input.types)]),
+      boardPriorities: encodeFacetSelection([...new Set(input.priorities)]),
     })
     .where(eq(user.id, session.userId));
 
@@ -56,10 +70,9 @@ export async function setBoardFilterAction(input: {
  * board is the number Insights reports for that filter and not a second
  * arithmetic that drifts from it.
  */
-export async function boardTotalsAction(input: {
-  projectIds: string[];
-  missionId: string | null;
-}): Promise<BoardTotals> {
+export async function boardTotalsAction(
+  input: BoardFilter,
+): Promise<BoardTotals> {
   const session = await getSession();
   if (!session) return EMPTY_BOARD_TOTALS;
 
@@ -67,8 +80,5 @@ export async function boardTotalsAction(input: {
   if (!ws) return EMPTY_BOARD_TOTALS;
 
   const prices = ws.pricingEnabled ? await loadModelPrices(db(), ws.id) : [];
-  return loadBoardTotals(db(), ws.id, ws.pricingEnabled, prices, {
-    projectIds: input.projectIds,
-    missionId: input.missionId,
-  });
+  return loadBoardTotals(db(), ws.id, ws.pricingEnabled, prices, input);
 }

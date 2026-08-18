@@ -80,6 +80,7 @@ export type BoardCard = {
   shortId: string;
   title: string;
   tipo: "feature" | "bug" | "rfc";
+  priority: "urgente" | "alta" | "media" | "baixa";
   status: "aberto" | "em_execucao" | "feito" | "validado";
   isExample: boolean;
   oQue: string;

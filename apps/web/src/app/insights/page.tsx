@@ -47,7 +47,12 @@ function one(value: string | string[] | undefined): string | null {
  * whole workspace and lies by omission.
  */
 function describeFilter(
-  filter: { projectIds: string[]; missionId: string | null },
+  filter: {
+    projectIds: string[];
+    missionId: string | null;
+    types: string[];
+    priorities: string[];
+  },
   t: InsightsCopy,
 ): string | null {
   const parts: string[] = [];
@@ -56,6 +61,10 @@ function describeFilter(
   }
   if (filter.missionId === NO_MISSION) parts.push(t.filterNoMission);
   else if (filter.missionId) parts.push(t.filterMission);
+  if (filter.types.length > 0) parts.push(t.filterTypes(filter.types));
+  if (filter.priorities.length > 0) {
+    parts.push(t.filterPriorities(filter.priorities));
+  }
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
@@ -392,7 +401,12 @@ export default async function InsightsPage({
   // dictionary and not from this page's own copy.
   const shared = dict(ws.language);
   const filter = boardFilterFromQuery(
-    { projects: one(params.projects), mission: one(params.mission) },
+    {
+      projects: one(params.projects),
+      mission: one(params.mission),
+      types: one(params.types),
+      priorities: one(params.priorities),
+    },
     projectRows,
     missionRows,
   );

@@ -14,6 +14,8 @@ function row(over: Partial<InsightAttemptRow>): InsightAttemptRow {
     taskShortId: "AGB-1",
     taskTitle: "card",
     taskIsExample: false,
+    tipo: "feature",
+    priority: "media",
     projectId: "p1",
     projectName: "proj",
     missionId: null,

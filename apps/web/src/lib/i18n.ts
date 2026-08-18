@@ -107,6 +107,17 @@ const en = {
      * its panel (AGB-65, OCL-20).
      */
     filters: "Filters",
+    typeFilter: "Type",
+    priorityFilter: "Priority",
+    typeBug: "bug",
+    typeFeature: "feature",
+    typeRfc: "rfc",
+    priorityUrgent: "urgent",
+    priorityHigh: "high",
+    priorityMedium: "medium",
+    priorityLow: "low",
+    clearFilters: "Clear filters",
+    cardsShown: (n: number) => `${n} card${n === 1 ? "" : "s"}`,
     /**
      * The button on the hard right of the bar: navigation and the account
      * live behind it (OCL-20).
@@ -552,6 +563,17 @@ const ptBR: Dict = {
     settings: "Configurações",
     logout: "Sair",
     filters: "Filtros",
+    typeFilter: "Tipo",
+    priorityFilter: "Prioridade",
+    typeBug: "bug",
+    typeFeature: "feature",
+    typeRfc: "rfc",
+    priorityUrgent: "urgente",
+    priorityHigh: "alta",
+    priorityMedium: "média",
+    priorityLow: "baixa",
+    clearFilters: "Limpar filtros",
+    cardsShown: (n: number) => `${n} card${n === 1 ? "" : "s"}`,
     accountMenu: "Conta e navegação",
     running: (n: number) => `${n} em execução`,
     noAgentRunning: "nenhum agente rodando",
