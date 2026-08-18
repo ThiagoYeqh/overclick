@@ -1,6 +1,6 @@
 # MCP · OverClick
 
-The board exposes the 21 tools over **streamable HTTP**, served by the same app process.
+The board exposes its tools over **streamable HTTP**, served by the same app process.
 
 ## Connect
 
@@ -31,22 +31,24 @@ The workspace is resolved from the token. Revoked or missing token → **HTTP 40
 On initialize the server ships instructions that open with the board identity:
 "OverClick is the task board where agents claim and deliver cards (not Overclock the
 IDE); registering activities means task_create here." Clients that surface MCP
-instructions hand their agents this context before the first tool call.
+instructions hand their agents this context before the first tool call. Projects with
+context are listed there with a short excerpt and a pointer to `project_get`.
 
 ## Tools
 
 | Tool | What it does |
 |---|---|
-| `project_list` | the workspace projects: uuid, name, card prefix, repo url, next card number and card counts by status |
-| `project_create` | creates a project (`name`, optional `repo_url`, optional `id_prefix`). The prefix is derived from the name when omitted (`Agent Board` → `AB`, `OverClick` → `OC`, `overclick` → `OVE`) and is unique per workspace: a collision comes back as `INVALID_ARGUMENT` naming the project that holds it |
-| `project_update` | renames and reconfigures a project (`name`, `repo_url`, `id_prefix`). `repo_url: null` clears it |
+| `project_list` | the workspace projects: uuid, name, card prefix, repo url, `has_context`, next card number and card counts by status. The markdown stays out of this summary |
+| `project_get` | the complete project, including `context` markdown and `current_version`; read it before changing the project |
+| `project_create` | creates a project (`name`, optional `repo_url`, `context`, `current_version`, optional `id_prefix`). Context is limited to 32,000 characters; above that is `INVALID_ARGUMENT`. The prefix is derived from the name when omitted (`Agent Board` → `AB`, `OverClick` → `OC`, `overclick` → `OVE`) and is unique per workspace: a collision comes back as `INVALID_ARGUMENT` naming the project that holds it |
+| `project_update` | reconfigures a project (`name`, `repo_url`, `context`, `current_version`, `id_prefix`). `repo_url`, `context` and `current_version` accept `null` to clear them |
 | | `id_prefix` is only editable while the project has **no cards**. Every card carries the prefix in its short id (`FUN-1`), and those ids also live in branches, commits and PR titles, so rewriting the prefix would either make the board name cards that never existed or break every external reference. Renumbering is not offered: the error names how many cards block the change and points at moving them instead. A prefix another project already holds comes back as a named `INVALID_ARGUMENT`, never a constraint violation |
 | `project_delete` | hard delete, irreversible: `task.project_id` cascades, so the cards go with the project |
 | | only an **empty** project by default; one that holds cards is refused with the count that blocks it and the way out (move the cards, or repeat with force). `force: true` destroys the project with every card in it, and their attempts, handoffs and subtasks, with the count stated in the response (`tasks_deleted`, `attempts_deleted`, `handoffs_deleted`) |
 | `mission_list` / `mission_get` | missions and the context to inject into the prompt |
 | `mission_create` | creates a mission (`title`, objective/context markdown, `status`) and returns its id |
 | `task_list` | the queue (project, `mission_id`, status, priority, `awaiting_review_by`) |
-| `task_get` | self-contained md briefing (contract + harness + mission + branch), plus the latest attempt's frozen `cost_usd`, `cost_source`, `cost_status` and `cost_unpriced_models` |
+| `task_get` | self-contained md briefing (contract + harness + mission + complete project context + branch), plus the latest attempt's frozen `cost_usd`, `cost_source`, `cost_status` and `cost_unpriced_models` |
 | `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin) |
 | | `project_id` takes the project uuid **or** its card prefix (`AGB`), so an agent that just called `project_list` never needs the uuid |
 | `task_search` | search the queue by text (`q`) and metadata filters |
@@ -87,8 +89,13 @@ reading the database. Reorganizing later is the same surface: `project_update` r
 `project_delete` removes what is left over.
 
 `task_claim` and `task_get` return the briefing. The executor needs no other source of
-context. The briefing always ends with two things, in this order: how to measure the run,
+context. `## Project context` comes immediately after the mission and carries the
+project markdown plus `current_version`. The briefing always ends with two things, in this order: how to measure the run,
 then what to send.
+
+The same complete markdown is a discoverable MCP resource at
+`overclick://project/<PREFIX>/context`. `resources/list` only advertises projects that
+have context, and `resources/read` returns it as `text/markdown`.
 
 **The usage collection recipe.** An agent can read its own session transcript and total
 the token counters per model exactly; nobody was telling it how. The board keeps one

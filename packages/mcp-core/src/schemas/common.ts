@@ -246,10 +246,18 @@ export const ProjectSchema = z.object({
   /** Card prefix: `AGB` gives `AGB-1`, `AGB-2`. Unique per workspace. */
   id_prefix: z.string().min(1),
   repo_url: z.string().nullable(),
+  /** Summary-only signal: project_list never sends the markdown itself. */
+  has_context: z.boolean(),
   /** Number the next card in this project will get. */
   next_number: z.number().int().positive(),
   cards: ProjectCardCountsSchema,
   created_at: IsoDateTimeSchema,
+});
+
+/** The complete project payload returned by project_get and write tools. */
+export const ProjectDetailSchema = ProjectSchema.extend({
+  context: z.string().nullable(),
+  current_version: z.string().nullable(),
 });
 
 export const TaskSummarySchema = z.object({
@@ -352,6 +360,7 @@ export type Artifact = z.infer<typeof ArtifactSchema>;
 export type SubtaskCreate = z.infer<typeof SubtaskCreateSchema>;
 export type Mission = z.infer<typeof MissionSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
+export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 export type ProjectCardCounts = z.infer<typeof ProjectCardCountsSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;

@@ -3,6 +3,7 @@ import {
   TaskDeliverInputSchema,
   MCP_TOOL_NAMES,
   MissionCreateInputSchema,
+  PROJECT_CONTEXT_MAX_CHARS,
   ProjectCreateInputSchema,
   TaskCreateInputSchema,
   isTelemetryIncomplete,
@@ -10,9 +11,10 @@ import {
 } from "../src/index.js";
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 21 tools", () => {
+  it("exports input and output schemas for all 22 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "project_list",
+      "project_get",
       "project_create",
       "project_update",
       "project_delete",
@@ -54,6 +56,22 @@ describe("project_create", () => {
     expect(
       ProjectCreateInputSchema.safeParse({ name: "Board", repo_url: "github" })
         .success,
+    ).toBe(false);
+  });
+
+  it("accepts context and current_version up to the documented limit", () => {
+    const parsed = ProjectCreateInputSchema.parse({
+      name: "Agent Board",
+      context: "# Architecture\n\nApp and database.",
+      current_version: "1.3.5",
+    });
+    expect(parsed.context).toContain("Architecture");
+    expect(parsed.current_version).toBe("1.3.5");
+    expect(
+      ProjectCreateInputSchema.safeParse({
+        name: "Too much",
+        context: "x".repeat(PROJECT_CONTEXT_MAX_CHARS + 1),
+      }).success,
     ).toBe(false);
   });
 });

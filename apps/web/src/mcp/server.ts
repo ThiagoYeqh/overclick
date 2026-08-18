@@ -1,9 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { project } from "@agent-board/db";
 import {
   MCP_TOOL_NAMES,
   toolContracts,
   type McpToolName,
 } from "@agent-board/mcp-core";
+import { asc, eq } from "drizzle-orm";
 import { invokeTool } from "./tools";
 import type { AuthContext, McpDatabase } from "./types";
 
@@ -18,13 +20,42 @@ export const SERVER_INSTRUCTIONS = [
   "Reorganizing is project_update to rename, project_delete to remove (empty by default), and task_update with project_id to move a card to another project, which restamps its short id and returns the old-to-new mapping.",
 ].join("\n");
 
+function contextExcerpt(context: string): string {
+  const lines = context
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" / ");
+  return lines.length > 240 ? `${lines.slice(0, 237)}...` : lines;
+}
+
+function instructionsWithProjects(
+  projects: Array<{ name: string; idPrefix: string; context: string | null }>,
+): string {
+  const documented = projects.filter((row) => Boolean(row.context?.trim()));
+  if (documented.length === 0) return SERVER_INSTRUCTIONS;
+  return [
+    SERVER_INSTRUCTIONS,
+    "",
+    "Project contexts available in this workspace:",
+    ...documented.map(
+      (row) =>
+        `- ${row.name} (${row.idPrefix}): ${contextExcerpt(row.context ?? "")} Use project_get {project_id: "${row.idPrefix}"} for the complete project context.`,
+    ),
+  ].join("\n");
+}
+
 const DESCRIPTIONS: Record<McpToolName, string> = {
   project_list:
-    "Lists the workspace projects with card prefix, repo url and card counts by status. Start here on a fresh board: task_create needs a project.",
+    "Lists the workspace projects with card prefix, repo url, has_context and card counts by status. Start here on a fresh board: task_create needs a project.",
+  project_get:
+    "Returns one complete project, including context markdown and current_version. Read it before changing the project.",
   project_create:
-    "Creates a project (name, optional repo_url, optional id_prefix). The card prefix is derived from the name when omitted and is unique per workspace.",
+    "Creates a project (name, optional repo_url, context, current_version and id_prefix). Context is limited to 32000 characters. The card prefix is derived from the name when omitted and is unique per workspace.",
   project_update:
-    "Renames and reconfigures a project (name, repo_url, id_prefix). The card prefix is only editable while the project has no cards, because every card carries it in its short id: to reorganize a project that holds cards, move them with task_update passing project_id.",
+    "Updates a project (name, repo_url, context, current_version, id_prefix). Context is limited to 32000 characters. The card prefix is only editable while the project has no cards, because every card carries it in its short id: to reorganize a project that holds cards, move them with task_update passing project_id.",
   project_delete:
     "Hard delete: removes the project. Only an empty one by default; a project with cards comes back refused with the count that blocks it, and force: true destroys the project with every card in it, and their attempts, handoffs and subtasks. Irreversible.",
   mission_list: "Lista as missões do workspace e o contexto de cada uma.",
@@ -73,14 +104,41 @@ function inputSchemaFor(name: McpToolName) {
   return unwrap(schema) as typeof schema;
 }
 
-export function createOverclickMcpServer(opts: {
+export async function createOverclickMcpServer(opts: {
   db: McpDatabase;
   ctx: AuthContext;
-}): McpServer {
+}): Promise<McpServer> {
+  const projects = await opts.db
+    .select({
+      name: project.name,
+      idPrefix: project.idPrefix,
+      context: project.context,
+    })
+    .from(project)
+    .where(eq(project.workspaceId, opts.ctx.workspaceId))
+    .orderBy(asc(project.createdAt));
   const server = new McpServer(
     { name: "overclick", version: "0.1.12" },
-    { instructions: SERVER_INSTRUCTIONS },
+    { instructions: instructionsWithProjects(projects) },
   );
+
+  for (const row of projects) {
+    if (!row.context?.trim()) continue;
+    const uri = `overclick://project/${row.idPrefix}/context`;
+    const context = row.context;
+    server.registerResource(
+      `project-${row.idPrefix.toLowerCase()}-context`,
+      uri,
+      {
+        title: `${row.name} project context`,
+        description: `Complete markdown context for project ${row.idPrefix}.`,
+        mimeType: "text/markdown",
+      },
+      async () => ({
+        contents: [{ uri, mimeType: "text/markdown", text: context }],
+      }),
+    );
+  }
 
   for (const name of MCP_TOOL_NAMES) {
     server.registerTool(

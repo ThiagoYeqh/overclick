@@ -26,9 +26,15 @@ validated, and never treat a merge as validation.
 
 Ask the board what is waiting (`task_list`), then `task_claim` the card,
 declaring who you are: cli, model, session id. The claim returns the briefing
-and it is self-contained: contract, harness, mission context, branch convention
+and it is self-contained: contract, harness, mission context, project context, branch convention
 and, at the end, the recipe for reading your own token usage. You need no other
 source of context, and you should not go looking for one.
+
+Read the `## Project context` section before touching the repository. If you need
+the latest project record outside a claim, call `project_get` (or read the project
+context resource). If the work reveals architecture, commands or vocabulary the
+context is missing, propose the addition in a `task_update` comment; do not silently
+rewrite shared project guidance as part of an unrelated card.
 
 Two rules that cost real time when broken:
 

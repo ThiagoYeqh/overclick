@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { project } from "@agent-board/db";
+import { eq } from "drizzle-orm";
 import { handleMcpRequest } from "./http";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
 
@@ -104,5 +106,33 @@ describe("HTTP /mcp auth", () => {
         "OverClick is the task board where agents claim and deliver cards (not Overclock the IDE); registering activities means task_create here.",
       ),
     ).toBe(true);
+  });
+
+  it("summarizes documented projects in initialize instructions", async () => {
+    world = await createTestWorld();
+    await world.db
+      .update(project)
+      .set({ context: "# Architecture\n\nThe web app owns the MCP endpoint." })
+      .where(eq(project.id, world.projectId));
+
+    const response = await handleMcpRequest(
+      new Request("http://board.local/mcp", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${world.secret}`,
+          Accept: "application/json, text/event-stream",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(initializeBody()),
+      }),
+      { db: world.db },
+    );
+    const json = (await response.json()) as {
+      result?: { instructions?: string };
+    };
+    const instructions = json.result?.instructions ?? "";
+    expect(instructions).toContain("OverClick (OC)");
+    expect(instructions).toContain("Architecture");
+    expect(instructions).toContain("Use project_get");
   });
 });

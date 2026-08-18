@@ -15,6 +15,7 @@ import {
   type Origem,
   type Project,
   type ProjectCardCounts,
+  type ProjectDetail,
   type Reviewer,
   type StoredTranscriptRefWire,
   type Task,
@@ -188,9 +189,21 @@ export function mapProject(
     name: row.name,
     id_prefix: row.idPrefix,
     repo_url: row.repoUrl,
+    has_context: Boolean(row.context?.trim()),
     next_number: row.nextNumber,
     cards,
     created_at: iso(row.createdAt),
+  };
+}
+
+export function mapProjectDetail(
+  row: ProjectRow,
+  cards: ProjectCardCounts = emptyCardCounts(),
+): ProjectDetail {
+  return {
+    ...mapProject(row, cards),
+    context: row.context,
+    current_version: row.currentVersion,
   };
 }
 

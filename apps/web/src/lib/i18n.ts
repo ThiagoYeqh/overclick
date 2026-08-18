@@ -81,6 +81,7 @@ const en = {
      * it holds once naming it would cost the topbar a second line.
      */
     projectFilter: "Filter by project",
+    projectContextAvailable: "Project context available",
     projectsPicked: (n: number) => `${n} projects`,
     allMissions: "All missions",
     /**
@@ -232,10 +233,26 @@ const en = {
     sub: "Executors, harness policy, and MCP access for this instance.",
     backToBoard: "← Board",
     tabExecutors: "Executors",
+    tabProjects: "Projects",
     tabPolicy: "Harness policy",
     tabTokens: "MCP tokens",
     tabLanguage: "Language",
     tabPrices: "Cost (optional)",
+    projectsSub:
+      "The project briefing agents receive before they touch the repository. Keep architecture, important paths, run/test/deploy commands and vocabulary here.",
+    projectLabel: "Project",
+    projectVersion: "Current version",
+    projectVersionPlaceholder: "release, tag or deployed version",
+    projectContext: "Context markdown",
+    projectContextPlaceholder:
+      "# What this project is\n\nArchitecture, important paths, how to run, test and deploy...",
+    projectPreview: "Preview",
+    projectPreviewEmpty: "The markdown preview appears here.",
+    projectContextCount: (used: number, limit: number) => `${used} / ${limit} characters`,
+    projectContextHint:
+      "New task_claim and task_get briefings receive this whole markdown. Agents can also read it with project_get or the project context resource.",
+    saveProject: "Save project context",
+    projectSaved: "Project context saved. New briefings already use it.",
     pricesSub:
       "Off by default. Tokens and time are facts on every plan; a dollar figure is fiction on a flat subscription and a price table goes stale and lies with confidence. Turn this on only if you pay per token, and the board adds an approximate cost next to the numbers it measured.",
     pricingToggle: "Show approximate cost on cards and insights",
@@ -554,6 +571,7 @@ const ptBR: Dict = {
     totalOpenInsights: "Abrir no Insights",
     allProjects: "Todos os projetos",
     projectFilter: "Filtrar por projeto",
+    projectContextAvailable: "Contexto do projeto disponível",
     projectsPicked: (n: number) => `${n} projetos`,
     allMissions: "Todas as missões",
     missionFilter: "Filtrar por missão",
@@ -680,10 +698,26 @@ const ptBR: Dict = {
     sub: "Executores, política de harness e acesso MCP desta instância.",
     backToBoard: "← Board",
     tabExecutors: "Executores",
+    tabProjects: "Projetos",
     tabPolicy: "Política de harness",
     tabTokens: "Tokens MCP",
     tabLanguage: "Idioma",
     tabPrices: "Custo (opcional)",
+    projectsSub:
+      "O briefing do projeto que os agentes recebem antes de tocar no repositório. Mantenha aqui arquitetura, caminhos importantes, comandos de execução/teste/deploy e vocabulário.",
+    projectLabel: "Projeto",
+    projectVersion: "Versão atual",
+    projectVersionPlaceholder: "release, tag ou versão em produção",
+    projectContext: "Contexto em markdown",
+    projectContextPlaceholder:
+      "# O que é este projeto\n\nArquitetura, caminhos importantes, como rodar, testar e publicar...",
+    projectPreview: "Preview",
+    projectPreviewEmpty: "O preview do markdown aparece aqui.",
+    projectContextCount: (used: number, limit: number) => `${used} / ${limit} caracteres`,
+    projectContextHint:
+      "Novos briefings de task_claim e task_get recebem este markdown inteiro. Agentes também podem lê-lo via project_get ou pelo resource de contexto do projeto.",
+    saveProject: "Salvar contexto do projeto",
+    projectSaved: "Contexto do projeto salvo. Novos briefings já usam o conteúdo.",
     pricesSub:
       "Desligado por padrão. Tokens e tempo são fatos em qualquer plano; um valor em dólar é ficção numa assinatura fixa, e tabela de preço envelhece e mente com confiança. Ligue só se você paga por token, e o board passa a mostrar um custo aproximado ao lado dos números que mediu.",
     pricingToggle: "Mostrar custo aproximado nos cards e no Insights",

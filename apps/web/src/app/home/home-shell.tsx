@@ -27,7 +27,7 @@ import { FacetFilters } from "./facet-filters";
 import { MissionFilter } from "./mission-filter";
 import { ProjectFilter } from "./project-filter";
 
-export type BoardProjectOption = { id: string; name: string };
+export type BoardProjectOption = { id: string; name: string; hasContext: boolean };
 export type { BoardMissionOption };
 
 /**
@@ -233,7 +233,12 @@ export function HomeShell({
     [cards, scope],
   );
   const projectOptions = useMemo(
-    () => projectFilterOptions(cards, projects, filter),
+    () =>
+      projectFilterOptions(cards, projects, filter).map((option) => ({
+        ...option,
+        hasContext:
+          projects.find((project) => project.id === option.id)?.hasContext ?? false,
+      })),
     [cards, projects, filter],
   );
   // The prefix earns its place on the card only when more than one project is

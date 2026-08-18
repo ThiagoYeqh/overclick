@@ -23,6 +23,12 @@ function renderRecipe(recipe: UsageRecipe): string[] {
 export function renderBriefingMarkdown(input: {
   task: Task;
   mission: Mission | null;
+  project?: {
+    name: string;
+    idPrefix: string;
+    context: string | null;
+    currentVersion: string | null;
+  } | null;
   branchConvention: BranchConvention;
   /** Recipe for the CLI running the card; omitted when none could be resolved. */
   recipe?: UsageRecipe | null;
@@ -37,7 +43,16 @@ export function renderBriefingMarkdown(input: {
   /** Server boundary for this attempt's transcript and usage counters. */
   claimedAt?: string | null;
 }): string {
-  const { task, mission, branchConvention, recipe, chain, attempt, claimedAt } = input;
+  const {
+    task,
+    mission,
+    project,
+    branchConvention,
+    recipe,
+    chain,
+    attempt,
+    claimedAt,
+  } = input;
   const steps = task.como_confirmo
     .map((step, index) => `${index + 1}. ${step.step} → ${step.expected}`)
     .join("\n");
@@ -68,6 +83,17 @@ export function renderBriefingMarkdown(input: {
       ].join("\n")
     : "## Missão\n\n(card solto — sem missão atribuída)";
 
+  const projectBlock = project
+    ? [
+        "## Project context",
+        "",
+        `- project: ${project.name} (${project.idPrefix})`,
+        `- current_version: ${project.currentVersion ?? "(not set)"}`,
+        "",
+        project.context ?? "(project context not configured)",
+      ].join("\n")
+    : "## Project context\n\n(project context unavailable)";
+
   const reopen = task.reopen_comment
     ? `\n## Comentário da reabertura\n\n${task.reopen_comment}\n`
     : "";
@@ -94,6 +120,8 @@ export function renderBriefingMarkdown(input: {
     harness,
     "",
     missionBlock,
+    "",
+    projectBlock,
     "",
     "## Convenção Git",
     "",

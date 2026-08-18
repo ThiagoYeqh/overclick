@@ -30,6 +30,10 @@ import {
 import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
 import type { Runtime } from "../../lib/runtime";
 import type { UpdaterState } from "../../lib/updates";
+import {
+  ProjectContextEditor,
+  type ProjectContextRow,
+} from "./project-context-editor";
 
 /** The three modes, in the order they escalate: silence, tell, act. */
 const UPDATE_MODES: readonly UpdateMode[] = ["off", "check", "auto"];
@@ -95,6 +99,7 @@ export function SettingsClient({
   origin,
   workspaceName,
   projectName,
+  projects,
   executors,
   seenSuggestions,
   cardapio,
@@ -121,6 +126,7 @@ export function SettingsClient({
   origin: string;
   workspaceName: string;
   projectName: string;
+  projects: ProjectContextRow[];
   executors: ExecutorSelection;
   seenSuggestions: SeenSuggestion[];
   cardapio: CardapioRow[];
@@ -166,6 +172,7 @@ export function SettingsClient({
 
   const tabs = [
     { id: "exec", label: t.settings.tabExecutors },
+    { id: "projects", label: t.settings.tabProjects },
     { id: "policy", label: t.settings.tabPolicy },
     { id: "prices", label: t.settings.tabPrices },
     { id: "recipes", label: t.settings.tabRecipes },
@@ -488,6 +495,16 @@ export function SettingsClient({
             misses because it printed below the fold. */}
         {err ? <p className="werr" role="alert">{err}</p> : null}
         {msg ? <p className="wok" role="status">{msg}</p> : null}
+
+        {/* ---- PROJECT CONTEXT ---- */}
+        <div
+          className={`tabpane${tab === "projects" ? " active" : ""}`}
+          id="setpane-projects"
+          role="tabpanel"
+          aria-labelledby="settab-projects"
+        >
+          <ProjectContextEditor projects={projects} lang={lang} />
+        </div>
 
         {/* ---- EXECUTORS ---- */}
         <div

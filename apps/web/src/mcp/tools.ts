@@ -90,6 +90,7 @@ import {
   looksLikeUuid,
   mapMission,
   mapProject,
+  mapProjectDetail,
   mapTask,
   originToDb,
   reviewerFromRow,
@@ -170,6 +171,13 @@ async function dispatchTool(
   switch (name) {
     case "project_list":
       value = await projectList(db, ctx);
+      break;
+    case "project_get":
+      value = await projectGet(
+        db,
+        ctx,
+        data as Parameters<typeof projectGet>[2],
+      );
       break;
     case "project_create":
       value = await projectCreate(
@@ -308,10 +316,33 @@ async function projectList(db: McpDatabase, ctx: AuthContext) {
   };
 }
 
+async function projectGet(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: { project_id: string },
+) {
+  const row = await findProject(db, ctx.workspaceId, input.project_id);
+  if (!row) {
+    return err(
+      "NOT_FOUND",
+      `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
+    );
+  }
+  return {
+    project: mapProjectDetail(row, await projectCardCounts(db, row.id)),
+  };
+}
+
 async function projectCreate(
   db: McpDatabase,
   ctx: AuthContext,
-  input: { name: string; repo_url?: string; id_prefix?: string },
+  input: {
+    name: string;
+    repo_url?: string;
+    context?: string;
+    current_version?: string;
+    id_prefix?: string;
+  },
 ) {
   const name = input.name.trim();
   if (!name) {
@@ -352,6 +383,8 @@ async function projectCreate(
         workspaceId: ctx.workspaceId,
         name,
         repoUrl: input.repo_url?.trim() || null,
+        context: input.context?.trim() ? input.context : null,
+        currentVersion: input.current_version?.trim() || null,
         idPrefix: prefix,
         nextNumber: 1,
       })
@@ -369,7 +402,7 @@ async function projectCreate(
     throw new Error("failed to insert project");
   }
 
-  return { project: mapProject(row, emptyCardCounts()) };
+  return { project: mapProjectDetail(row, emptyCardCounts()) };
 }
 
 function isPrefixConflict(error: unknown): boolean {
@@ -408,6 +441,8 @@ async function projectUpdate(
     project_id: string;
     name?: string;
     repo_url?: string | null;
+    context?: string | null;
+    current_version?: string | null;
     id_prefix?: string;
   },
 ) {
@@ -419,7 +454,13 @@ async function projectUpdate(
     );
   }
 
-  const patch: { name?: string; repoUrl?: string | null; idPrefix?: string } = {};
+  const patch: {
+    name?: string;
+    repoUrl?: string | null;
+    context?: string | null;
+    currentVersion?: string | null;
+    idPrefix?: string;
+  } = {};
 
   if (input.name !== undefined) {
     const name = input.name.trim();
@@ -431,6 +472,14 @@ async function projectUpdate(
 
   if (input.repo_url !== undefined) {
     patch.repoUrl = input.repo_url?.trim() || null;
+  }
+
+  if (input.context !== undefined) {
+    patch.context = input.context?.trim() ? input.context : null;
+  }
+
+  if (input.current_version !== undefined) {
+    patch.currentVersion = input.current_version?.trim() || null;
   }
 
   if (input.id_prefix !== undefined) {
@@ -486,7 +535,7 @@ async function projectUpdate(
   }
 
   const counts = await projectCardCounts(db, row.id);
-  return { project: mapProject(row, counts) };
+  return { project: mapProjectDetail(row, counts) };
 }
 
 async function projectDelete(
@@ -2522,6 +2571,12 @@ async function assembleTaskPayload(
     briefing_markdown: renderBriefingMarkdown({
       task: mapped,
       mission: missionPayload,
+      project: {
+        name: proj.name,
+        idPrefix: proj.idPrefix,
+        context: proj.context,
+        currentVersion: proj.currentVersion,
+      },
       branchConvention: convention,
       recipe,
       chain,

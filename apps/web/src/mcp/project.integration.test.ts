@@ -2,9 +2,12 @@ import { project, workspace } from "@agent-board/db";
 import {
   ProjectCreateOutputSchema,
   ProjectDeleteOutputSchema,
+  ProjectGetOutputSchema,
   ProjectListOutputSchema,
   ProjectUpdateOutputSchema,
   TaskCreateOutputSchema,
+  TaskClaimOutputSchema,
+  TaskGetOutputSchema,
   TaskListOutputSchema,
   TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
@@ -129,6 +132,89 @@ describe("projects over MCP", () => {
       validado: 0,
     });
     expect(row?.next_number).toBe(4);
+  });
+
+  it("creates, reads, updates and summarizes project context and current_version", async () => {
+    world = await createTestWorld();
+    const context = "\n# Architecture\n\n- apps/web\n- packages/db\n";
+    const created = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Documented project",
+      id_prefix: "DOC",
+      context,
+      current_version: "1.3.5",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(ProjectCreateOutputSchema.parse(created.value).project).toMatchObject({
+      context,
+      current_version: "1.3.5",
+      has_context: true,
+    });
+
+    const got = await invokeTool(world.db, ctx(), "project_get", {
+      project_id: "doc",
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(ProjectGetOutputSchema.parse(got.value).project.context).toBe(context);
+
+    const listed = await invokeTool(world.db, ctx(), "project_list", {});
+    if (!listed.ok) throw new Error("project_list failed");
+    const summary = ProjectListOutputSchema.parse(listed.value).projects.find(
+      (row) => row.id_prefix === "DOC",
+    );
+    expect(summary?.has_context).toBe(true);
+    expect(summary).not.toHaveProperty("context");
+
+    const updated = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: "DOC",
+      context: "# New context",
+      current_version: "1.4.0",
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(ProjectUpdateOutputSchema.parse(updated.value).project).toMatchObject({
+      context: "# New context",
+      current_version: "1.4.0",
+    });
+
+    const card = await invokeTool(
+      world.db,
+      ctx(),
+      "task_create",
+      cardArgs("DOC"),
+    );
+    if (!card.ok) throw new Error("task_create failed");
+    const taskId = TaskCreateOutputSchema.parse(card.value).task.short_id;
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: taskId,
+      executor: { cli: "claude-code", model: "sonnet-5" },
+    });
+    if (!claimed.ok) throw new Error("task_claim failed");
+    const claimBriefing = TaskClaimOutputSchema.parse(claimed.value).briefing_markdown;
+    expect(claimBriefing).toContain("## Project context");
+    expect(claimBriefing).toContain("# New context");
+    expect(claimBriefing).toContain("current_version: 1.4.0");
+    expect(claimBriefing.indexOf("## Project context")).toBeGreaterThan(
+      claimBriefing.indexOf("## Missão"),
+    );
+
+    const taskGot = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: taskId,
+    });
+    if (!taskGot.ok) throw new Error("task_get failed");
+    expect(TaskGetOutputSchema.parse(taskGot.value).briefing_markdown).toContain(
+      "# New context",
+    );
+
+    const tooLong = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: "DOC",
+      context: "x".repeat(32_001),
+    });
+    expect(tooLong.ok).toBe(false);
+    if (tooLong.ok) return;
+    expect(tooLong.error.code).toBe("INVALID_ARGUMENT");
+    expect(tooLong.error.message).toContain("32000");
   });
 
   it("takes an explicit prefix and refuses one already in use", async () => {

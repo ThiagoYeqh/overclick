@@ -1,4 +1,4 @@
-import { desc, eq, isNotNull, and } from "drizzle-orm";
+import { asc, desc, eq, isNotNull, and } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -34,6 +34,7 @@ export const dynamic = "force-dynamic";
 /** The tabs the client knows, so a link can land on one (OCL-20). */
 const SETTINGS_TABS = new Set([
   "exec",
+  "projects",
   "policy",
   "prices",
   "recipes",
@@ -60,9 +61,18 @@ export default async function SettingsPage({
 
   const ws = await db().query.workspace.findFirst();
   if (!ws) redirect("/setup");
-  const proj = await db().query.project.findFirst({
+  const projects = await db().query.project.findMany({
     where: eq(project.workspaceId, ws.id),
+    orderBy: asc(project.createdAt),
+    columns: {
+      id: true,
+      name: true,
+      idPrefix: true,
+      context: true,
+      currentVersion: true,
+    },
   });
+  const proj = projects[0];
 
   const entries = await db()
     .select()
@@ -194,6 +204,13 @@ export default async function SettingsPage({
         origin={origin}
         workspaceName={ws.name}
         projectName={proj?.name ?? ws.name}
+        projects={projects.map((row) => ({
+          id: row.id,
+          name: row.name,
+          idPrefix: row.idPrefix,
+          context: row.context ?? "",
+          currentVersion: row.currentVersion ?? "",
+        }))}
         executors={selection}
         lang={ws.language}
         updateMode={ws.updateMode}

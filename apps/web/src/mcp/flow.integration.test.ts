@@ -22,7 +22,7 @@ const origem = {
 };
 
 async function connectClient(world: TestWorld, tokenId = world.tokenId) {
-  const server = createOverclickMcpServer({
+  const server = await createOverclickMcpServer({
     db: world.db,
     ctx: { tokenId, workspaceId: world.workspaceId, tokenLabel: "test" },
   });
@@ -53,7 +53,39 @@ describe("MCP end-to-end against a test db", () => {
     if (world) await closeTestWorld(world);
   });
 
-  it("lists the 13 tools and runs create → claim → handoff", async () => {
+  it("lists and reads project context as an MCP resource", async () => {
+    world = await createTestWorld();
+    const updated = await invokeTool(world.db, {
+      tokenId: world.tokenId,
+      workspaceId: world.workspaceId,
+      tokenLabel: "test",
+    }, "project_update", {
+      project_id: "OC",
+      context: "# Resource context\n\nComplete markdown.",
+      current_version: "1.3.5",
+    });
+    expect(updated.ok).toBe(true);
+
+    const { client, server } = await connectClient(world);
+    try {
+      const listed = await client.listResources();
+      expect(listed.resources.map((resource) => resource.uri)).toContain(
+        "overclick://project/OC/context",
+      );
+      const read = await client.readResource({
+        uri: "overclick://project/OC/context",
+      });
+      expect(read.contents[0]).toMatchObject({
+        mimeType: "text/markdown",
+        text: "# Resource context\n\nComplete markdown.",
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("lists the tool catalog and runs create → claim → handoff", async () => {
     world = await createTestWorld();
     const { client, server } = await connectClient(world);
     try {

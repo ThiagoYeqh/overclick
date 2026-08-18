@@ -491,8 +491,14 @@ export default async function HomePage() {
   const projects = await db().query.project.findMany({
     where: eq(project.workspaceId, ws.id),
     orderBy: asc(project.createdAt),
-    columns: { id: true, name: true },
-  });
+    columns: { id: true, name: true, context: true },
+  }).then((rows) =>
+    rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      hasContext: Boolean(row.context?.trim()),
+    })),
+  );
   if (projects.length === 0) redirect("/setup");
 
   const missions = await db().query.mission.findMany({

@@ -17,6 +17,7 @@ import {
   MissionSummarySchema,
   OrigemSchema,
   PrioritySchema,
+  ProjectDetailSchema,
   ProjectSchema,
   ReviewerSchema,
   StoredTranscriptRefSchema,
@@ -73,6 +74,25 @@ export const ProjectListOutputSchema = z.object({
   projects: z.array(ProjectSchema),
 });
 
+export const PROJECT_CONTEXT_MAX_CHARS = 32_000;
+
+const ProjectContextSchema = z
+  .string()
+  .max(
+    PROJECT_CONTEXT_MAX_CHARS,
+    `Project context cannot exceed ${PROJECT_CONTEXT_MAX_CHARS} characters.`,
+  );
+
+const ProjectVersionSchema = z.string().max(200);
+
+export const ProjectGetInputSchema = z.object({
+  project_id: ProjectRefSchema,
+});
+
+export const ProjectGetOutputSchema = z.object({
+  project: ProjectDetailSchema,
+});
+
 /**
  * Canonical project_create input.
  * Workspace is resolved from the MCP bearer token — never sent in the body.
@@ -82,6 +102,8 @@ export const ProjectListOutputSchema = z.object({
 export const ProjectCreateInputSchema = z.object({
   name: z.string().min(1).max(200),
   repo_url: z.string().url().optional(),
+  context: ProjectContextSchema.optional(),
+  current_version: ProjectVersionSchema.optional(),
   id_prefix: z
     .string()
     .min(1)
@@ -92,13 +114,13 @@ export const ProjectCreateInputSchema = z.object({
 });
 
 export const ProjectCreateOutputSchema = z.object({
-  project: ProjectSchema,
+  project: ProjectDetailSchema,
 });
 
 /**
  * Canonical project_update input: renames and reconfigures a project in place.
- * Send at least one of `name`, `repo_url` or `id_prefix`; `repo_url: null`
- * clears it.
+ * Send at least one mutable field. `repo_url`, `context` and
+ * `current_version` accept null to clear them.
  *
  * `id_prefix` is only editable while the project has no cards. Every card
  * already carries the prefix in its short id (`FUN-1`), so changing it later
@@ -112,6 +134,8 @@ export const ProjectUpdateInputSchema = z
     project_id: ProjectRefSchema,
     name: z.string().min(1).max(200).optional(),
     repo_url: z.string().url().nullable().optional(),
+    context: ProjectContextSchema.nullable().optional(),
+    current_version: ProjectVersionSchema.nullable().optional(),
     id_prefix: z
       .string()
       .min(1)
@@ -124,12 +148,17 @@ export const ProjectUpdateInputSchema = z
     (value) =>
       value.name !== undefined ||
       value.repo_url !== undefined ||
+      value.context !== undefined ||
+      value.current_version !== undefined ||
       value.id_prefix !== undefined,
-    { message: "provide name, repo_url or id_prefix" },
+    {
+      message:
+        "provide name, repo_url, context, current_version or id_prefix",
+    },
   );
 
 export const ProjectUpdateOutputSchema = z.object({
-  project: ProjectSchema,
+  project: ProjectDetailSchema,
 });
 
 /**
@@ -859,6 +888,7 @@ export const InsightsQueryOutputSchema = z.object({
 
 export const MCP_TOOL_NAMES = [
   "project_list",
+  "project_get",
   "project_create",
   "project_update",
   "project_delete",
@@ -887,6 +917,10 @@ export const toolContracts = {
   project_list: {
     input: ProjectListInputSchema,
     output: ProjectListOutputSchema,
+  },
+  project_get: {
+    input: ProjectGetInputSchema,
+    output: ProjectGetOutputSchema,
   },
   project_create: {
     input: ProjectCreateInputSchema,
@@ -1005,6 +1039,8 @@ export type HarnessSetInput = z.infer<typeof HarnessSetInputSchema>;
 export type HarnessSetOutput = z.infer<typeof HarnessSetOutputSchema>;
 export type ProjectListInput = z.infer<typeof ProjectListInputSchema>;
 export type ProjectListOutput = z.infer<typeof ProjectListOutputSchema>;
+export type ProjectGetInput = z.infer<typeof ProjectGetInputSchema>;
+export type ProjectGetOutput = z.infer<typeof ProjectGetOutputSchema>;
 export type ProjectCreateInput = z.infer<typeof ProjectCreateInputSchema>;
 export type ProjectCreateOutput = z.infer<typeof ProjectCreateOutputSchema>;
 export type ProjectUpdateInput = z.infer<typeof ProjectUpdateInputSchema>;

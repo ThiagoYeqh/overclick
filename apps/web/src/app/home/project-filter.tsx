@@ -19,7 +19,7 @@ export function ProjectFilter({
   onAll,
   t,
 }: {
-  options: ProjectCount[];
+  options: Array<ProjectCount & { hasContext?: boolean }>;
   value: string[];
   onToggle: (projectId: string) => void;
   onAll: () => void;
@@ -107,6 +107,15 @@ export function ProjectFilter({
                   <span className="pf-opt-name" title={option.name}>
                     {option.name}
                   </span>
+                  {option.hasContext ? (
+                    <span
+                      className="pf-opt-count"
+                      aria-label={t.board.projectContextAvailable}
+                      title={t.board.projectContextAvailable}
+                    >
+                      ctx
+                    </span>
+                  ) : null}
                   <span className="pf-opt-count">{option.count}</span>
                 </button>
               );
