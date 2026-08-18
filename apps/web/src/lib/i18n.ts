@@ -89,6 +89,11 @@ const en = {
     cancelSelection: "Cancel",
     settings: "Settings",
     logout: "Log out",
+    /**
+     * The one button the phone bar keeps for everything that left it: the
+     * filters and the account actions live behind it (AGB-65).
+     */
+    menu: "Menu",
     running: (n: number) => `${n} in progress`,
     noAgentRunning: "no agent running",
     minAgo: (m: number) => `${m} min ago`,
@@ -464,6 +469,7 @@ const ptBR: Dict = {
     noMissionMatch: "Nenhuma missão corresponde.",
     settings: "Configurações",
     logout: "Sair",
+    menu: "Menu",
     running: (n: number) => `${n} em execução`,
     noAgentRunning: "nenhum agente rodando",
     minAgo: (m: number) => `há ${m} min`,

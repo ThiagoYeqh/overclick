@@ -127,6 +127,9 @@ export function HomeShell({
   const [totals, setTotals] = useState<BoardTotals>(initialTotals);
   const [picking, setPicking] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  // Phone only: everything that left the compact bar lives behind this one
+  // button. On the desktop the menu never opens because the button is hidden.
+  const [menuOpen, setMenuOpen] = useState(false);
   const visible = useMemo(() => filterBoardCards(cards, filter), [cards, filter]);
   // What the mission filter may offer: the scope is the projects on screen, so
   // the options and their counts follow the selection, not the mission.
@@ -204,42 +207,66 @@ export function HomeShell({
             t={t}
           />
         </div>
-        <MissionFilter
-          options={missionOptions}
-          looseCount={looseCount}
-          totalCount={scopeCount}
-          value={filter.missionId}
-          onChange={(missionId) => apply({ ...filter, missionId })}
-          t={t}
-        />
-        <button
-          className={`btn-ghost${picking ? " on" : ""}`}
-          type="button"
-          onClick={() => (picking ? stopPicking() : setPicking(true))}
-        >
-          {picking ? t.board.cancelSelection : t.board.moveToMission}
-        </button>
-        <div className="spacer" />
-        <span className="btn-ghost pill">
-          {t.board.myReview} <span className="badge">{review}</span>
-        </span>
-        <div className="agent-status">
-          <span className={`dot${running === 0 ? " idle" : ""}`} />
-          {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
-        </div>
-        <a className="btn-ghost" href="/insights">Insights</a>
-        <a className="btn-ghost" href="/settings">
-          {t.board.settings}
-        </a>
-        <form action={logoutAction}>
-          <button className="btn-ghost" type="submit">
-            {t.board.logout}
+        {/* The desktop bar lays these out inline (display: contents, so the
+            wrapper costs it nothing). On the phone they collapse behind the
+            menu button, and the wrapper becomes the panel that holds them:
+            same controls, same order, nothing dropped (AGB-65). */}
+        <div className={`topbar-more${menuOpen ? " open" : ""}`}>
+          <MissionFilter
+            options={missionOptions}
+            looseCount={looseCount}
+            totalCount={scopeCount}
+            value={filter.missionId}
+            onChange={(missionId) => apply({ ...filter, missionId })}
+            t={t}
+          />
+          <button
+            className={`btn-ghost${picking ? " on" : ""}`}
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              if (picking) stopPicking();
+              else setPicking(true);
+            }}
+          >
+            {picking ? t.board.cancelSelection : t.board.moveToMission}
           </button>
-        </form>
+          <div className="spacer" />
+          <span className="btn-ghost pill">
+            {t.board.myReview} <span className="badge">{review}</span>
+          </span>
+          <div className="agent-status">
+            <span className={`dot${running === 0 ? " idle" : ""}`} />
+            {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
+          </div>
+          <a className="btn-ghost" href="/insights">Insights</a>
+          <a className="btn-ghost" href="/settings">
+            {t.board.settings}
+          </a>
+          <form action={logoutAction}>
+            <button className="btn-ghost" type="submit">
+              {t.board.logout}
+            </button>
+          </form>
+        </div>
+        <button
+          className="menu-btn"
+          type="button"
+          aria-expanded={menuOpen}
+          aria-label={t.board.menu}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          {menuOpen ? "✕" : "☰"}
+        </button>
         {/* Last in the bar, hard right: the figure that justifies the board
             is the one thing here you should be able to read at a glance. */}
         <BoardTotal totals={totals} filter={filter} t={t} />
       </div>
+      {/* Tap-away target for the phone menu; rendered only while it is open,
+          which the desktop never does. */}
+      {menuOpen ? (
+        <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />
+      ) : null}
 
       <Board
         cards={visible}

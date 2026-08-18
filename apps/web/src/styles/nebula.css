@@ -244,7 +244,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   position: relative;
   min-height: 100vh;
   padding: 28px 32px 60px;
-  overflow-x: hidden;
+  /* clip, not hidden: hidden would make this box a scroll container and the
+     phone's sticky bar (AGB-65) would scroll away with the list */
+  overflow-x: clip;
   color: var(--nebula-text-primary);
   font-family: var(--nebula-font-sans);
 }
@@ -254,6 +256,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   display: flex; align-items: center; gap: var(--nebula-space-4);
   padding: var(--nebula-space-3) 18px; margin-bottom: 22px;
 }
+/* AGB-65: on the desktop the wrapper is transparent to the bar, the controls
+   inside it lay out exactly as before, and the phone-only menu stays hidden. */
+.nb .topbar-more { display: contents; }
+.nb .menu-btn { display: none; }
+.nb .menu-backdrop { display: none; }
 .nb .logo {
   font-weight: var(--nebula-weight-medium);
   letter-spacing: var(--nebula-tracking-tight);
@@ -982,19 +989,56 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 @media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
   .nb { padding: 16px 16px 48px; }
 
-  /* topbar: a control may take another row, never another line */
-  .nb .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; margin-bottom: 14px; }
+  /* AGB-65: the chrome collapses to one compact bar plus the selector. The
+     bar keeps only what scanning uses, the crumb, the menu button and the
+     total, and it sticks to the top so the list scrolls under it. Nothing
+     wraps: the bar is one row by construction, and every piece inside it
+     already holds its own one line. */
+  .nb .topbar {
+    position: sticky; top: 8px; z-index: 30;
+    flex-wrap: nowrap; gap: 8px; padding: 10px 12px; margin-bottom: 14px;
+  }
   .nb .topbar > * { flex: none; }
+  .nb .logo { display: none; }
   .nb .spacer { display: none; }
   .nb .btn-ghost { padding: 6px 10px; font-size: 11px; white-space: nowrap; }
   .nb .agent-status { white-space: nowrap; }
-  /* the total takes another row of the bar, never a second line of its own,
-     and keeps the size that makes it the figure you read first */
+  /* the total keeps the size that makes it the figure you read first, now
+     sharing the bar's one row instead of taking a row of its own. The small
+     supporting numbers step aside on the phone; the figure and its marks
+     stay, and the whole reading is one tap away in Insights (and on the
+     title). The figure never clips: what shrinks is the room beside it. */
   .nb .board-total {
-    max-width: 60vw; margin-left: auto;
+    flex: none; margin-left: auto;
     padding-left: 10px; gap: 6px;
   }
-  .nb .board-total .bt-lead { font-size: 16px; }
+  .nb .board-total .bt-lead { font-size: 16px; flex: none; }
+  .nb .board-total .bt-sub { display: none; }
+  .nb .board-total .bt-mark { flex: none; }
+  /* the one button the bar keeps for everything that left it */
+  .nb .menu-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
+    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+    font-size: 13px; line-height: 1; padding: 6px 11px; cursor: pointer;
+  }
+  .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
+  /* the panel behind the button: same controls, same order, one per row */
+  .nb .topbar-more { display: none; }
+  .nb .topbar-more.open {
+    display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 40;
+    padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: 16px;
+    /* opaque: the list scrolls under the bar, and a bright row title bleeding
+       through the panel reads as a bug, not as depth */
+    background: rgb(13, 15, 19);
+  }
+  .nb .topbar-more .btn-ghost { display: block; width: 100%; text-align: left; }
+  .nb .topbar-more .agent-status { padding: 6px 10px; }
+  .nb .topbar-more .mission-filter { max-width: none; }
+  .nb .topbar-more .mf-label { max-width: none; }
+  .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
+  .nb .topbar-more .filter-chip select { max-width: none; flex: 1; }
   .nb .crumb {
     flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px;
     white-space: nowrap; overflow: hidden;
