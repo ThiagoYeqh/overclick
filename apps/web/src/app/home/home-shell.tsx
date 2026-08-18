@@ -17,6 +17,7 @@ import {
   toggleProject,
   type BoardFilter,
 } from "../../lib/board-filter";
+import { subscribeToBoardRefresh } from "../../lib/board-refresh";
 import type { BoardTotals } from "../../lib/board-totals";
 import { dict, type Dict } from "../../lib/i18n";
 import { Icon } from "../../components/icon";
@@ -196,6 +197,7 @@ export function HomeShell({
   /** What the initial filter consumed, already aggregated on the server. */
   initialTotals: BoardTotals;
 }) {
+  const router = useRouter();
   const t = dict(lang);
   const [filter, setFilter] = useState<BoardFilter>(initialFilter);
   const [totals, setTotals] = useState<BoardTotals>(initialTotals);
@@ -236,6 +238,11 @@ export function HomeShell({
   );
   const running = visible.filter((card) => card.status === "em_execucao").length;
   const review = visible.filter((card) => card.status === "feito").length;
+
+  // MCP writes happen outside this React tree. Refreshing the dynamic route
+  // pulls projects, cards and their latest attempts together, so every part
+  // of the board observes one consistent snapshot without a manual reload.
+  useEffect(() => subscribeToBoardRefresh(() => router.refresh()), [router]);
 
   function apply(next: BoardFilter) {
     setFilter(next);
