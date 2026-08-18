@@ -29,7 +29,7 @@ export default async function SetupPage() {
           <h1>{t.auth.setupTitle}</h1>
           <p className="sub">{t.auth.setupSub}</p>
           <SetupForm lang={ws?.language ?? "en"} />
-          <p className="foot">v0.1.10 · {t.auth.foot}</p>
+          <p className="foot">v0.1.11 · {t.auth.foot}</p>
         </div>
       </div>
     </div>
