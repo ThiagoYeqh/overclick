@@ -49,6 +49,10 @@ Two rules that cost real time when broken:
 - **Disclose a stale takeover.** When `task_claim` returns
   `reclaimed_stale: true`, say in `task_deliver` that the previous claim
   expired. The abandoned attempt stays in the timeline with its usage.
+- **No zombie card.** If the executor dies or reaches its model limit, create
+  the continuation with `task_create { supersedes: old_card, inherit: true }`.
+  This discards the old attempt while preserving its cost; never leave it in
+  execution.
 - **Search before you create a new card.** Before `task_create`, run `task_search` with a
   short query to reuse existing cards and avoid duplicates.
 

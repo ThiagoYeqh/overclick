@@ -95,6 +95,7 @@ import {
   mapProjectDetail,
   mapTask,
   originToDb,
+  parseComoConfirmo,
   reviewerFromRow,
   reviewerToColumns,
   serializeComoConfirmo,
@@ -105,6 +106,79 @@ import {
 import type { AuthContext, McpDatabase } from "./types";
 
 type Tx = McpDatabase;
+
+/**
+ * Ends the active run without erasing its telemetry and links the old and new
+ * cards. The caller holds a row lock on `original`, so create + discard can
+ * live in one transaction without a zombie window.
+ */
+async function discardSupersededTask(
+  tx: Tx,
+  original: TaskRow,
+  continuation: TaskRow | null,
+  reason: string,
+) {
+  const [attempt] = await tx
+    .select()
+    .from(executionAttempt)
+    .where(
+      and(
+        eq(executionAttempt.taskId, original.id),
+        isNull(executionAttempt.finishedAt),
+      ),
+    )
+    .orderBy(desc(executionAttempt.startedAt))
+    .limit(1);
+  const finishedAt = new Date();
+  const hasUsage = Boolean(
+    attempt &&
+      ((attempt.usageSegments?.length ?? 0) > 0 ||
+        attempt.tokensIn != null ||
+        attempt.tokensOut != null ||
+        attempt.tokensCache != null ||
+        attempt.durationMs != null ||
+        attempt.turns != null ||
+        attempt.reportedCostUsd != null),
+  );
+
+  if (attempt) {
+    await tx
+      .update(executionAttempt)
+      .set({
+        finishedAt,
+        result: "abandoned",
+        resultNote: reason,
+        serverDurationMs: Math.max(
+          0,
+          finishedAt.getTime() - attempt.startedAt.getTime(),
+        ),
+        ...(!hasUsage ? { costStatus: "not_reported" as const } : {}),
+      })
+      .where(eq(executionAttempt.id, attempt.id));
+  }
+
+  if (continuation) {
+    await tx
+      .update(task)
+      .set({ supersedesId: original.id })
+      .where(eq(task.id, continuation.id));
+  }
+
+  const [discarded] = await tx
+    .update(task)
+    .set({
+      status: "descartado",
+      supersededById: continuation?.id ?? null,
+      claimedAt: null,
+      claimedByTokenId: null,
+      claimedByExecutor: null,
+      telemetryIncomplete: attempt ? !hasUsage : original.telemetryIncomplete,
+    })
+    .where(eq(task.id, original.id))
+    .returning();
+  if (!discarded) throw new Error("failed to discard superseded task");
+  return ok(discarded);
+}
 
 /** Distinguishes explicit zero counters from a delivery that sent no tokens. */
 function tokenCountersReported(usage: UsageReport | undefined): boolean {
@@ -1067,9 +1141,11 @@ async function taskCreate(
     project_id: string;
     title: string;
     type: Task["type"];
-    o_que: string;
-    por_que: string;
-    como_confirmo: Task["como_confirmo"];
+    o_que?: string;
+    por_que?: string;
+    como_confirmo?: Task["como_confirmo"];
+    supersedes?: string;
+    inherit?: boolean;
     priority?: Task["priority"];
     parent?: string;
     mode: "solo" | "team";
@@ -1133,6 +1209,36 @@ async function taskCreate(
   const harness = harnessToDb(rec.value.harness);
 
   return db.transaction(async (tx) => {
+    const original = input.supersedes
+      ? await findTask(tx, ctx.workspaceId, input.supersedes, true)
+      : null;
+    if (input.supersedes && !original) {
+      return err(
+        "NOT_FOUND",
+        `Task ${input.supersedes} not found in this workspace. Call task_list to see the available cards.`,
+      );
+    }
+    if (original && original.row.status !== "em_execucao") {
+      return err(
+        "INVALID_ARGUMENT",
+        `${original.row.shortId} cannot be superseded because it is ${original.row.status}; only a card in execution can be continued this way.`,
+      );
+    }
+
+    const oQue = input.o_que ?? (input.inherit ? original?.row.oQue : undefined);
+    const porQue = input.por_que ?? (input.inherit ? original?.row.porQue : undefined);
+    const comoConfirmo =
+      input.como_confirmo ??
+      (input.inherit && original
+        ? parseComoConfirmo(original.row.comoConfirmo)
+        : undefined);
+    if (!oQue || !porQue || !comoConfirmo?.length) {
+      return err(
+        "INVALID_ARGUMENT",
+        "o_que, por_que and como_confirmo are required unless inherit: true reuses them from supersedes.",
+      );
+    }
+
     const shortId = parentRow
       ? await nextChildShortId(tx, parentRow)
       : await allocateShortId(tx, proj);
@@ -1156,11 +1262,12 @@ async function taskCreate(
         projectId: proj.id,
         missionId,
         parentId: parentRow?.id ?? null,
+        supersedesId: original?.row.id ?? null,
         shortId,
         title: input.title,
-        oQue: `${input.o_que}${plano}`,
-        porQue: input.por_que,
-        comoConfirmo: serializeComoConfirmo(input.como_confirmo),
+        oQue: `${oQue}${plano}`,
+        porQue,
+        comoConfirmo: serializeComoConfirmo(comoConfirmo),
         tipo: input.type,
         status: "aberto",
         priority: input.priority ?? "media",
@@ -1172,6 +1279,16 @@ async function taskCreate(
       .returning();
     if (!created) {
       throw new Error("failed to insert task");
+    }
+
+    if (original) {
+      const discarded = await discardSupersededTask(
+        tx,
+        original.row,
+        created,
+        `superseded by ${created.shortId}`,
+      );
+      if (!discarded.ok) return discarded;
     }
 
     const children: TaskRow[] = [];
@@ -1190,9 +1307,9 @@ async function taskCreate(
           shortId: `${shortId}.${index + 1}`,
           title: item.title,
           oQue: item.o_que ?? item.scope,
-          porQue: item.por_que ?? input.por_que,
+          porQue: item.por_que ?? porQue,
           comoConfirmo: serializeComoConfirmo(
-            item.como_confirmo ?? input.como_confirmo,
+            item.como_confirmo ?? comoConfirmo,
           ),
           tipo: input.type,
           status: "aberto",
@@ -1665,6 +1782,8 @@ async function taskUpdate(
     usage?: Usage;
     spawn_failure?: string;
     resolved_in?: string | null;
+    status?: "descartado";
+    superseded_by?: string;
   },
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
@@ -1676,6 +1795,62 @@ async function taskUpdate(
   }
 
   let nextRow = found.row;
+  if (input.status === "descartado") {
+    const denied = requireManage(ctx, "task_update {status: descartado}");
+    if (denied) return denied;
+    const discarded = await db.transaction(async (tx) => {
+      const original = await findTask(tx, ctx.workspaceId, input.task_id, true);
+      if (!original) {
+        return err("NOT_FOUND", `Task ${input.task_id} not found in this workspace.`);
+      }
+      if (original.row.status !== "em_execucao") {
+        return err(
+          "INVALID_ARGUMENT",
+          `${original.row.shortId} cannot be discarded because it is ${original.row.status}; only a card in execution can be superseded.`,
+        );
+      }
+
+      let continuation: TaskRow | null = null;
+      if (input.superseded_by) {
+        const foundContinuation = await findTask(
+          tx,
+          ctx.workspaceId,
+          input.superseded_by,
+          true,
+        );
+        if (!foundContinuation) {
+          return err(
+            "NOT_FOUND",
+            `Continuation ${input.superseded_by} not found in this workspace.`,
+          );
+        }
+        continuation = foundContinuation.row;
+        if (continuation.id === original.row.id) {
+          return err("INVALID_ARGUMENT", "A card cannot supersede itself.");
+        }
+        if (
+          continuation.supersedesId &&
+          continuation.supersedesId !== original.row.id
+        ) {
+          return err(
+            "INVALID_ARGUMENT",
+            `${continuation.shortId} already continues another card.`,
+          );
+        }
+      }
+      return discardSupersededTask(
+        tx,
+        original.row,
+        continuation,
+        continuation
+          ? `superseded by ${continuation.shortId}`
+          : "discarded without continuation",
+      );
+    });
+    if (!discarded.ok) return discarded;
+    nextRow = discarded.value;
+  }
+
   // A card born loose can join a mission, and one in the wrong mission can
   // leave it. Only missions of the token's workspace qualify: an id from
   // another workspace is a NOT_FOUND, not a silent detach.
@@ -2675,6 +2850,12 @@ async function insightsQuery(
       until: until ? iso(until) : null,
     },
     totals,
+    discarded: {
+      totals: totalsFor(insights.discarded.totals),
+      by_executor: groupsFor(insights.discarded.byExecutor),
+      by_mission: groupsFor(insights.discarded.byMission),
+      by_model: groupsFor(insights.discarded.byModel),
+    },
     pricing_enabled: pricingEnabled,
     note: usageHonestyNote(insights.totals),
     cost_note: pricingEnabled
@@ -3001,6 +3182,12 @@ async function assembleTaskPayload(
     cost_source: latestAttempt?.costSource ?? null,
     cost_status: latestAttempt?.costStatus ?? null,
     cost_unpriced_models: latestAttempt?.costUnpricedModels ?? [],
+    ...(row.status === "descartado" && row.telemetryIncomplete
+      ? {
+          usage_warning:
+            "custo do attempt abandonado não reportado — envie task_update {usage} no card descartado",
+        }
+      : {}),
   };
 }
 

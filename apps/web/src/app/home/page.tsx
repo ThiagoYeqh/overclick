@@ -136,6 +136,8 @@ async function loadTasks(projectIds: string[]) {
       attempts: true,
       handoffs: true,
       comments: true,
+      supersedes: { columns: { id: true, shortId: true } },
+      supersededBy: { columns: { id: true, shortId: true } },
     },
   });
 }
@@ -454,6 +456,12 @@ function toBoardCard(
     tipo: t.tipo,
     priority: t.priority,
     status: t.status,
+    supersedes: t.supersedes
+      ? { id: t.supersedes.id, shortId: t.supersedes.shortId }
+      : null,
+    supersededBy: t.supersededBy
+      ? { id: t.supersededBy.id, shortId: t.supersededBy.shortId }
+      : null,
     isExample: t.isExample,
     oQue: t.oQue,
     porQue: t.porQue,
@@ -549,6 +557,7 @@ export default async function HomePage() {
       em_execucao: number;
       feito: number;
       validado: number;
+      descartado: number;
     }
   >();
   for (const row of missionCountRows) {
@@ -559,6 +568,7 @@ export default async function HomePage() {
       em_execucao: 0,
       feito: 0,
       validado: 0,
+      descartado: 0,
     };
     const value = Number(row.n);
     counts[row.status] += value;
@@ -573,6 +583,7 @@ export default async function HomePage() {
       em_execucao: 0,
       feito: 0,
       validado: 0,
+      descartado: 0,
     },
   }));
 
