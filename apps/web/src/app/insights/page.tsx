@@ -3,12 +3,14 @@ import { redirect } from "next/navigation";
 import { mission, project } from "@agent-board/db";
 import { Icon } from "../../components/icon";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
+import { Wordmark } from "../../components/wordmark";
 import {
   NO_MISSION,
   boardFilterFromQuery,
   filterBoardCards,
 } from "../../lib/board-filter";
 import { getSession } from "../../lib/cookies";
+import { dict } from "../../lib/i18n";
 import { db } from "../../lib/db";
 import {
   computeInsights,
@@ -348,6 +350,9 @@ export default async function InsightsPage({
       .where(eq(mission.workspaceId, ws.id)),
   ]);
   const t = insightsCopy(ws.language);
+  // The wordmark is shared chrome, so its label comes from the shared
+  // dictionary and not from this page's own copy.
+  const shared = dict(ws.language);
   const filter = boardFilterFromQuery(
     { projects: one(params.projects), mission: one(params.mission) },
     projectRows,
@@ -374,9 +379,7 @@ export default async function InsightsPage({
 
       <div className="page ins-page">
         <div className="topbar nebula-glass">
-          <div className="logo">
-            over<span>click</span>
-          </div>
+          <Wordmark label={shared.board.homeLink} />
           <div className="crumb">
             {ws.name} / <b>{t.title}</b>
           </div>

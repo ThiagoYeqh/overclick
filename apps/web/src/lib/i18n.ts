@@ -13,6 +13,11 @@ export const LANGUAGES: { value: Lang; label: string }[] = [
 
 const en = {
   board: {
+    /**
+     * The wordmark is a link home now, and its accessible name has to say so:
+     * "overclick" alone tells a screen reader the brand, not the destination.
+     */
+    homeLink: "overclick, go to the board",
     colOpen: "Open",
     colInProgress: "In progress",
     colDone: "Done · review",
@@ -458,6 +463,7 @@ export type Dict = typeof en;
 
 const ptBR: Dict = {
   board: {
+    homeLink: "overclick, ir para o board",
     colOpen: "Aberto",
     colInProgress: "Em execução",
     colDone: "Feito · revisão",

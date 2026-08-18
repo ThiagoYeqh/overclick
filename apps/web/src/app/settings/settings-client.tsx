@@ -16,6 +16,7 @@ import {
 import { saveUpdateModeAction } from "../../actions/updates";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { UpdatePanel } from "../../components/update-panel";
+import { Wordmark } from "../../components/wordmark";
 import {
   ExecutorsGrid,
   type ExecutorSelection,
@@ -441,7 +442,7 @@ export function SettingsClient({
       <NebulaAtmosphere />
       <div className="page">
         <div className="topbar nebula-glass">
-          <div className="logo">over<span>click</span></div>
+          <Wordmark label={t.board.homeLink} />
           <div className="crumb">{workspaceName} / <b>{projectName}</b></div>
           <div className="spacer" />
           <a className="btn-ghost" href="/home">{t.settings.backToBoard}</a>

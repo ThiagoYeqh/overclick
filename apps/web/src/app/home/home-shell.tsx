@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { logoutAction } from "../../actions/auth";
+import { Wordmark } from "../../components/wordmark";
 import {
   boardTotalsAction,
   setBoardFilterAction,
@@ -187,9 +188,7 @@ export function HomeShell({
   return (
     <>
       <div className="topbar nebula-glass">
-        <div className="logo">
-          over<span>click</span>
-        </div>
+        <Wordmark label={t.board.homeLink} current />
         <div className="crumb">
           <span className="crumb-ws" title={workspaceName}>
             {workspaceName}
