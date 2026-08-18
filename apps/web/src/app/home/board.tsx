@@ -1,7 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useTransition,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { assignCardsToMissionAction } from "../../actions/missions";
 import {
   reopenTaskAction,
@@ -299,6 +307,21 @@ function CardId({ shortId, showProject }: { shortId: string; showProject: boolea
   );
 }
 
+/**
+ * A card is the board's own control, so it answers the keyboard the way a
+ * button does: Enter and Space open it, or tick it while the board is picking
+ * cards. Anything typed inside a real control within the card is that
+ * control's business and never reaches here.
+ */
+function activateOnKey(run: () => void) {
+  return (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.target !== event.currentTarget) return;
+    event.preventDefault();
+    run();
+  };
+}
+
 function Card({
   card,
   onOpen,
@@ -322,6 +345,7 @@ function Card({
   const dim = card.status === "validado";
   const harness =
     card.harnessChain ?? (exec ? (card.executor ?? t.board.agent) : null);
+  const activate = () => (selectable ? onToggleSelect(card.id) : onOpen(card));
   // Three lines and no more: what the card is, what it says, what it cost.
   // Mission, branch, executor and the effort of the harness all stay one
   // click away in the detail panel.
@@ -330,7 +354,11 @@ function Card({
       className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}${
         selectable ? " selectable" : ""
       }${selected ? " picked" : ""}`}
-      onClick={() => (selectable ? onToggleSelect(card.id) : onOpen(card))}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selectable ? selected : undefined}
+      onClick={activate}
+      onKeyDown={activateOnKey(activate)}
     >
       <div className="id-row">
         {selectable ? (
@@ -405,7 +433,13 @@ function CardRow({
         selectable ? " selectable" : ""
       }${selected ? " picked" : ""}`}
       title={card.title}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selectable ? selected : undefined}
       onClick={() => (selectable ? onToggleSelect(card.id) : onOpen(card))}
+      onKeyDown={activateOnKey(() =>
+        selectable ? onToggleSelect(card.id) : onOpen(card),
+      )}
     >
       {selectable ? (
         <input
@@ -743,6 +777,21 @@ function Detail({
   const [, start] = useTransition();
   const [ticks, setTicks] = useState<ValidationTickView[]>(card.validationTicks);
   const [tickErr, setTickErr] = useState<string | null>(null);
+  const titleId = useId();
+  const panel = useRef<HTMLDivElement>(null);
+
+  // The panel is a dialog, so it takes the focus when it opens and gives the
+  // page back its scroll when it closes. Without the lock the board scrolls
+  // under the panel on a phone, which is the list moving while the reading
+  // stands still.
+  useEffect(() => {
+    panel.current?.focus();
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
 
   const reviewing = card.status === "feito";
   const allTicked = card.comoConfirmo.every((_, index) =>
@@ -774,8 +823,17 @@ function Detail({
 
   return (
     <div className="ov" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="detail nebula-glass nebula-corners">
-        <button className="d-close" onClick={onClose} aria-label="Close">✕</button>
+      <div
+        className="detail nebula-glass nebula-corners"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        ref={panel}
+      >
+        <button className="d-close" onClick={onClose} aria-label={t.detail.close}>
+          ✕
+        </button>
         <div className="d-head">
           <span>{card.shortId}</span>
           <span className={`tag ${card.tipo}`}>{card.tipo}</span>
@@ -783,7 +841,7 @@ function Detail({
             {statusLabels(t)[card.status]}
           </span>
         </div>
-        <h3>{card.title}</h3>
+        <h3 id={titleId}>{card.title}</h3>
         <div className="d-sec">
           <div className="lbl">{t.detail.what}</div>
           <p>{card.oQue}</p>
@@ -806,7 +864,8 @@ function Detail({
           </div>
           {reviewing && card.howToVerify ? <HowToVerify value={card.howToVerify} t={t} /> : null}
           {card.comoConfirmo.length === 0 ? (
-            <p>—</p>
+            /* An empty contract is a fact about the card, not a dash. */
+            <p className="d-empty">{t.detail.noSteps}</p>
           ) : (
             <ConfirmChecklist
               card={card}

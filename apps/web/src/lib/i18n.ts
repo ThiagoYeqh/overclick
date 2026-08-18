@@ -147,6 +147,10 @@ const en = {
     copyResume: "Copy resume command",
     copyRecompute: "Copy usage command",
     copied: "Copied",
+    /** The panel is a dialog, so the way out of it is named, not a glyph. */
+    close: "Close card",
+    /** An empty contract is a fact about the card, not a dash. */
+    noSteps: "This card was written without confirmation steps.",
   },
   wizard: {
     stepProject: "01 · project",
@@ -521,6 +525,8 @@ const ptBR: Dict = {
     copyResume: "Copiar comando de retomada",
     copyRecompute: "Copiar comando de usage",
     copied: "Copiado",
+    close: "Fechar card",
+    noSteps: "Este card foi escrito sem passos de confirmação.",
   },
   wizard: {
     stepProject: "01 · projeto",
