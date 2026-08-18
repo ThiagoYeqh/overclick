@@ -36,6 +36,8 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
     "Fila de cards do workspace. Filtros: projeto, missão, status, prioridade, awaiting_review_by.",
   task_get:
     "Card autocontido: contrato + harness + missão + convenção de branch (markdown).",
+  task_search:
+    "Free-text search over the workspace's cards (title, what, why, comments), best match first. Filters: project_id (uuid or prefix), type, status (one or a list), limit (default 5, max 20). Each hit carries resolved_in, comments_count and reports_count, so you can tell whether a card already covers something before creating one. Empty list when nothing matches.",
   task_create:
     "Cria um card. Workspace vem do token. mission é o id de uma missão existente (mission_create / mission_list); omitido → card solto. mode solo|team.",
   task_claim:

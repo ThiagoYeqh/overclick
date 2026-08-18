@@ -181,6 +181,9 @@ async function dispatchTool(
     case "task_get":
       value = await taskGet(db, ctx, data as Parameters<typeof taskGet>[2]);
       break;
+    case "task_search":
+      value = await taskSearch(db, ctx, data as Parameters<typeof taskSearch>[2]);
+      break;
     case "task_create":
       value = await taskCreate(db, ctx, data as Parameters<typeof taskCreate>[2]);
       break;
@@ -686,6 +689,112 @@ async function taskGet(
     );
   }
   return assembleTaskPayload(db, found.row, found.proj);
+}
+
+/**
+ * Free-text search over the workspace's cards. Ranking is Postgres FTS with
+ * the `simple` dictionary (no stemming, so it behaves the same in any
+ * language) over title, o_que, por_que and comment bodies; a query that FTS
+ * turns into nothing (a lone number, a code fragment) falls back to substring
+ * matching per term so partial hits still appear below the full FTS matches.
+ * No new extension and no index: workspaces are small, and a GIN index is a
+ * one-line follow-up when one is not.
+ */
+async function taskSearch(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: {
+    q: string;
+    project_id?: string;
+    type?: Task["type"];
+    status?: CardStatus | CardStatus[];
+    limit?: number;
+  },
+) {
+  const q = input.q.trim();
+  if (!q) return err("INVALID_ARGUMENT", "Search query cannot be empty.");
+
+  const limit = input.limit ?? 5;
+  const filters = [eq(project.workspaceId, ctx.workspaceId)];
+  if (input.project_id) {
+    const proj = await findProject(db, ctx.workspaceId, input.project_id);
+    if (!proj) {
+      return err(
+        "NOT_FOUND",
+        `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
+      );
+    }
+    filters.push(eq(task.projectId, proj.id));
+  }
+  if (input.type) filters.push(eq(task.tipo, input.type));
+  if (input.status) {
+    const statuses = Array.isArray(input.status) ? input.status : [input.status];
+    filters.push(inArray(task.status, statuses));
+  }
+
+  const commentText = sql<string>`coalesce((
+    select string_agg(${taskComment.body}, ' ')
+    from ${taskComment}
+    where ${taskComment.taskId} = ${task.id}
+  ), '')`;
+  const doc = sql`
+    setweight(to_tsvector('simple', ${task.title}), 'A') ||
+    setweight(to_tsvector('simple', ${task.oQue} || ' ' || ${task.porQue} || ' ' || ${commentText}), 'B')
+  `;
+  const tsq = sql`plainto_tsquery('simple', ${q})`;
+  const rank = sql<number>`ts_rank(${doc}, ${tsq})`;
+
+  const terms = q.split(/\s+/).filter(Boolean);
+  const likeAny = or(
+    ...terms.map((term) => {
+      const pattern = `%${term.replace(/[%_\\]/g, (match) => `\\${match}`)}%`;
+      return or(
+        sql`${task.title} ILIKE ${pattern}`,
+        sql`${task.oQue} ILIKE ${pattern}`,
+        sql`${task.porQue} ILIKE ${pattern}`,
+        sql`${commentText} ILIKE ${pattern}`,
+      )!;
+    }),
+  )!;
+
+  const commentsCount = sql<number>`(
+    select count(*) from ${taskComment} where ${taskComment.taskId} = ${task.id}
+  )`;
+  const reportsCount = sql<number>`(
+    select count(*) from ${taskComment}
+    where ${taskComment.taskId} = ${task.id} and ${taskComment.kind} = 'report'
+  )`;
+
+  const select = () =>
+    db
+      .select({
+        task,
+        rank,
+        commentsCount,
+        reportsCount,
+      })
+      .from(task)
+      .innerJoin(project, eq(task.projectId, project.id));
+
+  const rows = await select()
+    .where(and(...filters, or(sql`${doc} @@ ${tsq}`, likeAny)))
+    .orderBy(desc(rank), desc(task.updatedAt))
+    .limit(limit);
+
+  return {
+    tasks: rows.map((row) => ({
+      id: row.task.id,
+      short_id: row.task.shortId,
+      title: row.task.title,
+      type: row.task.tipo,
+      status: row.task.status,
+      resolved_in: row.task.resolvedIn ?? null,
+      o_que: row.task.oQue.slice(0, 300),
+      comments_count: Number(row.commentsCount ?? 0),
+      reports_count: Number(row.reportsCount ?? 0),
+      updated_at: iso(row.task.updatedAt),
+    })),
+  };
 }
 
 async function taskCreate(

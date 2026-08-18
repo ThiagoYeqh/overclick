@@ -167,6 +167,9 @@ export {
   TaskGetOutputSchema,
   TaskListInputSchema,
   TaskListOutputSchema,
+  TaskSearchHitSchema,
+  TaskSearchInputSchema,
+  TaskSearchOutputSchema,
   TaskUpdateInputSchema,
   TaskUpdateOutputSchema,
   toolContracts,
@@ -207,5 +210,8 @@ export {
   type TaskCreateOutput,
   type TaskGetInput,
   type TaskListInput,
+  type TaskSearchHit,
+  type TaskSearchInput,
+  type TaskSearchOutput,
   type TaskUpdateInput,
 } from "./schemas/tools.js";

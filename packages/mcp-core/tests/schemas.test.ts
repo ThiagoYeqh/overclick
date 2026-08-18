@@ -10,7 +10,7 @@ import {
 } from "../src/index.js";
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 20 tools", () => {
+  it("exports input and output schemas for all 21 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "project_list",
       "project_create",
@@ -21,6 +21,7 @@ describe("MCP tool contracts", () => {
       "mission_create",
       "task_list",
       "task_get",
+      "task_search",
       "task_create",
       "task_claim",
       "task_update",

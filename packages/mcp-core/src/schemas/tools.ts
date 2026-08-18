@@ -209,6 +209,39 @@ export const TaskGetOutputSchema = z.object({
 });
 
 /**
+ * Canonical task_search input. Free-text lookup over the cards of the token's
+ * workspace: title, o_que, por_que and comment bodies. Made for the question
+ * "is there already a card about this?" before task_create.
+ */
+export const TaskSearchInputSchema = z.object({
+  q: z.string().min(1).max(500),
+  project_id: ProjectRefSchema.optional(),
+  type: TaskTypeSchema.optional(),
+  status: z.union([CardStatusSchema, z.array(CardStatusSchema)]).optional(),
+  /** Hits to return, best match first. Default 5, at most 20. */
+  limit: z.number().int().min(1).max(20).optional(),
+});
+
+/** One search hit: enough to decide "same thing or not" without a task_get. */
+export const TaskSearchHitSchema = z.object({
+  id: z.string().min(1),
+  short_id: z.string().min(1),
+  title: z.string().min(1),
+  type: TaskTypeSchema,
+  status: CardStatusSchema,
+  resolved_in: z.string().nullable(),
+  /** The card's "what", cut at 300 characters. */
+  o_que: z.string(),
+  comments_count: z.number().int().nonnegative(),
+  reports_count: z.number().int().nonnegative(),
+  updated_at: IsoDateTimeSchema,
+});
+
+export const TaskSearchOutputSchema = z.object({
+  tasks: z.array(TaskSearchHitSchema),
+});
+
+/**
  * Canonical task_create input (§4.1).
  * Workspace is resolved from the MCP bearer token — never sent in the body.
  * `mission` is the id of an existing mission (from mission_create / mission_list).
@@ -783,6 +816,7 @@ export const MCP_TOOL_NAMES = [
   "mission_create",
   "task_list",
   "task_get",
+  "task_search",
   "task_create",
   "task_claim",
   "task_update",
@@ -834,6 +868,10 @@ export const toolContracts = {
   task_get: {
     input: TaskGetInputSchema,
     output: TaskGetOutputSchema,
+  },
+  task_search: {
+    input: TaskSearchInputSchema,
+    output: TaskSearchOutputSchema,
   },
   task_create: {
     input: TaskCreateInputSchema,
@@ -896,6 +934,9 @@ export type MissionCreateInput = z.infer<typeof MissionCreateInputSchema>;
 export type MissionCreateOutput = z.infer<typeof MissionCreateOutputSchema>;
 export type TaskListInput = z.infer<typeof TaskListInputSchema>;
 export type TaskGetInput = z.infer<typeof TaskGetInputSchema>;
+export type TaskSearchInput = z.infer<typeof TaskSearchInputSchema>;
+export type TaskSearchOutput = z.infer<typeof TaskSearchOutputSchema>;
+export type TaskSearchHit = z.infer<typeof TaskSearchHitSchema>;
 export type BranchRegisterInput = z.infer<typeof BranchRegisterInputSchema>;
 export type HarnessRecommendInput = z.infer<typeof HarnessRecommendInputSchema>;
 export type HarnessListInput = z.infer<typeof HarnessListInputSchema>;
