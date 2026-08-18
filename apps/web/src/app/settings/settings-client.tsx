@@ -38,10 +38,15 @@ type CardapioRow = {
   activityType: string;
   cli: string | null;
   model: string | null;
+  /** Line of succession, best first. The head is what `model` also holds. */
+  chain: string[];
   effort: string;
   updatedBy: string | null;
   updatedAt: string | null;
 };
+
+/** How many links a row shows: first choice, escalation, floor. */
+const CHAIN_SLOTS = 3;
 type SeenSuggestion = { cli: string; model: string; count: number; lastSeenAt: string };
 /** One line of the price table, as the form edits it (numbers stay strings). */
 type PriceRow = {
@@ -241,6 +246,21 @@ export function SettingsClient({
         if (!next.model || !models.includes(next.model)) next.model = models[0] ?? null;
       }
       return next;
+    }));
+  };
+  /**
+   * Writes one link of the line of succession. Blanking a link closes the gap
+   * rather than leaving a hole, and the head keeps `model` in step: that field
+   * is what the card and the MCP contract print.
+   */
+  const setChainLink = (i: number, slot: number, model: string) => {
+    setRows(rows.map((r, j) => {
+      if (j !== i) return r;
+      const chain = [...r.chain];
+      while (chain.length < CHAIN_SLOTS) chain.push("");
+      chain[slot] = model;
+      const kept = chain.filter((name, at) => name && chain.indexOf(name) === at);
+      return { ...r, chain: kept, model: kept[0] ?? null };
     }));
   };
   const savePolicy = () =>
@@ -500,7 +520,7 @@ export function SettingsClient({
           aria-labelledby="settab-policy"
         >
           <div className="set-scroll">
-          <table className="policy">
+          <table className="policy harness">
             <thead>
               <tr><th>{t.settings.thActivity}</th><th>{t.settings.thCli}</th><th>{t.settings.thModel}</th><th>{t.settings.thEffort}</th><th>{t.settings.thLastChange}</th></tr>
             </thead>
@@ -511,25 +531,47 @@ export function SettingsClient({
                 return (
                   <tr key={r.activityType}>
                     <td className="act">{meta.label}<small>{meta.hint}</small></td>
-                    <td>
+                    <td data-label={t.settings.thCli}>
                       <select className="sel" value={r.cli ?? ""} onChange={(e) => setRow(i, { cli: e.target.value || null })}>
                         <option value="">{t.settings.noPreference}</option>
                         {cliOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                       </select>
                     </td>
-                    <td>
-                      <select className="sel" value={r.model ?? ""} onChange={(e) => setRow(i, { model: e.target.value || null })}>
-                        {r.model && !models.includes(r.model) ? <option value={r.model}>{r.model}</option> : null}
-                        {models.map((m) => <option key={m} value={m}>{m}</option>)}
-                        {!r.model ? <option value="">—</option> : null}
-                      </select>
+                    <td className="chain" data-label={t.settings.thModel}>
+                      {Array.from({ length: CHAIN_SLOTS }, (_, slot) => {
+                        const picked = r.chain[slot] ?? "";
+                        // A model the policy names but this CLI no longer
+                        // offers stays selectable, so opening Settings never
+                        // silently rewrites a line somebody declared.
+                        const orphan = picked && !models.includes(picked);
+                        return (
+                          <span key={slot} className="link">
+                            {/* the glyph itself is CSS: across on a desktop
+                                row, downward once the row becomes a block */}
+                            {slot > 0 ? <i aria-hidden="true" /> : null}
+                            <select
+                              className={`sel${orphan ? " orphan" : ""}`}
+                              aria-label={t.settings.chainSlot(slot + 1, meta.label)}
+                              value={picked}
+                              onChange={(e) => setChainLink(i, slot, e.target.value)}
+                            >
+                              {/* the head of the chain declares a model or it
+                                  declares none: a word, not a dash nobody can
+                                  read out of a closed select */}
+                              <option value="">{slot === 0 ? t.settings.noPreference : t.settings.chainNone}</option>
+                              {orphan ? <option value={picked}>{picked}</option> : null}
+                              {models.map((m) => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </span>
+                        );
+                      })}
                     </td>
-                    <td>
+                    <td data-label={t.settings.thEffort}>
                       <select className="sel eff" value={r.effort} onChange={(e) => setRow(i, { effort: e.target.value })}>
                         {EFFORTS.map((e2) => <option key={e2} value={e2}>{e2}</option>)}
                       </select>
                     </td>
-                    <td className="who">
+                    <td className="who" data-label={t.settings.thLastChange}>
                       {r.updatedBy && r.updatedAt ? (
                         <>{r.updatedBy}<small>{fmtDate(r.updatedAt, dateLocale)}</small></>
                       ) : (
@@ -603,7 +645,7 @@ export function SettingsClient({
           ) : null}
 
           <div className="set-scroll">
-          <table className="policy">
+          <table className="policy prices">
             <thead>
               <tr>
                 <th>{t.settings.thPriceModel}</th>
@@ -634,11 +676,16 @@ export function SettingsClient({
                       </small>
                     ) : null}
                   </td>
-                  {(["input", "output", "cache"] as const).map((field) => (
-                    <td key={field}>
+                  {(
+                    [
+                      ["input", t.settings.thPriceInput],
+                      ["output", t.settings.thPriceOutput],
+                      ["cache", t.settings.thPriceCache],
+                    ] as const
+                  ).map(([field, heading]) => (
+                    <td key={field} data-label={heading}>
                       <input
                         className="input"
-                        style={{ maxWidth: 110 }}
                         type="number"
                         min="0"
                         step="0.01"
@@ -647,7 +694,7 @@ export function SettingsClient({
                       />
                     </td>
                   ))}
-                  <td className="who">
+                  <td className="who" data-label={t.settings.thPriceOrigin}>
                     {row.source === "seed" && row.seededAt ? (
                       <span className="dim">{t.settings.priceSeeded(row.seededAt)}</span>
                     ) : (
@@ -716,32 +763,40 @@ export function SettingsClient({
           aria-labelledby="settab-recipes"
         >
           <p className="page-sub">{t.settings.recipesSub}</p>
+          {/* One recipe is a heading and two fields, so it gets the shape of a
+              group: four of them in a row used to read as one long page with
+              no seam between the CLI you meant to edit and the next one. */}
           {recipeRows.map((row, i) => (
-            <div key={row.cli} className="seen-sugg">
-              <div className="sec-cap">
-                {row.label}
-                <span className="dim">
-                  {" · "}
+            <div key={row.cli} className="set-card recipe">
+              <div className="rec-head">
+                <span className="rec-name">{row.label}</span>
+                <span className="sec-cap" style={{ margin: 0 }}>
                   {row.command.trim()
                     ? t.settings.recipeYieldsTokens
                     : t.settings.recipeYieldsNone}
                   {" · "}
                   {row.source === "seed"
                     ? t.settings.recipeShipped
-                    : `${t.settings.recipeEdited}${row.updatedBy ? ` — ${row.updatedBy}` : ""}`}
+                    : `${t.settings.recipeEdited}${row.updatedBy ? ` · ${row.updatedBy}` : ""}`}
                 </span>
               </div>
-              <label className="lbl">{t.settings.recipeInstructions}</label>
+              <label className="lbl" htmlFor={`recipe-inst-${row.cli}`}>
+                {t.settings.recipeInstructions}
+              </label>
               <textarea
+                id={`recipe-inst-${row.cli}`}
                 className="input"
                 rows={3}
                 value={row.instructions}
                 onChange={(e) => setRecipe(i, { instructions: e.target.value })}
               />
-              <label className="lbl">{t.settings.recipeCommand}</label>
+              <label className="lbl" htmlFor={`recipe-cmd-${row.cli}`}>
+                {t.settings.recipeCommand}
+              </label>
               <textarea
-                className="input d-mono"
-                rows={row.command ? 12 : 2}
+                id={`recipe-cmd-${row.cli}`}
+                className={`input d-mono${row.command ? " filled" : ""}`}
+                rows={2}
                 placeholder={t.settings.recipeNoCommand}
                 value={row.command}
                 onChange={(e) => setRecipe(i, { command: e.target.value })}
@@ -762,6 +817,9 @@ export function SettingsClient({
           role="tabpanel"
           aria-labelledby="settab-tokens"
         >
+          <div className="sec-cap" style={{ marginTop: 0 }}>
+            {t.settings.tokensCap}
+          </div>
           <div className="tok-list">
             {tokens.length === 0 ? (
               <div className="empty-col">{t.settings.tokensEmpty}</div>
@@ -800,32 +858,38 @@ export function SettingsClient({
             </div>
           ) : null}
 
-          <div className="gen-row">
-            <input
-              className="input"
-              style={{ maxWidth: 320 }}
-              placeholder={t.settings.tokenPlaceholder}
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-            />
-            <button className="btn-new" disabled={pending} onClick={genPair}>
-              {pending ? t.wizard.generating : t.settings.generatePairBtn}
-            </button>
-            <button className="btn-new" disabled={pending} onClick={genToken}>
-              {pending ? t.wizard.generating : t.settings.generateTokenBtn}
-            </button>
-          </div>
+          {/* Naming it, choosing what it may do and generating it are one
+              decision, so they sit inside one group instead of drifting down
+              the page as three unrelated controls. */}
+          <div className="set-card">
+            <div className="sec-cap">{t.settings.newTokenCap}</div>
+            <div className="gen-row">
+              <input
+                className="input"
+                style={{ maxWidth: 320 }}
+                placeholder={t.settings.tokenPlaceholder}
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+              />
+              <button className="btn-new" disabled={pending} onClick={genPair}>
+                {pending ? t.wizard.generating : t.settings.generatePairBtn}
+              </button>
+              <button className="btn-new" disabled={pending} onClick={genToken}>
+                {pending ? t.wizard.generating : t.settings.generateTokenBtn}
+              </button>
+            </div>
 
-          <label className="upd-toggle">
-            <input
-              type="checkbox"
-              checked={newCanManage}
-              onChange={(e) => setNewCanManage(e.target.checked)}
-            />
-            <span>{t.settings.manageLabel}</span>
-          </label>
-          <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
-            {t.settings.manageNote}
+            <label className="upd-toggle">
+              <input
+                type="checkbox"
+                checked={newCanManage}
+                onChange={(e) => setNewCanManage(e.target.checked)}
+              />
+              <span>{t.settings.manageLabel}</span>
+            </label>
+            <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
+              {t.settings.manageNote}
+            </div>
           </div>
 
           {pairFresh ? (
@@ -861,20 +925,23 @@ export function SettingsClient({
           role="tabpanel"
           aria-labelledby="settab-language"
         >
-          <div className="field" style={{ maxWidth: 320 }}>
-            <label>{t.settings.langLabel}</label>
-            <select
-              className="sel"
-              value={langSel}
-              onChange={(e) => setLangSel(e.target.value)}
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.value} value={l.value}>{l.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
-            {t.settings.langNote}
+          <div className="set-card">
+            <div className="field" style={{ maxWidth: 320, marginBottom: 0 }}>
+              <label htmlFor="settings-language">{t.settings.langLabel}</label>
+              <select
+                id="settings-language"
+                className="sel"
+                value={langSel}
+                onChange={(e) => setLangSel(e.target.value)}
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.value} value={l.value}>{l.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="policy-note" style={{ borderTop: 0, paddingTop: 10 }}>
+              {t.settings.langNote}
+            </div>
           </div>
           <div className="save-row">
             <button className="btn-new" disabled={pending} onClick={saveLang}>
@@ -890,21 +957,25 @@ export function SettingsClient({
           role="tabpanel"
           aria-labelledby="settab-updates"
         >
-          {UPDATE_MODES.map((mode) => (
-            <label className="upd-toggle" key={mode}>
-              <input
-                type="radio"
-                name="update-mode"
-                checked={updMode === mode}
-                onChange={() => setUpdMode(mode)}
-              />
-              <span>
-                {t.updates.mode[mode]}
-                <span className="upd-mode-note">{t.updates.modeNote[mode]}</span>
-              </span>
-            </label>
-          ))}
-          <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
+          {/* Three modes are one decision, so they read as one set of options
+              with a border around them, not as three loose rows. */}
+          <div className="set-card upd-modes">
+            {UPDATE_MODES.map((mode) => (
+              <label className="upd-toggle" key={mode}>
+                <input
+                  type="radio"
+                  name="update-mode"
+                  checked={updMode === mode}
+                  onChange={() => setUpdMode(mode)}
+                />
+                <span>
+                  {t.updates.mode[mode]}
+                  <span className="upd-mode-note">{t.updates.modeNote[mode]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="policy-note" style={{ borderTop: 0, paddingTop: 0 }}>
             {t.updates.checkNote}
           </div>
           <div className="save-row">

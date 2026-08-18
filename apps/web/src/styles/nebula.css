@@ -1081,30 +1081,70 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .save-row { margin-top: 18px; display: flex; justify-content: flex-end; }
 .nb .gen-row { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
 
-/* A five-column table does not fit a phone, and the page cannot scroll
-   sideways to show it: .nb clips the overflow so the sticky bar survives.
-   Without a scroller of its own the last columns (effort, who changed it)
-   were simply cut off and unreachable. Same answer Insights already gives its
-   tables: the table scrolls inside its own box, never the page. */
-.nb .set-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.nb .policy { width: 100%; border-collapse: collapse; min-width: 560px; }
+/* One shape for every group a settings tab makes. The token, the recipe, the
+   update mode and the language field are the same card, so crossing tabs
+   never changes the rhythm the eye is following. */
+.nb .set-card {
+  background: var(--nebula-plan-bg);
+  border: 1px solid var(--nebula-glass-border); border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 12px;
+}
+.nb .set-card > .sec-cap:first-child { margin-top: 0; }
+.nb .set-card > .policy-note:last-child { margin-bottom: 0; }
+/* Prose in settings stops at a line somebody can read, not at the width of
+   the page: a note running the full 1020px is a note nobody finishes. */
+.nb .tabpane .policy-note,
+.nb .tabpane .seen-note,
+.nb .tabpane .page-sub,
+.nb .tabpane .upd-mode-note,
+.nb .tabpane .upd-state,
+.nb .tabpane .hint { max-width: 76ch; }
+
+/* AGB-75: a settings table is a form laid on a grid, so its columns are
+   shares of the width the tab has, never the sum of what each control asked
+   for. Fixed layout is what makes that true: the chain keeps its three
+   selects on one line, the last column stops falling off the right edge, and
+   a row is as tall as the information in it instead of as tall as a wrap. */
+.nb .set-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 16px 0 4px; }
+.nb .policy { width: 100%; border-collapse: collapse; table-layout: fixed; }
+/* the five shares of the harness policy: the activity carries the meaning,
+   the chain carries three controls, the two on the right carry a word each */
+.nb .policy th:nth-child(1) { width: 26%; }
+.nb .policy th:nth-child(2) { width: 15%; }
+.nb .policy th:nth-child(3) { width: 39%; }
+.nb .policy th:nth-child(4) { width: 9%; }
+.nb .policy th:nth-child(5) { width: 11%; }
+/* the price table is one name and three numbers, so it splits differently */
+.nb .policy.prices th:nth-child(1) { width: 28%; }
+.nb .policy.prices th:nth-child(2),
+.nb .policy.prices th:nth-child(3),
+.nb .policy.prices th:nth-child(4) { width: 15%; }
+.nb .policy.prices th:nth-child(5) { width: 27%; }
 .nb .policy th {
   font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--nebula-text-tertiary); text-align: left; padding: 0 10px 10px 0; font-weight: 400;
+  color: var(--nebula-text-tertiary); text-align: left; padding: 0 10px 8px 0; font-weight: 400;
 }
-.nb .policy td { padding: 7px 10px 7px 0; border-top: 1px solid var(--nebula-plan-divider); vertical-align: middle; }
-.nb .policy .act { font-size: 13px; font-weight: 500; }
-.nb .policy .act small { display: block; font-family: var(--nebula-font-mono); font-size: 9.5px; color: var(--nebula-text-tertiary); letter-spacing: .04em; margin-top: 2px; font-weight: 400; }
-/* The line of succession reads left to right, and wraps before it squeezes
-   the activity column, which is the one carrying the meaning. */
-.nb .policy .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.nb .policy .chain .link { display: inline-flex; align-items: center; gap: 4px; }
-.nb .policy .chain i { font-style: normal; font-size: 11px; color: var(--nebula-text-tertiary); }
+.nb .policy td { padding: 5px 10px 5px 0; border-top: 1px solid var(--nebula-plan-divider); vertical-align: middle; }
+.nb .policy td:last-child { padding-right: 0; }
+.nb .policy .act { font-size: 12.5px; font-weight: 500; line-height: 1.35; }
+.nb .policy .act small { display: block; font-family: var(--nebula-font-mono); font-size: 9.5px; color: var(--nebula-text-tertiary); letter-spacing: .04em; line-height: 1.45; margin-top: 1px; font-weight: 400; }
+/* The line of succession reads left to right and never wraps: three links
+   sharing one cell, each one giving up width before the row gives up a line. */
+.nb .policy .chain { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
+.nb .policy .chain .link { display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; }
+.nb .policy .chain .link .sel { width: auto; flex: 1 1 auto; }
+/* the arrow lives in CSS so the narrow layout can turn it downward */
+.nb .policy .chain i { flex: none; font-style: normal; font-size: 10px; color: var(--nebula-text-tertiary); }
+.nb .policy .chain i::before { content: "\2192"; }
 /* Named by the policy, missing from the executor: visible, never silently dropped. */
 .nb .policy .chain .sel.orphan { border-color: var(--nebula-warn, #b8863b); }
-.nb .policy .who { font-family: var(--nebula-font-mono); font-size: 10.5px; color: var(--nebula-mist-light); letter-spacing: .03em; max-width: 220px; overflow-wrap: anywhere; }
+/* every control in a table cell is the width of its share, not of its text */
+.nb .policy .sel { width: 100%; min-width: 0; padding: 6px 20px 6px 7px; background-position: right 7px center; text-overflow: ellipsis; }
+.nb .policy td .input { width: 100%; max-width: 140px; padding: 6px 9px; font-size: 12px; }
+.nb .policy .who { font-family: var(--nebula-font-mono); font-size: 10px; line-height: 1.45; color: var(--nebula-mist-light); letter-spacing: .03em; overflow-wrap: anywhere; }
 .nb .policy .who small { display: block; font-size: 9.5px; color: var(--nebula-text-tertiary); margin-top: 2px; }
 .nb .policy .who .dim { color: var(--nebula-text-tertiary); }
+.nb .policy .who .seen-add { margin-top: 6px; }
 .nb .sel {
   appearance: none; -webkit-appearance: none;
   background: rgba(10,12,16,.6) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%238C96AB' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
@@ -1117,15 +1157,97 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .sel:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring); }
 .nb .sel.eff { min-width: 96px; }
 .nb .sel option { background: #0e1013; }
+/* AGB-75: below this width the columns stop being columns. A row becomes a
+   block that reads top to bottom, which is the only honest way to keep the
+   effort and the last change on a screen this narrow: the alternative was a
+   table scrolling sideways with two columns nobody ever found. */
+@media (max-width: 940px) {
+  .nb .set-scroll { overflow-x: visible; margin-top: 12px; }
+  .nb .policy, .nb .policy tbody { display: block; }
+  /* the head is what every cell now repeats to itself, so it is read, not shown */
+  .nb .policy thead {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .nb .policy tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px 10px; align-items: start;
+    padding: 12px 14px; margin-bottom: 10px;
+    background: var(--nebula-plan-bg);
+    border: 1px solid var(--nebula-glass-border); border-radius: 12px;
+  }
+  .nb .policy td { display: block; padding: 0; border-top: 0; }
+  .nb .policy td::before {
+    content: attr(data-label); display: block;
+    font-family: var(--nebula-font-mono); font-size: 9px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--nebula-text-tertiary); margin-bottom: 5px;
+  }
+  /* the title of the block, the chain and the signature take the full width */
+  .nb .policy td.act, .nb .policy td.chain, .nb .policy td.who { grid-column: 1 / -1; }
+  .nb .policy td.act::before { content: none; }
+  .nb .policy td.act { padding-bottom: 2px; }
+  /* the two one-word choices are placed, not flowed, so they share a line
+     instead of each claiming one with the chain sitting between them */
+  .nb .policy.harness td.act { grid-area: 1 / 1 / 2 / -1; }
+  .nb .policy.harness td:nth-child(2) { grid-area: 2 / 1 / 3 / 2; }
+  .nb .policy.harness td:nth-child(4) { grid-area: 2 / 2 / 3 / 3; }
+  .nb .policy.harness td.chain { grid-area: 3 / 1 / 4 / -1; }
+  .nb .policy.harness td.who { grid-area: 4 / 1 / 5 / -1; }
+  /* the signature is a caption and a name: one line, not two */
+  .nb .policy td.who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 10px; }
+  .nb .policy td.who::before { margin-bottom: 0; }
+  .nb .policy td.who small { display: inline; }
+  /* The line of succession reads downward when there is no room across. The
+     arrow keeps a column of its own so the first choice starts on the same
+     edge as the fallbacks under it, instead of standing 16px to their left. */
+  .nb .policy .chain { flex-direction: column; align-items: stretch; gap: 6px; }
+  .nb .policy .chain .link {
+    display: grid; grid-template-columns: 16px minmax(0, 1fr);
+    align-items: center; gap: 0; flex: none;
+  }
+  .nb .policy .chain .link > .sel { grid-column: 2; }
+  .nb .policy .chain i::before { content: "\2193"; }
+  /* a control under a thumb, not a control for a mouse */
+  .nb .policy .sel { min-height: 40px; }
+  .nb .policy td .input { max-width: none; min-height: 40px; }
+  /* a name, three numbers and an origin: the numbers share one line of the block */
+  .nb .policy.prices tr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .nb .policy.prices td.act, .nb .policy.prices td.who { grid-column: 1 / -1; }
+}
+
 .nb .policy-note {
   margin-top: 14px; font-family: var(--nebula-font-mono); font-size: 10.5px; letter-spacing: .04em;
   color: var(--nebula-text-tertiary); padding-top: 12px; border-top: 1px solid var(--nebula-plan-divider);
+  line-height: 1.6;
 }
 .nb .policy-note b { color: var(--nebula-mist-light); font-weight: 500; }
 
-.nb .tok-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+/* A recipe is a heading and two fields, so it gets the shape of a group and
+   not of a stretch of page: the four of them stop running into one another. */
+.nb .recipe { margin-bottom: 12px; }
+.nb .recipe .rec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0 0 10px; }
+.nb .recipe .rec-head .rec-name { font-size: 13px; font-weight: 500; }
+.nb .recipe .lbl {
+  display: block; font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--nebula-text-tertiary); margin: 12px 0 5px;
+}
+/* Whole lines, always: a textarea sized by `rows` under border-box loses the
+   padding out of its own content box and ends halfway through a line. */
+.nb .recipe textarea.input { width: 100%; resize: vertical; font-size: 12.5px; line-height: 1.6; height: calc(3 * 1.6em + 22px); }
+/* A shell command is read as code or it is not read at all: .input set the
+   sans face after .d-mono asked for the mono one, so the recipe that every
+   agent copies was rendered in prose. The height is whole lines, so the box
+   never ends halfway through one. */
+.nb .recipe textarea.d-mono { font-family: var(--nebula-font-mono); font-size: 11.5px; }
+.nb .recipe textarea.d-mono.filled { height: calc(8 * 1.6em + 22px); }
+
+/* The three modes are one decision, so they read as one group of options. */
+.nb .upd-modes { padding: 4px 16px 14px; }
+.nb .upd-modes .upd-toggle:first-of-type { margin-top: 10px; }
+
+.nb .tok-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .nb .tok {
-  display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 14px; padding: 10px 14px;
   background: var(--nebula-plan-bg); border: 1px solid var(--nebula-glass-border); border-radius: 12px;
   transition: border-color .2s, opacity .3s;
 }
@@ -1137,7 +1259,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-family: var(--nebula-font-mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--nebula-mist-light); font-weight: 400; vertical-align: middle;
 }
-.nb .tok .sub { font-family: var(--nebula-font-mono); font-size: 10px; color: var(--nebula-text-tertiary); letter-spacing: .03em; }
+/* the legacy global `.sub` ends with a 28px paragraph margin, which inside a
+   card is 28px of nothing under every token: a row three times the height of
+   the two lines it holds */
+.nb .tok .sub { font-family: var(--nebula-font-mono); font-size: 10px; color: var(--nebula-text-tertiary); letter-spacing: .03em; margin-bottom: 0; }
 .nb .tok .val { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-mist-light); letter-spacing: .03em; }
 .nb .tok.revoked { opacity: .4; }
 .nb .tok.revoked .val { text-decoration: line-through; }
@@ -1669,8 +1794,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   }
 
-  /* the money, policy and price tables scroll inside their own box */
-  .nb .policy { min-width: 620px; }
+  /* the money and policy tables stopped scrolling sideways at 940: below that
+     each row is a block, so there is no minimum width left to enforce */
 
   /* a token is three facts and one action: on a phone they stop fighting for
      one row. The revoke button keeps the far edge and its full target. */
