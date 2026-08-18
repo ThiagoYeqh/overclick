@@ -17,6 +17,7 @@
     "db:migrate": "pnpm --filter @agent-board/db migrate",
     "db:seed": "pnpm --filter @agent-board/db seed",
     "lint": "pnpm -r --if-present lint",
-    "check:topbar": "node scripts/topbar-one-line.mjs"
+    "check:topbar": "node scripts/topbar-one-line.mjs",
+    "check:sheet": "node scripts/detail-sheet.mjs"
   }
 }

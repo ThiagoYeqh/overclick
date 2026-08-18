@@ -154,6 +154,36 @@ screenshot per width, and `VERBOSE=1` to print the width every control ended up 
 The default sweep is 1440, 1280, 1024, 768, 390 and 320, on purpose: the regression that
 this check was written for was visible at 1440 and invisible on a phone.
 
+## The sheet check on the card detail
+
+Below the mobile breakpoint the card detail is not a window floating over the board: it
+is a sheet. It takes the whole viewport with no strip of the list left at the edges, it is
+opaque from the very first frame of its entrance, the way out stays on screen without
+scrolling, the board behind it never moves, and closing it puts the list back exactly
+where it was. Above the breakpoint the detail stays the centred panel it has always been.
+
+`scripts/detail-sheet.mjs` checks that rule. A screenshot of the settled panel cannot see
+what this guards against, because the overlap it was written for lasted a fifth of a
+second, so the guard freezes the entrance instead of racing it: it pauses every animation
+before the card opens, seeks them to seven points of their own duration, and at each point
+captures the frame twice, once with the board list rendered and once with it hidden.
+Identical frames are the proof that at that instant the sheet was the only thing painted;
+a single pixel of difference fails the run. It then scrolls the sheet to its end to check
+the way out is still on screen, pushes the page behind it to check it does not move, and
+closes it to check the list came back at the offset it was left on. Last it opens the same
+card at 1440 and fails if the detail stopped being centred with the board around it.
+
+Like the top bar check it needs a board running and a session, so it is not part of
+`pnpm test`:
+
+```bash
+BOARD_COOKIE=<value of the ab_session cookie> pnpm check:sheet
+```
+
+Useful switches: `--widths 390` to narrow the phone sweep, `--url` for another page that
+opens the same detail, and `--shots ./out` to write every captured frame, which is the
+fastest way to see what a failing frame actually looked like.
+
 ## Branch and commit convention
 
 Every change maps to a card on the board, and the card ID drives the Git convention:
@@ -195,6 +225,7 @@ The full MCP surface (11 tools) is documented in [`docs/mcp.md`](docs/mcp.md).
 
 - [ ] `pnpm test` passes from the repo root
 - [ ] Touched the top bar or its labels? `pnpm check:topbar` is green at every width
+- [ ] Touched the card detail or its overlay? `pnpm check:sheet` is green at every width
 - [ ] Branch and commits follow the card-ID convention above
 - [ ] New schema changes ship with generated migrations (`pnpm db:generate`)
 - [ ] No telemetry, analytics, or phone-home of any kind — this is a hard project rule

@@ -700,6 +700,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   background: rgba(13, 15, 19, 0.94);
   animation: nb-d-in .22s cubic-bezier(.2,.8,.2,1); }
 @keyframes nb-d-in { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } }
+/* AGB-72: the phone's entrance moves an already opaque surface and touches
+   opacity at no frame, because under it there is only the sheet's own floor. */
+@keyframes nb-sheet-in { from { transform: translateY(18px) } to { transform: none } }
 .nb .d-close { position: absolute; top: 16px; right: 18px; background: none; border: 1px solid var(--nebula-glass-border);
   border-radius: 999px; width: 28px; height: 28px; color: var(--nebula-text-secondary); cursor: pointer; font-size: 13px; }
 /* AGB-68: the close button owns the top right corner, so the head and the
@@ -1471,17 +1474,39 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   }
   .nb .ml-num.tel-tokens, .nb .ml-num.tel-duration { color: var(--nebula-text-tertiary); }
 
-  /* AGB-67: the overlays meet the same width, and the detail stops being
-     glass. At 700px over a dark board six percent of transparency reads as
-     depth; at 390 the panel is the whole screen and that same six percent is
-     the list's text printed through the text being read. So here the panel
-     is opaque and the board behind it goes darker, while the border, the
-     radius and the shadow keep it the same object it is on the desktop. */
-  .nb .ov { padding: 20px 10px; background: rgba(0, 0, 0, 0.86); }
-  .nb .detail {
+  /* ============================================================
+     AGB-72: below this breakpoint the detail is a sheet, not a panel.
+
+     AGB-67 made the surface opaque but left it floating: a card centred
+     over the list, so a strip of the board stayed at both edges and the
+     overlay still faded in, which for a fifth of a second put the list's
+     text and the card's text on the screen at the same time. A phone has
+     no room for a window. The detail takes the whole viewport, edge to
+     edge, and it is opaque from the very first frame: the overlay stops
+     fading and simply is the sheet's floor, while what moves is the panel
+     itself, a short slide over a surface that was never see-through.
+     ============================================================ */
+  .nb .ov {
+    padding: 0;
     background: var(--nebula-panel-solid);
     backdrop-filter: none; -webkit-backdrop-filter: none;
+    /* no opacity here: a fade over readable text is the bug itself */
+    animation: none;
+    align-items: stretch;
+    overflow: hidden;
+    overscroll-behavior: contain;
   }
+  .nb .detail {
+    width: 100%; max-width: none; height: 100%;
+    border: 0; border-radius: 0; box-shadow: none;
+    background: var(--nebula-panel-solid);
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+    /* the sheet carries its own scroll, so nothing scrolls behind it */
+    overflow-y: auto; overscroll-behavior: contain;
+    animation: nb-sheet-in .22s cubic-bezier(.2,.8,.2,1);
+  }
+  /* the drawn corners belong to a card; a sheet has the screen's own */
+  .nb .detail.nebula-corners::before { content: none; }
   .nb .bulk-bar { max-width: calc(100vw - 20px); flex-wrap: wrap; row-gap: 8px; }
 
   /* ============================================================
@@ -1493,13 +1518,24 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
      margins, and everything a thumb has to hit is at least 44px: the close
      button, the buttons that decide the card, and the copy chips.
      ============================================================ */
-  .nb .detail { padding: 20px 16px 18px; }
+  .nb .detail {
+    padding:
+      calc(20px + env(safe-area-inset-top, 0px))
+      calc(16px + env(safe-area-inset-right, 0px))
+      calc(28px + env(safe-area-inset-bottom, 0px))
+      calc(16px + env(safe-area-inset-left, 0px));
+  }
   .nb .d-grid { grid-template-columns: 1fr; gap: var(--nebula-space-3) 0; }
   .nb .detail h3 { font-size: 18px; }
+  /* AGB-72: the sheet scrolls under the way out, so the way out stays put.
+     It sits on the sheet's own colour because the text passes beneath it. */
   .nb .d-close {
-    top: 12px; right: 12px;
+    position: fixed; z-index: 2;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
     width: var(--nebula-tap, 44px); height: var(--nebula-tap, 44px);
     font-size: 15px;
+    background: var(--nebula-panel-solid);
   }
   .nb .d-head, .nb .detail h3 { padding-right: 52px; }
   /* stacked and full width, the deciding button last where the thumb is */

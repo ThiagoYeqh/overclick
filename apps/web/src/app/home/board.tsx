@@ -762,6 +762,13 @@ function DetailActions({
   );
 }
 
+/**
+ * AGB-72: the width at which the detail stops being a centred panel and
+ * becomes a full screen sheet. Kept in step with the breakpoint that carries
+ * the sheet rules in nebula.css.
+ */
+const SHEET_QUERY = "(max-width: 768px), (orientation: landscape) and (max-height: 500px)";
+
 function Detail({
   card,
   missions,
@@ -784,12 +791,40 @@ function Detail({
   // page back its scroll when it closes. Without the lock the board scrolls
   // under the panel on a phone, which is the list moving while the reading
   // stands still.
+  //
+  // AGB-72: under the sheet breakpoint hidden overflow is not a lock a touch
+  // gesture respects, so the body is pinned at the offset it already had and
+  // put back on it when the sheet goes. The list comes back where it was
+  // left, never at the top.
   useEffect(() => {
     panel.current?.focus();
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const body = document.body;
+    const previous = {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    };
+    const offset = window.scrollY;
+    const sheet = window.matchMedia(SHEET_QUERY).matches;
+    body.style.overflow = "hidden";
+    if (sheet) {
+      body.style.position = "fixed";
+      body.style.top = `${-offset}px`;
+      body.style.left = "0";
+      body.style.right = "0";
+      body.style.width = "100%";
+    }
     return () => {
-      document.body.style.overflow = previous;
+      body.style.overflow = previous.overflow;
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.left = previous.left;
+      body.style.right = previous.right;
+      body.style.width = previous.width;
+      window.scrollTo(0, offset);
     };
   }, []);
 
