@@ -99,7 +99,11 @@ const SEED: SeedPrice[] = [
   p1("gpt-5-6-terra", 1.25, 10, 0.125),
   p1("gpt-5-6-luna", 0.5, 4, 0.05),
   p1("gpt-5-5", 1.25, 10, 0.125),
+  p1("gpt-5-4", 2.5, 15, 0.25),
   p1("gpt-5-4-mini", 0.25, 2, 0.025),
+  // gpt-5.3-codex-spark has no row on purpose: OpenAI publishes no API rate
+  // for it, it ships to Codex subscribers only, and the numbers the price
+  // trackers carry are the plain gpt-5.3-codex ones, copied.
   // Gemini, and the Antigravity flash tiers that bill at the flash rate
   p1("3-1-pro", 1.25, 10, 0.125),
   p1("3-5-flash", 0.3, 2.5, 0.03),
