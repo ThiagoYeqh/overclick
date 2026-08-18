@@ -514,7 +514,6 @@ export default async function HomePage() {
       ) : null}
 
       <HomeShell
-        workspaceName={ws.name}
         lang={ws.language}
         projects={projects}
         missions={missions}

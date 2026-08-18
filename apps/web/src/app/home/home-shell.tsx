@@ -107,7 +107,6 @@ function BulkMissionBar({
 }
 
 export function HomeShell({
-  workspaceName,
   lang,
   projects,
   missions,
@@ -115,7 +114,6 @@ export function HomeShell({
   initialFilter,
   initialTotals,
 }: {
-  workspaceName: string;
   lang: string;
   projects: BoardProjectOption[];
   missions: BoardMissionOption[];
@@ -190,10 +188,6 @@ export function HomeShell({
       <div className="topbar nebula-glass">
         <Wordmark label={t.board.homeLink} current />
         <div className="crumb">
-          <span className="crumb-ws" title={workspaceName}>
-            {workspaceName}
-          </span>
-          /{" "}
           <ProjectFilter
             options={projectOptions}
             value={filter.projectIds}
