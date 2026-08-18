@@ -5,7 +5,7 @@
 const en = {
   title: "Insights",
   sub: "What execution takes on this board: tokens and time per project, per mission, per model, per card.",
-  backToBoard: "← Board",
+  backToBoard: "Board",
   totalCost: "Total cost",
   totalTokens: "Total tokens",
   totalTime: "Execution time",
@@ -95,7 +95,7 @@ export type InsightsCopy = typeof en;
 const ptBR: InsightsCopy = {
   title: "Insights",
   sub: "O que a execução consome neste board: tokens e tempo por projeto, por missão, por modelo, por card.",
-  backToBoard: "← Board",
+  backToBoard: "Board",
   totalCost: "Custo total",
   totalTokens: "Tokens totais",
   totalTime: "Tempo de execução",

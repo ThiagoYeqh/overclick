@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { mission, project } from "@agent-board/db";
+import { Icon } from "../../components/icon";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import {
   NO_MISSION,
@@ -380,7 +381,10 @@ export default async function InsightsPage({
             {ws.name} / <b>{t.title}</b>
           </div>
           <div className="spacer" />
-          <a className="btn-ghost" href="/home">
+          {/* The arrow was a character inside the label; it is the set's own
+              glyph now, silent because the word beside it says where it goes. */}
+          <a className="btn-ghost ins-back" href="/home">
+            <Icon name="back" label={null} size={14} />
             {t.backToBoard}
           </a>
         </div>
@@ -394,7 +398,10 @@ export default async function InsightsPage({
           {filterNote ? (
             <p className="ins-filter">
               {t.filteredBy} <b>{filterNote}</b>{" "}
-              <a href="/insights">{t.clearFilter}</a>
+              <a href="/insights">
+                <Icon name="clear" label={null} size={12} />
+                {t.clearFilter}
+              </a>
             </p>
           ) : null}
         </header>
@@ -403,9 +410,11 @@ export default async function InsightsPage({
           /* An empty page is a state, not a missing one: it says what is
              missing, what fills it, and offers the one way to go do that. */
           <div className="ins-empty nebula-glass">
+            <Icon name="empty" label={null} size={26} className="ins-empty-icon" />
             <p className="ins-empty-title">{t.emptyTitle}</p>
             <p className="ins-empty-body">{t.empty}</p>
             <a className="btn-ghost ins-empty-cta" href="/home">
+              <Icon name="back" label={null} size={14} />
               {t.emptyCta}
             </a>
           </div>

@@ -10,6 +10,7 @@ import {
   pollPairingAction,
   pollTokenAction,
 } from "../../actions/tokens";
+import { Icon } from "../../components/icon";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import {
   ExecutorsGrid,
@@ -340,6 +341,7 @@ export function Wizard({
                     <div className="cmd">
                       {pairCmd}
                       <button className={`copy${copied ? " ok" : ""}`} onClick={copyPairCmd}>
+                        <Icon name={copied ? "check" : "copy"} label={null} size={12} />
                         {copied ? t.wizard.copied : t.wizard.copy}
                       </button>
                     </div>
@@ -369,6 +371,7 @@ export function Wizard({
                   <div className="cmd">
                     {commandFor(tab, baseUrl, revealed ? token.secret : maskedSecret)}
                     <button className={`copy${copied ? " ok" : ""}`} onClick={copyCmd}>
+                      <Icon name={copied ? "check" : "copy"} label={null} size={12} />
                       {copied ? t.wizard.copied : t.wizard.copy}
                     </button>
                   </div>
@@ -416,7 +419,12 @@ export function Wizard({
               <i style={{ width: `${(step / 3) * 100}%` }} />
             </div>
             <div className="wbtns">
+              {/* The two directions of the wizard were punctuation inside the
+                  label, which is a chevron only if the font agrees. They are
+                  the set's own here, and silent: the word beside each one is
+                  the accessible name already. */}
               <button className="btn-back" disabled={step === 1 || pending} onClick={() => setStep(step - 1)}>
+                <Icon name="chevronLeft" label={null} size={13} />
                 {t.wizard.back}
               </button>
               <div className="wbtns-end">
@@ -435,6 +443,11 @@ export function Wizard({
                   onClick={goNext}
                 >
                   {step === 3 ? (connected ? t.wizard.seeMyBoard : t.wizard.finish) : t.wizard.next}
+                  {/* the last step with nothing connected yet leads nowhere,
+                      so it does not carry the glyph that says it does */}
+                  {step === 3 && !connected ? null : (
+                    <Icon name="chevronRight" label={null} size={13} />
+                  )}
                 </button>
               </div>
             </div>

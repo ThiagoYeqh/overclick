@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Icon } from "../../components/icon";
 import type { CardInsight } from "../../lib/insights";
 import { insightsCopy, type InsightsCopy } from "./copy";
 import { fmtCostUsd, fmtDurationMs, fmtElapsedMs, fmtTokens } from "./format";
@@ -108,8 +109,18 @@ export function CostTable({
     }
   };
 
+  /* Which way the table is sorted, in the set's own glyph. The arrow used to
+     be a character glued to the label, at whatever weight the font had for it;
+     it is silent here because aria-sort on the header already says it. */
   const arrow = (key: SortKey) =>
-    key === sortKey ? (descending ? " ↓" : " ↑") : "";
+    key === sortKey ? (
+      <Icon
+        name={descending ? "chevronDown" : "chevronUp"}
+        label={null}
+        size={11}
+        className="ins-sort-arrow"
+      />
+    ) : null;
 
   const sortable: { key: SortKey; label: string }[] = [
     ...(pricingEnabled ? [{ key: "cost" as const, label: t.colCost }] : []),

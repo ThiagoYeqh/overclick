@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { Icon } from "../../components/icon";
 import { signupAction, type AuthState } from "../../actions/auth";
 import { dict } from "../../lib/i18n";
 
@@ -68,6 +69,7 @@ export function SetupForm({ lang }: { lang: string }) {
           }`}
           id="setup-password-rule"
         >
+          {longEnough ? <Icon name="check" label={null} size={12} /> : null}
           {t.auth.passwordRule}
         </p>
       </div>

@@ -460,3 +460,21 @@
   .nb .ins-tiles { grid-template-columns: minmax(0, 1fr); }
   .nb .ins-tile .ins-num { font-size: 22px; }
 }
+
+/* ---------- AGB-76: icons from the shared set beside the words that need one ---------- */
+/* Back to the board, and the way out of a filter: the glyph carries the
+   direction, the word carries the meaning, and the gap is all the CSS it takes. */
+.nb .ins-back,
+.nb .ins-empty-cta { display: inline-flex; align-items: center; gap: 7px; }
+.nb .ins-filter a {
+  display: inline-flex; align-items: center; gap: 5px;
+  vertical-align: -1px;
+}
+/* The empty state opens on the glyph for nothing here, quiet enough to be a
+   mark and not a picture. */
+.nb .ins-empty-icon { color: var(--nebula-text-tertiary); margin-bottom: 14px; }
+/* A sortable header keeps its right edge; the arrow travels with the label. */
+.nb .ins-sort button {
+  display: inline-flex; align-items: center; justify-content: flex-end; gap: 5px;
+}
+.nb .ins-sort.on button .ins-sort-arrow { color: var(--nebula-mist-glow); }

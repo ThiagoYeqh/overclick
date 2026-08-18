@@ -2203,3 +2203,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb-auth .auth-rule { margin-top: 7px; line-height: 1.5; }
 .nb-auth .btn-next { margin-top: 20px; }
 .nb-auth .foot { margin-top: 22px; }
+
+/* ---------- AGB-76: the glyphs from the shared set, and the room they need ----------
+   Every one of these was a character inside a label: a chevron the font drew
+   at its own weight, a tick that was a full stop away from being a comma. The
+   set draws them at one weight and one optical size, in the colour of the text
+   they sit beside. All that is left here is the gap between the glyph and the
+   word, which is the one thing a label knows and an icon does not. */
+.nb .copy { display: inline-flex; align-items: center; gap: 6px; }
+.nb .btn-back, .nb .btn-next { gap: 7px; }
+.nb-auth .auth-rule { display: flex; align-items: center; gap: 6px; }
