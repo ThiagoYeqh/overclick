@@ -282,6 +282,12 @@ export const TaskSchema = TaskSummarySchema.extend({
   mode: ExecutionModeSchema,
   branch: z.string().min(1).nullable(),
   pull_request_url: z.string().url().nullable(),
+  /**
+   * Version, tag or release the card was resolved in, free text. Null until
+   * a delivery or a later task_update says so. Lets a caller compare "which
+   * build has this" against a version someone reports.
+   */
+  resolved_in: z.string().nullable(),
   reopen_comment: z.string().nullable(),
   claimed_by: z.string().nullable(),
   created_at: IsoDateTimeSchema,

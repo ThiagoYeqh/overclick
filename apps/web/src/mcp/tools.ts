@@ -1081,6 +1081,7 @@ async function taskUpdate(
     harness?: Harness;
     usage?: Usage;
     spawn_failure?: string;
+    resolved_in?: string | null;
   },
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
@@ -1232,6 +1233,18 @@ async function taskUpdate(
       .update(task)
       .set({ revisado: true })
       .where(eq(task.id, found.row.id))
+      .returning();
+    if (updated) nextRow = updated;
+  }
+
+  // "Which release has this" can be known only after the delivery, or be
+  // wrong in it: fill, correct or clear it here. Null clears on purpose;
+  // undefined leaves it alone.
+  if (input.resolved_in !== undefined) {
+    const [updated] = await db
+      .update(task)
+      .set({ resolvedIn: input.resolved_in })
+      .where(eq(task.id, nextRow.id))
       .returning();
     if (updated) nextRow = updated;
   }
@@ -1437,6 +1450,7 @@ async function taskDeliver(
     artifacts: unknown[];
     branch?: string;
     pull_request_url?: string;
+    resolved_in?: string;
     usage?: Usage;
     transcript?: TranscriptRefWire;
   },
@@ -1552,6 +1566,7 @@ async function taskDeliver(
         revisado: transition.value.revisado,
         branch: input.branch ?? found.row.branch,
         prUrl: input.pull_request_url ?? found.row.prUrl,
+        resolvedIn: input.resolved_in ?? found.row.resolvedIn,
         telemetryIncomplete: incomplete,
         // A fresh delivery restarts lay validation from zero.
         validationTicks: [],

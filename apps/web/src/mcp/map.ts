@@ -222,6 +222,7 @@ export function mapTask(
     mode: row.mode,
     branch: row.branch,
     pull_request_url: pr,
+    resolved_in: row.resolvedIn ?? null,
     reopen_comment: extras.reopenComment ?? null,
     claimed_by: row.claimedByTokenId,
     created_at: iso(row.createdAt),

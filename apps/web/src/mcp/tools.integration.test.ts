@@ -821,6 +821,71 @@ describe("MCP tool edge cases against a test db", () => {
     expect(out.briefing_markdown).not.toContain("kimi-cli exited 127");
   });
 
+  it("stores resolved_in on deliver, lets task_update fill or clear it, and returns it on get", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Ships in a release");
+    expect(card.resolved_in).toBeNull();
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "claude-code", model: "opus-5", session_id: "sess_rel" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+
+    const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "done",
+      resolved_in: "1.4.0",
+      usage: { tokens_in: 10, tokens_out: 5, estimated: true },
+    });
+    expect(delivered.ok).toBe(true);
+    if (!delivered.ok) return;
+    expect(TaskDeliverOutputSchema.parse(delivered.value).task.resolved_in).toBe(
+      "1.4.0",
+    );
+
+    const got = await invokeTool(world.db, ctx(), "task_get", { task_id: card.short_id });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(TaskGetOutputSchema.parse(got.value).task.resolved_in).toBe("1.4.0");
+
+    // Corrected after the fact: a later release carried the fix.
+    const corrected = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      resolved_in: "1.4.1",
+    });
+    expect(corrected.ok).toBe(true);
+    if (!corrected.ok) return;
+    expect(TaskUpdateOutputSchema.parse(corrected.value).task.resolved_in).toBe(
+      "1.4.1",
+    );
+
+    // null clears it.
+    const cleared = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      resolved_in: null,
+    });
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) return;
+    expect(TaskUpdateOutputSchema.parse(cleared.value).task.resolved_in).toBeNull();
+  });
+
+  it("refuses an empty resolved_in string on task_update", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Empty release tag");
+    const bad = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      resolved_in: "",
+    });
+    expect(bad.ok).toBe(false);
+    if (bad.ok) {
+      expect(bad.value).toBeUndefined();
+    } else {
+      expect(bad.error.code).toBe("INVALID_ARGUMENT");
+    }
+  });
+
   it("returns a typed NOT_FOUND for task_create with an invalid project, never raw SQL", async () => {
     world = await createTestWorld();
     for (const bogus of ["proj-nope", "00000000-0000-4000-8000-00000000dead"]) {
@@ -834,11 +899,14 @@ describe("MCP tool edge cases against a test db", () => {
         origem,
       });
       expect(created.ok).toBe(false);
-      if (created.ok) return;
-      expect(created.error.code).toBe("NOT_FOUND");
-      expect(created.error.message).toMatch(/not found/i);
-      expect(created.error.message).toMatch(/project_list|task_list|board/i);
-      expect(created.error.message).not.toMatch(/failed query|select |sql/i);
+      if (created.ok) {
+        expect(created.value).toBeUndefined();
+      } else {
+        expect(created.error.code).toBe("NOT_FOUND");
+        expect(created.error.message).toMatch(/not found/i);
+        expect(created.error.message).toMatch(/project_list|task_list|board/i);
+        expect(created.error.message).not.toMatch(/failed query|select |sql/i);
+      }
     }
   });
 

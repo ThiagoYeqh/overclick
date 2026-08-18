@@ -319,7 +319,7 @@ export const TaskUpdateInputSchema = z
      * Reports or corrects usage after the fact: fills or overwrites the
      * latest attempt's usage, even on a delivered card. Real numbers found
      * later belong here, never in a comment.
-     */
+    */
     usage: UsageSchema.optional(),
     /**
      * Boot-failure trace: the planned executor never started (CLI missing,
@@ -327,6 +327,12 @@ export const TaskUpdateInputSchema = z
      * timeline records it as a typed spawn failure entry.
      */
     spawn_failure: z.string().min(1).optional(),
+    /**
+     * Version, tag or release the card was resolved in. Fills or corrects
+     * what the delivery said (a fix that only shipped in a later release);
+     * null clears it. Empty string is refused: send null to clear.
+     */
+    resolved_in: z.string().min(1).nullable().optional(),
   })
   .refine(
     (value) =>
@@ -337,10 +343,11 @@ export const TaskUpdateInputSchema = z
       value.project_id !== undefined ||
       value.harness !== undefined ||
       value.usage !== undefined ||
-      value.spawn_failure !== undefined,
+      value.spawn_failure !== undefined ||
+      value.resolved_in !== undefined,
     {
       message:
-        "provide comment, progress, revisado, mission_id, project_id, harness, usage or spawn_failure",
+        "provide comment, progress, revisado, mission_id, project_id, harness, usage, spawn_failure or resolved_in",
     },
   );
 
@@ -393,6 +400,12 @@ export const TaskDeliverInputSchema = z.object({
   artifacts: z.array(ArtifactSchema).default([]),
   branch: z.string().min(1).optional(),
   pull_request_url: z.string().url().optional(),
+  /**
+   * Version, tag or release this delivery lands in, when the agent knows it
+   * ("1.4.0"). Stored on the card as resolved_in; task_update can fill or
+   * correct it later.
+   */
+  resolved_in: z.string().min(1).optional(),
   /**
    * Required by contract: report exact numbers when the harness exposes
    * them, otherwise ESTIMATE tokens, turns and cost and set estimated: true.

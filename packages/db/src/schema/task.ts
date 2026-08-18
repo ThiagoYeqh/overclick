@@ -63,6 +63,13 @@ export const task = pgTable(
   harness: jsonb("harness").$type<Harness>(),
   branch: text("branch"),
   prUrl: text("pr_url"),
+  /**
+   * Version, tag or release in which this card was resolved, as free text
+   * ("1.4.0", "v2026.08", a release name). Null until someone says so:
+   * task_deliver sets it on the way out, task_update fills or corrects it
+   * later, and it can be cleared with null.
+   */
+  resolvedIn: text("resolved_in"),
   origin: jsonb("origin").$type<TaskOrigin>(),
   mode: executionModeEnum("mode").notNull().default("solo"),
   telemetryIncomplete: boolean("telemetry_incomplete").notNull().default(false),

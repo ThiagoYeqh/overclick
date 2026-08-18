@@ -25,6 +25,7 @@ const task: Task = {
   devolve_para: { kind: "workspace_queue" },
   branch: null,
   pull_request_url: null,
+  resolved_in: null,
   reopen_comment: "faltou o teste do login",
   claimed_by: null,
   created_at: "2026-08-14T12:00:00.000Z",
