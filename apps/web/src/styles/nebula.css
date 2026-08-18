@@ -424,6 +424,51 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .btn-ghost .badge { color: var(--nebula-dust-core); font-weight: 600; }
 .nb .pill { cursor: default; }
 
+/* ---------- the one-line rule on the bar (AGB-71) ----------
+   The rule the phone block already stated, now stated where it always
+   applied: no label in this bar ever breaks across two lines. The two mobile
+   passes taught the bar to shrink and left this to the phone media query, so
+   on a wide desktop the bar shrank its buttons until "Mover para missão" and
+   "nenhum agente rodando" printed as three-line blocks. A flex item shrinks
+   to its longest word by default, and text with nothing telling it otherwise
+   wraps to fill the box it was given.
+
+   So: every control holds its own width, and the only two that may give room
+   back are the two that carry a name somebody typed. They give it back by
+   truncating, with the whole reading still on the title and inside the panel
+   they open. Once nothing is left to truncate the bar collapses into the menu
+   button, which is the third way out and never the fourth one. */
+.nb .topbar { flex-wrap: nowrap; gap: var(--nebula-space-3); }
+/* the room a whole label needs comes out of the bar's own spacing, never out
+   of the word: with nine gaps on it, four pixels each is a truncated crumb */
+.nb .topbar .btn-ghost { padding: 7px 12px; }
+.nb .topbar > *, .nb .topbar-more > * { flex: none; }
+.nb .topbar .spacer { flex: 1 1 0; min-width: 0; }
+.nb .logo,
+.nb .btn-ghost,
+.nb .agent-status { white-space: nowrap; }
+/* a crumb is one line at every width, on the board and on the four screens
+   that borrowed the bar; what does not fit is cut with an ellipsis */
+.nb .crumb {
+  flex: 0 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* the board's crumb is three pieces and one of them is a control, so it lays
+   them out itself and names which one yields: the workspace, because the
+   project beside it is what changes and the workspace is where you know you
+   already are */
+.nb .crumb:has(> .crumb-ws) {
+  display: flex; align-items: center; gap: 4px; text-overflow: clip;
+}
+.nb .crumb-ws { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nb .project-filter, .nb .pf-trigger { min-width: 0; }
+.nb .pf-trigger { display: inline-flex; }
+.nb .pf-label { min-width: 0; }
+.nb .mission-filter { flex: 0 1 auto; min-width: 0; }
+.nb .mf-chip, .nb .mf-trigger { min-width: 0; }
+.nb .mf-trigger { display: inline-flex; }
+.nb .mf-label { min-width: 0; }
+
 /* ---------- the running total ----------
    The headline figure of the bar, not a caption: it is the number that
    justifies the board, so it carries the size. Everything beside it stays
@@ -1047,6 +1092,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .policy td { padding: 7px 10px 7px 0; border-top: 1px solid var(--nebula-plan-divider); vertical-align: middle; }
 .nb .policy .act { font-size: 13px; font-weight: 500; }
 .nb .policy .act small { display: block; font-family: var(--nebula-font-mono); font-size: 9.5px; color: var(--nebula-text-tertiary); letter-spacing: .04em; margin-top: 2px; font-weight: 400; }
+/* The line of succession reads left to right, and wraps before it squeezes
+   the activity column, which is the one carrying the meaning. */
+.nb .policy .chain { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.nb .policy .chain .link { display: inline-flex; align-items: center; gap: 4px; }
+.nb .policy .chain i { font-style: normal; font-size: 11px; color: var(--nebula-text-tertiary); }
+/* Named by the policy, missing from the executor: visible, never silently dropped. */
+.nb .policy .chain .sel.orphan { border-color: var(--nebula-warn, #b8863b); }
 .nb .policy .who { font-family: var(--nebula-font-mono); font-size: 10.5px; color: var(--nebula-mist-light); letter-spacing: .03em; max-width: 220px; overflow-wrap: anywhere; }
 .nb .policy .who small { display: block; font-size: 9.5px; color: var(--nebula-text-tertiary); margin-top: 2px; }
 .nb .policy .who .dim { color: var(--nebula-text-tertiary); }
@@ -1204,35 +1256,35 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    opens in the detail panel, the selects list their full options natively,
    and the truncated texts carry a title attribute.
    ============================================================ */
-@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
-  .nb { padding: 16px 16px 48px; }
+/* ============================================================
+   THE BAR UNDER PRESSURE (AGB-71)
 
-  /* AGB-65: the chrome collapses to one compact bar plus the selector. The
-     bar keeps only what scanning uses, the crumb, the menu button and the
-     total, and it sticks to the top so the list scrolls under it. Nothing
-     wraps: the bar is one row by construction, and every piece inside it
-     already holds its own one line. */
-  .nb .topbar {
-    position: sticky; top: 8px; z-index: 30;
-    flex-wrap: nowrap; gap: 8px; padding: 10px 12px; margin-bottom: 14px;
-  }
-  .nb .topbar > * { flex: none; }
-  .nb .logo { display: none; }
-  .nb .spacer { display: none; }
-  .nb .btn-ghost { padding: 6px 10px; font-size: 11px; white-space: nowrap; }
-  .nb .agent-status { white-space: nowrap; }
-  /* the total keeps the size that makes it the figure you read first, now
-     sharing the bar's one row instead of taking a row of its own. The small
-     supporting numbers step aside on the phone; the figure and its marks
-     stay, and the whole reading is one tap away in Insights (and on the
-     title). The figure never clips: what shrinks is the room beside it. */
-  .nb .board-total {
-    flex: none; margin-left: auto;
-    padding-left: 10px; gap: 6px;
-  }
-  .nb .board-total .bt-lead { font-size: 16px; flex: none; }
+   Two steps between the full desktop bar and the phone, so that the one-line
+   rule never has to be paid for by a label. The bar gives up detail first and
+   controls last, and both steps are reversible by widening the window.
+   ============================================================ */
+
+/* Step one: the supporting numbers beside the total step aside, so that the
+   names people typed print whole. The figure they support is the one the bar
+   exists for, so it stays at full size with its marks, and the tokens and the
+   time it dropped are on the link's title and one click away in Insights. The
+   threshold is where the bar stops holding every label at its natural width,
+   which is above 1440: a crumb reading "Agent Bo…" on the widest screen in
+   the house is the same complaint as a crumb on three lines. */
+@media (max-width: 1500px) {
   .nb .board-total .bt-sub { display: none; }
-  .nb .board-total .bt-mark { flex: none; }
+}
+
+/* Step two: there is nothing left to truncate, so the control set moves
+   behind the one button. Same controls, same order, one per row, which is the
+   panel AGB-65 already built for the phone. The bar keeps what scanning uses:
+   the crumb that says where you are and the total that says what it cost. */
+@media (max-width: 1199px), (orientation: landscape) and (max-height: 500px) {
+  /* the panel hangs off the bar, so the bar has to be its origin */
+  .nb .topbar { position: relative; }
+  .nb .spacer { display: none; }
+  .nb .crumb { flex: 1 1 auto; }
+  .nb .board-total { flex: none; margin-left: auto; }
   /* the one button the bar keeps for everything that left it */
   .nb .menu-btn {
     display: inline-flex; align-items: center; justify-content: center;
@@ -1251,16 +1303,38 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
        through the panel reads as a bug, not as depth */
     background: var(--nebula-panel-solid);
   }
+  /* in the panel every row owns its width, so nothing in it has to shrink */
   .nb .topbar-more .btn-ghost { display: block; width: 100%; text-align: left; }
   .nb .topbar-more .agent-status { padding: 6px 10px; }
   .nb .topbar-more .mission-filter { max-width: none; }
   .nb .topbar-more .mf-label { max-width: none; }
   .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
   .nb .topbar-more .filter-chip select { max-width: none; flex: 1; }
-  .nb .crumb {
-    flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px;
-    white-space: nowrap; overflow: hidden;
+}
+
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+  .nb { padding: 16px 16px 48px; }
+
+  /* AGB-65: the chrome collapses to one compact bar plus the selector. The
+     bar keeps only what scanning uses, the crumb, the menu button and the
+     total, and it sticks to the top so the list scrolls under it. Nothing
+     wraps: the bar is one row by construction, and every piece inside it
+     already holds its own one line. */
+  .nb .topbar {
+    position: sticky; top: 8px; z-index: 30;
+    gap: 8px; padding: 10px 12px; margin-bottom: 14px;
   }
+  .nb .logo { display: none; }
+  .nb .topbar .btn-ghost { padding: 6px 10px; font-size: 11px; }
+  /* the total keeps the size that makes it the figure you read first, now
+     sharing the bar's one row instead of taking a row of its own. The figure
+     and its marks stay, and the whole reading is one tap away in Insights
+     (and on the title). The figure never clips: what shrinks is the room
+     beside it. */
+  .nb .board-total { padding-left: 10px; gap: 6px; }
+  .nb .board-total .bt-lead { font-size: 16px; flex: none; }
+  .nb .board-total .bt-mark { flex: none; }
+  .nb .crumb:has(> .crumb-ws) { gap: 2px; }
   .nb .crumb-ws { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nb .crumb select { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
   /* the project chip holds its one line; its panel takes the width it needs */
