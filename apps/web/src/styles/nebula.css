@@ -68,6 +68,11 @@
   --nebula-glass-shadow:
     0 8px 32px rgba(0, 0, 0, 0.5),
     var(--nebula-glass-highlight);
+  /* The same surface with no glass left in it, for a panel that covers what
+     it sits on. Glass is depth while there is something worth seeing behind;
+     once the panel is the screen, depth is just two texts on top of each
+     other. Same colour the glass settles on, at full opacity. */
+  --nebula-panel-solid: rgb(13, 15, 19);
 
   /* ---------- Cantos ---------- */
   --nebula-corner-size: 14px;
@@ -571,7 +576,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .viewport-fade { position: fixed; height: 15vh; z-index: 5; }
 
 /* ---------- detalhe do card (overlay client-side) ---------- */
-.nb .ov { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,0.72);
+/* The modal is the top layer of the board: above the phone's sticky bar (30)
+   and the menu it opens (40), because a bar drawn over the panel is the same
+   bleed-through the panel exists to end. */
+.nb .ov { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.72);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 48px 20px;
   animation: nb-ov-in .18s ease-out; }
@@ -1031,7 +1039,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: 16px;
     /* opaque: the list scrolls under the bar, and a bright row title bleeding
        through the panel reads as a bug, not as depth */
-    background: rgb(13, 15, 19);
+    background: var(--nebula-panel-solid);
   }
   .nb .topbar-more .btn-ghost { display: block; width: 100%; text-align: left; }
   .nb .topbar-more .agent-status { padding: 6px 10px; }
@@ -1122,7 +1130,14 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   .nb .ml-row:last-child { border-bottom: 0; }
-  .nb .ml-row:active { background: rgba(255, 255, 255, 0.05); }
+  /* AGB-67: a hairline alone made every row look like the next one, so
+     finding where a card ended was counting, not scanning. The zebra is the
+     separation that costs no height at all: the row keeps its 44px and the
+     screen keeps the same number of cards. The divider goes up with it,
+     because on an OLED phone five percent of white on black is a rumour. */
+  .nb .ml-row { border-bottom-color: rgba(255, 255, 255, 0.08); }
+  .nb .ml-row:nth-child(odd) { background: rgba(255, 255, 255, 0.028); }
+  .nb .ml-row:active { background: rgba(255, 255, 255, 0.07); }
   .nb .ml-row.dim { opacity: 0.55; }
   /* running: the pulse becomes an edge, which costs no width at all */
   .nb .ml-row.exec { box-shadow: inset 2px 0 0 #a9c7e8; }
@@ -1166,7 +1181,16 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   }
   .nb .ml-num.tel-tokens, .nb .ml-num.tel-duration { color: var(--nebula-text-tertiary); }
 
-  /* the overlays meet the same width */
-  .nb .ov { padding: 20px 10px; }
+  /* AGB-67: the overlays meet the same width, and the detail stops being
+     glass. At 700px over a dark board six percent of transparency reads as
+     depth; at 390 the panel is the whole screen and that same six percent is
+     the list's text printed through the text being read. So here the panel
+     is opaque and the board behind it goes darker, while the border, the
+     radius and the shadow keep it the same object it is on the desktop. */
+  .nb .ov { padding: 20px 10px; background: rgba(0, 0, 0, 0.86); }
+  .nb .detail {
+    background: var(--nebula-panel-solid);
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
   .nb .bulk-bar { max-width: calc(100vw - 20px); flex-wrap: wrap; row-gap: 8px; }
 }
