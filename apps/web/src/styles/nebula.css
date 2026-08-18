@@ -595,7 +595,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 
 /* ---------- board ---------- */
-.nb .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--nebula-space-4); }
+/* minmax(0, 1fr), not bare 1fr: a bare fr track is minmax(auto, 1fr), so the
+   cards' smallest content width set the track's floor and, past it, the grid
+   grew past the container — which .nb then clipped without a scroll, cutting
+   the last column off the edge (OCL-24). The zero floor lets the tracks take
+   their quarter and the cards elide, and below 1200px the board switches to
+   minimum-width columns with horizontal scroll instead (media query below). */
+.nb .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--nebula-space-4); }
 /* The phone list is in the markup at every width and waits for its media
    query. Both layouts render the same cards, so only one may ever be on. */
 .nb .board-mobile { display: none; }
@@ -629,7 +635,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   border-color: rgba(255, 255, 255, 0.16);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), var(--nebula-glass-highlight);
 }
-.nb .card .id-row { display: flex; align-items: center; gap: var(--nebula-space-2); margin-bottom: var(--nebula-space-1); }
+.nb .card .id-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nebula-space-1) var(--nebula-space-2); margin-bottom: var(--nebula-space-1); }
 .nb .card .cid {
   font-family: var(--nebula-font-mono); font-size: 10px;
   color: var(--nebula-text-tertiary); letter-spacing: 0.06em;
@@ -1675,6 +1681,35 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    rule never has to be paid for by a label. The bar gives up detail first and
    controls last, and both steps are reversible by widening the window.
    ============================================================ */
+
+/* ============================================================
+   THE COLUMNS UNDER PRESSURE (OCL-24)
+
+   One step between the full four-column board and the phone list, in step
+   with the bar: the moment the controls move behind the menu button
+   (1199px), four fluid columns can no longer hold a card's smallest reading
+   width, and squeezing them further would trade the title for an ellipsis.
+   So the columns stop shrinking and the board itself scrolls sideways: each
+   column keeps a floor it can be read at, the snap lands the scroll on a
+   column instead of between two, and the column head rides with its column,
+   so the review column is always one gesture away instead of clipped off
+   the edge. At 769px the phone list takes over, so no width between the two
+   layouts is left without one. The scrollbar stays visible on purpose: it is
+   the only sign that there is a fourth column to reach.
+   ============================================================ */
+@media (min-width: 769px) and (max-width: 1199px) {
+  .nb .board {
+    /* 4×232px + 3 gaps fits the widest width of this band without scroll;
+       below it the overflow is what the scroll is for */
+    grid-template-columns: repeat(4, minmax(232px, 1fr));
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    /* the room the scrollbar needs, so it never overlaps a card */
+    padding-bottom: var(--nebula-space-3);
+  }
+  .nb .board > div { scroll-snap-align: start; }
+}
 
 /* Step one: the supporting numbers beside the total step aside, so that the
    names people typed print whole. The figure they support is the one the bar
