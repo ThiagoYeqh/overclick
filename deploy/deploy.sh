@@ -3,7 +3,14 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+# The proxy overlay is part of the deployment whenever this instance is fronted by
+# an existing Traefik: leaving it out recreates the container without its route,
+# which takes the site down while the container looks perfectly healthy.
 COMPOSE=(docker compose -p overclick -f deploy/docker-compose.cloud.yml)
+if [ -f deploy/docker-compose.traefik.yml ] && grep -qE '^OVERCLICK_HOST=.+' deploy/.env 2>/dev/null; then
+  COMPOSE+=(-f deploy/docker-compose.traefik.yml)
+  echo "==> proxy overlay on (OVERCLICK_HOST set)"
+fi
 PORT="$(grep -E '^OVERCLICK_PORT=' deploy/.env 2>/dev/null | cut -d= -f2 || true)"
 PORT="${PORT:-3100}"
 
