@@ -219,7 +219,7 @@ or any MCP client) execute them.
 4. A human reviews the card against its *How to confirm* script and validates or reopens
    it. `Done ≠ Validated` — only humans stamp *Validated*.
 
-The full MCP surface (11 tools) is documented in [`docs/mcp.md`](docs/mcp.md).
+The full MCP surface (21 tools) is documented in [`docs/mcp.md`](docs/mcp.md).
 
 ## Pull request checklist
 

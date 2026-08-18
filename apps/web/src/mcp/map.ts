@@ -197,7 +197,7 @@ export function mapProject(
 export function mapTask(
   row: TaskRow,
   proj: ProjectRow,
-  extras: { reopenComment?: string | null } = {},
+  extras: { reopenComment?: string | null; reportsCount?: number } = {},
 ): Task {
   const pr = row.prUrl && /^https?:\/\//.test(row.prUrl) ? row.prUrl : null;
   return {
@@ -223,6 +223,7 @@ export function mapTask(
     branch: row.branch,
     pull_request_url: pr,
     resolved_in: row.resolvedIn ?? null,
+    reports_count: extras.reportsCount ?? 0,
     reopen_comment: extras.reopenComment ?? null,
     claimed_by: row.claimedByTokenId,
     created_at: iso(row.createdAt),

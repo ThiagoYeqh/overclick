@@ -1,6 +1,8 @@
 import {
+  assessAttemptCost,
   canNestUnder,
   cardapioEntry,
+  checkUsageWindow,
   derivePrefix,
   executionAttempt,
   factoryCardapioPolicy,
@@ -46,7 +48,20 @@ import {
   type TranscriptRefWire,
   type Usage,
 } from "@agent-board/mcp-core";
-import { and, asc, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { applyExecutorUpdate, isPairInConfig } from "../lib/executors";
 import {
   computeInsights,
@@ -58,7 +73,12 @@ import {
   type InsightsDb,
 } from "../lib/insights";
 import { loadModelPrices, type PricesDb } from "../lib/prices";
-import { loadUsageRecipes, recipeForCli, type RecipesDb } from "../lib/recipes";
+import {
+  bindUsageRecipe,
+  loadUsageRecipes,
+  recipeForCli,
+  type RecipesDb,
+} from "../lib/recipes";
 import { renderBriefingMarkdown } from "./briefing";
 import {
   decodeExecutor,
@@ -82,6 +102,16 @@ import {
 import type { AuthContext, McpDatabase } from "./types";
 
 type Tx = McpDatabase;
+
+/** Distinguishes explicit zero counters from a delivery that sent no tokens. */
+function tokenCountersReported(usage: UsageReport | undefined): boolean {
+  return (
+    (usage?.segments?.length ?? 0) > 0 ||
+    usage?.tokens_in !== undefined ||
+    usage?.tokens_out !== undefined ||
+    usage?.tokens_cache !== undefined
+  );
+}
 
 export async function invokeTool(
   db: McpDatabase,
@@ -688,7 +718,14 @@ async function taskGet(
       `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
     );
   }
-  return assembleTaskPayload(db, found.row, found.proj);
+  return assembleTaskPayload(
+    db,
+    found.row,
+    found.proj,
+    undefined,
+    undefined,
+    await countReports(db, found.row),
+  );
 }
 
 /**
@@ -1058,6 +1095,8 @@ async function taskClaim(
           session_id: input.executor?.session_id,
         }),
         model: input.executor?.model ?? null,
+        sessionId:
+          input.executor?.session_id ?? input.transcript?.session_id ?? null,
         transcript: claimTranscript,
       })
       .returning();
@@ -1079,6 +1118,11 @@ async function taskClaim(
     claimed.value.proj,
     claimed.value.reopenComment,
     input.executor?.cli ?? null,
+    0,
+    {
+      sessionId: input.executor?.session_id,
+      model: input.executor?.model,
+    },
   );
   if (!payload || ("ok" in payload && payload.ok === false)) return payload;
 
@@ -1126,6 +1170,8 @@ async function taskClaim(
         ? iso(claimed.value.attempt.finishedAt)
         : null,
       usage: null,
+      usage_suspect: false,
+      usage_suspect_reason: null,
       result: null,
       transcript: transcriptToWire(claimed.value.attempt.transcript),
     },
@@ -1183,6 +1229,7 @@ async function taskUpdate(
   input: {
     task_id: string;
     comment?: string;
+    comment_kind?: "comment" | "report";
     progress?: string;
     revisado?: boolean;
     mission_id?: string | null;
@@ -1362,19 +1409,29 @@ async function taskUpdate(
   // later fill or overwrite the latest attempt instead of dying in a comment.
   let usageRecorded = false;
   if (input.usage) {
-    const applied = await applyUsageToLatestAttempt(db, nextRow, input.usage);
+    const applied = await applyUsageToLatestAttempt(
+      db,
+      ctx.workspaceId,
+      nextRow,
+      input.usage,
+    );
     if (!applied.ok) return applied;
     nextRow = applied.value;
     usageRecorded = true;
   }
 
-  const bodies = [input.comment, input.progress ? `progresso: ${input.progress}` : null]
-    .filter((value): value is string => Boolean(value));
+  const commentKind = input.comment_kind ?? "comment";
+  const bodies = [
+    ...(input.comment ? [{ kind: commentKind, body: input.comment }] : []),
+    ...(input.progress ? [{ kind: "comment", body: `progresso: ${input.progress}` }] : []),
+  ];
+
   for (const body of bodies) {
     await db.insert(taskComment).values({
       taskId: nextRow.id,
       authorAgentRef: ctx.tokenLabel,
-      body,
+      kind: body.kind,
+      body: body.body,
     });
   }
 
@@ -1395,10 +1452,14 @@ async function taskUpdate(
     });
   }
 
+  const latestUsageGuard = await latestUsageGuardForTask(db, nextRow.id);
   return {
     task: mapTask(nextRow, proj, {
       reopenComment: await latestReopenComment(db, nextRow),
+      reportsCount: await countReports(db, nextRow),
     }),
+    usage_suspect: latestUsageGuard.suspect,
+    usage_suspect_reason: latestUsageGuard.reason,
     ...(usageRecorded ? { usage_recorded: true } : {}),
     ...(subtasksMoved !== null ? { subtasks_moved: subtasksMoved } : {}),
     ...(projectMove ? { project_move: projectMove } : {}),
@@ -1412,6 +1473,7 @@ async function taskUpdate(
  */
 async function applyUsageToLatestAttempt(
   db: McpDatabase,
+  workspaceId: string,
   row: TaskRow,
   usage: Usage,
 ): Promise<Result<TaskRow>> {
@@ -1430,15 +1492,28 @@ async function applyUsageToLatestAttempt(
 
   // A segment list is a whole picture of who spent what, so a new one replaces
   // the stored one instead of merging counter by counter.
+  const incomingFlatTokens =
+    usage.tokens_in !== undefined ||
+    usage.tokens_out !== undefined ||
+    usage.tokens_cache !== undefined;
   const merged: UsageReport = resolveUsageSegments(
     {
-      segments: usage.segments ?? attempt.usageSegments ?? undefined,
+      // An incoming flat correction is a new token picture too. Reusing the
+      // old segments here would immediately overwrite its flat counters with
+      // the stale segment totals during normalization.
+      segments:
+        usage.segments ??
+        (incomingFlatTokens ? undefined : attempt.usageSegments ?? undefined),
       tokens_in: usage.tokens_in ?? attempt.tokensIn ?? undefined,
       tokens_out: usage.tokens_out ?? attempt.tokensOut ?? undefined,
       tokens_cache: usage.tokens_cache ?? attempt.tokensCache ?? undefined,
       cost_usd:
         usage.cost_usd ??
-        (attempt.costUsd != null ? Number(attempt.costUsd) : undefined),
+        (attempt.reportedCostUsd != null
+          ? Number(attempt.reportedCostUsd)
+          : attempt.costSource == null && attempt.costUsd != null
+            ? Number(attempt.costUsd)
+            : undefined),
       duration_ms: usage.duration_ms ?? attempt.durationMs ?? undefined,
       turns: usage.turns ?? attempt.turns ?? undefined,
       estimated: usage.estimated ?? false,
@@ -1446,17 +1521,61 @@ async function applyUsageToLatestAttempt(
     attempt.model,
   );
 
+  const executor = decodeExecutor(attempt.executor, attempt.model);
+  const sessionId =
+    attempt.sessionId ??
+    readTranscriptRef(attempt.transcript, {
+      cli: executor.cli,
+      sessionId: executor.session_id,
+    })?.sessionId ??
+    null;
+  const measuredWindowMs =
+    attempt.serverDurationMs ??
+    Math.max(
+      0,
+      (attempt.finishedAt ?? new Date()).getTime() - attempt.startedAt.getTime(),
+    );
+  const guard = await usageGuardForAttempt(
+    db,
+    workspaceId,
+    attempt.id,
+    attempt.taskId,
+    sessionId,
+    merged,
+    measuredWindowMs,
+  );
+  const prices = await loadModelPrices(db as PricesDb, workspaceId);
+  const assessment = assessAttemptCost(merged.segments ?? [], prices, {
+    reportedCostUsd: merged.cost_usd,
+    usageEstimated: merged.estimated,
+    usageSuspect: guard.suspect,
+    tokensReported: tokenCountersReported(merged),
+  });
+  const storedUsage: UsageReport = {
+    ...merged,
+    segments: assessment.normalizedSegments,
+  };
+
   await db
     .update(executionAttempt)
     .set({
-      usageSegments: merged.segments?.length ? merged.segments : null,
-      tokensIn: merged.tokens_in,
-      tokensOut: merged.tokens_out,
-      tokensCache: merged.tokens_cache,
-      costUsd: merged.cost_usd !== undefined ? String(merged.cost_usd) : null,
-      durationMs: merged.duration_ms,
-      turns: merged.turns,
-      usageEstimated: merged.estimated ?? false,
+      usageSegments: storedUsage.segments?.length ? storedUsage.segments : null,
+      tokensIn: storedUsage.tokens_in,
+      tokensOut: storedUsage.tokens_out,
+      tokensCache: storedUsage.tokens_cache,
+      reportedCostUsd:
+        storedUsage.cost_usd !== undefined ? String(storedUsage.cost_usd) : null,
+      costUsd: assessment.costUsd != null ? String(assessment.costUsd) : null,
+      costSource: assessment.source,
+      costStatus: assessment.status,
+      costUnpricedModels: assessment.unpricedModels,
+      costBreakdown: assessment.breakdown,
+      durationMs: storedUsage.duration_ms,
+      turns: storedUsage.turns,
+      usageEstimated: storedUsage.estimated ?? false,
+      sessionId,
+      usageSuspect: guard.suspect,
+      usageSuspectReason: guard.reason,
     })
     .where(eq(executionAttempt.id, attempt.id));
 
@@ -1469,13 +1588,13 @@ async function applyUsageToLatestAttempt(
   if (latestHandoff) {
     await db
       .update(handoff)
-      .set({ usage: merged })
+      .set({ usage: storedUsage })
       .where(eq(handoff.id, latestHandoff.id));
   }
 
   const [updated] = await db
     .update(task)
-    .set({ telemetryIncomplete: isTelemetryIncomplete(merged) })
+    .set({ telemetryIncomplete: isTelemetryIncomplete(storedUsage) })
     .where(eq(task.id, row.id))
     .returning();
   return ok(updated ?? row);
@@ -1625,28 +1744,63 @@ async function taskDeliver(
         : null,
     );
 
+    const finishedAt = new Date();
+    const serverDurationMs = openAttempt
+      ? Math.max(0, finishedAt.getTime() - openAttempt.startedAt.getTime())
+      : 0;
+    const sessionId =
+      transcript?.sessionId ?? openAttempt?.sessionId ?? claimExecutor.session_id ?? null;
+    const usageGuard =
+      openAttempt && usage
+        ? await usageGuardForAttempt(
+            tx,
+            ctx.workspaceId,
+            openAttempt.id,
+            openAttempt.taskId,
+            sessionId,
+            usage,
+            serverDurationMs,
+          )
+        : { suspect: false, reason: null };
+    const prices = await loadModelPrices(tx as PricesDb, ctx.workspaceId);
+    const assessment = assessAttemptCost(usage?.segments ?? [], prices, {
+      reportedCostUsd: usage?.cost_usd,
+      usageEstimated: usage?.estimated,
+      usageSuspect: usageGuard.suspect,
+      tokensReported: tokenCountersReported(usage),
+    });
+    const storedUsage: UsageReport | undefined = usage
+      ? { ...usage, segments: assessment.normalizedSegments }
+      : undefined;
+
     if (openAttempt) {
-      const finishedAt = new Date();
       await tx
         .update(executionAttempt)
         .set({
           finishedAt,
           result: "success",
-          usageSegments: usage?.segments?.length ? usage.segments : null,
-          tokensIn: usage?.tokens_in,
-          tokensOut: usage?.tokens_out,
-          tokensCache: usage?.tokens_cache,
-          costUsd:
-            usage?.cost_usd !== undefined ? String(usage.cost_usd) : null,
-          durationMs: usage?.duration_ms,
+          usageSegments: storedUsage?.segments?.length ? storedUsage.segments : null,
+          tokensIn: storedUsage?.tokens_in,
+          tokensOut: storedUsage?.tokens_out,
+          tokensCache: storedUsage?.tokens_cache,
+          reportedCostUsd:
+            storedUsage?.cost_usd !== undefined
+              ? String(storedUsage.cost_usd)
+              : null,
+          costUsd: assessment.costUsd != null ? String(assessment.costUsd) : null,
+          costSource: assessment.source,
+          costStatus: assessment.status,
+          costUnpricedModels: assessment.unpricedModels,
+          costBreakdown: assessment.breakdown,
+          durationMs: storedUsage?.duration_ms,
           // Telemetry that does not depend on agent goodwill: the server
           // measures claim → deliver itself, whatever the agent reports.
-          serverDurationMs: Math.max(
-            0,
-            finishedAt.getTime() - openAttempt.startedAt.getTime(),
-          ),
-          turns: usage?.turns,
-          usageEstimated: usage?.estimated ?? false,
+          serverDurationMs,
+          turns: storedUsage?.turns,
+          usageEstimated: storedUsage?.estimated ?? false,
+          sessionId,
+          usageSuspect: usageGuard.suspect,
+          usageSuspectReason: usageGuard.reason,
           transcript,
         })
         .where(eq(executionAttempt.id, openAttempt.id));
@@ -1663,7 +1817,7 @@ async function taskDeliver(
         artifacts: input.artifacts as never,
         branch: input.branch ?? found.row.branch,
         prUrl: input.pull_request_url ?? found.row.prUrl,
-        usage: usage ?? null,
+        usage: storedUsage ?? null,
       })
       .returning();
     if (!saved) throw new Error("failed to insert handoff");
@@ -1689,10 +1843,11 @@ async function taskDeliver(
       proj: found.proj,
       saved,
       incomplete,
-      usage,
+      usage: storedUsage,
       routedTo: reviewerFromRow(updated),
       attemptExecutor: openAttempt ? claimExecutor : null,
       transcript,
+      usageGuard,
     });
   });
 
@@ -1724,6 +1879,8 @@ async function taskDeliver(
       created_at: iso(persisted.value.saved.createdAt),
     },
     telemetry_incomplete: persisted.value.incomplete,
+    usage_suspect: persisted.value.usageGuard.suspect,
+    usage_suspect_reason: persisted.value.usageGuard.reason,
     transcript: transcriptToWire(persisted.value.transcript),
     ...(input.usage
       ? {}
@@ -2017,6 +2174,11 @@ async function insightsQuery(
     attempts: row.attempts,
     estimated: row.estimated,
     missing: row.missing,
+    zero_usage: row.zeroUsage,
+    suspect: row.suspect,
+    suspect_tokens: row.suspectTokens,
+    suspect_duration_ms: row.suspectDurationMs,
+    suspect_cost_usd: pricingEnabled ? row.suspectCostUsd : null,
   });
   const totals = totalsFor(insights.totals);
 
@@ -2045,12 +2207,19 @@ async function insightsQuery(
         // and with the money layer off there is no cost to know.
         cost_usd: pricingEnabled ? card.costUsd : null,
         cost_source: pricingEnabled ? card.costSource : null,
+        unpriced_tokens: pricingEnabled ? card.unpricedTokens : 0,
+        unpriced_models: pricingEnabled ? card.unpricedModels : [],
         tokens: card.tokens,
         duration_ms: card.durationMs,
         elapsed_ms: card.elapsedMs,
         attempts: card.attempts,
         estimated: card.estimated,
         missing: card.missing,
+        zero_usage: card.zeroUsage,
+        suspect: card.suspect,
+        suspect_tokens: card.suspectTokens,
+        suspect_duration_ms: card.suspectDurationMs,
+        suspect_cost_usd: pricingEnabled ? card.suspectCostUsd : null,
       })),
     };
   }
@@ -2286,25 +2455,57 @@ async function assembleTaskPayload(
   reopenComment?: string | null,
   /** CLI running the card, when the caller knows it (the claim executor). */
   cli?: string | null,
+  /** Number of report comments on this card; set only on explicit count calls. */
+  reportsCount?: number,
+  /** Exact executor identity available while assembling a task_claim response. */
+  executor?: {
+    sessionId?: string | null;
+    model?: string | null;
+    claimedAt?: Date | string | null;
+  },
 ) {
   const comment =
     reopenComment !== undefined
       ? reopenComment
       : await latestReopenComment(db, row);
-  const mapped = mapTask(row, proj, { reopenComment: comment });
+  const count = reportsCount ?? 0;
+  const mapped = mapTask(row, proj, {
+    reopenComment: comment,
+    reportsCount: count,
+  });
   let missionPayload = null;
   if (row.missionId) {
     const miss = await findMission(db, proj.workspaceId, row.missionId);
     if (miss) missionPayload = mapMission(miss);
   }
   const convention = branchConvention(mapped.short_id, mapped.title);
+  const [latestAttempt] = await db
+    .select({
+      startedAt: executionAttempt.startedAt,
+      sessionId: executionAttempt.sessionId,
+      model: executionAttempt.model,
+      usageSuspect: executionAttempt.usageSuspect,
+      usageSuspectReason: executionAttempt.usageSuspectReason,
+      costUsd: executionAttempt.costUsd,
+      costSource: executionAttempt.costSource,
+      costStatus: executionAttempt.costStatus,
+      costUnpricedModels: executionAttempt.costUnpricedModels,
+    })
+    .from(executionAttempt)
+    .where(eq(executionAttempt.taskId, row.id))
+    .orderBy(desc(executionAttempt.startedAt))
+    .limit(1);
   // Whoever is running the card gets the recipe for their own CLI. On a
   // task_get without an executor, the card's claimed executor or its planned
   // harness names the CLI; anything else lands on the generic recipe.
   const recipes = await loadUsageRecipes(db as RecipesDb, proj.workspaceId);
-  const recipe = recipeForCli(
-    recipes,
-    cli ?? row.claimedByExecutor ?? row.harness?.cli ?? null,
+  const recipe = bindUsageRecipe(
+    recipeForCli(recipes, cli ?? row.claimedByExecutor ?? row.harness?.cli ?? null),
+    {
+      sessionId: executor?.sessionId ?? latestAttempt?.sessionId,
+      model: executor?.model ?? latestAttempt?.model ?? mapped.harness?.model,
+      claimedAt: executor?.claimedAt ?? latestAttempt?.startedAt,
+    },
   );
   // The line of succession behind the one model the card prints, so a worker
   // that stalls knows where the work goes next without asking the board.
@@ -2325,6 +2526,9 @@ async function assembleTaskPayload(
       recipe,
       chain,
       attempt: delivered.length,
+      claimedAt: latestAttempt?.startedAt
+        ? iso(latestAttempt.startedAt)
+        : null,
     }),
     mission: missionPayload,
     branch_convention: convention,
@@ -2337,7 +2541,87 @@ async function assembleTaskPayload(
           command: recipe.command,
         }
       : null,
+    usage_suspect: latestAttempt?.usageSuspect ?? false,
+    usage_suspect_reason: latestAttempt?.usageSuspectReason ?? null,
+    cost_usd:
+      latestAttempt?.costUsd != null ? Number(latestAttempt.costUsd) : null,
+    cost_source: latestAttempt?.costSource ?? null,
+    cost_status: latestAttempt?.costStatus ?? null,
+    cost_unpriced_models: latestAttempt?.costUnpricedModels ?? [],
   };
+}
+
+type UsageGuard = { suspect: boolean; reason: string | null };
+
+/** Latest stored verdict for task_get and task_update responses. */
+async function latestUsageGuardForTask(
+  db: McpDatabase,
+  taskId: string,
+): Promise<UsageGuard> {
+  const [latest] = await db
+    .select({
+      suspect: executionAttempt.usageSuspect,
+      reason: executionAttempt.usageSuspectReason,
+    })
+    .from(executionAttempt)
+    .where(eq(executionAttempt.taskId, taskId))
+    .orderBy(desc(executionAttempt.startedAt))
+    .limit(1);
+  return latest ?? { suspect: false, reason: null };
+}
+
+/**
+ * The server-side guard is advisory, never a delivery veto. It compares the
+ * report with the server's claim window and checks whether this exact executor
+ * session had already completed a different card in the same workspace.
+ */
+async function usageGuardForAttempt(
+  db: McpDatabase,
+  workspaceId: string,
+  attemptId: string,
+  taskId: string,
+  sessionId: string | null,
+  usage: UsageReport,
+  measuredWindowMs: number,
+): Promise<UsageGuard> {
+  const window = checkUsageWindow(usage, measuredWindowMs);
+  let reusedSession = false;
+
+  if (sessionId) {
+    const [previous] = await db
+      .select({ id: executionAttempt.id })
+      .from(executionAttempt)
+      .innerJoin(task, eq(executionAttempt.taskId, task.id))
+      .innerJoin(project, eq(task.projectId, project.id))
+      .where(
+        and(
+          eq(project.workspaceId, workspaceId),
+          eq(executionAttempt.sessionId, sessionId),
+          isNotNull(executionAttempt.finishedAt),
+          ne(executionAttempt.id, attemptId),
+          ne(executionAttempt.taskId, taskId),
+        ),
+      )
+      .limit(1);
+    reusedSession = Boolean(previous);
+  }
+
+  const reasons = [
+    ...(window.suspect ? ["claim_window_exceeded"] : []),
+    ...(reusedSession ? ["session_reused"] : []),
+  ];
+  return {
+    suspect: reasons.length > 0,
+    reason: reasons.length > 0 ? reasons.join(",") : null,
+  };
+}
+
+async function countReports(db: McpDatabase, row: TaskRow): Promise<number> {
+  const [rowCount] = await db
+    .select({ n: count() })
+    .from(taskComment)
+    .where(and(eq(taskComment.taskId, row.id), eq(taskComment.kind, "report")));
+  return Number(rowCount?.n ?? 0);
 }
 
 /**
@@ -2453,12 +2737,30 @@ async function latestReopenComment(
   row: TaskRow,
 ): Promise<string | null> {
   if (row.status !== "aberto") return null;
+
+  // Reopen comments only exist when the board moved a delivered card back to open,
+  // which always leaves a handoff behind as the transition marker.
+  const [latestHandoff] = await db
+    .select({ createdAt: handoff.createdAt })
+    .from(handoff)
+    .where(eq(handoff.taskId, row.id))
+    .orderBy(desc(handoff.createdAt))
+    .limit(1);
+  if (!latestHandoff) return null;
+
   // Only prose comments qualify: typed timeline entries (executor_swap,
   // spawn_failure) are traces, not reopen instructions for the next claim.
   const [comment] = await db
     .select()
     .from(taskComment)
-    .where(and(eq(taskComment.taskId, row.id), eq(taskComment.kind, "comment")))
+    .where(
+      and(
+        eq(taskComment.taskId, row.id),
+        eq(taskComment.kind, "comment"),
+        isNotNull(taskComment.authorUserId),
+        gt(taskComment.createdAt, latestHandoff.createdAt),
+      ),
+    )
     .orderBy(desc(taskComment.createdAt))
     .limit(1);
   return comment?.body ?? null;

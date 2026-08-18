@@ -16,6 +16,10 @@ const en = {
   attempts: "Attempts",
   estimatedCount: (n: number) => `${n} estimated`,
   missingCount: (n: number) => `${n} usage not reported`,
+  zeroUsageCount: (n: number) => `${n} reported zero usage`,
+  suspectCount: (n: number) => `${n} suspect`,
+  suspectSeparate: (tokens: string) =>
+    `${tokens} above the possible claim window, kept outside totals`,
   allReported: "all usage reported",
   byProject: "By project",
   byMission: "By mission",
@@ -42,6 +46,8 @@ const en = {
   costNotReported: "not reported",
   /** Never "US$ 0.00": a model nobody priced did not work for free. */
   costNoPrice: "no price",
+  costNoPriceFor: (models: string) => `no price for ${models}`,
+  costZeroUsage: "usage reported as zero",
   noPriceTitle: (tokens: string) =>
     `${tokens} spent by a model with no price in Settings, counted apart from the cost`,
   unpricedTokensNote: (tokens: string) =>
@@ -58,7 +64,7 @@ const en = {
   reportedCount: (n: number) => `${n} agent reported`,
   unpricedCount: (n: number) => `${n} unpriced model`,
   noCostSource: "no cost to attribute",
-  pricesNote: "Cost is computed from the price table in Settings whenever an attempt reports tokens.",
+  pricesNote: "Cost is computed and frozen from the price table when deliver or task_update reports tokens.",
   sortHint: "click a column to sort",
   trendCostTitle: "Spend over time",
   trendTokensTitle: "Tokens over time",
@@ -71,6 +77,8 @@ const en = {
   /** Footnote qualifiers: the marker, what it means, then the rows it hits. */
   footEstimated: (items: string) => `≈ estimated: ${items}`,
   footMissing: (items: string) => `○ usage not reported: ${items}`,
+  footZeroUsage: (items: string) => `0 usage reported as zero: ${items}`,
+  footSuspect: (items: string) => `! suspect usage, kept separate: ${items}`,
   footElapsed: (items: string) => `+ elapsed, never added: ${items}`,
   footUnpriced: (items: string) => `no price: ${items}`,
   emptyTitle: "Nothing measured yet.",
@@ -105,6 +113,10 @@ const ptBR: InsightsCopy = {
   attempts: "Execuções",
   estimatedCount: (n: number) => `${n} estimado${n === 1 ? "" : "s"}`,
   missingCount: (n: number) => `${n} sem uso reportado`,
+  zeroUsageCount: (n: number) => `${n} com uso reportado como zero`,
+  suspectCount: (n: number) => `${n} suspeito${n === 1 ? "" : "s"}`,
+  suspectSeparate: (tokens: string) =>
+    `${tokens} acima do possível na janela do claim, fora dos totais`,
   allReported: "todo uso reportado",
   byProject: "Por projeto",
   byMission: "Por missão",
@@ -130,6 +142,8 @@ const ptBR: InsightsCopy = {
   noModel: "modelo não reportado",
   costNotReported: "não reportado",
   costNoPrice: "sem preço",
+  costNoPriceFor: (models: string) => `sem preço para ${models}`,
+  costZeroUsage: "uso reportado como zero",
   noPriceTitle: (tokens: string) =>
     `${tokens} gastos por um modelo sem preço em Configurações, contados à parte do custo`,
   unpricedTokensNote: (tokens: string) =>
@@ -146,7 +160,7 @@ const ptBR: InsightsCopy = {
   reportedCount: (n: number) => `${n} reportado${n === 1 ? "" : "s"} pelo agente`,
   unpricedCount: (n: number) => `${n} modelo${n === 1 ? "" : "s"} sem preço`,
   noCostSource: "nenhum custo para atribuir",
-  pricesNote: "O custo é calculado pela tabela de preços em Configurações sempre que uma execução reporta tokens.",
+  pricesNote: "O custo é calculado e congelado pela tabela de preços quando deliver ou task_update reporta tokens.",
   sortHint: "clique numa coluna para ordenar",
   trendCostTitle: "Gasto ao longo do tempo",
   trendTokensTitle: "Tokens ao longo do tempo",
@@ -158,6 +172,8 @@ const ptBR: InsightsCopy = {
   shareNote: "participação entre os modelos abaixo",
   footEstimated: (items: string) => `≈ estimado: ${items}`,
   footMissing: (items: string) => `○ sem uso reportado: ${items}`,
+  footZeroUsage: (items: string) => `0 uso reportado como zero: ${items}`,
+  footSuspect: (items: string) => `! uso suspeito, contado à parte: ${items}`,
   footElapsed: (items: string) => `+ decorrido, não somado: ${items}`,
   footUnpriced: (items: string) => `sem preço: ${items}`,
   emptyTitle: "Nada medido ainda.",

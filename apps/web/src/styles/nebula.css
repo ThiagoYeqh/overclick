@@ -811,6 +811,93 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-sec { border-top: 1px solid var(--nebula-plan-divider); padding: var(--nebula-space-3) 0; }
 /* seção de validação em revisão: divisor esverdeado marca onde a decisão acontece */
 .nb .d-sec-validate { border-top-color: rgba(125,214,160,0.18); }
+.nb .d-sec .md-field,
+.nb .md-field {
+  margin: 0;
+}
+.nb .d-sec .md,
+.nb .md {
+  color: var(--nebula-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.nb .d-sec .md p,
+.nb .md p {
+  margin: 0;
+  color: inherit;
+  line-height: 1.55;
+  white-space: normal;
+}
+.nb .d-sec .md p + p,
+.nb .md p + p {
+  margin-top: 6px;
+}
+.nb .md .md-inline-code,
+.nb .md code {
+  font-family: var(--nebula-font-mono);
+  color: var(--nebula-dust-core);
+  background: rgba(8, 10, 13, 0.66);
+  border: 1px solid var(--nebula-glass-border);
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+.nb .d-check-step .md code,
+.nb .d-check-expected .md code {
+  font-size: 11px;
+}
+.nb .md pre {
+  margin: 6px 0 8px;
+  padding: 10px 12px;
+  background: rgba(8, 10, 13, 0.82);
+  border: 1px solid var(--nebula-glass-border);
+  border-radius: 9px;
+  overflow: auto;
+}
+.nb .md pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.nb .md ul,
+.nb .md ol {
+  margin: 6px 0 6px 1.4em;
+  padding: 0;
+}
+.nb .md li {
+  margin: 0 0 2px;
+  color: inherit;
+  line-height: 1.45;
+}
+.nb .md a {
+  color: #a9c7e8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.nb .md a:hover {
+  color: var(--nebula-mist-glow);
+}
+.nb .md blockquote {
+  margin: 6px 0 8px;
+  border-left: 1px solid rgba(209, 217, 235, 0.4);
+  padding-left: 10px;
+  color: var(--nebula-text-secondary);
+}
+.nb .md strong {
+  color: var(--nebula-text-primary);
+}
+.nb .md em { color: var(--nebula-text-secondary); }
+.nb .md .md-em { color: var(--nebula-text-primary); }
+.nb .md h3,
+.nb .md-h {
+  margin: 8px 0 6px;
+  font-family: var(--nebula-font-sans);
+  font-size: 17px;
+  font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight);
+  color: var(--nebula-text-primary);
+  line-height: 1.3;
+}
 .nb .d-sec .lbl { display: flex; align-items: baseline; justify-content: space-between; gap: var(--nebula-space-3);
   font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--nebula-mist); margin-bottom: 7px; }
@@ -832,6 +919,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-evid { background: rgba(8,10,13,.6); border: 1px solid var(--nebula-glass-border); border-radius: 10px;
   padding: 10px 13px; font-size: 12px; color: var(--nebula-text-secondary); line-height: 1.55; }
 .nb .d-tel { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-secondary); letter-spacing: .02em; }
+.nb .d-usage-warning { margin: 8px 0 0; padding: 7px 9px; border: 1px solid rgba(232, 161, 161, .32); border-radius: 7px; color: #e8a1a1; background: rgba(120, 45, 45, .12); font-size: 11px; line-height: 1.45; }
 /* the two clocks of a run, each one next to the source that measured it */
 .nb .d-clocks { display: flex; flex-direction: column; gap: 3px; margin-top: 7px; }
 .nb .d-clock { font-family: var(--nebula-font-mono); font-size: 10.5px;

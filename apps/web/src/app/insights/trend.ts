@@ -10,7 +10,8 @@ import type { InsightAttemptRow } from "../../lib/insights";
  * Presentation-only bucketing for the spend-over-time chart. Nothing here
  * recomputes the numbers the page already shows: tokens are the same flat
  * counters the data layer sums, and a day's cost comes from the same
- * resolveSegmentedCost the totals use, with the same price rows. It only
+ * attempt snapshot the totals use. Legacy rows without a snapshot still use
+ * resolveSegmentedCost until the idempotent backfill reaches them. It only
  * groups what loadInsightAttemptRows already returned, by the day each
  * attempt finished.
  */
@@ -102,12 +103,19 @@ export function buildDailyTrend(
       buckets.set(key, bucket);
     }
     bucket.attempts += 1;
+    // Suspect usage has its own bucket in Insights; the trend charts only the
+    // trusted totals, so a whole-session transcript cannot create a fake peak.
+    if (a.usageSuspect) continue;
     bucket.tokens += (a.tokensIn ?? 0) + (a.tokensOut ?? 0) + (a.tokensCache ?? 0);
     if (pricingEnabled) {
-      const cost = resolveSegmentedCost(segmentsOf(a), prices, {
-        costUsd: a.costUsd != null ? Number(a.costUsd) : null,
-        usageEstimated: a.usageEstimated,
-      });
+      const frozen =
+        a.costStatus != null || a.costSource != null || a.costBreakdown != null;
+      const cost = frozen
+        ? { costUsd: a.costUsd != null ? Number(a.costUsd) : null }
+        : resolveSegmentedCost(segmentsOf(a), prices, {
+            costUsd: a.costUsd != null ? Number(a.costUsd) : null,
+            usageEstimated: a.usageEstimated,
+          });
       // Unknown costs add zero, the same rule the totals follow.
       bucket.costUsd += cost.costUsd ?? 0;
     }

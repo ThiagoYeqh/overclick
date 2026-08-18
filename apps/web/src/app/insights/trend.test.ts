@@ -26,10 +26,15 @@ function row(over: Partial<InsightAttemptRow>): InsightAttemptRow {
     tokensOut: 100_000,
     tokensCache: 0,
     costUsd: null,
+    costSource: null,
+    costStatus: null,
+    costUnpricedModels: null,
+    costBreakdown: null,
     durationMs: 60_000,
     serverDurationMs: 60_000,
     turns: 3,
     usageEstimated: false,
+    usageSuspect: false,
     ...over,
   };
 }
@@ -87,5 +92,13 @@ describe("buildDailyTrend", () => {
       { prices: PRICES, pricingEnabled: true, lang: "en" },
     );
     expect(trend.points[0].costUsd).toBeCloseTo(3.25);
+  });
+
+  it("keeps suspect counters out of the trend", () => {
+    const trend = buildDailyTrend(
+      [row({ usageSuspect: true, tokensIn: 5_000_000 })],
+      { prices: [], pricingEnabled: false, lang: "en" },
+    );
+    expect(trend.points[0]).toMatchObject({ attempts: 1, tokens: 0 });
   });
 });

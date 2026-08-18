@@ -23,6 +23,8 @@ export type BoardTotals = {
   estimated: number;
   /** Attempts that finished reporting no usage at all. */
   missing: number;
+  suspect: number;
+  suspectTokens: number;
 };
 
 export const EMPTY_BOARD_TOTALS: BoardTotals = {
@@ -38,6 +40,8 @@ export const EMPTY_BOARD_TOTALS: BoardTotals = {
   costUnpriced: 0,
   estimated: 0,
   missing: 0,
+  suspect: 0,
+  suspectTokens: 0,
 };
 
 /**
@@ -59,6 +63,8 @@ export type TotalsInput = Pick<
   | "costUnpriced"
   | "estimated"
   | "missing"
+  | "suspect"
+  | "suspectTokens"
 >;
 
 export function toBoardTotals(
@@ -82,6 +88,8 @@ export function toBoardTotals(
     costUnpriced: totals.costUnpriced,
     estimated: totals.estimated,
     missing: totals.missing,
+    suspect: totals.suspect,
+    suspectTokens: totals.suspectTokens,
   };
 }
 

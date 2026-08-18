@@ -162,6 +162,20 @@
       "when": 1787080631041,
       "tag": "0022_task_resolved_in",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787083030861,
+      "tag": "0023_outstanding_shinko_yamashiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787084677902,
+      "tag": "0024_ambitious_doctor_strange",
+      "breakpoints": true
     }
   ]
 }

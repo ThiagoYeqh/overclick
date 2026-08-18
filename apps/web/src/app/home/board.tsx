@@ -25,6 +25,7 @@ import { pickRowNumber, typeInitial } from "../../lib/board-row";
 import { cliDiffers } from "../../lib/cli-mark";
 import { dict, type Dict } from "../../lib/i18n";
 import { CliMark } from "../../components/cli-mark";
+import { Markdown } from "../../components/markdown";
 import { Icon, type IconName } from "../../components/icon";
 import { BoardMobileList } from "./board-mobile-list";
 
@@ -68,7 +69,7 @@ export type TelemetrySegment = {
 };
 
 export type TimelineEntry = {
-  kind: "executor_swap" | "spawn_failure";
+  kind: "executor_swap" | "spawn_failure" | "report" | "comment";
   body: string;
   author: string | null;
   at: string;
@@ -106,6 +107,8 @@ export type BoardCard = {
   executor: string | null;
   elapsed: string | null;
   branch: string | null;
+  resolvedIn: string | null;
+  reportsCount: number;
   timeline: TimelineEntry[];
   /** The whole breakdown in words, for the detail panel. */
   telemetry: string | null;
@@ -113,6 +116,8 @@ export type BoardCard = {
   telemetryLine: TelemetrySegment[];
   /** Null when neither clock ran on this card. */
   duration: DurationView | null;
+  /** Server guard: this attempt's counters stay outside trusted Insights totals. */
+  usageSuspect: boolean;
   transcript: TranscriptView | null;
   handoff: string | null;
 };
@@ -547,9 +552,11 @@ function ConfirmChecklist({
               <span className="d-check-num">{index + 1}</span>
             )}
             <span className="d-check-body">
-              <span className="d-check-step">{step.step}</span>
+              <span className="d-check-step">
+                <Markdown inline text={step.step} />
+              </span>
               <span className="d-check-expected">
-                {t.detail.expected} {step.expected}
+                {t.detail.expected} <Markdown inline text={step.expected} />
               </span>
               {tick ? (
                 <span className="d-check-meta">
@@ -958,11 +965,11 @@ function Detail({
         <div className="d-main">
           <div className="d-sec">
             <SectionLabel icon="spec" text={t.detail.what} />
-            <p>{card.oQue}</p>
+            <Markdown text={card.oQue} className="md-field" />
           </div>
           <div className="d-sec">
             <SectionLabel icon="reason" text={t.detail.why} />
-            <p>{card.porQue}</p>
+            <Markdown text={card.porQue} className="md-field" />
           </div>
           <div className={`d-sec${reviewing ? " d-sec-validate" : ""}`}>
             <SectionLabel
@@ -1033,12 +1040,24 @@ function Detail({
               <div className="d-timeline">
                 {card.timeline.map((entry, index) => (
                   <div className="d-evid d-tl-entry" key={index}>
-                    <span className={`tag ${entry.kind === "spawn_failure" ? "bug" : "feature"}`}>
+                    <span
+                      className={`tag ${
+                        entry.kind === "spawn_failure"
+                          ? "bug"
+                          : entry.kind === "report" || entry.kind === "comment"
+                            ? "rfc"
+                            : "feature"
+                      }`}
+                    >
                       {entry.kind === "spawn_failure"
                         ? t.detail.spawnFailure
-                        : t.detail.executorSwap}
+                        : entry.kind === "report"
+                          ? t.detail.report
+                          : entry.kind === "comment"
+                            ? t.detail.report
+                            : t.detail.executorSwap}
                     </span>{" "}
-                    {entry.body}
+                    <Markdown inline text={entry.body} />
                     <span className="d-tl-meta">
                       {" "}· {entry.author ?? "agent"} · {entry.at}
                     </span>
@@ -1051,11 +1070,24 @@ function Detail({
             <div>
               <SectionLabel icon="branch" text={t.detail.branch} />
               <p className="d-mono">{card.branch ?? "—"}</p>
+              {card.resolvedIn ? (
+                <p>
+                  <span className="tag feature">
+                    {t.detail.resolvedIn} {card.resolvedIn}
+                  </span>
+                </p>
+              ) : null}
+              {card.reportsCount > 0 ? (
+                <p className="d-mono">{t.detail.reports(card.reportsCount)}</p>
+              ) : null}
             </div>
             {card.telemetry ? (
               <div>
                 <SectionLabel icon="telemetry" text={t.detail.telemetry} />
                 <p className="d-tel">{card.telemetry}</p>
+                {card.usageSuspect ? (
+                  <p className="d-usage-warning">{t.detail.usageSuspect}</p>
+                ) : null}
                 {/* The card line has room for one clock, this panel for both:
                     what the agent worked, and how long the card stayed open. */}
                 {card.duration ? (

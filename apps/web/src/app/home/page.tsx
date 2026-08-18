@@ -8,12 +8,10 @@ import {
   readTranscriptRef,
   recomputeUsageCommand,
   resolveDuration,
-  resolveSegmentedCost,
   segmentModels,
   task,
   user,
   type CostSource,
-  type ModelPrice,
   type ResolvedDuration,
   type UsageRecipeRow,
 } from "@agent-board/db";
@@ -25,7 +23,11 @@ import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
 import { loadModelPrices } from "../../lib/prices";
-import { loadUsageRecipes, recipeForCli } from "../../lib/recipes";
+import {
+  bindUsageRecipe,
+  loadUsageRecipes,
+  recipeForCli,
+} from "../../lib/recipes";
 import { detectRuntime } from "../../lib/runtime";
 import { scheduledUpdateCheck } from "../../lib/update-scheduler";
 import { readUpdaterState } from "../../lib/updates";
@@ -203,7 +205,11 @@ function toTranscriptView(
     sessionId: executor.session_id,
   });
   if (!ref) return null;
-  const recipe = recipeForCli(recipes, ref.cli);
+  const recipe = bindUsageRecipe(recipeForCli(recipes, ref.cli), {
+    sessionId: ref.sessionId,
+    model: attempt.model,
+    claimedAt: attempt.startedAt,
+  });
   return {
     cli: ref.cli,
     sessionId: ref.sessionId,
@@ -216,7 +222,6 @@ function toTranscriptView(
 function toBoardCard(
   t: TaskRow,
   tr: Dict,
-  prices: readonly ModelPrice[],
   /** Money is opt-in: with it off the footer is tokens and time only. */
   pricingEnabled: boolean,
   recipes: readonly UsageRecipeRow[],
@@ -243,17 +248,30 @@ function toBoardCard(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   )[0];
 
-  // Typed execution trace: executor swaps recorded at claim time and spawn
-  // failures posted by orchestrators, oldest first.
-  const timeline = [...t.comments]
-    .filter((c) => c.kind === "executor_swap" || c.kind === "spawn_failure")
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+  // Typed execution trace: executor swaps at claim, spawn failures from
+  // orchestrators, and reports, oldest first.
+  const comments = [...t.comments].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+  );
+  const timeline = comments
+    .filter(
+      (c) =>
+        c.kind === "executor_swap" ||
+        c.kind === "spawn_failure" ||
+        c.kind === "report" ||
+        c.kind === "comment",
+    )
     .map((c) => ({
-      kind: c.kind as "executor_swap" | "spawn_failure",
+      kind: c.kind as
+        | "executor_swap"
+        | "spawn_failure"
+        | "report"
+        | "comment",
       body: c.body,
       author: c.authorAgentRef,
       at: fmtDate(c.createdAt),
     }));
+  const reportsCount = comments.filter((c) => c.kind === "report").length;
 
   // Footer ladder: full usage > estimated usage (labeled) > server-measured
   // duration with "usage not reported". A delivered card never shows nothing.
@@ -262,6 +280,7 @@ function toBoardCard(
   // "estimated" at the end, a tilde on whatever is not exact.
   let telemetryLine: TelemetrySegment[] = [];
   let estimated = false;
+  let costReason: string | null = null;
   // Execution and elapsed side by side, for the panel that has room for both.
   let duration: DurationView | null = null;
   // Which models actually ran, so the card can put the plan and the reality
@@ -275,6 +294,7 @@ function toBoardCard(
       (latestAttempt.tokensCache ?? 0);
     const hasUsage =
       tokens > 0 ||
+      (latestAttempt.usageSegments?.length ?? 0) > 0 ||
       latestAttempt.costUsd != null ||
       latestAttempt.durationMs != null ||
       latestAttempt.turns != null;
@@ -314,26 +334,38 @@ function toBoardCard(
         });
       }
       // Money only when the workspace asked for it. When it did, the board
-      // owns the arithmetic: tokens plus the price table beat the number the
-      // agent volunteered, and every model is priced at its own rate.
+      // reads the cost snapshot deliver/task_update stored. Price edits do not
+      // rewrite history behind the card's back.
       if (pricingEnabled) {
-        const cost = resolveSegmentedCost(segments, prices, {
-          costUsd: latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null,
-          usageEstimated: latestAttempt.usageEstimated,
-        });
-        if (cost.costUsd != null) {
-          parts.push(fmtCost(cost.costUsd, cost.source, tr));
+        const costUsd =
+          latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null;
+        if (costUsd != null) {
+          parts.push(fmtCost(costUsd, latestAttempt.costSource, tr));
           // A price off a table is approximate whatever fed it, so the tilde
           // stays; what goes is the word saying where the figure came from.
           telemetryLine.push({
             kind: "cost",
-            text: approx(fmtCostShort(cost.costUsd), true),
+            text: approx(fmtCostShort(costUsd), true),
           });
+        }
+        const unpriced = latestAttempt.costUnpricedModels ?? [];
+        if (unpriced.length > 0) {
+          costReason = tr.board.costNoPrice(unpriced.join(", "));
+        } else if (latestAttempt.costStatus === "zero_usage") {
+          costReason = tr.board.costZeroUsage;
+        } else if (latestAttempt.costStatus === "not_reported") {
+          costReason = tr.board.usageNotReported;
+        } else if (
+          latestAttempt.costStatus === "estimated" &&
+          costUsd == null
+        ) {
+          costReason = tr.board.costEstimatedUnavailable;
         }
       }
       telemetry = parts.join(" · ") || null;
       estimated = isEstimate;
     } else if (clock) {
+      costReason = pricingEnabled ? tr.board.usageNotReported : null;
       telemetry = [
         fmtResolvedDuration(clock, tr),
         tr.board.usageNotReported,
@@ -383,6 +415,13 @@ function toBoardCard(
   } else if (telemetry && t.telemetryIncomplete && !telemetry.includes(tr.board.usageNotReported)) {
     telemetry += ` · ${tr.board.telemetryIncomplete}`;
   }
+  if (costReason && !telemetry) {
+    telemetry = costReason;
+    telemetryLine = [{ kind: "note", text: costReason }];
+  } else if (costReason && telemetry && !telemetry.includes(costReason)) {
+    telemetry += ` · ${costReason}`;
+    telemetryLine.push({ kind: "note", text: costReason });
+  }
 
   // The board says the plan and the reality in one value; the detail panel
   // still names what ran on its own, next to the effort the card asked for.
@@ -427,10 +466,13 @@ function toBoardCard(
     executor: t.claimedByExecutor ?? latestAttempt?.executor ?? null,
     elapsed: t.claimedAt ? fmtElapsed(t.claimedAt, tr) : null,
     branch: t.branch ?? latestHandoff?.branch ?? null,
+    resolvedIn: t.resolvedIn ?? null,
+    reportsCount,
     timeline,
     telemetry,
     telemetryLine,
     duration,
+    usageSuspect: latestAttempt?.usageSuspect ?? false,
     transcript: toTranscriptView(latestAttempt, recipes),
     handoff: latestHandoff?.summary ?? null,
     howToVerify: latestHandoff?.howToVerify ?? null,
@@ -481,7 +523,7 @@ export default async function HomePage() {
   // command is the one that measured the run, pinned to its transcript.
   const recipes = await loadUsageRecipes(db(), ws.id);
   const cards = rows.map((row) =>
-    toBoardCard(row, t, prices, ws.pricingEnabled, recipes, session.userId),
+    toBoardCard(row, t, ws.pricingEnabled, recipes, session.userId),
   );
   const initialFilter = resolveBoardFilter(
     { projectId: me?.boardProjectId ?? null, missionId: me?.boardMissionId ?? null },

@@ -81,6 +81,7 @@ export default async function SettingsPage() {
 
   const prices = await loadModelPrices(db(), ws.id);
   const recipes = await loadUsageRecipes(db(), ws.id);
+  const selection = selectionFromConfig(ws.executors);
   // Coverage is computed here and not in the client component: importing
   // the helper there would pull the db package's postgres client into the
   // browser bundle. Executors learned from real connections carry their
@@ -98,9 +99,9 @@ export default async function SettingsPage() {
       })),
   );
 
-  // Models this board has actually run, or is configured to run, that the
-  // price table cannot price yet. Offered in Settings so nobody has to guess
-  // which name to type.
+  // Models this board has actually run, and all models shown by the
+  // executor catalog. If one lacks a price yet, Settings shows it with a
+  // warning so nobody has to guess which name to type.
   // Both the model recorded at claim and every model the run actually
   // switched to: a segment nobody priced spends just as much as the first one.
   const attemptModels = await db()
@@ -116,6 +117,7 @@ export default async function SettingsPage() {
     row.model,
     ...(row.segments ?? []).map((segment) => segment.model),
   ]);
+  const catalogModels = Object.values(selection.models).flatMap((list) => list);
   const clean = (models: (string | null)[]) =>
     models
       .map((model) => model?.trim())
@@ -130,7 +132,7 @@ export default async function SettingsPage() {
   const unpricedModels = unpriced(
     clean([
       ...ranModels,
-      ...ws.executors.flatMap((row) => row.models),
+      ...catalogModels,
       ...ws.seenExecutors.map((row) => row.model),
     ]),
   );
@@ -169,7 +171,7 @@ export default async function SettingsPage() {
         origin={origin}
         workspaceName={ws.name}
         projectName={proj?.name ?? ws.name}
-        executors={selectionFromConfig(ws.executors)}
+        executors={selection}
         lang={ws.language}
         updateMode={ws.updateMode}
         updateLog={ws.updateLog}

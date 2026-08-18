@@ -263,6 +263,11 @@ export const TaskSummarySchema = z.object({
   project_id: z.string().min(1),
   mission_id: z.string().min(1).nullable(),
   devolve_para: ReviewerSchema,
+  /**
+   * Only comments with kind `report` are counted.
+   * 0 by default in list payloads and detailed counts in get/update.
+   */
+  reports_count: z.number().int().nonnegative().default(0),
 });
 
 export const TaskSchema = TaskSummarySchema.extend({
@@ -307,6 +312,8 @@ export const ExecutionAttemptSchema = z.object({
   started_at: IsoDateTimeSchema,
   finished_at: IsoDateTimeSchema.nullable(),
   usage: UsageSchema.nullable(),
+  usage_suspect: z.boolean(),
+  usage_suspect_reason: z.string().nullable(),
   result: z.enum(["success", "failure", "abandoned"]).nullable(),
   /** Null when the executor sent no session and its cli has no resume hint. */
   transcript: StoredTranscriptRefSchema.nullable().optional(),

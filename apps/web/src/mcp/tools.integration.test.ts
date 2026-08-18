@@ -16,6 +16,7 @@ import {
   handoff,
   mcpToken,
   mission,
+  user,
   project,
   task,
   taskComment,
@@ -235,6 +236,53 @@ describe("MCP tool edge cases against a test db", () => {
     expect(TaskGetOutputSchema.parse(got.value).usage_recipe?.cli).toBe("generic");
   });
 
+  it("pins the Codex recipe to the claim session and harness model", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Receita Codex exata",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "O rollout precisa pertencer ao claim.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: {
+        cli: "codex",
+        model: "gpt-5.6-sol",
+        session_id: "codex-session-with-'quote",
+      },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const payload = TaskClaimOutputSchema.parse(claimed.value);
+
+    expect(payload.usage_recipe?.command).toContain(
+      `CODEX_SESSION_ID='codex-session-with-'"'"'quote'`,
+    );
+    expect(payload.usage_recipe?.command).toContain(
+      "CODEX_HARNESS_MODEL='gpt-5.6-sol'",
+    );
+    expect(payload.usage_recipe?.command).toContain(
+      `OVERCLICK_CLAIMED_AT='${payload.attempt.started_at}'`,
+    );
+    expect(payload.briefing_markdown).toContain(
+      `claimed_at: \`${payload.attempt.started_at}\``,
+    );
+    expect(payload.briefing_markdown).toContain(
+      "work before the claim",
+    );
+    expect(payload.briefing_markdown).toContain(
+      "CODEX_HARNESS_MODEL='gpt-5.6-sol'",
+    );
+  });
+
   it("turns the claim session id into a transcript reference the delivery completes", async () => {
     world = await createTestWorld();
     const created = await invokeTool(world.db, ctx(), "task_create", {
@@ -374,6 +422,111 @@ describe("MCP tool edge cases against a test db", () => {
     expect(attempt?.tokensIn).toBe(1300);
     expect(attempt?.tokensOut).toBe(1100);
     expect(attempt?.tokensCache).toBe(5100);
+    expect(Number(attempt?.reportedCostUsd)).toBeCloseTo(0.4);
+    expect(Number(attempt?.costUsd)).toBeCloseTo(0.03155);
+    expect(attempt?.costSource).toBe("computed");
+    expect(attempt?.costStatus).toBe("computed");
+    expect(attempt?.costUnpricedModels).toEqual([]);
+    expect(attempt?.costBreakdown).toHaveLength(2);
+  });
+
+  it("normalizes a Spark segment and freezes its computed cost on deliver", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Spark com alias",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "O slug da CLI precisa encontrar o preço.",
+      como_confirmo: [{ step: "entrega", expected: "custo calculado" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entregue",
+      usage: {
+        segments: [
+          { model: "gpt-5.3-codex-spark", input: 100_000, output: 20_000 },
+        ],
+        duration_ms: 1_000,
+        turns: 1,
+      },
+    });
+    expect(submitted.ok).toBe(true);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.usageSegments?.[0]?.model).toBe("gpt-5-3-codex-spark");
+    expect(Number(attempt?.costUsd)).toBeCloseTo(0.455);
+    expect(attempt?.costSource).toBe("computed");
+    expect(attempt?.costStatus).toBe("computed");
+    const fetched = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(fetched.ok).toBe(true);
+    if (fetched.ok) {
+      expect(TaskGetOutputSchema.parse(fetched.value)).toMatchObject({
+        cost_usd: 0.455,
+        cost_source: "computed",
+        cost_status: "computed",
+        cost_unpriced_models: [],
+      });
+    }
+  });
+
+  it("stores the missing price reason instead of a zero cost", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Modelo futuro",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "Preço desconhecido precisa ficar explícito.",
+      como_confirmo: [{ step: "entrega", expected: "sem preço" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entregue",
+      usage: {
+        segments: [{ model: "future-model", input: 100_000, output: 20_000 }],
+        duration_ms: 1_000,
+        turns: 1,
+      },
+    });
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.costUsd).toBeNull();
+    expect(attempt?.costSource).toBeNull();
+    expect(attempt?.costStatus).toBe("unpriced");
+    expect(attempt?.costUnpricedModels).toEqual(["future-model"]);
+    const fetched = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(fetched.ok).toBe(true);
+    if (fetched.ok) {
+      expect(TaskGetOutputSchema.parse(fetched.value)).toMatchObject({
+        cost_usd: null,
+        cost_source: null,
+        cost_status: "unpriced",
+        cost_unpriced_models: ["future-model"],
+      });
+    }
   });
 
   it("stores a flat usage block as one segment for the claimed model", async () => {
@@ -519,6 +672,128 @@ describe("MCP tool edge cases against a test db", () => {
 
     const [ho] = await world.db.select().from(handoff).where(eq(handoff.taskId, card.id));
     expect(ho?.usage?.tokens_in).toBe(5000);
+
+    const suspectCorrection = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      usage: {
+        tokens_out: 5_000_000,
+        duration_ms: 60_000,
+        turns: 7,
+      },
+    });
+    expect(suspectCorrection.ok).toBe(true);
+    if (!suspectCorrection.ok) return;
+    expect(TaskUpdateOutputSchema.parse(suspectCorrection.value)).toMatchObject({
+      usage_recorded: true,
+      usage_suspect: true,
+    });
+  });
+
+  it("accepts an impossible usage report but marks it suspect on deliver and task_get", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Usage de sessao inteira",
+      type: "bug",
+      o_que: "O board aceita e sinaliza o valor.",
+      por_que: "A entrega nao pode se perder.",
+      como_confirmo: [{ step: "entrega", expected: "flag suspeita" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: {
+        cli: "claude",
+        model: "sonnet-5",
+        session_id: "impossible-window-session",
+      },
+    });
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entrega aceita",
+      usage: {
+        tokens_out: 5_000_000,
+        duration_ms: 60_000,
+        turns: 5,
+      },
+    });
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const delivered = TaskDeliverOutputSchema.parse(submitted.value);
+    expect(delivered.task.status).toBe("feito");
+    expect(delivered.usage_suspect).toBe(true);
+    expect(delivered.usage_suspect_reason).toContain("claim_window_exceeded");
+
+    const got = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(TaskGetOutputSchema.parse(got.value)).toMatchObject({
+      usage_suspect: true,
+      usage_suspect_reason: "claim_window_exceeded",
+    });
+  });
+
+  it("keeps plausible usage trusted and flags a second card reusing its session", async () => {
+    world = await createTestWorld();
+    const createCard = async (title: string) => {
+      const created = await invokeTool(world.db, ctx(), "task_create", {
+        project_id: world.projectId,
+        title,
+        type: "feature",
+        o_que: "Um card pequeno.",
+        por_que: "Cobrir a guarda de sessao.",
+        como_confirmo: [{ step: "entrega", expected: "usage classificado" }],
+        origem,
+      });
+      if (!created.ok) throw new Error(created.error.message);
+      return TaskCreateOutputSchema.parse(created.value).task;
+    };
+    const first = await createCard("Primeiro card da sessao");
+    const second = await createCard("Segundo card da sessao");
+    const sessionId = "reused-executor-session";
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: first.id,
+      executor: { cli: "codex", model: "gpt-5.6-sol", session_id: sessionId },
+    });
+    const firstDelivery = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: first.id,
+      summary: "primeiro",
+      usage: { tokens_in: 2_000, tokens_out: 500, duration_ms: 60_000, turns: 3 },
+    });
+    expect(firstDelivery.ok).toBe(true);
+    if (!firstDelivery.ok) return;
+    expect(TaskDeliverOutputSchema.parse(firstDelivery.value).usage_suspect).toBe(
+      false,
+    );
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: second.id,
+      executor: { cli: "codex", model: "gpt-5.6-sol", session_id: sessionId },
+    });
+    const secondDelivery = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: second.id,
+      summary: "segundo",
+      usage: { tokens_in: 1_000, tokens_out: 200, duration_ms: 60_000, turns: 2 },
+    });
+    expect(secondDelivery.ok).toBe(true);
+    if (!secondDelivery.ok) return;
+    const out = TaskDeliverOutputSchema.parse(secondDelivery.value);
+    expect(out.usage_suspect).toBe(true);
+    expect(out.usage_suspect_reason).toContain("session_reused");
+
+    const [stored] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, second.id));
+    expect(stored?.sessionId).toBe(sessionId);
+    expect(stored?.usageSuspect).toBe(true);
   });
 
   it("persists how_to_verify on the handoff and restarts validation ticks", async () => {
@@ -819,6 +1094,128 @@ describe("MCP tool edge cases against a test db", () => {
     const out = TaskClaimOutputSchema.parse(claimed.value);
     expect(out.task.reopen_comment).toBeNull();
     expect(out.briefing_markdown).not.toContain("kimi-cli exited 127");
+  });
+
+  it("counts report comments and keeps them out of reopen hints", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Report no reabre");
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    const reported = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "Usuário não abre mais o fluxo, mas o report veio.",
+      comment_kind: "report",
+    });
+    expect(reported.ok).toBe(true);
+    if (!reported.ok) return;
+    expect(TaskUpdateOutputSchema.parse(reported.value).task.reports_count).toBe(1);
+
+    const rows = await world.db
+      .select()
+      .from(taskComment)
+      .where(eq(taskComment.taskId, card.id));
+    expect(rows.filter((row) => row.kind === "report")).toHaveLength(1);
+    expect(rows.filter((row) => row.kind === "comment")).toHaveLength(0);
+
+    const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "done",
+    });
+    expect(delivered.ok).toBe(true);
+
+    await world.db
+      .update(task)
+      .set({ status: "aberto", claimedByTokenId: null, claimedAt: null })
+      .where(eq(task.id, card.id));
+
+    const got = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(TaskGetOutputSchema.parse(got.value).task.reports_count).toBe(1);
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.task.reopen_comment).toBeNull();
+    expect(out.briefing_markdown).not.toContain("Usuário não abre mais o fluxo");
+  });
+
+  it("ignores agent comments on an open card when there is no reopen handoff", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Apenas nota para timeline");
+
+    await world.db.insert(taskComment).values({
+      taskId: card.id,
+      authorAgentRef: "agent://cli/overclock",
+      kind: "comment",
+      body: "nota interna fora da abertura",
+    });
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    expect(TaskClaimOutputSchema.parse(claimed.value).task.reopen_comment).toBeNull();
+  });
+
+  it("uses the user comment as reopen comment only after the latest handoff", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Reaberto com comentário humano");
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entrega sem comentário",
+    });
+
+    const [reviewer] = await world.db
+      .insert(user)
+      .values({ email: "owner@local.test", passwordHash: "x" })
+      .returning({ id: user.id });
+    if (!reviewer) throw new Error("failed to insert user");
+
+    await world.db
+      .update(task)
+      .set({ status: "aberto", claimedByTokenId: null, claimedAt: null })
+      .where(eq(task.id, card.id));
+    await world.db.insert(taskComment).values({
+      taskId: card.id,
+      authorUserId: reviewer.id,
+      kind: "comment",
+      body: "falhou o cenário de borda",
+    });
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.task.reopen_comment).toBe("falhou o cenário de borda");
+    expect(out.briefing_markdown).toContain("falhou o cenário de borda");
+  });
+
+  it("rejects task_update comment_kind report without a comment body", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Invalid report kind");
+
+    const bad = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment_kind: "report",
+    });
+    expect(bad.ok).toBe(false);
+    if (bad.ok) return;
+    expect(bad.error.code).toBe("INVALID_ARGUMENT");
+
+    const rows = await world.db
+      .select()
+      .from(taskComment)
+      .where(eq(taskComment.taskId, card.id));
+    expect(rows).toHaveLength(0);
   });
 
   it("stores resolved_in on deliver, lets task_update fill or clear it, and returns it on get", async () => {

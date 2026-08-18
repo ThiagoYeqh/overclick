@@ -7,6 +7,7 @@ import {
   findModelPrice,
   mergeCostSources,
   mission,
+  normalizeModelKey,
   normalizeUsageSegments,
   project,
   resolveAttemptCost,
@@ -17,6 +18,8 @@ import {
   task,
   taskComment,
   type CostSource,
+  type CostBreakdownSegment,
+  type CostStatus,
   type Database,
   type ModelPrice,
   type ResolvedCost,
@@ -45,10 +48,15 @@ export type InsightAttemptRow = {
   tokensOut: number | null;
   tokensCache: number | null;
   costUsd: string | null;
+  costSource: CostSource | null;
+  costStatus: CostStatus | null;
+  costUnpricedModels: string[] | null;
+  costBreakdown: CostBreakdownSegment[] | null;
   durationMs: number | null;
   serverDurationMs: number | null;
   turns: number | null;
   usageEstimated: boolean;
+  usageSuspect: boolean;
 };
 
 export type ReopenRow = {
@@ -80,10 +88,15 @@ export async function loadInsightAttemptRows(
       tokensOut: executionAttempt.tokensOut,
       tokensCache: executionAttempt.tokensCache,
       costUsd: executionAttempt.costUsd,
+      costSource: executionAttempt.costSource,
+      costStatus: executionAttempt.costStatus,
+      costUnpricedModels: executionAttempt.costUnpricedModels,
+      costBreakdown: executionAttempt.costBreakdown,
       durationMs: executionAttempt.durationMs,
       serverDurationMs: executionAttempt.serverDurationMs,
       turns: executionAttempt.turns,
       usageEstimated: executionAttempt.usageEstimated,
+      usageSuspect: executionAttempt.usageSuspect,
     })
     .from(executionAttempt)
     .innerJoin(task, eq(executionAttempt.taskId, task.id))
@@ -141,6 +154,12 @@ export function usageHonestyNote(totals: UsageTotals): string {
   const parts: string[] = [];
   if (totals.estimated > 0) parts.push(`${totals.estimated} estimated`);
   if (totals.missing > 0) parts.push(`${totals.missing} usage not reported`);
+  if (totals.zeroUsage > 0) parts.push(`${totals.zeroUsage} reported zero usage`);
+  if (totals.suspect > 0) {
+    parts.push(
+      `${totals.suspect} suspect · ${totals.suspectTokens} tokens kept separate`,
+    );
+  }
   return parts.length > 0 ? parts.join(" · ") : "all usage reported";
 }
 
@@ -202,6 +221,13 @@ export type UsageTotals = {
   estimated: number;
   /** How many finished with no usage numbers at all. */
   missing: number;
+  /** Attempts that explicitly reported token counters whose sum is zero. */
+  zeroUsage: number;
+  /** Attempts whose usage is intentionally outside the trusted sums. */
+  suspect: number;
+  suspectTokens: number;
+  suspectDurationMs: number;
+  suspectCostUsd: number | null;
 };
 
 export type GroupInsight = UsageTotals & {
@@ -250,6 +276,8 @@ export type CardInsight = {
    * the table says "no price" instead of showing a total that looks complete.
    */
   unpricedTokens: number;
+  /** Canonical model keys that had tokens but no price when cost was frozen. */
+  unpricedModels: string[];
   tokens: number;
   /** Execution time the agents reported on this card. */
   durationMs: number;
@@ -258,6 +286,11 @@ export type CardInsight = {
   attempts: number;
   estimated: boolean;
   missing: boolean;
+  zeroUsage: boolean;
+  suspect: boolean;
+  suspectTokens: number;
+  suspectDurationMs: number;
+  suspectCostUsd: number | null;
 };
 
 export type Insights = {
@@ -282,7 +315,11 @@ const NO_MODEL = "__unknown__";
  * Totals while they are being summed. The running cost is a number here and
  * only becomes null at the end, when it turns out nothing fed it.
  */
-type RunningTotals = Omit<UsageTotals, "costUsd"> & { costUsd: number };
+type RunningTotals = Omit<UsageTotals, "costUsd" | "suspectCostUsd"> & {
+  costUsd: number;
+  suspectCostUsd: number;
+  suspectCostKnown: boolean;
+};
 
 function emptyTotals(): RunningTotals {
   return {
@@ -299,6 +336,12 @@ function emptyTotals(): RunningTotals {
     attempts: 0,
     estimated: 0,
     missing: 0,
+    zeroUsage: 0,
+    suspect: 0,
+    suspectTokens: 0,
+    suspectDurationMs: 0,
+    suspectCostUsd: 0,
+    suspectCostKnown: false,
   };
 }
 
@@ -329,12 +372,54 @@ function attemptSegments(a: InsightAttemptRow): UsageSegment[] {
 
 /** Same ladder the board uses: any number counts as reported usage. */
 function hasReportedUsage(a: InsightAttemptRow): boolean {
+  if (a.costStatus === "not_reported") return false;
+  if (a.costStatus != null) return true;
   return (
     attemptTokens(a) > 0 ||
     a.costUsd != null ||
     a.durationMs != null ||
     a.turns != null
   );
+}
+
+function isZeroUsage(a: InsightAttemptRow): boolean {
+  return a.costStatus === "zero_usage";
+}
+
+function hasStoredCostAssessment(a: InsightAttemptRow): boolean {
+  return (
+    a.costStatus != null ||
+    a.costSource != null ||
+    a.costUnpricedModels != null ||
+    a.costBreakdown != null
+  );
+}
+
+function storedUnpricedModels(a: InsightAttemptRow): string[] | null {
+  return a.costUnpricedModels?.map(normalizeModelKey) ?? null;
+}
+
+function isAttemptPriced(
+  a: InsightAttemptRow,
+  segments: readonly UsageSegment[],
+  prices: readonly ModelPrice[],
+): boolean {
+  const stored = storedUnpricedModels(a);
+  if (stored) return attemptTokens(a) > 0 && stored.length === 0;
+  return areSegmentsPriced(segments, prices);
+}
+
+function isSegmentPriced(
+  a: InsightAttemptRow,
+  segment: UsageSegment,
+  prices: readonly ModelPrice[],
+): boolean {
+  const normalized = segment.model ? normalizeModelKey(segment.model) : "unknown";
+  const stored = storedUnpricedModels(a);
+  if (stored) {
+    return segmentTotalTokens(segment) > 0 && !stored.includes(normalized);
+  }
+  return findModelPrice(prices, segment.model) != null;
 }
 
 /**
@@ -355,6 +440,12 @@ function attemptCost(
   segments: readonly UsageSegment[],
   prices: readonly ModelPrice[],
 ): ResolvedCost {
+  if (hasStoredCostAssessment(a)) {
+    return {
+      costUsd: a.costUsd != null ? Number(a.costUsd) : null,
+      source: a.costSource,
+    };
+  }
   return resolveSegmentedCost(segments, prices, {
     costUsd: a.costUsd != null ? Number(a.costUsd) : null,
     usageEstimated: a.usageEstimated,
@@ -372,6 +463,30 @@ function segmentCost(
   prices: readonly ModelPrice[],
   allowReportedFallback: boolean,
 ): ResolvedCost {
+  if (hasStoredCostAssessment(a)) {
+    const counts = segmentTokenCounts(segment);
+    const model = segment.model ? normalizeModelKey(segment.model) : null;
+    const frozen = a.costBreakdown?.find(
+      (item) =>
+        item.model === model &&
+        item.input === counts.input &&
+        item.output === counts.output &&
+        item.cache === counts.cache,
+    );
+    if (frozen) {
+      return {
+        costUsd: frozen.cost_usd,
+        source: frozen.priced ? "computed" : null,
+      };
+    }
+    if (allowReportedFallback) {
+      return {
+        costUsd: a.costUsd != null ? Number(a.costUsd) : null,
+        source: a.costSource,
+      };
+    }
+    return { costUsd: null, source: null };
+  }
   const tokens = segmentTokenCounts(segment);
   return resolveAttemptCost(
     {
@@ -394,6 +509,16 @@ function addAttempt(
   priced: boolean,
 ): void {
   totals.attempts += 1;
+  if (a.usageSuspect) {
+    totals.suspect += 1;
+    totals.suspectTokens += attemptTokens(a);
+    totals.suspectDurationMs += executionOnlyMs(a);
+    if (cost.costUsd != null) {
+      totals.suspectCostUsd += cost.costUsd;
+      totals.suspectCostKnown = true;
+    }
+    return;
+  }
   totals.tokens += attemptTokens(a);
   addDurations(totals, a);
   if (cost.costUsd != null) totals.costUsd += cost.costUsd;
@@ -405,7 +530,8 @@ function addAttempt(
     totals.unpricedTokens += attemptTokens(a);
   }
   if (!hasReportedUsage(a)) totals.missing += 1;
-  else if (a.usageEstimated) totals.estimated += 1;
+  if (isZeroUsage(a)) totals.zeroUsage += 1;
+  if (hasReportedUsage(a) && a.usageEstimated) totals.estimated += 1;
 }
 
 /**
@@ -423,6 +549,17 @@ function addSegment(
 ): void {
   const tokens = segmentTotalTokens(segment);
   totals.attempts += 1;
+  if (a.usageSuspect) {
+    totals.suspect += 1;
+    totals.suspectTokens += tokens;
+    totals.suspectDurationMs += executionOnlyMs(a);
+    if (cost.costUsd != null) {
+      totals.suspectCostUsd += cost.costUsd;
+      totals.suspectCostKnown = true;
+    }
+    if (shared) totals.sharedAttempts = (totals.sharedAttempts ?? 0) + 1;
+    return;
+  }
   totals.tokens += tokens;
   addDurations(totals, a);
   if (cost.costUsd != null) totals.costUsd += cost.costUsd;
@@ -434,7 +571,8 @@ function addSegment(
     totals.unpricedTokens += tokens;
   }
   if (!hasReportedUsage(a)) totals.missing += 1;
-  else if (a.usageEstimated) totals.estimated += 1;
+  if (isZeroUsage(a)) totals.zeroUsage += 1;
+  if (hasReportedUsage(a) && a.usageEstimated) totals.estimated += 1;
   if (shared) totals.sharedAttempts = (totals.sharedAttempts ?? 0) + 1;
 }
 
@@ -445,10 +583,18 @@ function addSegment(
  */
 function sealTotals<T extends RunningTotals>(
   totals: T,
-): Omit<T, "costUsd"> & { costUsd: number | null } {
+): Omit<T, "costUsd" | "suspectCostUsd" | "suspectCostKnown"> & {
+  costUsd: number | null;
+  suspectCostUsd: number | null;
+} {
   const established =
     totals.costComputed + totals.costReported + totals.costEstimated;
-  return { ...totals, costUsd: established > 0 ? totals.costUsd : null };
+  const { suspectCostKnown, costUsd, suspectCostUsd, ...rest } = totals;
+  return {
+    ...rest,
+    costUsd: established > 0 ? costUsd : null,
+    suspectCostUsd: suspectCostKnown ? suspectCostUsd : null,
+  };
 }
 
 /** Groups sort by what they cost; a group with no figure sorts below a real $0. */
@@ -505,7 +651,21 @@ export function computeInsights(
   for (const a of finished) {
     const segments = attemptSegments(a);
     const cost = attemptCost(a, segments, prices);
-    const priced = areSegmentsPriced(segments, prices);
+    const priced = isAttemptPriced(a, segments, prices);
+    const frozenUnpriced = storedUnpricedModels(a);
+    const unpricedModels = frozenUnpriced ?? [
+      ...new Set(
+        segments
+          .filter(
+            (segment) =>
+              segmentTotalTokens(segment) > 0 &&
+              findModelPrice(prices, segment.model) == null,
+          )
+          .map((segment) =>
+            segment.model ? normalizeModelKey(segment.model) : "unknown",
+          ),
+      ),
+    ];
     addAttempt(totals, a, cost, priced);
     addAttempt(group(byProject, a.projectId, a.projectName), a, cost, priced);
     addAttempt(
@@ -524,7 +684,7 @@ export function computeInsights(
         a,
         segment,
         segmentCost(a, segment, prices, !shared),
-        findModelPrice(prices, segment.model) != null,
+        isSegmentPriced(a, segment, prices),
         shared,
       );
     }
@@ -541,27 +701,48 @@ export function computeInsights(
         costUsd: 0,
         costSource: null,
         unpricedTokens: 0,
+        unpricedModels: [],
         tokens: 0,
         durationMs: 0,
         elapsedMs: 0,
         attempts: 0,
         estimated: false,
         missing: false,
+        zeroUsage: false,
+        suspect: false,
+        suspectTokens: 0,
+        suspectDurationMs: 0,
+        suspectCostUsd: null,
         hasCost: false,
         sources: [],
       };
       byCard.set(a.taskId, card);
     }
     card.attempts += 1;
-    card.tokens += attemptTokens(a);
-    card.durationMs += executionOnlyMs(a);
-    card.elapsedMs += elapsedOnlyMs(a);
+    if (a.usageSuspect) {
+      card.suspect = true;
+      card.suspectTokens += attemptTokens(a);
+      card.suspectDurationMs += executionOnlyMs(a);
+      if (cost.costUsd != null) {
+        card.suspectCostUsd = (card.suspectCostUsd ?? 0) + cost.costUsd;
+      }
+    } else {
+      card.tokens += attemptTokens(a);
+      card.durationMs += executionOnlyMs(a);
+      card.elapsedMs += elapsedOnlyMs(a);
+    }
     // Tokens this card spent on a model nobody priced. Counted apart from the
     // dollars beside them, never folded in at zero.
-    for (const segment of segments) {
-      const spent = segmentTotalTokens(segment);
-      if (spent > 0 && findModelPrice(prices, segment.model) == null) {
-        card.unpricedTokens += spent;
+    if (!a.usageSuspect) {
+      for (const segment of segments) {
+        const spent = segmentTotalTokens(segment);
+        const model = segment.model ? normalizeModelKey(segment.model) : "unknown";
+        if (spent > 0 && unpricedModels.includes(model)) {
+          card.unpricedTokens += spent;
+        }
+      }
+      for (const model of unpricedModels) {
+        if (!card.unpricedModels.includes(model)) card.unpricedModels.push(model);
       }
     }
     // Every model the card ran, in the order it ran them: the footer reads
@@ -571,13 +752,16 @@ export function computeInsights(
         card.models.push(segment.model);
       }
     }
-    if (cost.costUsd != null) {
+    if (!a.usageSuspect && cost.costUsd != null) {
       card.hasCost = true;
       card.costUsd = (card.costUsd ?? 0) + cost.costUsd;
       card.sources.push(cost.source);
     }
-    if (!hasReportedUsage(a)) card.missing = true;
-    else if (a.usageEstimated) card.estimated = true;
+    if (!a.usageSuspect) {
+      if (!hasReportedUsage(a)) card.missing = true;
+      if (isZeroUsage(a)) card.zeroUsage = true;
+      if (hasReportedUsage(a) && a.usageEstimated) card.estimated = true;
+    }
   }
 
   // Reopened rate: a delivery counts as reopened when a human comment landed

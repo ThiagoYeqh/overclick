@@ -206,6 +206,24 @@ export const TaskGetOutputSchema = z.object({
   mission: MissionSchema.nullable(),
   branch_convention: BranchConventionSchema,
   usage_recipe: UsageRecipeSchema.nullable().optional(),
+  /** Latest attempt reported usage outside the trustworthy claim window. */
+  usage_suspect: z.boolean(),
+  usage_suspect_reason: z.string().nullable(),
+  /** Frozen board-owned cost, distinct from the executor's reported figure. */
+  cost_usd: z.number().nullable(),
+  cost_source: z.enum(["computed", "reported", "estimated"]).nullable(),
+  cost_status: z
+    .enum([
+      "computed",
+      "reported",
+      "estimated",
+      "unpriced",
+      "not_reported",
+      "zero_usage",
+      "suspect",
+    ])
+    .nullable(),
+  cost_unpriced_models: z.array(z.string()),
 });
 
 /**
@@ -327,6 +345,12 @@ export const TaskUpdateInputSchema = z
   .object({
     task_id: TaskIdSchema,
     comment: z.string().min(1).optional(),
+    comment_kind: z
+      .enum(["comment", "report"])
+      .describe(
+        "Timeline kind for this comment. Omit or use `comment` for prose updates.",
+      )
+      .optional(),
     progress: z.string().min(1).optional(),
     revisado: z.boolean().optional(),
     /**
@@ -382,6 +406,10 @@ export const TaskUpdateInputSchema = z
       message:
         "provide comment, progress, revisado, mission_id, project_id, harness, usage, spawn_failure or resolved_in",
     },
+  )
+  .refine(
+    (value) => value.comment !== undefined || value.comment_kind === undefined,
+    { message: "comment_kind requires comment", path: ["comment_kind"] },
   );
 
 /** One card's short id before and after a move between projects. */
@@ -407,6 +435,8 @@ export const TaskUpdateOutputSchema = z.object({
   task: TaskSchema,
   /** Present when a usage block was applied to the latest attempt. */
   usage_recorded: z.boolean().optional(),
+  usage_suspect: z.boolean(),
+  usage_suspect_reason: z.string().nullable(),
   /**
    * Subtasks that followed the parent card into the mission, or into the
    * destination project. Present only on a move, so the caller sees the whole
@@ -460,6 +490,8 @@ export const TaskDeliverOutputSchema = z.object({
   task: TaskSchema,
   handoff: HandoffSchema,
   telemetry_incomplete: z.boolean(),
+  usage_suspect: z.boolean(),
+  usage_suspect_reason: z.string().nullable(),
   /** Actionable warning returned when the delivery came without usage. */
   usage_warning: z.string().optional(),
   /** The reference the card now shows, claim and delivery merged. */
@@ -714,6 +746,16 @@ export const UsageTotalsSchema = z.object({
   estimated: z.number().int().nonnegative(),
   /** Attempts that finished reporting no usage at all. */
   missing: z.number().int().nonnegative(),
+  /** Attempts that explicitly reported token counters summing to zero. */
+  zero_usage: z.number().int().nonnegative(),
+  /** Attempts excluded from trusted sums by the claim-window/session guard. */
+  suspect: z.number().int().nonnegative(),
+  /** Reported tokens on suspect attempts, counted apart from `tokens`. */
+  suspect_tokens: z.number().int().nonnegative(),
+  /** Reported execution time on suspect attempts, outside `duration_ms`. */
+  suspect_duration_ms: z.number().int().nonnegative(),
+  /** Suspect cost when it can be established; never folded into cost_usd. */
+  suspect_cost_usd: z.number().nullable(),
 });
 
 export const InsightGroupSchema = UsageTotalsSchema.extend({
@@ -741,6 +783,10 @@ export const InsightCardSchema = z.object({
   cost_usd: z.number().nullable(),
   /** Where that figure came from; "mixed" when the attempts disagree. */
   cost_source: z.enum(["computed", "reported", "estimated", "mixed"]).nullable(),
+  /** Tokens whose model had no price when this attempt's cost was frozen. */
+  unpriced_tokens: z.number().int().nonnegative(),
+  /** Canonical model keys missing from that frozen price lookup. */
+  unpriced_models: z.array(z.string()),
   tokens: z.number().int().nonnegative(),
   /** Execution time the agents reported on this card. */
   duration_ms: z.number().int().nonnegative(),
@@ -749,6 +795,11 @@ export const InsightCardSchema = z.object({
   attempts: z.number().int().nonnegative(),
   estimated: z.boolean(),
   missing: z.boolean(),
+  zero_usage: z.boolean(),
+  suspect: z.boolean(),
+  suspect_tokens: z.number().int().nonnegative(),
+  suspect_duration_ms: z.number().int().nonnegative(),
+  suspect_cost_usd: z.number().nullable(),
 });
 
 export const ModelReopenSchema = z.object({

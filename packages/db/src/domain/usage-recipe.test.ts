@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   factoryUsageRecipes,
@@ -28,6 +30,7 @@ describe("usage collection recipes", () => {
     expect(claude?.command).toContain("cache_read_input_tokens");
     // It has to print the shape task_deliver takes, not a pretty table.
     expect(claude?.command).toContain("segments");
+    expect(claude?.command).toContain("OVERCLICK_CLAIMED_AT");
   });
 
   it("gives Codex a command that attributes each turn to its model", () => {
@@ -36,6 +39,112 @@ describe("usage collection recipes", () => {
     expect(codex?.command).toContain("rollout-");
     expect(codex?.command).toContain("last_token_usage");
     expect(codex?.command).toContain("turn_context");
+    expect(codex?.command).toContain("CODEX_SESSION_ID");
+    expect(codex?.command).toContain("CODEX_HARNESS_MODEL");
+    expect(codex?.command).not.toContain('model, turns = collections.defaultdict(collections.Counter), "unknown"');
+  });
+
+  it("measures an anonymized Codex 0.148 rollout and normalizes its model", () => {
+    const codex = findUsageRecipe(recipes, "codex");
+    const transcript = fileURLToPath(
+      new URL("./fixtures/codex-rollout.jsonl", import.meta.url),
+    );
+    const output = execFileSync("bash", ["-c", codex!.command], {
+      env: {
+        ...process.env,
+        TRANSCRIPT_PATH: transcript,
+        CODEX_HARNESS_MODEL: "should-not-win",
+      },
+      encoding: "utf8",
+    });
+
+    expect(JSON.parse(output)).toMatchObject({
+      estimated: false,
+      turns: 2,
+      segments: [
+        {
+          model: "gpt-5-6-sol",
+          input: 130,
+          output: 50,
+          cache_read: 260,
+          cache_write: 8,
+        },
+      ],
+    });
+  });
+
+  it("counts only Codex counters recorded after claimed_at", () => {
+    const codex = findUsageRecipe(recipes, "codex");
+    const transcript = fileURLToPath(
+      new URL("./fixtures/codex-rollout.jsonl", import.meta.url),
+    );
+    const output = execFileSync("bash", ["-c", codex!.command], {
+      env: {
+        ...process.env,
+        TRANSCRIPT_PATH: transcript,
+        CODEX_HARNESS_MODEL: "gpt-5.6-sol",
+        OVERCLICK_CLAIMED_AT: "2026-08-18T10:00:02.500Z",
+      },
+      encoding: "utf8",
+    });
+
+    expect(JSON.parse(output)).toMatchObject({
+      estimated: false,
+      turns: 1,
+      segments: [
+        {
+          model: "gpt-5-6-sol",
+          input: 80,
+          output: 30,
+          cache_read: 160,
+          cache_write: 5,
+        },
+      ],
+    });
+  });
+
+  it("uses the card harness when a readable Codex rollout omits its model", () => {
+    const codex = findUsageRecipe(recipes, "codex");
+    const transcript = fileURLToPath(
+      new URL("./fixtures/codex-rollout-no-model.jsonl", import.meta.url),
+    );
+    const output = execFileSync("bash", ["-c", codex!.command], {
+      env: {
+        ...process.env,
+        TRANSCRIPT_PATH: transcript,
+        CODEX_HARNESS_MODEL: "gpt-5.3-codex-spark",
+      },
+      encoding: "utf8",
+    });
+
+    expect(JSON.parse(output)).toMatchObject({
+      estimated: false,
+      segments: [
+        {
+          model: "gpt-5-3-codex-spark",
+          input: 50,
+          output: 10,
+          cache_read: 25,
+        },
+      ],
+    });
+  });
+
+  it("explains why usage must be estimated when the rollout is unavailable", () => {
+    const codex = findUsageRecipe(recipes, "codex");
+    const output = execFileSync("bash", ["-c", codex!.command], {
+      env: {
+        ...process.env,
+        TRANSCRIPT_PATH: "/definitely/missing/codex-rollout.jsonl",
+        CODEX_HARNESS_MODEL: "gpt-5.6-sol",
+      },
+      encoding: "utf8",
+    });
+    const parsed = JSON.parse(output);
+
+    expect(parsed.estimated).toBe(true);
+    expect(parsed.reason).toContain("missing or unreadable");
+    expect(parsed.segments).toEqual([]);
   });
 
   it("says plainly that Gemini CLI records nothing to total", () => {
@@ -53,6 +162,7 @@ describe("usage collection recipes", () => {
     expect(grok?.command).toContain("modelUsage");
     expect(grok?.command).toContain("cachedReadTokens");
     expect(grok?.command).toContain("segments");
+    expect(grok?.command).toContain("OVERCLICK_CLAIMED_AT");
   });
 
   it("gives Kimi a command that totals every agent's wire log", () => {
@@ -63,6 +173,7 @@ describe("usage collection recipes", () => {
     // The cumulative record at the end would count the run twice.
     expect(kimi?.command).toContain('usageScope") != "turn"');
     expect(kimi?.command).toContain("segments");
+    expect(kimi?.command).toContain("OVERCLICK_CLAIMED_AT");
   });
 
   describe("coverage", () => {

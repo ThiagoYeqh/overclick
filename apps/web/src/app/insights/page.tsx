@@ -64,6 +64,8 @@ function honestyNote(totals: UsageTotals, t: InsightsCopy): string {
   const parts: string[] = [];
   if (totals.estimated > 0) parts.push(t.estimatedCount(totals.estimated));
   if (totals.missing > 0) parts.push(t.missingCount(totals.missing));
+  if (totals.zeroUsage > 0) parts.push(t.zeroUsageCount(totals.zeroUsage));
+  if (totals.suspect > 0) parts.push(t.suspectCount(totals.suspect));
   return parts.length > 0 ? parts.join(" · ") : t.allReported;
 }
 
@@ -110,6 +112,24 @@ function GroupFootnote({
   if (missing.length > 0) {
     items.push(
       t.footMissing(missing.map((r) => `${name(r)} ×${r.missing}`).join(" · ")),
+    );
+  }
+  const zeroUsage = rows.filter((r) => r.zeroUsage > 0);
+  if (zeroUsage.length > 0) {
+    items.push(
+      t.footZeroUsage(
+        zeroUsage.map((r) => `${name(r)} ×${r.zeroUsage}`).join(" · "),
+      ),
+    );
+  }
+  const suspect = rows.filter((r) => r.suspect > 0);
+  if (suspect.length > 0) {
+    items.push(
+      t.footSuspect(
+        suspect
+          .map((r) => `${name(r)} ${t.suspectSeparate(fmtTokens(r.suspectTokens))}`)
+          .join(" · "),
+      ),
     );
   }
   const elapsed = rows.filter((r) => r.elapsedOnly > 0);
@@ -225,9 +245,27 @@ function GroupTable({
                   ) : null}
                   <td className="num">
                     {fmtTokens(row.tokens)}
-                    {row.estimated > 0 || row.missing > 0 ? (
-                      <span className="ins-mark" title={honestyNote(row, t)}>
-                        {row.missing > 0 ? "○" : "≈"}
+                    {row.estimated > 0 ||
+                    row.missing > 0 ||
+                    row.zeroUsage > 0 ||
+                    row.suspect > 0 ? (
+                      <span
+                        className="ins-mark"
+                        title={
+                          row.suspect > 0
+                            ? t.suspectSeparate(fmtTokens(row.suspectTokens))
+                            : row.zeroUsage > 0
+                              ? t.zeroUsageCount(row.zeroUsage)
+                              : honestyNote(row, t)
+                        }
+                      >
+                        {row.suspect > 0
+                          ? "!"
+                          : row.missing > 0
+                            ? "○"
+                            : row.zeroUsage > 0
+                              ? "0"
+                              : "≈"}
                       </span>
                     ) : null}
                   </td>

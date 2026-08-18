@@ -79,14 +79,14 @@ Then, in your terminal: *"grab the next task from the board."* Watch the example
 
 ## MCP surface
 
-20 tools: `project_list` · `project_create` · `project_update` · `project_delete` ·
+21 tools: `project_list` · `project_create` · `project_update` · `project_delete` ·
 `mission_list` · `mission_get` · `mission_create` ·
-`task_list` · `task_get` · `task_create` · `task_claim` · `task_update` · `task_deliver` ·
+`task_list` · `task_get` · `task_create` · `task_search` · `task_claim` · `task_update` · `task_deliver` ·
 `task_delete` · `branch_register` · `harness_recommend` · `harness_list` · `harness_set` ·
 `executors_update` · `insights_query`. Streamable HTTP, bearer tokens, atomic claims, typed errors. The
 configuration tools sit behind a per-token manage flag, off by default. See
 [`docs/mcp.md`](docs/mcp.md), and [`docs/harness-routing.md`](docs/harness-routing.md) for
-the twenty shipped activities and why each one routes the way it does.
+the full shipped MCP surface and why each one routes the way it does.
 
 Works with any MCP-capable agent. Built to shine with
 [Overclock](https://overclock.sh): squads, visible panes, and precise per-card telemetry.

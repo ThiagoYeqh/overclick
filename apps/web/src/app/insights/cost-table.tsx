@@ -45,7 +45,13 @@ function CardFootnote({
     ? cards.filter((c) => c.unpricedTokens > 0)
     : [];
   if (unpriced.length > 0) {
-    items.push(t.footUnpriced(unpriced.map((c) => c.shortId).join(" · ")));
+    items.push(
+      t.footUnpriced(
+        unpriced
+          .map((c) => `${c.shortId} ${c.unpricedModels.join(", ")}`)
+          .join(" · "),
+      ),
+    );
   }
   const estimated = cards.filter((c) => c.estimated);
   if (estimated.length > 0) {
@@ -54,6 +60,23 @@ function CardFootnote({
   const missing = cards.filter((c) => c.missing);
   if (missing.length > 0) {
     items.push(t.footMissing(missing.map((c) => c.shortId).join(" · ")));
+  }
+  const zeroUsage = cards.filter((c) => c.zeroUsage);
+  if (zeroUsage.length > 0) {
+    items.push(t.footZeroUsage(zeroUsage.map((c) => c.shortId).join(" · ")));
+  }
+  const suspect = cards.filter((c) => c.suspect);
+  if (suspect.length > 0) {
+    items.push(
+      t.footSuspect(
+        suspect
+          .map(
+            (c) =>
+              `${c.shortId} ${t.suspectSeparate(fmtTokens(c.suspectTokens))}`,
+          )
+          .join(" · "),
+      ),
+    );
   }
   const elapsed = cards.filter((c) => c.elapsedMs > 0);
   if (elapsed.length > 0) {
@@ -230,27 +253,45 @@ export function CostTable({
                           className="ins-dim"
                           title={
                             card.unpricedTokens > 0
-                              ? t.noPriceTitle(fmtTokens(card.unpricedTokens))
+                              ? t.costNoPriceFor(card.unpricedModels.join(", "))
                               : undefined
                           }
                         >
                           {card.unpricedTokens > 0
-                            ? t.costNoPrice
-                            : t.costNotReported}
+                            ? t.costNoPriceFor(card.unpricedModels.join(", "))
+                            : card.zeroUsage
+                              ? t.costZeroUsage
+                              : card.suspect
+                                ? t.suspectCount(1)
+                                : card.estimated
+                                  ? t.estimatedCount(1)
+                                  : t.costNotReported}
                         </span>
                       )}
                     </td>
                   ) : null}
                   <td className="num">
                     {fmtTokens(card.tokens)}
-                    {card.estimated || card.missing ? (
+                    {card.estimated || card.missing || card.zeroUsage || card.suspect ? (
                       <span
                         className="ins-mark"
                         title={
-                          card.missing ? t.missingCount(1) : t.estimatedCount(1)
+                          card.suspect
+                            ? t.suspectSeparate(fmtTokens(card.suspectTokens))
+                            : card.missing
+                              ? t.missingCount(1)
+                              : card.zeroUsage
+                                ? t.zeroUsageCount(1)
+                                : t.estimatedCount(1)
                         }
                       >
-                        {card.missing ? "○" : "≈"}
+                        {card.suspect
+                          ? "!"
+                          : card.missing
+                            ? "○"
+                            : card.zeroUsage
+                              ? "0"
+                              : "≈"}
                       </span>
                     ) : null}
                   </td>

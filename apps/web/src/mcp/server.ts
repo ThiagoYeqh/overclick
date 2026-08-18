@@ -63,8 +63,14 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
 
 function inputSchemaFor(name: McpToolName) {
   const schema = toolContracts[name].input;
-  const inner = (schema as { _def?: { schema?: unknown } })._def?.schema;
-  return (inner ?? schema) as typeof schema;
+  const unwrap = (value: unknown): unknown => {
+    if (!value || typeof value !== "object") return value;
+    const next = (value as { _def?: { schema?: unknown; innerType?: unknown } })._def;
+    if (next?.schema) return unwrap(next.schema);
+    if (next?.innerType) return unwrap(next.innerType);
+    return value;
+  };
+  return unwrap(schema) as typeof schema;
 }
 
 export function createOverclickMcpServer(opts: {

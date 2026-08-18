@@ -36,6 +36,8 @@ Two rules that cost real time when broken:
   refused, and a claim registered after the fact makes the board lie about how
   long the work took.
 - **One card, one claim.** If a second agent already holds it, take another.
+- **Search before you create a new card.** Before `task_create`, run `task_search` with a
+  short query to reuse existing cards and avoid duplicates.
 
 ## The contract
 
@@ -68,7 +70,26 @@ and set `estimated: true` so the board can label it. Never send zeros, and never
 invent a cost figure: tokens and time are what the board asks for, money is its
 own arithmetic.
 
+Measure from the claim, never from the start of the session. The briefing names
+`claimed_at` and binds it into transcript-reading recipes; count only entries at
+or after that timestamp. If the terminal already planned a mission, read files or
+created cards before `task_claim`, none of that earlier work belongs to this card.
+
+For Codex, the claim binds the recipe to `claimed_at`, that claim's session id and
+harness model.
+The command reads `turn_context.payload.model` and each `last_token_usage` delta,
+normalizes the model to the board's pricing slug, and falls back to the harness only
+when a readable rollout omits its model. `estimated: true` is reserved for a missing
+or unreadable rollout and comes with a reason; never substitute `o4-mini`, `gpt-5`,
+`unknown`, or another guessed default.
+
 Found the real numbers only later? `task_update` accepts usage after delivery.
+
+`task_update` also accepts:
+- `comment_kind: \"report\"` to mark a report-style follow-up and increment
+  `reports_count`.
+- `resolved_in` to stamp the short_id/source where the follow-up happens; set
+  `resolved_in: null` to clear it.
 
 ## Dispatching a card to a worker
 

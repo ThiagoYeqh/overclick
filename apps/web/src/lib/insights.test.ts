@@ -27,10 +27,15 @@ function attempt(overrides: Partial<InsightAttemptRow> = {}): InsightAttemptRow 
     tokensOut: 500,
     tokensCache: 0,
     costUsd: "1.50",
+    costSource: null,
+    costStatus: null,
+    costUnpricedModels: null,
+    costBreakdown: null,
     durationMs: 60_000,
     serverDurationMs: 65_000,
     turns: 10,
     usageEstimated: false,
+    usageSuspect: false,
     ...overrides,
   };
 }
@@ -95,6 +100,36 @@ describe("computeInsights totals", () => {
     expect(result.totals.estimated).toBe(1);
     expect(result.totals.missing).toBe(1);
     expect(result.totals.attempts).toBe(3);
+  });
+
+  it("keeps suspect usage outside trusted totals and exposes its own bucket", () => {
+    const result = computeInsights(
+      [
+        attempt(),
+        attempt({
+          taskId: "task-2",
+          taskShortId: "OC-2",
+          tokensIn: 4_000_000,
+          tokensOut: 1_000_000,
+          costUsd: "99.00",
+          durationMs: 60_000,
+          usageSuspect: true,
+        }),
+      ],
+      [],
+    );
+
+    expect(result.totals.tokens).toBe(1_500);
+    expect(result.totals.costUsd).toBeCloseTo(1.5);
+    expect(result.totals.durationMs).toBe(60_000);
+    expect(result.totals.suspect).toBe(1);
+    expect(result.totals.suspectTokens).toBe(5_000_000);
+    expect(result.totals.suspectCostUsd).toBeCloseTo(99);
+    expect(result.perCard.find((card) => card.shortId === "OC-2")).toMatchObject({
+      tokens: 0,
+      suspect: true,
+      suspectTokens: 5_000_000,
+    });
   });
 
   it("counts the server-measured time as elapsed, never as execution", () => {
@@ -321,12 +356,41 @@ describe("cost from the price table", () => {
     expect(result.perCard[0]?.costUsd).toBeCloseTo(4);
   });
 
-  it("recomputes when the price changes, with no new attempt data", () => {
+  it("recomputes a legacy attempt until the persisted backfill reaches it", () => {
     const rows = [attempt({ tokensIn: 1_000_000, tokensOut: 0, tokensCache: 0 })];
     const cheap = computeInsights(rows, [], prices);
     const dear = computeInsights(rows, [], [{ ...prices[0]!, inputPerMtok: 6 }]);
     expect(cheap.totals.costUsd).toBeCloseTo(3);
     expect(dear.totals.costUsd).toBeCloseTo(6);
+  });
+
+  it("reads the stored snapshot instead of changing history with today's price", () => {
+    const rows = [
+      attempt({
+        tokensIn: 1_000_000,
+        tokensOut: 0,
+        tokensCache: 0,
+        costUsd: "3.000000",
+        costSource: "computed",
+        costStatus: "computed",
+        costUnpricedModels: [],
+        costBreakdown: [
+          {
+            model: "sonnet-5",
+            input: 1_000_000,
+            output: 0,
+            cache: 0,
+            cost_usd: 3,
+            priced: true,
+          },
+        ],
+      }),
+    ];
+    const result = computeInsights(rows, [], [
+      { ...prices[0]!, inputPerMtok: 99 },
+    ]);
+    expect(result.totals.costUsd).toBeCloseTo(3);
+    expect(result.perCard[0]?.costUsd).toBeCloseTo(3);
   });
 });
 

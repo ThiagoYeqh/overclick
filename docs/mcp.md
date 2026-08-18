@@ -1,6 +1,6 @@
 # MCP · OverClick
 
-The board exposes the 20 tools over **streamable HTTP**, served by the same app process.
+The board exposes the 21 tools over **streamable HTTP**, served by the same app process.
 
 ## Connect
 
@@ -46,19 +46,21 @@ instructions hand their agents this context before the first tool call.
 | `mission_list` / `mission_get` | missions and the context to inject into the prompt |
 | `mission_create` | creates a mission (`title`, objective/context markdown, `status`) and returns its id |
 | `task_list` | the queue (project, `mission_id`, status, priority, `awaiting_review_by`) |
-| `task_get` | self-contained md briefing (contract + harness + mission + branch) |
+| `task_get` | self-contained md briefing (contract + harness + mission + branch), plus the latest attempt's frozen `cost_usd`, `cost_source`, `cost_status` and `cost_unpriced_models` |
 | `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin) |
 | | `project_id` takes the project uuid **or** its card prefix (`AGB`), so an agent that just called `project_list` never needs the uuid |
+| `task_search` | search the queue by text (`q`) and metadata filters |
 | `task_claim` | status → `in_progress`; a second claim → `ALREADY_CLAIMED` |
 | | A card claimed again after a delivery was reopened comes back one link down its chain, and the briefing says which try this is. Only reviewed deliveries count: an attempt ended with `force` is a restart, not a verdict, and a harness pinned by hand off the chain is never escalated |
 | | when the claiming executor differs from the card harness, the response carries a `harness_divergence` warning and the card timeline automatically records an executor swap entry naming planned vs actual |
-| `task_update` | progress, comment, the `reviewed` mark, a new `harness` (validated against executors), or a `usage` block that fills or corrects the latest attempt's telemetry, even after deliver |
+| `task_update` | progress, comment (`comment_kind` supports `report` to increment `reports_count`), `resolved_in` metadata (string or `null`), the `reviewed` mark, a new `harness` (validated against executors), or a `usage` block that fills or corrects the latest attempt's telemetry, even after deliver |
 | | `mission_id`: moves the card between missions after it was created, `null` detaches it. Only missions of the token's workspace qualify; anything else is a `NOT_FOUND`, never a silent detach. Subtasks follow their parent, and the response says how many in `subtasks_moved`. On the board the same move is a select in the card detail, and a bulk bar that assigns a whole selection at once |
 | | `project_id`: moves the card to another project of the same workspace. This is how a board gets reorganized without deleting anything, and it is a field on `task_update` rather than a `task_move` tool because a move is one more thing a card can change, like its mission. The card is **restamped** with the destination prefix (`FUN-1` landing in `MKT` becomes `MKT-7`), consuming the destination's `next_number` so the numbering advances without colliding with a card already there. The id it had is kept on the card in `previous_short_ids` and the response returns the whole old-to-new mapping in `project_move {from_prefix, to_prefix, short_ids: [{from, to}]}`, so branches, commits and PR titles that name the old ids can be fixed. Subtasks travel with their parent and are restamped with it (`FUN-1.1` → `MKT-7.1`), counted in `subtasks_moved`; a subtask cannot be moved on its own, because its id is derived from its parent and it would land orphaned in a project its id does not belong to. `mission_id` is untouched: missions are workspace wide and cross projects by design. Naming the project the card is already in changes nothing and returns no `project_move` |
 | | `spawn_failure`: a boot-failure note an orchestrator posts when the planned executor never started (CLI missing, crash on boot); it lands as a typed timeline entry with the planned harness attached and both entries render in the card detail under "Execution trace" |
 | `task_deliver` | result + usage; status → `done`; routed to the card's reviewer |
 | | `usage` is required by contract: report exact numbers when your harness exposes them, otherwise **estimate** tokens, turns and duration and set `estimated: true` (the card labels the numbers "estimated"). Tokens and time are what the board asks for; `cost_usd` is optional and only used when the board cannot price the run itself. A delivery without usage still lands, but the response carries a warning and the card shows "usage not reported". |
 | | `usage.segments` records tokens **per model**: `[{model, input, output, cache_read, cache_write}]`, one entry per model that ran. A conversation that switched model reports both, and the card footer reads `sonnet-5 to opus-5` instead of crediting the whole run to whichever model was recorded at claim time. The flat `tokens_in/out/cache` shape is still accepted and stored as a single segment; when segments arrive the board derives the flat totals from them, so both always agree. |
+| | At deliver/update time the board normalizes every model through one alias table (`gpt-5.3-codex-spark` → `gpt-5-3-codex-spark`, `kimi-code/k3` → `k3`, `claude-fable-5` → `fable-5`), multiplies each segment by that model's price, and freezes the total and per-model breakdown on the attempt. `cost_usd` sent by the executor is stored separately and is only a fallback when a model has no price. |
 | | optional `how_to_verify`: a URL, command or screenshot reference the reviewer opens first. It is shown on top of the validation panel in the Done detail ("For checking, open"). |
 | `task_delete` | hard delete: removes the card plus attempts, handoffs and subtasks (irreversible) |
 | `branch_register` | records the branch on the card |
@@ -68,9 +70,9 @@ instructions hand their agents this context before the first tool call.
 | `harness_set` | writes one policy line (`type`, optional `cli`, `model` and/or `chain`, `effort`), validated against the configured executors and stamped with the token label. **Needs a manage token** (see below); `cli` omitted means no preference |
 | | `chain` is the whole line, best first, up to 8 deep; `model` alone still works and reads as a chain of one. The write is refused only when **no** link resolves, so a first choice on an executor you have switched off is a legal thing to declare: that is what a successor is for. The `cli` pin applies to the head only, because past the first choice the point of the fallback is to leave that CLI behind |
 | `insights_query` | tokens and time over the workspace, plus the reopened rate per model. Readable with any token |
-| | Money is opt-in and off by default: `pricing_enabled: false` comes back with every `cost_usd` null, never a zero standing in for "no cost to report", because on a flat subscription a dollar figure is fiction. Turn the cost layer on in Settings and the board fills those fields with approximate figures from its price table, labeled by source |
+| | Money is opt-in and off by default: `pricing_enabled: false` comes back with every `cost_usd` null, never a zero standing in for "no cost to report", because on a flat subscription a dollar figure is fiction. Turn the cost layer on in Settings and the board reads the frozen attempt figures, labeled by source. Editing a price affects the next deliver/task_update, not historical snapshots |
 | | `group_by=model` reads the segments, so a run that switched model lands in both model groups with the tokens each one actually spent, each priced at its own rate. Those groups carry `shared_attempts`: the runs that touched more than one model. Their duration lands whole in every model the run touched, because nothing records how the wall clock split, so per-model durations overlap instead of adding up to the total |
-| | `group_by` project, mission, model or card (omit it for totals and the reopen rate only), `since` and `until` to narrow the period. Same rows and same aggregation the Insights page runs, so a number never disagrees with the screen: only finished attempts count, example cards stay out, `estimated` and `missing` come back as counts next to every total, and a card whose cost nobody reported keeps `cost_usd: null` instead of a fake `0`. The period narrows attempts by when they finished; reopens are not narrowed, so a delivery reopened later still counts |
+| | `group_by` project, mission, model or card (omit it for totals and the reopen rate only), `since` and `until` to narrow the period. Same rows and same aggregation the Insights page runs, so a number never disagrees with the screen: only finished attempts count, example cards stay out, `estimated`, `missing`, `zero_usage` and `suspect` come back as honesty counters. Card rows also carry `unpriced_models` and `unpriced_tokens`, so an unknown cost says `no price for X`; absent counters say `not reported`; explicit zero counters say `usage reported as zero`. None becomes a fake `$0`. The period narrows attempts by when they finished; reopens are not narrowed, so a delivery reopened later still counts |
 | `executors_update` | adds or removes CLIs and models in the executor config, in the shape the Settings grid saves. **Needs a manage token** |
 | | one `cli` per call (the board id, or the binary name an agent sends: `claude` resolves to `claude-code`), plus `add_models`, `remove_models`, `enabled`, `label`, or `remove: true` to drop the CLI entirely. Adding models turns the CLI on unless `enabled: false` says otherwise, because an unchecked model is invisible to the policy selects and to card harnesses. When a change orphans a policy line, the response carries `policy_warnings` naming what `harness_set` has to fix |
 
@@ -96,7 +98,16 @@ carries it structured as `usage_recipe {cli, label, yields, instructions, comman
 caller can run it without parsing markdown. `yields` is `tokens_per_model` when the
 command prints real numbers and `no_tokens` when the CLI records none on disk, in which
 case the honest move is estimating and saying so. The shipped Claude Code and Codex
-recipes print exactly the `segments` shape `task_deliver` takes. Recipes are editable in
+recipes print the `segments` shape `task_deliver` takes. The Codex recipe is bound at
+claim time to `claimed_at`, the declared session id and harness model. Every shipped
+recipe that reads a transcript filters entries to timestamps at or after `claimed_at`;
+work that was already in the same session before the claim is not usage for this card.
+The Codex recipe reads only that rollout's
+`turn_context.payload.model` and `last_token_usage` deltas, normalizes model names such as
+`gpt-5.6-sol` to the pricing slug `gpt-5-6-sol`, and uses the harness model only when an
+older readable rollout has no model field. It returns `estimated: false` for measured
+rollouts; a missing or unreadable rollout returns `estimated: true` plus the reason, never
+an invented default such as `o4-mini`, `gpt-5`, or `unknown`. Recipes are editable in
 Settings › Usage recipes: a CLI changing its transcript format is fixed there, once,
 instead of in every agent's head, and a recipe edited back to the shipped text stops
 being stored.
@@ -163,6 +174,28 @@ server-measured duration with "usage not reported". Estimates beat silence: agen
 that cannot read exact numbers are instructed to estimate and mark `estimated: true`,
 and real numbers found later can overwrite the attempt through `task_update`. Whatever
 the source, it travels with the number: measured, estimated, or not reported at all.
+
+Cost is derived once, when `task_deliver` or `task_update {usage}` processes the
+attempt. The board keeps the executor's optional `cost_usd` as
+`reported_cost_usd`, normalizes the segment model, loads the workspace price row,
+and stores `cost_usd`, `cost_source`, `cost_status`, `cost_unpriced_models` and a
+per-model breakdown. Board and Insights read that snapshot; they do not silently
+reprice old work when Settings changes. Migration `0024_ambitious_doctor_strange`
+backfills finished attempts with the same rules and is idempotent, so rerunning its
+cost update produces the same result.
+
+`cost_status` is the reason a card can show instead of zero: `computed`,
+`reported`, `estimated`, `unpriced`, `not_reported`, `zero_usage` or `suspect`.
+A priced free tier is different: it has tokens, a real price row whose rates are
+zero, and therefore a legitimate computed `$0`.
+
+The server also checks the report against the claim window. A usage total that could not
+fit between claim and delivery, or a session id that already delivered a different card,
+does not block the delivery: the attempt is stored with `usage_suspect: true`, the card
+shows "usage above the possible claim window, probably a whole-session total", and
+`task_get` returns the flag and reason. Insights keeps suspect tokens, duration and cost
+outside the trusted totals and reports them in `suspect_*` fields instead of silently
+inflating the project, mission or model.
 
 Two clocks run on a card and they are not the same number. The `duration_ms` an agent
 reports in its usage is execution time: the board shows it as the time the run took.

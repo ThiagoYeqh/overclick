@@ -34,8 +34,10 @@ export function renderBriefingMarkdown(input: {
   chain?: readonly string[] | null;
   /** Which try this is, zero-based: 1 means the first delivery was rejected. */
   attempt?: number;
+  /** Server boundary for this attempt's transcript and usage counters. */
+  claimedAt?: string | null;
 }): string {
-  const { task, mission, branchConvention, recipe, chain, attempt } = input;
+  const { task, mission, branchConvention, recipe, chain, attempt, claimedAt } = input;
   const steps = task.como_confirmo
     .map((step, index) => `${index + 1}. ${step.step} → ${step.expected}`)
     .join("\n");
@@ -99,6 +101,15 @@ export function renderBriefingMarkdown(input: {
     `- commit/PR: \`${branchConvention.commit_prefix}\``,
     reopen,
     "",
+    ...(claimedAt
+      ? [
+          "## Usage window",
+          "",
+          `- claimed_at: \`${claimedAt}\``,
+          "- Count only work recorded at or after claimed_at. If this session already had work before the claim, that work is not part of this card.",
+          "",
+        ]
+      : []),
     // The briefing must END with the recipe and the executor contract: in
     // field tests, workers with board tools made zero calls because nothing
     // told them how to measure themselves or what to send.
@@ -108,8 +119,10 @@ export function renderBriefingMarkdown(input: {
     "When done, call `task_deliver` with summary, evidence, branch and " +
       "usage. Send usage as `segments`, one per model that ran: " +
       "`{segments: [{model, input, output, cache_read, cache_write}], " +
-      "duration_ms, turns}` — the command above prints exactly that shape. " +
-      "Without exact numbers, ESTIMATE and set `estimated: true`. " +
+      "duration_ms, turns}` — the command above prints that shape. " +
+      "When it reports `estimated: false`, keep the measured model and counters. " +
+      "Only when it reports `estimated: true` with a reason should you estimate; " +
+      "never replace a missing model with an invented default. " +
       "Real numbers found later? Correct them with `task_update` passing usage.\n\n" +
       "Send `transcript: {path}` too, with the transcript the command read. " +
       "The board stores the reference only, never the content: the file stays " +

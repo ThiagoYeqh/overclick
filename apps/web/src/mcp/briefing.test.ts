@@ -16,6 +16,7 @@ const task: Task = {
   workspace_id: "ws_1",
   previous_short_ids: [],
   parent_id: null,
+  reports_count: 0,
   o_que: "O login volta a autenticar.",
   por_que: "Ninguém entra.",
   como_confirmo: [{ step: "abre /login", expected: "entra na home" }],
@@ -72,6 +73,7 @@ describe("self-contained briefing markdown", () => {
     );
     expect(md.slice(contractAt)).toContain("segments");
     expect(md.slice(contractAt)).toContain("estimated: true");
+    expect(md.slice(contractAt)).toContain("never replace a missing model");
     // Nothing after the contract: it must be the last thing the agent reads.
     expect(md.indexOf("## ", contractAt + 1)).toBe(-1);
   });
@@ -96,6 +98,21 @@ describe("self-contained briefing markdown", () => {
     expect(md.slice(recipeAt, contractAt)).toContain("```bash");
   });
 
+  it("names the claim boundary and excludes earlier session work", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const claimedAt = "2026-08-18T12:34:56.000Z";
+    const md = renderBriefingMarkdown({
+      task,
+      mission,
+      branchConvention: convention,
+      claimedAt,
+    });
+
+    expect(md).toContain(`claimed_at: \`${claimedAt}\``);
+    expect(md).toContain("Count only work recorded at or after claimed_at");
+    expect(md).toContain("work before the claim");
+  });
+
   it("falls back to the generic recipe for a CLI nobody wrote one for", () => {
     const convention = branchConvention(task.short_id, task.title);
     const recipe = findUsageRecipe(factoryUsageRecipes(), "some-new-cli");
@@ -109,5 +126,25 @@ describe("self-contained briefing markdown", () => {
     // Nothing to run, so the briefing says so instead of showing an empty block.
     expect(md).toContain("(no command for this CLI yet)");
     expect(md).toContain("estimated: true");
+  });
+
+  it("renders the Codex measurement fallback without invented model defaults", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const recipe = findUsageRecipe(factoryUsageRecipes(), "codex");
+    const md = renderBriefingMarkdown({
+      task: {
+        ...task,
+        harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+      },
+      mission,
+      branchConvention: convention,
+      recipe,
+    });
+
+    expect(md).toContain("CODEX_HARNESS_MODEL");
+    expect(md).toContain(
+      "Only a missing or unreadable rollout returns estimated: true",
+    );
+    expect(md).not.toContain('model = "unknown"');
   });
 });

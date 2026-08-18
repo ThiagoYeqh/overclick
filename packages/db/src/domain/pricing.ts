@@ -43,6 +43,26 @@ export type ModelPriceRow = ModelPrice & {
 };
 
 /**
+ * Spellings emitted by CLIs that are not the key used by the price table.
+ *
+ * Keep this list explicit even when the generic punctuation/provider cleanup
+ * below happens to reach the same answer. It is the audit trail for aliases
+ * the board promises to understand, and every caller goes through this one
+ * table instead of growing its own special case.
+ */
+export const MODEL_KEY_ALIASES: Readonly<Record<string, string>> = {
+  "gpt-5.3-codex-spark": "gpt-5-3-codex-spark",
+  "openai/gpt-5.3-codex-spark": "gpt-5-3-codex-spark",
+  "codex/gpt-5.3-codex-spark": "gpt-5-3-codex-spark",
+  "gpt-5.6-sol": "gpt-5-6-sol",
+  "openai/gpt-5.6-sol": "gpt-5-6-sol",
+  "claude-fable-5": "fable-5",
+  "anthropic/claude-fable-5": "fable-5",
+  "kimi-code/k3": "k3",
+  "moonshot/k3": "k3",
+};
+
+/**
  * The day the first batch of prices below was read off the public lists. Kept
  * as the default stamp so a row that never moved still says how old it is.
  */
@@ -101,9 +121,10 @@ const SEED: SeedPrice[] = [
   p1("gpt-5-5", 1.25, 10, 0.125),
   p1("gpt-5-4", 2.5, 15, 0.25),
   p1("gpt-5-4-mini", 0.25, 2, 0.025),
-  // gpt-5.3-codex-spark has no row on purpose: OpenAI publishes no API rate
-  // for it, it ships to Codex subscribers only, and the numbers the price
-  // trackers carry are the plain gpt-5.3-codex ones, copied.
+  // GPT-5.3-Codex-Spark is now published in the public Codex/API pricing path.
+  // Values below are per million tokens, matching the source line in the current
+  // Codex rate card: $1.75 input, $14 output, $0.175 cache read.
+  p1("gpt-5-3-codex-spark", 1.75, 14, 0.175),
   // Gemini, and the Antigravity flash tiers that bill at the flash rate
   p1("3-1-pro", 1.25, 10, 0.125),
   p1("3-5-flash", 0.3, 2.5, 0.03),
@@ -146,14 +167,43 @@ export function factoryModelPrices(): ModelPriceRow[] {
  * snapshot adds a suffix; all three have to hit the same price row.
  */
 export function normalizeModelKey(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
+  const lowered = raw.trim().toLowerCase();
+  const aliased = MODEL_KEY_ALIASES[lowered] ?? lowered;
+  const normalized = aliased
     .replace(/^[a-z0-9_.-]+\//, "")
     .replace(/-\d{8}$/, "")
     .replace(/\./g, "-")
     .replace(/^claude-/, "");
+  return MODEL_KEY_ALIASES[normalized] ?? normalized;
 }
+
+/** The stored reason beside an attempt's frozen cost snapshot. */
+export type CostStatus =
+  | "computed"
+  | "reported"
+  | "estimated"
+  | "unpriced"
+  | "not_reported"
+  | "zero_usage"
+  | "suspect";
+
+/** One model's contribution captured when deliver/update calculated cost. */
+export type CostBreakdownSegment = {
+  model: string | null;
+  input: number;
+  output: number;
+  cache: number;
+  cost_usd: number | null;
+  priced: boolean;
+};
+
+/** Persistable result of evaluating an attempt at one point in time. */
+export type CostAssessment = ResolvedCost & {
+  status: CostStatus;
+  unpricedModels: string[];
+  breakdown: CostBreakdownSegment[];
+  normalizedSegments: UsageSegment[];
+};
 
 /** The price for a model, or null when nobody has priced it yet. */
 export function findModelPrice<T extends ModelPrice>(
@@ -209,6 +259,109 @@ export type ResolvedCost = {
   costUsd: number | null;
   source: CostSource | null;
 };
+
+/**
+ * Calculates and snapshots the cost state written on an attempt.
+ *
+ * `tokensReported` is deliberately separate from the sum: explicit zero
+ * counters mean "the executor reported zero", while no counters mean "the
+ * executor did not report usage". A priced free tier can still produce a
+ * genuine computed $0 because it has spending tokens and a real zero price.
+ */
+export function assessAttemptCost(
+  segments: readonly UsageSegment[],
+  prices: readonly ModelPrice[],
+  options: {
+    reportedCostUsd?: number | null;
+    usageEstimated?: boolean;
+    usageSuspect?: boolean;
+    tokensReported: boolean;
+  },
+): CostAssessment {
+  const normalizedSegments = segments.map((segment) => ({
+    ...segment,
+    model: segment.model ? normalizeModelKey(segment.model) : null,
+  }));
+  const spending = normalizedSegments.filter(
+    (segment) => segmentTotalTokens(segment) > 0,
+  );
+  const unpricedModels = [
+    ...new Set(
+      spending
+        .filter((segment) => findModelPrice(prices, segment.model) == null)
+        .map((segment) => segment.model ?? "unknown"),
+    ),
+  ];
+  const breakdown: CostBreakdownSegment[] = normalizedSegments.map((segment) => {
+    const counts = segmentTokenCounts(segment);
+    const price = findModelPrice(prices, segment.model);
+    const hasTokens = segmentTotalTokens(segment) > 0;
+    return {
+      model: segment.model,
+      input: counts.input,
+      output: counts.output,
+      cache: counts.cache,
+      cost_usd: hasTokens && price ? computeCostUsd(price, counts) : null,
+      priced: hasTokens && price != null,
+    };
+  });
+
+  const fallback = (): Pick<CostAssessment, "costUsd" | "source"> =>
+    options.reportedCostUsd != null
+      ? {
+          costUsd: Number(options.reportedCostUsd),
+          source: options.usageEstimated ? "estimated" : "reported",
+        }
+      : { costUsd: null, source: null };
+
+  if (!options.tokensReported) {
+    return {
+      ...fallback(),
+      status: options.usageSuspect ? "suspect" : "not_reported",
+      unpricedModels,
+      breakdown,
+      normalizedSegments,
+    };
+  }
+  if (spending.length === 0) {
+    return {
+      ...fallback(),
+      status: options.usageSuspect ? "suspect" : "zero_usage",
+      unpricedModels,
+      breakdown,
+      normalizedSegments,
+    };
+  }
+  if (unpricedModels.length > 0) {
+    return {
+      ...fallback(),
+      status: options.usageSuspect
+        ? "suspect"
+        : options.usageEstimated
+          ? "estimated"
+          : "unpriced",
+      unpricedModels,
+      breakdown,
+      normalizedSegments,
+    };
+  }
+
+  const costUsd = Math.round(
+    breakdown.reduce((sum, segment) => sum + (segment.cost_usd ?? 0), 0) * 1e6,
+  ) / 1e6;
+  return {
+    costUsd,
+    source: "computed",
+    status: options.usageSuspect
+      ? "suspect"
+      : options.usageEstimated
+        ? "estimated"
+        : "computed",
+    unpricedModels,
+    breakdown,
+    normalizedSegments,
+  };
+}
 
 /**
  * The cost of one attempt and the label that has to travel with it. Tokens

@@ -76,6 +76,9 @@ export function BoardTotal({
     totals.costUnpriced > 0 ? t.board.totalUnpriced(totals.costUnpriced) : null,
     totals.estimated > 0 ? t.board.totalEstimated(totals.estimated) : null,
     totals.missing > 0 ? t.board.totalMissing(totals.missing) : null,
+    totals.suspect > 0
+      ? t.board.totalSuspect(totals.suspect, fmtTokens(totals.suspectTokens))
+      : null,
     totals.elapsedOnly > 0 ? t.board.openFor(fmtElapsed(totals.elapsedMs)) : null,
   ]
     .filter(Boolean)
@@ -112,6 +115,9 @@ export function BoardTotal({
       ) : null}
       {totals.missing > 0 ? (
         <span className="bt-mark">{t.board.totalMissingShort(totals.missing)}</span>
+      ) : null}
+      {totals.suspect > 0 ? (
+        <span className="bt-mark">{t.board.totalSuspectShort(totals.suspect)}</span>
       ) : null}
     </a>
   );
