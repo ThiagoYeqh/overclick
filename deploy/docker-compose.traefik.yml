@@ -1,0 +1,38 @@
+# Overlay for a host whose Traefik already owns 80 and 443 (Coolify, Dokploy or a
+# Traefik you run yourself). The instance stays its own compose project with its own
+# volume and network; it just joins the proxy network and asks for a route.
+#
+#   docker compose -p overclick \
+#     -f deploy/docker-compose.cloud.yml \
+#     -f deploy/docker-compose.traefik.yml up -d --build
+#
+# Set OVERCLICK_HOST (the domain) and PROXY_NETWORK (the proxy's docker network)
+# in deploy/.env. TLS comes from the resolver the proxy already uses.
+services:
+  app:
+    # The proxy reaches the container over the shared network, so no host port.
+    ports: !override []
+    networks:
+      - overclick
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${PROXY_NETWORK:-coolify}
+      traefik.http.services.overclick.loadbalancer.server.port: "3000"
+      # http entrypoint: only to redirect and to answer the ACME challenge
+      traefik.http.routers.overclick-http.entryPoints: http
+      traefik.http.routers.overclick-http.rule: Host(`${OVERCLICK_HOST:?set OVERCLICK_HOST in deploy/.env}`)
+      traefik.http.routers.overclick-http.middlewares: redirect-to-https
+      traefik.http.routers.overclick-http.service: overclick
+      traefik.http.middlewares.redirect-to-https.redirectscheme.scheme: https
+      # https entrypoint: the instance itself
+      traefik.http.routers.overclick-https.entryPoints: https
+      traefik.http.routers.overclick-https.rule: Host(`${OVERCLICK_HOST}`)
+      traefik.http.routers.overclick-https.tls: "true"
+      traefik.http.routers.overclick-https.tls.certresolver: ${PROXY_CERTRESOLVER:-letsencrypt}
+      traefik.http.routers.overclick-https.service: overclick
+
+networks:
+  proxy:
+    name: ${PROXY_NETWORK:-coolify}
+    external: true
