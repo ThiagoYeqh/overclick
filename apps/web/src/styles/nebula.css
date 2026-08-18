@@ -1015,6 +1015,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .board { display: none; }
   .nb .board-mobile { display: block; }
   .nb .col { min-height: 140px; }
+  .nb .board-mobile .col { min-height: 0; }
 
   /* The column head, made into a control: same label, same count, now the
      thing that switches which column is on screen. A pill, not a bare line,
@@ -1049,8 +1050,77 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     padding: 14px 10px;
   }
-  .nb .card h4 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .nb .card .id-row { white-space: nowrap; overflow: hidden; }
+
+  /* ============================================================
+     ONE ROW PER CARD (AGB-64)
+     The card that came before this spent three lines and a separator on
+     every entry, so a phone showed five of them. A row shows what tells
+     cards apart and nothing else: a letter for the type, the short id, the
+     title with all the width that is left, and one number at the edge. The
+     rest of the card is one tap away, in the panel that has room for it.
+
+     Density is bought from padding, separators and font size, never from the
+     tap target: the row keeps its 44px, which is the whole reason it does not
+     go below that height.
+     ============================================================ */
+  .nb .board-mobile .col {
+    display: block;
+    border: 1px solid var(--nebula-glass-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+  }
+  .nb .ml-row {
+    display: flex; align-items: center; gap: 7px;
+    min-height: 44px; padding: 0 10px;
+    /* a hairline instead of a gap: the separation costs one pixel, not twelve */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .nb .ml-row:last-child { border-bottom: 0; }
+  .nb .ml-row:active { background: rgba(255, 255, 255, 0.05); }
+  .nb .ml-row.dim { opacity: 0.55; }
+  /* running: the pulse becomes an edge, which costs no width at all */
+  .nb .ml-row.exec { box-shadow: inset 2px 0 0 #a9c7e8; }
+  .nb .ml-row.picked { background: rgba(169, 199, 232, 0.10); }
+  .nb .ml-row .card-pick { flex: none; width: 16px; height: 16px; margin: 0; }
+  /* the type in one character, coloured as its chip was */
+  .nb .ml-type {
+    flex: none; width: 11px; text-align: center;
+    font-family: var(--nebula-font-mono); font-size: 11px;
+    font-weight: var(--nebula-weight-medium);
+    color: var(--nebula-text-tertiary);
+  }
+  .nb .ml-type.feature { color: #a9c7e8; }
+  .nb .ml-type.bug { color: #e8a1a1; }
+  .nb .ml-type.rfc { color: var(--nebula-mist-glow); }
+  .nb .ml-row .cid {
+    flex: none;
+    font-family: var(--nebula-font-mono); font-size: 10px;
+    letter-spacing: 0.04em; color: var(--nebula-text-tertiary);
+  }
+  .nb .ml-row .cid-prefix {
+    color: var(--nebula-text-secondary); font-weight: var(--nebula-weight-medium);
+  }
+  /* the title takes everything left and gives up only at its own end */
+  .nb .ml-title {
+    flex: 1 1 auto; min-width: 0;
+    font-size: 13px; line-height: 1.25; color: var(--nebula-text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* the review chip, reduced to the dot that still makes a person tap */
+  .nb .ml-flag {
+    flex: none; width: 6px; height: 6px; border-radius: 50%;
+    background: #ffd9a0; box-shadow: 0 0 6px rgba(255, 217, 160, 0.5);
+  }
+  /* the one number, on the edge, never shrinking a digit */
+  .nb .ml-num {
+    flex: none;
+    font-family: var(--nebula-font-mono); font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--nebula-text-secondary);
+  }
+  .nb .ml-num.tel-tokens, .nb .ml-num.tel-duration { color: var(--nebula-text-tertiary); }
 
   /* the overlays meet the same width */
   .nb .ov { padding: 20px 10px; }

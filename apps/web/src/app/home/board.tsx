@@ -12,6 +12,7 @@ import {
   COLUMN_STATUSES,
   type ColumnStatus,
 } from "../../lib/board-columns";
+import { pickRowNumber, typeInitial } from "../../lib/board-row";
 import { dict, type Dict } from "../../lib/i18n";
 import { BoardMobileList } from "./board-mobile-list";
 
@@ -327,6 +328,75 @@ function Card({
             harness itself: an ellipsis on the model chain would eat it. */}
         <CardMetaTail card={card} t={t} lead={harness != null} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * The card as one row, which is all a phone can afford (AGB-64).
+ *
+ * The three-line card made titles readable and then spent the screen on the
+ * rest: five cards where a scan list holds three times as many. So the row
+ * keeps what tells cards apart, one letter for the type, the short id, the
+ * title with every pixel that is left, and the single number that says what
+ * the run was worth. Harness, reviewer, the whole telemetry and the model
+ * chain are one tap away, in the panel that has room for them.
+ *
+ * Nothing here wraps: the row is one line by construction, and the title
+ * truncates at the end with the full value on the title attribute and in the
+ * detail panel.
+ */
+function CardRow({
+  card,
+  onOpen,
+  showProject,
+  selectable,
+  selected,
+  onToggleSelect,
+  t,
+}: {
+  card: BoardCard;
+  onOpen: (c: BoardCard) => void;
+  showProject: boolean;
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+  t: Dict;
+}) {
+  const exec = card.status === "em_execucao";
+  const dim = card.status === "validado";
+  const num = pickRowNumber(card.telemetryLine, card.elapsed);
+  return (
+    <div
+      className={`ml-row${exec ? " exec" : ""}${dim ? " dim" : ""}${
+        selectable ? " selectable" : ""
+      }${selected ? " picked" : ""}`}
+      title={card.title}
+      onClick={() => (selectable ? onToggleSelect(card.id) : onOpen(card))}
+    >
+      {selectable ? (
+        <input
+          type="checkbox"
+          className="card-pick"
+          checked={selected}
+          aria-label={card.shortId}
+          onChange={() => onToggleSelect(card.id)}
+          onClick={(event) => event.stopPropagation()}
+        />
+      ) : null}
+      {/* A letter, not a chip: the same word in a box costs a fifth of the
+          row and the title is what that width is for. */}
+      <span className={`ml-type ${card.tipo}`} aria-label={card.tipo}>
+        {typeInitial(card.tipo)}
+      </span>
+      <CardId shortId={card.shortId} showProject={showProject} />
+      <span className="ml-title">{card.title}</span>
+      {/* The one signal that makes a person tap, kept as a dot instead of the
+          chip it is on the desktop card. */}
+      {card.awaitingMyReview ? (
+        <span className="ml-flag" aria-label={t.board.yourReview} />
+      ) : null}
+      {num ? <span className={`ml-num tel-${num.kind}`}>{num.text}</span> : null}
     </div>
   );
 }
@@ -843,6 +913,21 @@ export function Board({
     />
   );
 
+  // The phone gets the same card reduced to a row: one component less to keep
+  // in step, because both read the very same BoardCard.
+  const renderRow = (card: BoardCard) => (
+    <CardRow
+      key={card.id}
+      card={card}
+      onOpen={setOpen}
+      showProject={showProject}
+      selectable={selectable}
+      selected={picked.has(card.id)}
+      onToggleSelect={onToggleSelect ?? (() => {})}
+      t={t}
+    />
+  );
+
   return (
     <>
       <div className="board">
@@ -869,7 +954,7 @@ export function Board({
       <BoardMobileList
         cards={cards}
         labels={colLabel}
-        renderCard={renderCard}
+        renderRow={renderRow}
         renderEmpty={(status) => <EmptyState status={status} t={t} />}
         t={t}
       />
