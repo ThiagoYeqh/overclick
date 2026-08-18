@@ -37,7 +37,10 @@ function commandFor(cli: string, baseUrl: string, secret: string): string {
     case "claude-code":
       return `claude mcp add --transport http overclick \\\n  ${baseUrl} \\\n  ${header}`;
     case "codex":
-      return `codex mcp add overclick --url ${baseUrl} \\\n  ${header}`;
+      // `codex mcp add` takes no --header: the flag does not exist, and the
+      // command errors out on it. A remote server carries its Authorization in
+      // config.toml, which is exactly what the CLI reads back.
+      return `cat >> ~/.codex/config.toml <<'TOML'\n[mcp_servers.overclick]\nurl = "${baseUrl}"\nhttp_headers = { Authorization = "Bearer ${secret}" }\nTOML`;
     case "gemini-cli":
       return `gemini mcp add --transport http overclick ${baseUrl} \\\n  ${header}`;
     default:
