@@ -428,19 +428,36 @@ export function SettingsClient({
         <h1>{t.settings.title}</h1>
         <p className="page-sub">{t.settings.sub}</p>
 
-        <div className="settabs">
+        <div className="settabs" role="tablist" aria-label={t.settings.title}>
           {tabs.map((tb) => (
-            <span key={tb.id} className={tab === tb.id ? "on" : ""} onClick={() => { setTab(tb.id); setErr(null); setMsg(null); }}>
+            <button
+              key={tb.id}
+              type="button"
+              role="tab"
+              id={`settab-${tb.id}`}
+              aria-selected={tab === tb.id}
+              aria-controls={`setpane-${tb.id}`}
+              className={tab === tb.id ? "on" : ""}
+              onClick={() => { setTab(tb.id); setErr(null); setMsg(null); }}
+            >
               {tb.label}
-            </span>
+            </button>
           ))}
         </div>
 
-        {err ? <p className="werr">{err}</p> : null}
-        {msg ? <p className="wok">{msg}</p> : null}
+        {/* A save that failed and a save that worked both have to reach a
+            screen reader, and neither may be the first thing a sighted user
+            misses because it printed below the fold. */}
+        {err ? <p className="werr" role="alert">{err}</p> : null}
+        {msg ? <p className="wok" role="status">{msg}</p> : null}
 
         {/* ---- EXECUTORS ---- */}
-        <div className={`tabpane${tab === "exec" ? " active" : ""}`}>
+        <div
+          className={`tabpane${tab === "exec" ? " active" : ""}`}
+          id="setpane-exec"
+          role="tabpanel"
+          aria-labelledby="settab-exec"
+        >
           {seenSuggestions.filter((s) => !added.includes(`${s.cli}·${s.model}`)).length > 0 ? (
             <div className="seen-sugg">
               <div className="sec-cap">{t.settings.seenCap}</div>
@@ -476,7 +493,13 @@ export function SettingsClient({
         </div>
 
         {/* ---- HARNESS POLICY ---- */}
-        <div className={`tabpane${tab === "policy" ? " active" : ""}`}>
+        <div
+          className={`tabpane${tab === "policy" ? " active" : ""}`}
+          id="setpane-policy"
+          role="tabpanel"
+          aria-labelledby="settab-policy"
+        >
+          <div className="set-scroll">
           <table className="policy">
             <thead>
               <tr><th>{t.settings.thActivity}</th><th>{t.settings.thCli}</th><th>{t.settings.thModel}</th><th>{t.settings.thEffort}</th><th>{t.settings.thLastChange}</th></tr>
@@ -518,6 +541,7 @@ export function SettingsClient({
               })}
             </tbody>
           </table>
+          </div>
           <div className="policy-note">
             {t.settings.policyNote} <b>harness_list</b> {t.settings.policyNoteAfter}
           </div>
@@ -529,7 +553,12 @@ export function SettingsClient({
         </div>
 
         {/* ---- MODEL PRICES ---- */}
-        <div className={`tabpane${tab === "prices" ? " active" : ""}`}>
+        <div
+          className={`tabpane${tab === "prices" ? " active" : ""}`}
+          id="setpane-prices"
+          role="tabpanel"
+          aria-labelledby="settab-prices"
+        >
           <p className="page-sub">{t.settings.pricesSub}</p>
           {/* The switch comes first: everything below it only matters once
               somebody decides this board should talk about money at all. */}
@@ -573,6 +602,7 @@ export function SettingsClient({
             </div>
           ) : null}
 
+          <div className="set-scroll">
           <table className="policy">
             <thead>
               <tr>
@@ -637,6 +667,7 @@ export function SettingsClient({
               })}
             </tbody>
           </table>
+          </div>
 
           {unpricedModels.filter((m) => !addedModels.includes(m)).length > 0 ? (
             <div className="seen-sugg">
@@ -678,7 +709,12 @@ export function SettingsClient({
         </div>
 
         {/* ---- USAGE RECIPES ---- */}
-        <div className={`tabpane${tab === "recipes" ? " active" : ""}`}>
+        <div
+          className={`tabpane${tab === "recipes" ? " active" : ""}`}
+          id="setpane-recipes"
+          role="tabpanel"
+          aria-labelledby="settab-recipes"
+        >
           <p className="page-sub">{t.settings.recipesSub}</p>
           {recipeRows.map((row, i) => (
             <div key={row.cli} className="seen-sugg">
@@ -720,7 +756,12 @@ export function SettingsClient({
         </div>
 
         {/* ---- TOKENS ---- */}
-        <div className={`tabpane${tab === "tokens" ? " active" : ""}`}>
+        <div
+          className={`tabpane${tab === "tokens" ? " active" : ""}`}
+          id="setpane-tokens"
+          role="tabpanel"
+          aria-labelledby="settab-tokens"
+        >
           <div className="tok-list">
             {tokens.length === 0 ? (
               <div className="empty-col">{t.settings.tokensEmpty}</div>
@@ -814,7 +855,12 @@ export function SettingsClient({
         </div>
 
         {/* ---- LANGUAGE ---- */}
-        <div className={`tabpane${tab === "language" ? " active" : ""}`}>
+        <div
+          className={`tabpane${tab === "language" ? " active" : ""}`}
+          id="setpane-language"
+          role="tabpanel"
+          aria-labelledby="settab-language"
+        >
           <div className="field" style={{ maxWidth: 320 }}>
             <label>{t.settings.langLabel}</label>
             <select
@@ -838,7 +884,12 @@ export function SettingsClient({
         </div>
 
         {/* ---- UPDATES ---- */}
-        <div className={`tabpane${tab === "updates" ? " active" : ""}`}>
+        <div
+          className={`tabpane${tab === "updates" ? " active" : ""}`}
+          id="setpane-updates"
+          role="tabpanel"
+          aria-labelledby="settab-updates"
+        >
           {UPDATE_MODES.map((mode) => (
             <label className="upd-toggle" key={mode}>
               <input

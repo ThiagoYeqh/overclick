@@ -138,15 +138,29 @@ export function CostTable({
               <th>{t.colMission}</th>
               <th>{t.colModel}</th>
               {pricingEnabled ? <th>{t.colSource}</th> : null}
+              {/* A column header that sorts is a control: a keyboard reaches
+                  it, a screen reader is told which way the table is sorted,
+                  and the whole cell is the target instead of the glyphs. */}
               {sortable.map((col) => (
                 <th
                   key={col.key}
                   className={`ins-sort num${col.key === sortKey ? " on" : ""}`}
-                  onClick={() => toggle(col.key)}
-                  title={t.sortHint}
+                  aria-sort={
+                    col.key === sortKey
+                      ? descending
+                        ? "descending"
+                        : "ascending"
+                      : "none"
+                  }
                 >
-                  {col.label}
-                  {arrow(col.key)}
+                  <button
+                    type="button"
+                    onClick={() => toggle(col.key)}
+                    title={t.sortHint}
+                  >
+                    {col.label}
+                    {arrow(col.key)}
+                  </button>
                 </th>
               ))}
             </tr>

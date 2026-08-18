@@ -3,11 +3,20 @@
 /* ---------- totals: the four numbers everything else breaks down from ---------- */
 .nb .ins-tiles {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* auto-fit, not repeat(4): with the money layer off there are three tiles,
+     and a fixed four-column grid gave the row a hole where the fourth would
+     have been. The tiles now share whatever width there is. */
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: var(--nebula-space-4);
   margin-bottom: var(--nebula-space-4);
 }
-.nb .ins-tile { padding: 16px 18px; border-radius: 12px; }
+.nb .ins-tile {
+  display: flex; flex-direction: column;
+  padding: 16px 18px; border-radius: 12px;
+}
+/* the notes sit at the foot of the tile, so four tiles of different note
+   lengths still show their four figures on one line */
+.nb .ins-tile .ins-note:first-of-type { margin-top: auto; padding-top: 6px; }
 .nb .ins-tile .ins-lbl {
   font-family: var(--nebula-font-mono);
   font-size: 10px;
@@ -46,7 +55,13 @@
   text-transform: uppercase;
   color: var(--nebula-text-tertiary);
 }
-.nb .ins-cap > span { min-width: 0; }
+.nb .ins-cap > span:first-child {
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* the note yields the room before the caption does, and never takes more
+   than its share of the line */
+.nb .ins-cap .ins-cap-note { flex: 0 1 auto; min-width: 0; max-width: 46%; }
 .nb .ins-cap-note {
   text-transform: none;
   letter-spacing: 0.03em;
@@ -66,14 +81,22 @@
   margin-bottom: var(--nebula-space-4);
   align-items: stretch;
 }
+.nb .ins-panel-trend { display: flex; flex-direction: column; }
+.nb .ins-trend { display: flex; flex-direction: column; flex: 1; justify-content: flex-end; }
 .nb .ins-trend-bars {
   display: flex;
   align-items: flex-end;
   gap: 5px;
-  height: 120px;
+  flex: 1;
+  min-height: 120px;
 }
 .nb .ins-trend-col {
-  flex: 0 1 26px;
+  /* share the width instead of claiming a fixed 26px and leaving the rest of
+     the panel empty; a bar still never grows wider than it reads well at */
+  /* The columns span exactly the plot, because the axis under them labels the
+     first and the last one: a capped bar left the last column short of the
+     date that names it, which is the same misalignment as before, moved. */
+  flex: 1 1 0;
   min-width: 0;
   height: 100%;
   display: flex;
@@ -155,7 +178,31 @@
 }
 
 /* ---------- tables: fixed layout, names never wrap, numbers align ---------- */
-.nb .ins-scroll { overflow-x: auto; }
+.nb .ins-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* the `local` covers sit on the content and slide away with it; the
+     `scroll` shadows stay on the box. Together they show an edge shadow only
+     on the side there is still table to reach. */
+  background:
+    linear-gradient(to right, var(--nebula-glass-bg) 40%, rgba(16, 18, 22, 0)) left center / 20px 100% no-repeat local,
+    linear-gradient(to left, var(--nebula-glass-bg) 40%, rgba(16, 18, 22, 0)) right center / 20px 100% no-repeat local,
+    linear-gradient(to right, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0)) left center / 14px 100% no-repeat scroll,
+    linear-gradient(to left, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0)) right center / 14px 100% no-repeat scroll;
+}
+.nb .ins-scroll,
+.nb .set-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+.nb .ins-scroll::-webkit-scrollbar,
+.nb .set-scroll::-webkit-scrollbar { height: 6px; }
+.nb .ins-scroll::-webkit-scrollbar-thumb,
+.nb .set-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2); border-radius: 999px;
+}
+.nb .ins-scroll::-webkit-scrollbar-track,
+.nb .set-scroll::-webkit-scrollbar-track { background: transparent; }
 .nb .ins-table {
   width: 100%;
   border-collapse: collapse;
@@ -206,6 +253,7 @@
   color: var(--nebula-text-primary);
   font-weight: var(--nebula-weight-medium);
 }
+.nb .ins-table tbody tr:hover td { background: rgba(255, 255, 255, 0.028); }
 
 /* A name cell: one line, ellipsis, full text on the title attribute. */
 .nb .ins-name {
@@ -262,9 +310,21 @@
   margin-right: 14px;
 }
 
-.nb .ins-sort { cursor: pointer; user-select: none; transition: color 0.15s; }
-.nb .ins-sort:hover { color: var(--nebula-text-secondary); }
-.nb .ins-sort.on { color: var(--nebula-mist-glow); }
+.nb .ins-sort { padding: 0; }
+.nb .ins-sort button {
+  appearance: none; background: none; border: 0;
+  width: 100%; padding: 0 12px 10px 0;
+  font: inherit; letter-spacing: inherit; text-transform: inherit;
+  color: inherit; text-align: right;
+  cursor: pointer; user-select: none; white-space: nowrap;
+  transition: color 0.15s;
+}
+.nb .ins-sort:last-child button { padding-right: 0; }
+.nb .ins-sort button:hover { color: var(--nebula-text-secondary); }
+.nb .ins-sort.on button { color: var(--nebula-mist-glow); }
+.nb .ins-sort button:focus-visible {
+  outline: none; box-shadow: var(--nebula-focus-ring); border-radius: 4px;
+}
 
 .nb .ins-dim { color: var(--nebula-text-tertiary); }
 
@@ -289,7 +349,7 @@
 
 /* ---------- narrow windows: stack, tiles halve, tables scroll in-card ---------- */
 @media (max-width: 900px) {
-  .nb .ins-tiles { grid-template-columns: repeat(2, 1fr); }
+  .nb .ins-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .nb .ins-charts { grid-template-columns: 1fr; }
   .nb .ins-grid { grid-template-columns: 1fr; }
 }
@@ -300,7 +360,23 @@
     grid-template-columns: minmax(70px, 110px) 1fr 76px 36px;
     gap: 8px;
   }
+  /* Two tiles per row rather than one. Four figures stacked one per screen
+     is decoration; the phone gets the same four numbers in a quarter of the
+     scroll, and the figure gives up the size the width cannot pay for. The
+     figure never wraps and never clips: it is the tile. */
+  .nb .ins-tiles { gap: 10px; }
+  .nb .ins-tile { padding: 12px 13px; }
+  .nb .ins-tile .ins-lbl { margin-bottom: 6px; }
+  .nb .ins-tile .ins-num { font-size: 19px; }
+  .nb .ins-tile .ins-note { font-size: 9.5px; }
+  .nb .ins-panel { padding: 14px 14px 12px; }
+  .nb .ins-cap { flex-direction: column; align-items: stretch; gap: 3px; }
+  .nb .ins-cap .ins-cap-note { max-width: 100%; text-align: left; }
+  .nb .ins-empty { padding: 20px 18px; }
 }
-@media (max-width: 420px) {
-  .nb .ins-tiles { grid-template-columns: 1fr; }
+/* Under this the two columns stop being two readable numbers and start being
+   two truncated ones, so the row gives up and stacks. */
+@media (max-width: 344px) {
+  .nb .ins-tiles { grid-template-columns: minmax(0, 1fr); }
+  .nb .ins-tile .ins-num { font-size: 22px; }
 }

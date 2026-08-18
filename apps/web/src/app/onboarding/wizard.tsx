@@ -199,11 +199,23 @@ export function Wizard({
       <NebulaAtmosphere />
       <div className="stage">
         <div className="panel wizard">
-          <div className="steps-ind">
-            <span className={step === 1 ? "cur" : step > 1 ? "done" : ""}>{t.wizard.stepProject}</span>
-            <span className={step === 2 ? "cur" : step > 2 ? "done" : ""}>{t.wizard.stepExecutors}</span>
-            <span className={step === 3 ? "cur" : ""}>{t.wizard.stepAgent}</span>
-          </div>
+          <ol className="steps-ind">
+            {[t.wizard.stepProject, t.wizard.stepExecutors, t.wizard.stepAgent].map(
+              (stepLabel, i) => {
+                const n = i + 1;
+                return (
+                  <li
+                    key={stepLabel}
+                    className={step === n ? "cur" : step > n ? "done" : ""}
+                    aria-current={step === n ? "step" : undefined}
+                    title={stepLabel}
+                  >
+                    {stepLabel}
+                  </li>
+                );
+              },
+            )}
+          </ol>
 
           {/* T1: project */}
           <div className={`wstep${step === 1 ? " active" : ""}`}>
@@ -224,7 +236,8 @@ export function Wizard({
               </div>
               <div className="field">
                 <label>
-                  {t.wizard.repoUrl} <span className="opt">{t.wizard.optional}</span>
+                  <span className="lbl-text">{t.wizard.repoUrl}</span>
+                  <span className="opt">{t.wizard.optional}</span>
                 </label>
                 <input
                   className="input mono"
@@ -279,13 +292,25 @@ export function Wizard({
                 disabled={Boolean(token)}
               />
             </div>
-            <div className="tabs">
-              <span className={mode === "pair" ? "on" : ""} onClick={() => setMode("pair")}>
+            <div className="tabs" role="tablist" aria-label={t.wizard.t3Title}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "pair"}
+                className={mode === "pair" ? "on" : ""}
+                onClick={() => setMode("pair")}
+              >
                 {t.wizard.pairTab}
-              </span>
-              <span className={mode === "command" ? "on" : ""} onClick={() => setMode("command")}>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "command"}
+                className={mode === "command" ? "on" : ""}
+                onClick={() => setMode("command")}
+              >
                 {t.wizard.commandTab}
-              </span>
+              </button>
             </div>
             {mode === "pair" ? (
               !pair ? (
@@ -314,15 +339,18 @@ export function Wizard({
               </button>
             ) : (
               <>
-                <div className="tabs">
+                <div className="tabs" role="tablist" aria-label={t.wizard.commandTab}>
                   {CMD_TABS.map((c) => (
-                    <span
+                    <button
                       key={c.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={tab === c.id}
                       className={tab === c.id ? "on" : ""}
                       onClick={() => setTab(c.id)}
                     >
                       {c.label}
-                    </span>
+                    </button>
                   ))}
                 </div>
                 <div className="cmd">
@@ -357,21 +385,33 @@ export function Wizard({
             ) : null}
           </div>
 
-          {err ? <p className="werr">{err}</p> : null}
+          {err ? <p className="werr" role="alert">{err}</p> : null}
 
           <div className="wfoot">
-            <div className="progress">
-              <i style={{ width: `${step * 33}%` }} />
+            <div
+              className="progress"
+              role="progressbar"
+              aria-valuenow={step}
+              aria-valuemin={1}
+              aria-valuemax={3}
+            >
+              {/* three of three is the whole bar; step * 33 stopped at 99% and
+                  left a sliver of the last step forever unfinished */}
+              <i style={{ width: `${(step / 3) * 100}%` }} />
             </div>
             <div className="wbtns">
               <button className="btn-back" disabled={step === 1 || pending} onClick={() => setStep(step - 1)}>
                 {t.wizard.back}
               </button>
-              <div>
+              <div className="wbtns-end">
                 {step === 3 ? (
-                  <span className="skip" onClick={() => router.push("/home")}>
+                  <button
+                    type="button"
+                    className="skip"
+                    onClick={() => router.push("/home")}
+                  >
                     {t.wizard.configureLater}
-                  </span>
+                  </button>
                 ) : null}
                 <button
                   className={`btn-next${connected ? " go" : ""}`}

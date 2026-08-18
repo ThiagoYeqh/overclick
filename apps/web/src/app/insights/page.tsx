@@ -450,7 +450,9 @@ export default async function InsightsPage({
             </div>
 
             <div className="ins-charts">
-              <section className="ins-panel nebula-glass">
+              {/* the plot grows to meet the panel beside it instead of
+                  leaving a band of empty glass under four days of bars */}
+              <section className="ins-panel ins-panel-trend nebula-glass">
                 <div className="ins-cap">
                   <span>
                     {trend.metric === "cost"
