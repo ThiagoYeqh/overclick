@@ -8,6 +8,7 @@ import {
   type MissionCount,
 } from "../../lib/board-filter";
 import type { Dict } from "../../lib/i18n";
+import { Icon } from "../../components/icon";
 
 /**
  * The mission filter of the board. A native select could not do the three
@@ -124,7 +125,10 @@ export function MissionFilter({
             title={t.board.clearMission}
             onClick={() => pick(null)}
           >
-            ×
+            {/* AGB-73: clearing the filter is the set's own mark, not the
+                multiplication sign the font happened to draw. The button
+                already carries the name, so the glyph stays silent. */}
+            <Icon name="clear" label={null} size={13} />
           </button>
         ) : null}
       </div>
@@ -132,15 +136,20 @@ export function MissionFilter({
       {open ? (
         <div className="mf-panel nebula-glass">
           {searchable ? (
-            <input
-              ref={search}
-              className="mf-search"
-              type="search"
-              value={query}
-              placeholder={t.board.searchMissions}
-              aria-label={t.board.searchMissions}
-              onChange={(event) => setQuery(event.target.value)}
-            />
+            /* The mark sits in the field, so the box reads as a search before
+               the placeholder is read at all (AGB-73). */
+            <div className="mf-search-row">
+              <Icon name="search" label={null} size={13} />
+              <input
+                ref={search}
+                className="mf-search"
+                type="search"
+                value={query}
+                placeholder={t.board.searchMissions}
+                aria-label={t.board.searchMissions}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
           ) : null}
           <div className="mf-list" role="listbox" aria-label={t.board.missionFilter}>
             {row(null, t.board.allMissions, totalCount)}

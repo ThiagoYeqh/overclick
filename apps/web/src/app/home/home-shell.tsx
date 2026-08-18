@@ -18,6 +18,7 @@ import {
 } from "../../lib/board-filter";
 import type { BoardTotals } from "../../lib/board-totals";
 import { dict, type Dict } from "../../lib/i18n";
+import { Icon } from "../../components/icon";
 import { Board, type BoardCard, type BoardMissionOption } from "./board";
 import { BoardTotal } from "./board-total";
 import { MissionFilter } from "./mission-filter";
@@ -239,6 +240,14 @@ export function HomeShell({
             <span className={`dot${running === 0 ? " idle" : ""}`} />
             {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
           </div>
+          {/* AGB-73 deliberately puts no mark on these three. The bar has no
+              width left to give: AGB-71 spent it all buying whole labels, and
+              measured here a 13px mark plus its gap on each destination costs
+              the workspace name its last twenty pixels and starts the crumb
+              truncating at 1440, where every word used to print. A mark that
+              is read by eliding the name beside it is not scannability. The
+              set is there and the marks exist; this bar is simply the one
+              place in the app that cannot afford them. */}
           <a className="btn-ghost" href="/insights">Insights</a>
           <a className="btn-ghost" href="/settings">
             {t.board.settings}
@@ -256,7 +265,9 @@ export function HomeShell({
           aria-label={t.board.menu}
           onClick={() => setMenuOpen((open) => !open)}
         >
-          {menuOpen ? "✕" : "☰"}
+          {/* The button already says what it is, so the glyph stays silent
+              and only shows which of the two states it is in (AGB-73). */}
+          <Icon name={menuOpen ? "close" : "menu"} label={null} size={18} />
         </button>
         {/* Last in the bar, hard right: the figure that justifies the board
             is the one thing here you should be able to read at a glance. */}

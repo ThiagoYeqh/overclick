@@ -209,6 +209,75 @@
 }
 
 /* ============================================================
+   AGB-73 — the icon set, as the system sees it.
+
+   The component in components/icon.tsx already carries its own size and its
+   own stroke, so an icon is correct before this file has a word to say about
+   it. What lives here is only how a glyph behaves next to text: it never
+   stretches when a flex row runs out of room, it sits on the line rather
+   than on the baseline, and it inherits the colour of whatever it stands
+   beside, which is how the Nebula palette reaches it without a hex value.
+
+   The muted variant is for a mark that anchors a label it does not compete
+   with: a column head, a section title. The word stays the thing being read.
+   ============================================================ */
+.nb-icon { flex: none; display: inline-block; vertical-align: -0.14em; }
+/* a mark beside a word is a landmark, not a second voice */
+.nb .icon-muted { color: var(--nebula-icon); opacity: .8; }
+/* the gap between a mark and the word it belongs to, in one place */
+.nb .with-icon { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- where the set lands on the board and in the detail ----------
+   The spacing between a mark and its word is a margin and not a flex gap on
+   purpose: two of these controls turn into blocks on the phone, and a gap
+   that only exists while a box is flex is a gap that disappears exactly
+   where the layout changed. */
+
+/* A mark leading a label inside a control. The gap is declared and not left
+   to the space between the words: flex drops a whitespace-only text node, so
+   a chip that read "Minha revisão 20" would render "Minha revisão20" the
+   moment the control became flex to hold an icon. */
+.nb .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
+
+/* the columns: the mark anchors the head, the word still names it */
+.nb .col-head .col-mark { align-self: center; margin-right: -2px; color: var(--nebula-icon); opacity: .75; }
+/* an empty column keeps its own mark, faded to the weight of a placeholder */
+.nb .empty-col { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.nb .empty-mark { color: var(--nebula-icon); opacity: .38; }
+
+/* the detail's section titles: a silhouette per section, so the eye jumps */
+.nb .d-sec .lbl-name { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+
+/* the way out, and the phone's menu: a glyph centred in its own circle */
+.nb .d-close, .nb .menu-btn { display: inline-flex; align-items: center; justify-content: center; }
+
+/* the copy chips: mark, then the word for what is being copied */
+.nb .d-copy { display: inline-flex; align-items: center; gap: 6px; }
+.nb .d-copy > span { overflow: hidden; text-overflow: ellipsis; }
+
+/* the status chip carries the mark of the column the card sits in */
+.nb .d-status { display: inline-flex; align-items: center; gap: 5px; }
+
+/* a link that leaves the board says so before it is clicked */
+.nb a.d-verify-value .nb-icon { margin-left: 5px; opacity: .7; }
+
+/* the two filters: a caret is what says a word opens something */
+.nb .pf-caret, .nb .mf-caret { margin-left: 5px; opacity: .5; }
+.nb .mf-clear { display: inline-flex; align-items: center; }
+.nb .ml-caret { display: inline-flex; align-items: center; }
+/* the search box wears its mark inside the field, so the box reads as search */
+.nb .mf-search-row {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 6px; padding: 0 8px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--nebula-glass-border);
+  border-radius: 8px; color: var(--nebula-text-tertiary);
+}
+.nb .mf-search-row:focus-within { border-color: rgba(209,217,235,0.4); }
+.nb .mf-search-row .mf-search {
+  margin: 0; padding: 6px 0; background: none; border: 0; border-radius: 0; flex: 1; min-width: 0;
+}
+.nb .mf-search-row .mf-search:focus { border: 0; }
+
+/* ============================================================
    ATMOSFERA — camadas fixas atrás da UI.
    O canvas 2D é montado pelo componente <NebulaAtmosphere/>;
    estas camadas CSS (drift 12s/26s + grain + vignette) são o
@@ -1509,11 +1578,17 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
      characters to an ellipsis, the number may not lose a digit */
   .nb .ml-head .count { flex: none; margin-left: auto; color: var(--nebula-text-tertiary); }
 
-  /* one line each, the ellipsis standing for the rest */
+  /* one line each, the ellipsis standing for the rest. AGB-73: the column's
+     mark leads that line instead of standing over it, because a phone spends
+     its height on the cards and not on the note saying there are none. */
   .nb .empty-col {
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex-direction: row; justify-content: center; gap: 8px;
     padding: 14px 10px;
   }
+  .nb .empty-col > span {
+    min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nb .empty-mark { align-self: center; }
 
   /* ============================================================
      ONE ROW PER CARD (AGB-64)

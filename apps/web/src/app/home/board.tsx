@@ -9,6 +9,7 @@ import {
   useState,
   useTransition,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 import { assignCardsToMissionAction } from "../../actions/missions";
 import {
@@ -24,6 +25,7 @@ import { pickRowNumber, typeInitial } from "../../lib/board-row";
 import { cliDiffers } from "../../lib/cli-mark";
 import { dict, type Dict } from "../../lib/i18n";
 import { CliMark } from "../../components/cli-mark";
+import { Icon, type IconName } from "../../components/icon";
 import { BoardMobileList } from "./board-mobile-list";
 
 export type BoardMissionOption = { id: string; title: string };
@@ -140,39 +142,64 @@ const STATUS_CHIP: Record<ColumnStatus, string> = {
   validado: "ok",
 };
 
+/**
+ * AGB-73: one mark per column, and the same mark wherever that column's
+ * status is named. The four columns used to differ only by the word on top,
+ * so a person scanning the board had to read four labels to find the one
+ * they came for. The mark is what the eye finds first; the word stays and
+ * keeps saying which column it is, because a glyph alone cannot.
+ */
+const COLUMN_ICON: Record<ColumnStatus, IconName> = {
+  aberto: "columnOpen",
+  em_execucao: "columnRunning",
+  feito: "columnDone",
+  validado: "columnValidated",
+};
+
 /** Empty-state microcopy (briefing §4.2). */
 function EmptyState({ status, t }: { status: ColumnStatus; t: Dict }) {
-  // On the phone layout this holds one line and truncates; the title keeps
-  // the full sentence reachable.
+  // On the phone layout the sentence holds one line and truncates; the title
+  // keeps the full text reachable. The column's own mark sits above it: an
+  // empty column is still that column, and the four of them stopped looking
+  // like the same grey paragraph the moment each got its mark (AGB-73).
+  const mark = (
+    <Icon name={COLUMN_ICON[status]} label={null} size={20} className="empty-mark" />
+  );
   if (status === "aberto") {
     return (
       <div
         className="empty-col"
         title={`${t.board.emptyOpenBefore}${t.board.emptyOpenCmd}${t.board.emptyOpenAfter}`}
       >
-        {t.board.emptyOpenBefore}
-        <i>{t.board.emptyOpenCmd}</i>
-        {t.board.emptyOpenAfter}
+        {mark}
+        <span>
+          {t.board.emptyOpenBefore}
+          <i>{t.board.emptyOpenCmd}</i>
+          {t.board.emptyOpenAfter}
+        </span>
       </div>
     );
   }
   if (status === "em_execucao") {
     return (
       <div className="empty-col" title={t.board.emptyInProgress}>
-        {t.board.emptyInProgress}
+        {mark}
+        <span>{t.board.emptyInProgress}</span>
       </div>
     );
   }
   if (status === "feito") {
     return (
       <div className="empty-col" title={t.board.emptyDone}>
-        {t.board.emptyDone}
+        {mark}
+        <span>{t.board.emptyDone}</span>
       </div>
     );
   }
   return (
     <div className="empty-col" title={t.board.emptyValidated}>
-      {t.board.emptyValidated}
+      {mark}
+      <span>{t.board.emptyValidated}</span>
     </div>
   );
 }
@@ -554,8 +581,45 @@ function CopyButton({ label, value, t }: { label: string; value: string; t: Dict
 
   return (
     <button className={`d-copy${done ? " done" : ""}`} onClick={copy} title={value}>
-      {done ? t.detail.copied : label}
+      {/* AGB-73: the mark says what the button does, the word says what it
+          copies, and the tick replaces the mark the instant it worked. The
+          label is never dropped: "path" and "resume" are not the same act. */}
+      <Icon name={done ? "check" : "copy"} label={null} size={13} />
+      <span>{done ? t.detail.copied : label}</span>
     </button>
+  );
+}
+
+/**
+ * A section title of the detail panel, with the mark of what the section
+ * holds (AGB-73).
+ *
+ * Ten sections stacked in one panel all announced themselves in the same
+ * ten-pixel uppercase mono, which meant finding the branch was reading every
+ * title in order. The mark gives each one a silhouette, so the eye jumps
+ * instead of reading. It is decorative by construction: the word next to it
+ * is the section's name and a reader hearing both would hear it twice.
+ *
+ * `right` is what the title line carries on its far side, which today is the
+ * validation progress and nothing else.
+ */
+function SectionLabel({
+  icon,
+  text,
+  right,
+}: {
+  icon: IconName;
+  text: string;
+  right?: ReactNode;
+}) {
+  return (
+    <div className="lbl">
+      <span className="lbl-name">
+        <Icon name={icon} label={null} size={13} className="icon-muted" />
+        <span>{text}</span>
+      </span>
+      {right}
+    </div>
   );
 }
 
@@ -570,7 +634,7 @@ function Transcript({ view, t }: { view: TranscriptView; t: Dict }) {
     .join(" · ");
   return (
     <div className="d-sec">
-      <div className="lbl">{t.detail.transcript}</div>
+      <SectionLabel icon="transcript" text={t.detail.transcript} />
       {head ? <p className="d-mono">{head}</p> : null}
       <p className="d-transcript-path d-mono">
         {view.path ?? t.detail.transcriptNoPath}
@@ -626,7 +690,7 @@ function MissionField({
 
   return (
     <div>
-      <div className="lbl">{t.detail.mission}</div>
+      <SectionLabel icon="mission" text={t.detail.mission} />
       {missions.length === 0 ? (
         <p>{t.detail.missionNoneAvailable}</p>
       ) : (
@@ -659,6 +723,8 @@ function HowToVerify({ value, t }: { value: string; t: Dict }) {
       {isUrl ? (
         <a href={value} target="_blank" rel="noreferrer" className="d-verify-value">
           {value}
+          {/* A link that leaves the board says so before it is clicked. */}
+          <Icon name="external" label={null} size={12} />
         </a>
       ) : (
         <span className="d-verify-value d-mono">{value}</span>
@@ -866,37 +932,44 @@ function Detail({
         tabIndex={-1}
         ref={panel}
       >
+        {/* The way out is a glyph and not a character borrowed from the font:
+            ✕ was whatever the reader's system had for that codepoint, at
+            whatever weight it came in (AGB-73). */}
         <button className="d-close" onClick={onClose} aria-label={t.detail.close}>
-          ✕
+          <Icon name="close" label={null} size={15} />
         </button>
         <div className="d-head">
           <span>{card.shortId}</span>
           <span className={`tag ${card.tipo}`}>{card.tipo}</span>
           <span className={`d-status ${STATUS_CHIP[card.status]}`}>
+            {/* The same mark the card's column carries on the board, so the
+                chip and the column say the same thing the same way. */}
+            <Icon name={COLUMN_ICON[card.status]} label={null} size={11} />
             {statusLabels(t)[card.status]}
           </span>
         </div>
         <h3 id={titleId}>{card.title}</h3>
         <div className="d-sec">
-          <div className="lbl">{t.detail.what}</div>
+          <SectionLabel icon="spec" text={t.detail.what} />
           <p>{card.oQue}</p>
         </div>
         <div className="d-sec">
-          <div className="lbl">{t.detail.why}</div>
+          <SectionLabel icon="reason" text={t.detail.why} />
           <p>{card.porQue}</p>
         </div>
         <div className={`d-sec${reviewing ? " d-sec-validate" : ""}`}>
-          <div className="lbl">
-            <span>
-              {reviewing ? t.detail.validationHowToConfirm : t.detail.howToConfirm}
-            </span>
-            {(card.status === "feito" || card.status === "validado") &&
-            card.comoConfirmo.length > 0 ? (
-              <span className={`d-progress${allTicked ? " done" : ""}`}>
-                {ticks.length}/{card.comoConfirmo.length}
-              </span>
-            ) : null}
-          </div>
+          <SectionLabel
+            icon="checklist"
+            text={reviewing ? t.detail.validationHowToConfirm : t.detail.howToConfirm}
+            right={
+              (card.status === "feito" || card.status === "validado") &&
+              card.comoConfirmo.length > 0 ? (
+                <span className={`d-progress${allTicked ? " done" : ""}`}>
+                  {ticks.length}/{card.comoConfirmo.length}
+                </span>
+              ) : undefined
+            }
+          />
           {reviewing && card.howToVerify ? <HowToVerify value={card.howToVerify} t={t} /> : null}
           {card.comoConfirmo.length === 0 ? (
             /* An empty contract is a fact about the card, not a dash. */
@@ -914,7 +987,7 @@ function Detail({
         <div className="d-sec d-grid">
           <MissionField card={card} missions={missions} t={t} />
           <div>
-            <div className="lbl">{t.detail.harness}</div>
+            <SectionLabel icon="harness" text={t.detail.harness} />
             <p className="d-mono d-harness">
               <CardCli card={card} />
               <span>{card.harness ?? "—"}</span>
@@ -930,7 +1003,7 @@ function Detail({
           </div>
         </div>
         <div className="d-sec">
-          <div className="lbl">{t.detail.roles}</div>
+          <SectionLabel icon="roles" text={t.detail.roles} />
           <div className="d-roles">
             <span className="rl">{t.detail.origin} <b>{card.origem}</b></span>
             <span className="rl">
@@ -944,7 +1017,7 @@ function Detail({
         </div>
         {card.timeline.length > 0 ? (
           <div className="d-sec">
-            <div className="lbl">{t.detail.timeline}</div>
+            <SectionLabel icon="timeline" text={t.detail.timeline} />
             <div className="d-timeline">
               {card.timeline.map((entry, index) => (
                 <div className="d-evid d-tl-entry" key={index}>
@@ -964,12 +1037,12 @@ function Detail({
         ) : null}
         <div className="d-sec d-grid">
           <div>
-            <div className="lbl">{t.detail.branch}</div>
+            <SectionLabel icon="branch" text={t.detail.branch} />
             <p className="d-mono">{card.branch ?? "—"}</p>
           </div>
           {card.telemetry ? (
             <div>
-              <div className="lbl">{t.detail.telemetry}</div>
+              <SectionLabel icon="telemetry" text={t.detail.telemetry} />
               <p className="d-tel">{card.telemetry}</p>
               {/* The card line has room for one clock, this panel for both:
                   what the agent worked, and how long the card stayed open. */}
@@ -994,7 +1067,7 @@ function Detail({
         </div>
         {card.handoff ? (
           <div className="d-sec">
-            <div className="lbl">{t.detail.agentHandoff}</div>
+            <SectionLabel icon="handoff" text={t.detail.agentHandoff} />
             <div className="d-evid">{card.handoff}</div>
           </div>
         ) : null}
@@ -1074,6 +1147,13 @@ export function Board({
           return (
             <div key={status}>
               <div className="col-head">
+                {/* The mark anchors the column, the word still names it. */}
+                <Icon
+                  name={COLUMN_ICON[status]}
+                  label={null}
+                  size={14}
+                  className="col-mark"
+                />
                 {colLabel[status]} <span className="count">{list.length}</span>
               </div>
               <div className="col">

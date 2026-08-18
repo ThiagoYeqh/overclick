@@ -8,6 +8,7 @@ import {
   type ColumnStatus,
 } from "../../lib/board-columns";
 import type { Dict } from "../../lib/i18n";
+import { Icon } from "../../components/icon";
 import type { BoardCard } from "./board";
 
 /**
@@ -72,9 +73,11 @@ export function BoardMobileList({
           ))}
         </select>
         {/* The select has no chrome of its own here, so the caret is what
-            says this line is a control and not a heading. */}
-        <span className="ml-caret" aria-hidden="true">
-          ▾
+            says this line is a control and not a heading. Since AGB-73 the
+            caret is the set's own chevron, not the ▾ character: the glyph a
+            phone had for that codepoint was never the same shape twice. */}
+        <span className="ml-caret">
+          <Icon name="chevronDown" label={null} size={13} />
         </span>
         <span className="count">{counts[status]}</span>
       </label>
