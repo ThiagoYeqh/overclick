@@ -35,6 +35,16 @@ export const task = pgTable(
     onDelete: "cascade",
   }),
   shortId: text("short_id").notNull().unique(),
+  /**
+   * Short ids this card carried before, oldest first. Moving a card to another
+   * project restamps `shortId` with the destination prefix, and the id that
+   * external references (branches, commits, PRs) already point at is kept here
+   * instead of disappearing.
+   */
+  previousShortIds: jsonb("previous_short_ids")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
   title: text("title").notNull(),
   oQue: text("o_que").notNull().default(""),
   porQue: text("por_que").notNull().default(""),

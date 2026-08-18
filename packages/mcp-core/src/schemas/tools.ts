@@ -95,6 +95,71 @@ export const ProjectCreateOutputSchema = z.object({
   project: ProjectSchema,
 });
 
+/**
+ * Canonical project_update input: renames and reconfigures a project in place.
+ * Send at least one of `name`, `repo_url` or `id_prefix`; `repo_url: null`
+ * clears it.
+ *
+ * `id_prefix` is only editable while the project has no cards. Every card
+ * already carries the prefix in its short id (`FUN-1`), so changing it later
+ * would leave the board pointing at ids that never existed. Reorganizing a
+ * project that already holds cards is done by moving the cards to another
+ * project (`task_update` with `project_id`), which restamps each short id and
+ * returns the old-to-new mapping.
+ */
+export const ProjectUpdateInputSchema = z
+  .object({
+    project_id: ProjectRefSchema,
+    name: z.string().min(1).max(200).optional(),
+    repo_url: z.string().url().nullable().optional(),
+    id_prefix: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "New card prefix, 2 to 4 letters or digits. Only accepted while the project has no cards.",
+      ),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.repo_url !== undefined ||
+      value.id_prefix !== undefined,
+    { message: "provide name, repo_url or id_prefix" },
+  );
+
+export const ProjectUpdateOutputSchema = z.object({
+  project: ProjectSchema,
+});
+
+/**
+ * Canonical project_delete input.
+ * Hard delete: the project row is removed and the database cascades over its
+ * cards, and with them their attempts, handoffs, comments and subtasks. There
+ * is no archive flag and no undo, which is why a project holding cards is
+ * refused unless `force: true` says the cascade is the intent.
+ */
+export const ProjectDeleteInputSchema = z.object({
+  project_id: ProjectRefSchema,
+  force: z
+    .boolean()
+    .optional()
+    .describe(
+      "Deletes the project even when it holds cards, destroying every card in it. Omitted or false, a project with cards is refused with the count that blocks it.",
+    ),
+});
+
+export const ProjectDeleteOutputSchema = z.object({
+  deleted: z.literal(true),
+  project_id: z.string().min(1),
+  id_prefix: z.string().min(1),
+  name: z.string().min(1),
+  /** Cards destroyed with the project, subtasks included. Zero unless force. */
+  tasks_deleted: z.number().int().min(0),
+  attempts_deleted: z.number().int().min(0),
+  handoffs_deleted: z.number().int().min(0),
+});
+
 export const TaskListInputSchema = z.object({
   project_id: ProjectRefSchema.optional(),
   mission_id: z.string().min(1).optional(),
@@ -238,6 +303,16 @@ export const TaskUpdateInputSchema = z
      * silent no-op.
      */
     mission_id: z.string().min(1).nullable().optional(),
+    /**
+     * Moves the card to another project of the same workspace. The card is
+     * restamped with the destination prefix (`FUN-1` landing in `MKT` becomes
+     * `MKT-7`), the id it had is kept in `previous_short_ids`, and the
+     * response returns the old-to-new mapping in `project_move` so external
+     * references can be fixed. Subtasks travel with their parent; a subtask
+     * cannot be moved on its own. `mission_id` is untouched: missions are
+     * workspace wide and cross projects by design.
+     */
+    project_id: ProjectRefSchema.optional(),
     /** Reclassifies the card. Validated against the configured executors. */
     harness: HarnessSchema.optional(),
     /**
@@ -259,24 +334,50 @@ export const TaskUpdateInputSchema = z
       value.progress !== undefined ||
       value.revisado !== undefined ||
       value.mission_id !== undefined ||
+      value.project_id !== undefined ||
       value.harness !== undefined ||
       value.usage !== undefined ||
       value.spawn_failure !== undefined,
     {
       message:
-        "provide comment, progress, revisado, mission_id, harness, usage or spawn_failure",
+        "provide comment, progress, revisado, mission_id, project_id, harness, usage or spawn_failure",
     },
   );
+
+/** One card's short id before and after a move between projects. */
+export const ShortIdChangeSchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+});
+
+/**
+ * What a move between projects did, returned so the caller can fix branches,
+ * commits and PR titles that name the old ids. The parent comes first, its
+ * subtasks after, in the order they were restamped.
+ */
+export const ProjectMoveSchema = z.object({
+  from_project_id: z.string().min(1),
+  from_prefix: z.string().min(1),
+  to_project_id: z.string().min(1),
+  to_prefix: z.string().min(1),
+  short_ids: z.array(ShortIdChangeSchema),
+});
 
 export const TaskUpdateOutputSchema = z.object({
   task: TaskSchema,
   /** Present when a usage block was applied to the latest attempt. */
   usage_recorded: z.boolean().optional(),
   /**
-   * Subtasks that followed the parent card into the mission, or out of it.
-   * Present only on a mission move, so the caller sees the whole effect.
+   * Subtasks that followed the parent card into the mission, or into the
+   * destination project. Present only on a move, so the caller sees the whole
+   * effect.
    */
   subtasks_moved: z.number().int().nonnegative().optional(),
+  /**
+   * Present when the card changed project. Absent when `project_id` named the
+   * project the card is already in, because nothing was restamped.
+   */
+  project_move: ProjectMoveSchema.optional(),
 });
 
 export const TaskDeliverInputSchema = z.object({
@@ -366,6 +467,10 @@ export const HarnessRecommendOutputSchema = z.object({
       model: z.string(),
     })
     .nullable(),
+  /** The declared line of succession for this activity, best first. */
+  chain: z.array(z.string().min(1)).optional(),
+  /** Where in that line the answer came from: 0 is the first choice. */
+  chain_position: z.number().int().min(0).optional(),
   divergence: z.string().optional(),
 });
 
@@ -373,6 +478,12 @@ export const CardapioPolicyEntrySchema = z.object({
   type: z.string().min(1),
   cli: z.string().min(1).nullable(),
   model: z.string().min(1).nullable(),
+  /**
+   * The line of succession for this activity, best first, `model` included as
+   * its head. The board claims the first entry the workspace can actually run,
+   * so switching an executor off degrades the policy instead of voiding it.
+   */
+  chain: z.array(z.string().min(1)).max(8).optional(),
   effort: EffortSchema,
   /**
    * Who wrote this line last and when: an email when it came from Settings,
@@ -389,12 +500,23 @@ export const CardapioPolicyEntrySchema = z.object({
  * `cli` null or omitted means no preference; the model still has to exist on
  * one of the workspace's enabled executors.
  */
-export const HarnessSetInputSchema = z.object({
-  type: CardapioTaskTypeSchema,
-  cli: z.string().min(1).nullable().optional(),
-  model: z.string().min(1),
-  effort: EffortSchema,
-});
+export const HarnessSetInputSchema = z
+  .object({
+    type: CardapioTaskTypeSchema,
+    cli: z.string().min(1).nullable().optional(),
+    model: z.string().min(1).optional(),
+    /**
+     * The whole line of succession for this activity, best first. Send this
+     * instead of `model` to declare a fallback: the board claims the first
+     * entry it can run. `model` alone still works and reads as a chain of one.
+     */
+    chain: z.array(z.string().min(1)).min(1).max(8).optional(),
+    effort: EffortSchema,
+  })
+  .refine((input) => Boolean(input.model) || Boolean(input.chain?.length), {
+    message: "Send a model, a chain, or both.",
+    path: ["model"],
+  });
 
 export const HarnessSetOutputSchema = z.object({
   policy: CardapioPolicyEntrySchema,
@@ -641,6 +763,8 @@ export const InsightsQueryOutputSchema = z.object({
 export const MCP_TOOL_NAMES = [
   "project_list",
   "project_create",
+  "project_update",
+  "project_delete",
   "mission_list",
   "mission_get",
   "mission_create",
@@ -669,6 +793,14 @@ export const toolContracts = {
   project_create: {
     input: ProjectCreateInputSchema,
     output: ProjectCreateOutputSchema,
+  },
+  project_update: {
+    input: ProjectUpdateInputSchema,
+    output: ProjectUpdateOutputSchema,
+  },
+  project_delete: {
+    input: ProjectDeleteInputSchema,
+    output: ProjectDeleteOutputSchema,
   },
   mission_list: {
     input: MissionListInputSchema,
@@ -770,3 +902,8 @@ export type ProjectListInput = z.infer<typeof ProjectListInputSchema>;
 export type ProjectListOutput = z.infer<typeof ProjectListOutputSchema>;
 export type ProjectCreateInput = z.infer<typeof ProjectCreateInputSchema>;
 export type ProjectCreateOutput = z.infer<typeof ProjectCreateOutputSchema>;
+export type ProjectUpdateInput = z.infer<typeof ProjectUpdateInputSchema>;
+export type ProjectUpdateOutput = z.infer<typeof ProjectUpdateOutputSchema>;
+export type ProjectDeleteInput = z.infer<typeof ProjectDeleteInputSchema>;
+export type ProjectDeleteOutput = z.infer<typeof ProjectDeleteOutputSchema>;
+export type ProjectMove = z.infer<typeof ProjectMoveSchema>;

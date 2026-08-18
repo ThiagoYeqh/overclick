@@ -13,6 +13,8 @@ export type CardapioPolicyEntry = {
   type: string;
   cli: string | null;
   model: string | null;
+  /** Line of succession for this activity, best first, `model` as its head. */
+  chain?: string[] | null;
   effort: Effort;
 };
 

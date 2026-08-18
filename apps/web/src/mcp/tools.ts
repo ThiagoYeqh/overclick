@@ -27,8 +27,10 @@ import {
   evaluateClaim,
   isMcpCoreError,
   isTelemetryIncomplete,
+  lookupCardapioPolicy,
   MCP_TOOL_NAMES,
   ok,
+  policyChain,
   recommendHarness,
   toolContracts,
   type CardapioPolicyEntry,
@@ -37,6 +39,7 @@ import {
   type EffortLevel,
   type Harness,
   type McpToolName,
+  type ProjectMove,
   type Result,
   type Reviewer,
   type Task,
@@ -143,6 +146,20 @@ async function dispatchTool(
         db,
         ctx,
         data as Parameters<typeof projectCreate>[2],
+      );
+      break;
+    case "project_update":
+      value = await projectUpdate(
+        db,
+        ctx,
+        data as Parameters<typeof projectUpdate>[2],
+      );
+      break;
+    case "project_delete":
+      value = await projectDelete(
+        db,
+        ctx,
+        data as Parameters<typeof projectDelete>[2],
       );
       break;
     case "mission_list":
@@ -326,6 +343,175 @@ function isPrefixConflict(error: unknown): boolean {
   const message =
     error instanceof Error ? `${error.message} ${String(error.cause ?? "")}` : "";
   return message.includes("project_workspace_prefix");
+}
+
+async function countCards(db: Tx, projectId: string): Promise<number> {
+  const [counted] = await db
+    .select({ n: count() })
+    .from(task)
+    .where(eq(task.projectId, projectId));
+  return Number(counted?.n ?? 0);
+}
+
+async function projectCardCounts(db: Tx, projectId: string) {
+  const rows = await db
+    .select({ status: task.status, n: count() })
+    .from(task)
+    .where(eq(task.projectId, projectId))
+    .groupBy(task.status);
+  const tally = emptyCardCounts();
+  for (const row of rows) {
+    const n = Number(row.n);
+    tally[row.status] += n;
+    tally.total += n;
+  }
+  return tally;
+}
+
+async function projectUpdate(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: {
+    project_id: string;
+    name?: string;
+    repo_url?: string | null;
+    id_prefix?: string;
+  },
+) {
+  const proj = await findProject(db, ctx.workspaceId, input.project_id);
+  if (!proj) {
+    return err(
+      "NOT_FOUND",
+      `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
+    );
+  }
+
+  const patch: { name?: string; repoUrl?: string | null; idPrefix?: string } = {};
+
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) {
+      return err("INVALID_ARGUMENT", "Project name cannot be empty.");
+    }
+    patch.name = name;
+  }
+
+  if (input.repo_url !== undefined) {
+    patch.repoUrl = input.repo_url?.trim() || null;
+  }
+
+  if (input.id_prefix !== undefined) {
+    const prefix = input.id_prefix.trim().toUpperCase();
+    if (!isValidPrefix(prefix)) {
+      return err(
+        "INVALID_ARGUMENT",
+        `Card prefix '${prefix}' is invalid: use 2 to 4 letters or digits, for example AGB.`,
+      );
+    }
+    if (prefix !== proj.idPrefix) {
+      // Every card already carries the prefix in its short id (FUN-1, FUN-2),
+      // and those ids live outside the board too: branches, commits, PR
+      // titles. Rewriting the prefix here would either leave the board naming
+      // cards that never existed or silently break every external reference,
+      // so the project keeps its prefix for as long as it holds cards.
+      const cards = await countCards(db, proj.id);
+      if (cards > 0) {
+        return err(
+          "INVALID_ARGUMENT",
+          `Project '${proj.name}' holds ${cards} card${cards === 1 ? "" : "s"} whose short ids already start with ${proj.idPrefix} (${proj.idPrefix}-1, ${proj.idPrefix}-2), and those ids are also in branches, commits and PR titles. Renumbering them is not offered. To reorganize, create the project you want with project_create and move the cards into it with task_update passing project_id: each card is restamped with the destination prefix, keeps its old id in previous_short_ids, and the response returns the old-to-new mapping. The prefix of an empty project can still be changed here.`,
+        );
+      }
+      const taken = await findProject(db, ctx.workspaceId, prefix);
+      if (taken) {
+        return err(
+          "INVALID_ARGUMENT",
+          `Card prefix '${prefix}' is already used by project '${taken.name}'. Pass a different id_prefix.`,
+        );
+      }
+      patch.idPrefix = prefix;
+    }
+  }
+
+  let row: ProjectRow | undefined;
+  try {
+    [row] = await db
+      .update(project)
+      .set(patch)
+      .where(eq(project.id, proj.id))
+      .returning();
+  } catch (error) {
+    if (isPrefixConflict(error)) {
+      return err(
+        "INVALID_ARGUMENT",
+        `Card prefix '${patch.idPrefix}' was just taken by another project. Pass a different id_prefix.`,
+      );
+    }
+    throw error;
+  }
+  if (!row) {
+    throw new Error("failed to update project");
+  }
+
+  const counts = await projectCardCounts(db, row.id);
+  return { project: mapProject(row, counts) };
+}
+
+async function projectDelete(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: { project_id: string; force?: boolean },
+) {
+  const proj = await findProject(db, ctx.workspaceId, input.project_id);
+  if (!proj) {
+    return err(
+      "NOT_FOUND",
+      `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const ids = await tx
+      .select({ id: task.id })
+      .from(task)
+      .where(eq(task.projectId, proj.id));
+    const taskIds = ids.map((row) => row.id);
+
+    // task.project_id cascades: deleting the project would take every card
+    // with it, silently. That is only ever the answer when force says so.
+    if (taskIds.length > 0 && input.force !== true) {
+      return err(
+        "INVALID_ARGUMENT",
+        `Project '${proj.name}' (${proj.idPrefix}) holds ${taskIds.length} card${taskIds.length === 1 ? "" : "s"}, subtasks included, and deleting it would destroy all of them. Move them to another project first with task_update passing project_id, or repeat this call with force: true to delete the project and its ${taskIds.length} card${taskIds.length === 1 ? "" : "s"}. Hard delete: irreversible.`,
+      );
+    }
+
+    let attempts = 0;
+    let handoffs = 0;
+    if (taskIds.length > 0) {
+      const [attemptRow] = await tx
+        .select({ n: count() })
+        .from(executionAttempt)
+        .where(inArray(executionAttempt.taskId, taskIds));
+      const [handoffRow] = await tx
+        .select({ n: count() })
+        .from(handoff)
+        .where(inArray(handoff.taskId, taskIds));
+      attempts = Number(attemptRow?.n ?? 0);
+      handoffs = Number(handoffRow?.n ?? 0);
+    }
+
+    await tx.delete(project).where(eq(project.id, proj.id));
+
+    return {
+      deleted: true as const,
+      project_id: proj.id,
+      id_prefix: proj.idPrefix,
+      name: proj.name,
+      tasks_deleted: taskIds.length,
+      attempts_deleted: attempts,
+      handoffs_deleted: handoffs,
+    };
+  });
 }
 
 async function missionList(
@@ -713,6 +899,9 @@ async function taskClaim(
     );
     if (!evaluated.ok) return evaluated;
 
+    // A rejected delivery does not go back to the model that produced it.
+    const escalated = await escalatedHarnessForRetry(tx, ctx.workspaceId, found.row);
+
     const [updated] = await tx
       .update(task)
       .set({
@@ -721,6 +910,7 @@ async function taskClaim(
         claimedByTokenId: ctx.tokenId,
         claimedByExecutor:
           input.executor?.cli ?? input.executor?.agent ?? ctx.tokenLabel,
+        ...(escalated ? { harness: escalated } : {}),
       })
       .where(
         and(
@@ -887,6 +1077,7 @@ async function taskUpdate(
     progress?: string;
     revisado?: boolean;
     mission_id?: string | null;
+    project_id?: string;
     harness?: Harness;
     usage?: Usage;
     spawn_failure?: string;
@@ -935,6 +1126,84 @@ async function taskUpdate(
     if (moved.updated) nextRow = moved.updated;
     subtasksMoved = moved.children;
   }
+
+  // Moving between projects is what turns four projects into two without
+  // deleting anything. The card is restamped with the destination prefix so
+  // the board never shows a card whose id points at a project it left, and
+  // the id it carried is kept on the card for the references outside.
+  let proj = found.proj;
+  let projectMove: ProjectMove | null = null;
+  if (input.project_id !== undefined) {
+    const dest = await findProject(db, ctx.workspaceId, input.project_id);
+    if (!dest) {
+      return err(
+        "NOT_FOUND",
+        `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
+      );
+    }
+    if (nextRow.parentId) {
+      return err(
+        "INVALID_ARGUMENT",
+        `${nextRow.shortId} is a subtask: its id is derived from its parent and it never lives in a different project than the card it belongs to. Move the parent card instead and this one travels with it.`,
+      );
+    }
+    if (dest.id !== proj.id) {
+      const from = proj;
+      const moved = await db.transaction(async (tx) => {
+        const shortId = await allocateShortId(tx, dest);
+        const previous = nextRow.shortId;
+        const changes = [{ from: previous, to: shortId }];
+
+        const [updated] = await tx
+          .update(task)
+          .set({
+            projectId: dest.id,
+            shortId,
+            previousShortIds: [...(nextRow.previousShortIds ?? []), previous],
+          })
+          .where(eq(task.id, nextRow.id))
+          .returning();
+
+        // Subtasks are numbered off their parent (AGB-5.1), so they follow it
+        // and get restamped with it. Leaving them behind would orphan them in
+        // a project their id does not belong to.
+        const children = await tx
+          .select()
+          .from(task)
+          .where(eq(task.parentId, nextRow.id))
+          .orderBy(asc(task.createdAt));
+        for (const child of children) {
+          const suffix = child.shortId.startsWith(`${previous}.`)
+            ? child.shortId.slice(previous.length)
+            : `.${changes.length}`;
+          const childShortId = `${shortId}${suffix}`;
+          changes.push({ from: child.shortId, to: childShortId });
+          await tx
+            .update(task)
+            .set({
+              projectId: dest.id,
+              shortId: childShortId,
+              previousShortIds: [...(child.previousShortIds ?? []), child.shortId],
+            })
+            .where(eq(task.id, child.id));
+        }
+
+        return { updated, changes, children: children.length };
+      });
+
+      if (moved.updated) nextRow = moved.updated;
+      proj = dest;
+      subtasksMoved = moved.children;
+      projectMove = {
+        from_project_id: from.id,
+        from_prefix: from.idPrefix,
+        to_project_id: dest.id,
+        to_prefix: dest.idPrefix,
+        short_ids: moved.changes,
+      };
+    }
+  }
+
   if (input.harness) {
     const resolved = await resolveHarnessAgainstExecutors(
       db,
@@ -1005,11 +1274,12 @@ async function taskUpdate(
   }
 
   return {
-    task: mapTask(nextRow, found.proj, {
+    task: mapTask(nextRow, proj, {
       reopenComment: await latestReopenComment(db, nextRow),
     }),
     ...(usageRecorded ? { usage_recorded: true } : {}),
     ...(subtasksMoved !== null ? { subtasks_moved: subtasksMoved } : {}),
+    ...(projectMove ? { project_move: projectMove } : {}),
   };
 }
 
@@ -1110,7 +1380,18 @@ async function resolveHarnessAgainstExecutors(
       "The workspace for this token no longer exists. Generate a new token in the board Settings.",
     );
   }
-  const executors = executorsFromWorkspace(ws.executors);
+  return resolveHarnessAgainstConfig(executorsFromWorkspace(ws.executors), input);
+}
+
+/**
+ * The same check without the round trip, for callers walking a chain: reading
+ * the workspace once and testing every link against it beats one SELECT per
+ * link, and the link count is the point of the feature.
+ */
+function resolveHarnessAgainstConfig(
+  executors: ReturnType<typeof executorsFromWorkspace>,
+  input: Harness,
+): Result<{ cli: string | null; model: string; effort: Harness["effort"] }> {
   const needleModel = input.model.trim().toLowerCase();
   const needleCli = input.cli?.trim().toLowerCase();
 
@@ -1445,29 +1726,82 @@ async function harnessList(db: McpDatabase, ctx: AuthContext) {
  * the point of the flag is that a worker token cannot promote itself to a
  * better model between two claims.
  */
+/** The declared line, best first, without repeats and without blanks. */
+function declaredChain(
+  model: string | undefined,
+  chain: readonly string[] | undefined,
+): string[] {
+  const out: string[] = [];
+  for (const name of [model, ...(chain ?? [])]) {
+    const trimmed = name?.trim();
+    if (!trimmed) continue;
+    if (out.some((seen) => seen.toLowerCase() === trimmed.toLowerCase())) continue;
+    out.push(trimmed);
+  }
+  return out;
+}
+
 async function harnessSet(
   db: McpDatabase,
   ctx: AuthContext,
   input: {
     type: CardapioTaskType;
     cli?: string | null;
-    model: string;
+    model?: string;
+    chain?: string[];
     effort: EffortLevel;
   },
 ) {
   const denied = requireManage(ctx, "harness_set");
   if (denied) return denied;
 
-  const resolved = await resolveHarnessAgainstExecutors(db, ctx.workspaceId, {
-    ...(input.cli ? { cli: input.cli } : {}),
-    model: input.model,
-    effort: input.effort,
-  });
-  if (!resolved.ok) return resolved;
+  const chain = declaredChain(input.model, input.chain);
+  const head = chain[0];
+  if (!head) {
+    return err("INVALID_ARGUMENT", "Send a model, a chain, or both.");
+  }
+
+  const [ws] = await db
+    .select()
+    .from(workspace)
+    .where(eq(workspace.id, ctx.workspaceId))
+    .limit(1);
+  if (!ws) {
+    return err(
+      "NOT_FOUND",
+      "The workspace for this token no longer exists. Generate a new token in the board Settings.",
+    );
+  }
+  const executors = executorsFromWorkspace(ws.executors);
+
+  // A line of succession only earns its keep if at least one link can run. The
+  // head is allowed to name an executor this workspace has switched off, since
+  // surviving exactly that is why a successor was declared: the write is
+  // refused only when no link at all resolves, which is what a bare model has
+  // always done.
+  let firstAvailable: Result<unknown> | null = null;
+  let headResolution: Result<unknown> | null = null;
+  for (const [position, model] of chain.entries()) {
+    const resolved = resolveHarnessAgainstConfig(executors, {
+      ...(position === 0 && input.cli ? { cli: input.cli } : {}),
+      model,
+      effort: input.effort,
+    });
+    if (position === 0) headResolution = resolved;
+    if (resolved.ok) {
+      firstAvailable = resolved;
+      break;
+    }
+  }
+  // Reuse the head's own message so a chain of one fails exactly as before.
+  if (!firstAvailable) return headResolution as Result<never>;
 
   // A null cli stays null: "no preference" is a real policy choice, and the
-  // executor match above already proved the model is available somewhere.
+  // executor match above already proved a link is available somewhere.
   const cli = input.cli?.trim() || null;
+  // One model is not a chain. Storing null keeps the column meaningful and the
+  // row identical to what every pre-chain writer produced.
+  const stored = chain.length > 1 ? chain : null;
   const updatedAt = new Date();
 
   const [row] = await db
@@ -1476,7 +1810,8 @@ async function harnessSet(
       workspaceId: ctx.workspaceId,
       activityType: input.type,
       cli,
-      model: input.model,
+      model: head,
+      chain: stored,
       effort: input.effort,
       updatedBy: ctx.tokenLabel,
       updatedAt,
@@ -1485,7 +1820,8 @@ async function harnessSet(
       target: [cardapioEntry.workspaceId, cardapioEntry.activityType],
       set: {
         cli,
-        model: input.model,
+        model: head,
+        chain: stored,
         effort: input.effort,
         updatedBy: ctx.tokenLabel,
         updatedAt,
@@ -1691,17 +2027,20 @@ function orphanedPolicyTypes(
 ): string[] {
   const orphaned: string[] = [];
   for (const line of policy) {
-    const model = line.model?.trim();
-    if (!model) continue;
-    // With a cli the pair has to exist on it; without one, any enabled
-    // executor offering the model is enough. Same rule recommendHarness uses.
-    const available = line.cli
-      ? isPairInConfig(config, line.cli, model)
-      : config.some(
-          (row) =>
-            row.enabled &&
-            row.models.some((m) => m.trim().toLowerCase() === model.toLowerCase()),
-        );
+    const chain = declaredChain(line.model ?? undefined, line.chain ?? undefined);
+    if (chain.length === 0) continue;
+    // A line is only orphaned when every link is gone. With a cli the pair has
+    // to exist on it, and only for the head: past the first choice the point of
+    // the fallback is to leave that CLI behind. Same rule recommendHarness uses.
+    const available = chain.some((model, position) =>
+      line.cli && position === 0
+        ? isPairInConfig(config, line.cli, model)
+        : config.some(
+            (row) =>
+              row.enabled &&
+              row.models.some((m) => m.trim().toLowerCase() === model.toLowerCase()),
+          ),
+    );
     if (!available) orphaned.push(line.type);
   }
   return orphaned;
@@ -1725,6 +2064,7 @@ function policyEntryFromRow(
     type: row.activityType,
     cli: row.cli,
     model: row.model,
+    ...(row.chain && row.chain.length > 0 ? { chain: row.chain } : {}),
     effort: row.effort as EffortLevel,
     updated_by: row.updatedBy,
     updated_at: iso(row.updatedAt),
@@ -1747,6 +2087,8 @@ async function recommendFor(
   workspaceId: string,
   type: CardapioTaskType,
   explicit?: Harness,
+  /** Which try this is, zero-based. Moves the chain walk down the line. */
+  attempt = 0,
 ) {
   const [ws] = await db
     .select()
@@ -1764,6 +2106,7 @@ async function recommendFor(
     type,
     executors: executorsFromWorkspace(ws.executors),
     policy,
+    ...(attempt > 0 ? { attempt } : {}),
     ...(explicit
       ? {
           explicit: {
@@ -1774,6 +2117,42 @@ async function recommendFor(
         }
       : {}),
   });
+}
+
+/**
+ * A card coming back for another try moves down its chain instead of returning
+ * to the model whose delivery was just rejected.
+ *
+ * Only deliveries count. An attempt abandoned with `force` was a pane someone
+ * killed, not a verdict on the model, and paying more for it would be a tax on
+ * restarting. A harness pinned off the chain by hand is left alone: escalating
+ * somebody's explicit choice is not the board's call.
+ */
+async function escalatedHarnessForRetry(
+  db: McpDatabase,
+  workspaceId: string,
+  row: TaskRow,
+): Promise<ReturnType<typeof harnessToDb>> {
+  const delivered = await db
+    .select({ id: executionAttempt.id })
+    .from(executionAttempt)
+    .where(
+      and(eq(executionAttempt.taskId, row.id), eq(executionAttempt.result, "success")),
+    );
+  if (delivered.length === 0) return null;
+
+  const policy = await loadPolicy(db, workspaceId);
+  const type = row.tipo as CardapioTaskType;
+  const chain = policyChain(lookupCardapioPolicy(policy, type));
+  const current = row.harness?.model?.trim().toLowerCase();
+  const onChain =
+    !current || chain.some((model) => model.trim().toLowerCase() === current);
+  if (!onChain) return null;
+
+  const next = await recommendFor(db, workspaceId, type, undefined, delivered.length);
+  if (!next.ok || !next.value.available) return null;
+  if (next.value.harness.model?.trim().toLowerCase() === current) return null;
+  return harnessToDb(next.value.harness);
 }
 
 async function assembleTaskPayload(
@@ -1803,6 +2182,16 @@ async function assembleTaskPayload(
     recipes,
     cli ?? row.claimedByExecutor ?? row.harness?.cli ?? null,
   );
+  // The line of succession behind the one model the card prints, so a worker
+  // that stalls knows where the work goes next without asking the board.
+  const policy = await loadPolicy(db, proj.workspaceId);
+  const chain = policyChain(lookupCardapioPolicy(policy, row.tipo));
+  const delivered = await db
+    .select({ id: executionAttempt.id })
+    .from(executionAttempt)
+    .where(
+      and(eq(executionAttempt.taskId, row.id), eq(executionAttempt.result, "success")),
+    );
   return {
     task: mapped,
     briefing_markdown: renderBriefingMarkdown({
@@ -1810,6 +2199,8 @@ async function assembleTaskPayload(
       mission: missionPayload,
       branchConvention: convention,
       recipe,
+      chain,
+      attempt: delivered.length,
     }),
     mission: missionPayload,
     branch_convention: convention,
@@ -1902,12 +2293,27 @@ async function allocateShortId(tx: Tx, proj: ProjectRow): Promise<string> {
     .where(eq(project.id, proj.id))
     .for("update");
   const current = locked ?? proj;
-  const allocated = nextShortId(current.idPrefix, current.nextNumber);
+  let allocated = nextShortId(current.idPrefix, current.nextNumber);
+  // short_id is unique board-wide, so the number the counter points at can
+  // already be spoken for. Walk the counter forward until it lands on a free
+  // id instead of failing on the constraint.
+  while (await shortIdTaken(tx, allocated.shortId)) {
+    allocated = nextShortId(current.idPrefix, allocated.nextNumber);
+  }
   await tx
     .update(project)
     .set({ nextNumber: allocated.nextNumber })
     .where(eq(project.id, proj.id));
   return allocated.shortId;
+}
+
+async function shortIdTaken(tx: Tx, shortId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(eq(task.shortId, shortId))
+    .limit(1);
+  return Boolean(row);
 }
 
 async function nextChildShortId(tx: Tx, parent: TaskRow): Promise<string> {

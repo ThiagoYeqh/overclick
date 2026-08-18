@@ -212,6 +212,7 @@ export function mapTask(
     mission_id: row.missionId,
     devolve_para: reviewerFromRow(row),
     workspace_id: proj.workspaceId,
+    previous_short_ids: row.previousShortIds ?? [],
     parent_id: row.parentId,
     o_que: row.oQue,
     por_que: row.porQue,

@@ -80,7 +80,7 @@ describe("MCP tool edge cases against a test db", () => {
     expect(out.task.o_que).toContain("## Plano");
     expect(out.subtasks).toHaveLength(2);
     expect(out.subtasks[0]?.short_id).toBe(`${out.task.short_id}.1`);
-    expect(out.task.harness?.model).toBe("opus-4-8");
+    expect(out.task.harness?.model).toBe("opus-5");
   });
 
   it("accepts handoff without usage and marks telemetry incomplete", async () => {
@@ -935,7 +935,7 @@ describe("MCP tool edge cases against a test db", () => {
     expect(rec.ok).toBe(true);
     if (!rec.ok) return;
     expect(HarnessRecommendOutputSchema.parse(rec.value).harness.model).toBe(
-      "sonnet-5",
+      "fable-5",
     );
 
     const created = await invokeTool(world.db, ctx(), "task_create", {
@@ -1123,14 +1123,14 @@ describe("MCP tool edge cases against a test db", () => {
 
     const updated = await invokeTool(world.db, ctx(), "task_update", {
       task_id: card.id,
-      harness: { cli: "claude-code", model: "haiku-4", effort: "low" },
+      harness: { cli: "claude-code", model: "haiku-4-5", effort: "low" },
     });
     expect(updated.ok).toBe(true);
     if (!updated.ok) return;
     const out = TaskUpdateOutputSchema.parse(updated.value);
     expect(out.task.harness).toEqual({
       cli: "claude-code",
-      model: "haiku-4",
+      model: "haiku-4-5",
       effort: "low",
     });
 
@@ -1142,7 +1142,7 @@ describe("MCP tool edge cases against a test db", () => {
     const got = fetched.value as { task: { harness: unknown } };
     expect(got.task.harness).toEqual({
       cli: "claude-code",
-      model: "haiku-4",
+      model: "haiku-4-5",
       effort: "low",
     });
   });
@@ -1171,7 +1171,7 @@ describe("MCP tool edge cases against a test db", () => {
 
     const badCli = await invokeTool(world.db, ctx(), "task_update", {
       task_id: card.id,
-      harness: { cli: "codex", model: "haiku-4", effort: "low" },
+      harness: { cli: "codex", model: "haiku-4-5", effort: "low" },
     });
     expect(badCli.ok).toBe(false);
     if (!badCli.ok) expect(badCli.error.code).toBe("INVALID_ARGUMENT");
@@ -1186,6 +1186,123 @@ describe("MCP tool edge cases against a test db", () => {
     if (!deleted.ok) {
       expect(deleted.error.code).toBe("NOT_FOUND");
     }
+  });
+});
+
+describe("a rejected delivery comes back one link down the chain", () => {
+  let world: TestWorld;
+
+  afterEach(async () => {
+    if (world) await closeTestWorld(world);
+  });
+
+  function ctx() {
+    return {
+      tokenId: world.tokenId,
+      workspaceId: world.workspaceId,
+      tokenLabel: "test",
+    };
+  }
+
+  /** What the board UI does on reopen, which has no MCP tool of its own. */
+  async function reopen(taskId: string) {
+    await world.db
+      .update(task)
+      .set({ status: "aberto", claimedByTokenId: null, claimedAt: null })
+      .where(eq(task.id, taskId));
+  }
+
+  async function newCard(title: string) {
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title,
+      type: "bug",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error("card not created");
+    return TaskCreateOutputSchema.parse(created.value).task;
+  }
+
+  it("climbs the chain once per rejected delivery and stops at the last link", async () => {
+    world = await createTestWorld();
+    const card = await newCard("Card que volta");
+
+    // bug ships as fable-5 → opus-5 → gpt-5.6-sol. Only the first two are on
+    // this workspace, so the line runs out after the second try.
+    expect(card.harness?.model).toBe("fable-5");
+
+    const first = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(TaskClaimOutputSchema.parse(first.value).task.harness?.model).toBe("fable-5");
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "primeira tentativa",
+    });
+
+    await reopen(card.id);
+    const second = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    const retried = TaskClaimOutputSchema.parse(second.value);
+    expect(retried.task.harness?.model).toBe("opus-5");
+    // And the worker is told why, plus the whole line it sits on.
+    expect(retried.briefing_markdown).toContain("fable-5 → opus-5 → gpt-5.6-sol");
+    expect(retried.briefing_markdown).toContain("tentativa 2");
+
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "segunda tentativa",
+    });
+    await reopen(card.id);
+    const third = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(third.ok).toBe(true);
+    if (!third.ok) return;
+    // gpt-5.6-sol is the next link but no executor offers it, so the card holds
+    // at the best it can still run instead of stalling or wrapping around.
+    expect(TaskClaimOutputSchema.parse(third.value).task.harness?.model).toBe("opus-5");
+  });
+
+  it("does not escalate a pane that was merely abandoned", async () => {
+    world = await createTestWorld();
+    const card = await newCard("Pane morto");
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    // force ends the open attempt as abandoned: a restart, not a verdict.
+    const again = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      force: true,
+    });
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(TaskClaimOutputSchema.parse(again.value).task.harness?.model).toBe("fable-5");
+  });
+
+  it("leaves a hand-pinned harness where the human put it", async () => {
+    world = await createTestWorld();
+    const card = await newCard("Fixado na mao");
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      harness: { cli: "claude-code", model: "opus-4-8", effort: "high" },
+    });
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "reprovada",
+    });
+    await reopen(card.id);
+
+    const retry = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    // opus-4-8 is off the bug chain, so it was a deliberate choice. The board
+    // does not get to escalate somebody else's decision.
+    expect(TaskClaimOutputSchema.parse(retry.value).task.harness?.model).toBe("opus-4-8");
   });
 });
 

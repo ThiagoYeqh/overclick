@@ -9,12 +9,28 @@ export const CardStatusSchema = z.enum([
 
 export const TaskTypeSchema = z.enum(["feature", "bug", "rfc"]);
 
+/** Keep in step with CARDAPIO_TASK_TYPES: the routing table is the source. */
 export const CardapioTaskTypeSchema = z.enum([
-  "bug",
   "feature",
+  "tweak",
+  "contract",
+  "refactor",
+  "bug",
+  "deep_bug",
+  "fleet_triage",
+  "showpiece",
+  "visual_fix",
+  "publish",
+  "page_copy",
+  "docs",
+  "microcopy",
   "rfc",
-  "architecture",
-  "mechanical",
+  "fanout",
+  "doctrine",
+  "review",
+  "drone",
+  "ship",
+  "research",
 ]);
 
 export const PrioritySchema = z.enum(["urgente", "alta", "media", "baixa"]);
@@ -251,6 +267,12 @@ export const TaskSummarySchema = z.object({
 
 export const TaskSchema = TaskSummarySchema.extend({
   workspace_id: z.string().min(1),
+  /**
+   * Short ids this card carried before, oldest first. A move between projects
+   * restamps `short_id` with the destination prefix and leaves the old one
+   * here, so a branch or PR named after it is still traceable.
+   */
+  previous_short_ids: z.array(z.string().min(1)),
   parent_id: z.string().min(1).nullable(),
   o_que: z.string(),
   por_que: z.string(),

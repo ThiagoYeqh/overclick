@@ -12,6 +12,14 @@ export const cardapioEntry = pgTable(
     activityType: text("activity_type").notNull(),
     cli: text("cli"),
     model: text("model"),
+    /**
+     * The line of succession for this activity, best first, `model` included as
+     * its head. The board claims the first entry the workspace can still run,
+     * so turning an executor off degrades the policy instead of voiding it.
+     * Null on rows written before the column existed: those read as a chain of
+     * one, which is exactly what they were.
+     */
+    chain: text("chain").array(),
     effort: text("effort").notNull(),
     /**
      * Who wrote this line last: an email when it came from Settings, the token

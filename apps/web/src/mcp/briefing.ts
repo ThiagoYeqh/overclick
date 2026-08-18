@@ -26,17 +26,30 @@ export function renderBriefingMarkdown(input: {
   branchConvention: BranchConvention;
   /** Recipe for the CLI running the card; omitted when none could be resolved. */
   recipe?: UsageRecipe | null;
+  /**
+   * The card's line of succession and where this claim sits on it. The worker
+   * gets the whole line, not just the name it is on, so a model that cannot
+   * finish knows what to escalate to without asking the board again.
+   */
+  chain?: readonly string[] | null;
+  /** Which try this is, zero-based: 1 means the first delivery was rejected. */
+  attempt?: number;
 }): string {
-  const { task, mission, branchConvention, recipe } = input;
+  const { task, mission, branchConvention, recipe, chain, attempt } = input;
   const steps = task.como_confirmo
     .map((step, index) => `${index + 1}. ${step.step} → ${step.expected}`)
     .join("\n");
 
+  const line = chain && chain.length > 1 ? chain.join(" → ") : null;
   const harness = task.harness
     ? [
         task.harness.cli ? `- CLI: ${task.harness.cli}` : null,
         `- modelo: ${task.harness.model}`,
         `- effort: ${task.harness.effort}`,
+        line ? `- cadeia: ${line}` : null,
+        attempt && attempt > 0
+          ? `- tentativa ${attempt + 1}: a entrega anterior foi reprovada, então o card subiu um elo da cadeia`
+          : null,
       ]
         .filter(Boolean)
         .join("\n")

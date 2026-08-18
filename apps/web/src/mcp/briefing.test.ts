@@ -14,6 +14,7 @@ const task: Task = {
   project_id: "proj_1",
   mission_id: "miss_1",
   workspace_id: "ws_1",
+  previous_short_ids: [],
   parent_id: null,
   o_que: "O login volta a autenticar.",
   por_que: "Ninguém entra.",

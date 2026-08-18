@@ -55,9 +55,12 @@ Then, in your terminal: *"grab the next task from the board."* Watch the example
   review is a script instead of a vibe. `Done != Validated`: merge is the machine's
   opinion, validation is yours.
 - **Harness policy, not model roulette.** You declare which CLIs/models your team has and
-  map activity types to executors: bugs go to a mid model, architecture and RFCs to a top
-  model on high effort, mechanical chores to a cheap one. Agents read the policy over MCP
-  (`harness_list`) and every card is born with the right harness recommended.
+  map twenty activity types to executors: a dictated tweak and a repo-wide migration are
+  both "code" and belong nowhere near each other in a routing table. Every line is a chain,
+  not a single name: first choice, escalation, floor. The board claims the first link it can
+  actually run, so switching an executor off degrades the policy instead of voiding it.
+  Agents read it over MCP (`harness_list`) and every card is born with the right harness
+  recommended.
 - **Three roles per card.** Who requested it, who executed it, and who it returns to for
   review. The person who delegates isn't always the person who checks.
 - **RFCs as cards.** Big decisions become `rfc` cards whose deliverable is a document;
@@ -76,12 +79,14 @@ Then, in your terminal: *"grab the next task from the board."* Watch the example
 
 ## MCP surface
 
-18 tools: `project_list` · `project_create` · `mission_list` · `mission_get` · `mission_create` ·
+20 tools: `project_list` · `project_create` · `project_update` · `project_delete` ·
+`mission_list` · `mission_get` · `mission_create` ·
 `task_list` · `task_get` · `task_create` · `task_claim` · `task_update` · `task_deliver` ·
 `task_delete` · `branch_register` · `harness_recommend` · `harness_list` · `harness_set` ·
 `executors_update` · `insights_query`. Streamable HTTP, bearer tokens, atomic claims, typed errors. The
 configuration tools sit behind a per-token manage flag, off by default. See
-[`docs/mcp.md`](docs/mcp.md).
+[`docs/mcp.md`](docs/mcp.md), and [`docs/harness-routing.md`](docs/harness-routing.md) for
+the twenty shipped activities and why each one routes the way it does.
 
 Works with any MCP-capable agent. Built to shine with
 [Overclock](https://overclock.sh): squads, visible panes, and precise per-card telemetry.

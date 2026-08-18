@@ -46,10 +46,14 @@ export default async function SettingsPage() {
   const stored = new Map(entries.map((e) => [e.activityType, e]));
   const cardapioRows = factoryCardapioPolicy().map((f) => {
     const row = stored.get(f.type);
+    // A row saved before chains existed keeps its single model, which reads as
+    // a line of succession one deep. That is what it always was.
+    const chain = row ? (row.chain ?? (row.model ? [row.model] : [])) : (f.chain ?? []);
     return {
       activityType: f.type,
       cli: row ? row.cli : f.cli,
       model: row ? row.model : f.model,
+      chain: [...chain],
       effort: row ? row.effort : f.effort,
       updatedBy: row?.updatedBy ?? null,
       updatedAt: row ? row.updatedAt.toISOString() : null,

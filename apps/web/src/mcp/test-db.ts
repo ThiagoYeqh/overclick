@@ -35,12 +35,16 @@ export type TestWorld = {
   manageTokenId: string;
 };
 
+/**
+ * Wide enough that the shipped routing table resolves end to end, and still
+ * carrying an older model so the tests that pin one keep meaning something.
+ */
 const TEST_EXECUTORS: ExecutorConfig[] = [
   {
     id: "claude-code",
     label: "Claude Code",
     enabled: true,
-    models: ["opus-4-8", "sonnet-5", "haiku-4"],
+    models: ["fable-5", "opus-5", "opus-4-8", "sonnet-5", "haiku-4-5"],
   },
 ];
 
@@ -74,6 +78,7 @@ export async function createTestWorld(): Promise<TestWorld> {
       activityType: row.type,
       cli: row.cli,
       model: row.model,
+      chain: row.chain,
       effort: row.effort,
     })),
   );

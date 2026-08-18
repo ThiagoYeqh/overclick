@@ -82,7 +82,7 @@ describe("MCP end-to-end against a test db", () => {
       expect(created.task.workspace_id).toBe(world.workspaceId);
       expect(created.task.mission_id).toBe(world.missionId);
       expect(created.task.status).toBe("aberto");
-      expect(created.task.harness?.model).toBe("sonnet-5");
+      expect(created.task.harness?.model).toBe("fable-5");
       expect(created.task.devolve_para).toEqual({
         kind: "agent",
         session_id: "sess_torre",

@@ -1,9 +1,12 @@
 import { project, workspace } from "@agent-board/db";
 import {
   ProjectCreateOutputSchema,
+  ProjectDeleteOutputSchema,
   ProjectListOutputSchema,
+  ProjectUpdateOutputSchema,
   TaskCreateOutputSchema,
   TaskListOutputSchema,
+  TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
@@ -265,5 +268,319 @@ describe("projects over MCP", () => {
     expect(mine.ok).toBe(true);
     if (!mine.ok) return;
     expect(ProjectCreateOutputSchema.parse(mine.value).project.id_prefix).toBe("ZZ");
+  });
+
+  it("renames a project and shows the new name in project_list", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Funil",
+    });
+    if (!created.ok) throw new Error("project_create failed");
+    const proj = ProjectCreateOutputSchema.parse(created.value).project;
+
+    const renamed = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: proj.id_prefix,
+      name: "Marketing",
+      repo_url: "https://github.com/ustoppble/overclick",
+    });
+    expect(renamed.ok).toBe(true);
+    if (!renamed.ok) return;
+    const out = ProjectUpdateOutputSchema.parse(renamed.value).project;
+    expect(out.name).toBe("Marketing");
+    expect(out.repo_url).toBe("https://github.com/ustoppble/overclick");
+    // The prefix is what the cards carry: a rename never touches it.
+    expect(out.id_prefix).toBe("FUN");
+
+    const listed = await invokeTool(world.db, ctx(), "project_list", {});
+    if (!listed.ok) throw new Error("project_list failed");
+    const row = ProjectListOutputSchema.parse(listed.value).projects.find(
+      (item) => item.id === proj.id,
+    );
+    expect(row?.name).toBe("Marketing");
+
+    const cleared = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: proj.id,
+      repo_url: null,
+    });
+    if (!cleared.ok) throw new Error("project_update failed");
+    expect(ProjectUpdateOutputSchema.parse(cleared.value).project.repo_url).toBeNull();
+  });
+
+  it("refuses a prefix change while the project holds cards and names the way out", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Funil",
+    });
+    if (!created.ok) throw new Error("project_create failed");
+    const proj = ProjectCreateOutputSchema.parse(created.value).project;
+
+    // Empty, the prefix is still free to change.
+    const empty = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: proj.id,
+      id_prefix: "fnl",
+    });
+    expect(empty.ok).toBe(true);
+    if (!empty.ok) return;
+    expect(ProjectUpdateOutputSchema.parse(empty.value).project.id_prefix).toBe("FNL");
+
+    const card = await invokeTool(world.db, ctx(), "task_create", cardArgs("FNL"));
+    expect(card.ok).toBe(true);
+
+    const blocked = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: proj.id,
+      id_prefix: "MKT",
+    });
+    expect(blocked.ok).toBe(false);
+    if (blocked.ok) return;
+    expect(blocked.error.code).toBe("INVALID_ARGUMENT");
+    expect(blocked.error.message).toContain("1 card");
+    expect(blocked.error.message).toContain("FNL");
+    expect(blocked.error.message).toContain("task_update");
+    expect(blocked.error.message).toContain("project_id");
+
+    // The name still moves: only the prefix is frozen.
+    const renamed = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: proj.id,
+      name: "Funil de conteúdo",
+    });
+    expect(renamed.ok).toBe(true);
+
+    // A prefix another project already holds is a named error, not a constraint
+    // violation, even on an empty project.
+    const other = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Marketing",
+    });
+    if (!other.ok) throw new Error("project_create failed");
+    const taken = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: ProjectCreateOutputSchema.parse(other.value).project.id,
+      id_prefix: "FNL",
+    });
+    expect(taken.ok).toBe(false);
+    if (taken.ok) return;
+    expect(taken.error.code).toBe("INVALID_ARGUMENT");
+    expect(taken.error.message).toContain("already used");
+  });
+
+  it("deletes an empty project, refuses one with cards and cascades under force", async () => {
+    world = await createTestWorld();
+    const withCards = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Funil",
+    });
+    if (!withCards.ok) throw new Error("project_create failed");
+    const doomed = ProjectCreateOutputSchema.parse(withCards.value).project;
+    const empty = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Marketing",
+      id_prefix: "MKT",
+    });
+    if (!empty.ok) throw new Error("project_create failed");
+    const spare = ProjectCreateOutputSchema.parse(empty.value).project;
+
+    for (const _ of [1, 2]) {
+      const card = await invokeTool(world.db, ctx(), "task_create", cardArgs("FUN"));
+      expect(card.ok).toBe(true);
+    }
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: "FUN-1",
+      executor: { cli: "claude-code", model: "sonnet-5" },
+    });
+    expect(claimed.ok).toBe(true);
+
+    const refused = await invokeTool(world.db, ctx(), "project_delete", {
+      project_id: "FUN",
+    });
+    expect(refused.ok).toBe(false);
+    if (refused.ok) return;
+    expect(refused.error.code).toBe("INVALID_ARGUMENT");
+    expect(refused.error.message).toContain("2 cards");
+    expect(refused.error.message).toContain("force: true");
+
+    const stillThere = await invokeTool(world.db, ctx(), "task_list", {
+      project_id: "FUN",
+    });
+    if (!stillThere.ok) throw new Error("task_list failed");
+    expect(TaskListOutputSchema.parse(stillThere.value).tasks).toHaveLength(2);
+
+    const emptied = await invokeTool(world.db, ctx(), "project_delete", {
+      project_id: spare.id,
+    });
+    expect(emptied.ok).toBe(true);
+    if (!emptied.ok) return;
+    const gone = ProjectDeleteOutputSchema.parse(emptied.value);
+    expect(gone.tasks_deleted).toBe(0);
+    expect(gone.id_prefix).toBe("MKT");
+
+    const forced = await invokeTool(world.db, ctx(), "project_delete", {
+      project_id: "fun",
+      force: true,
+    });
+    expect(forced.ok).toBe(true);
+    if (!forced.ok) return;
+    const destroyed = ProjectDeleteOutputSchema.parse(forced.value);
+    expect(destroyed.project_id).toBe(doomed.id);
+    expect(destroyed.tasks_deleted).toBe(2);
+    expect(destroyed.attempts_deleted).toBe(1);
+
+    // Only the two named projects left; the seeded one never moved.
+    const listed = await invokeTool(world.db, ctx(), "project_list", {});
+    if (!listed.ok) throw new Error("project_list failed");
+    expect(
+      ProjectListOutputSchema.parse(listed.value).projects.map((row) => row.id_prefix),
+    ).toEqual(["OC"]);
+  });
+
+  it("moves a card between projects, restamping the short id and keeping the old one", async () => {
+    world = await createTestWorld();
+    const source = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Funil",
+    });
+    if (!source.ok) throw new Error("project_create failed");
+    const dest = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Marketing",
+      id_prefix: "MKT",
+    });
+    if (!dest.ok) throw new Error("project_create failed");
+    const target = ProjectCreateOutputSchema.parse(dest.value).project;
+
+    // Two cards already in the destination, so the numbering has to continue
+    // from where it is instead of restarting.
+    for (const _ of [1, 2]) {
+      const filler = await invokeTool(world.db, ctx(), "task_create", cardArgs("MKT"));
+      expect(filler.ok).toBe(true);
+    }
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      ...cardArgs("FUN"),
+      mission: world.missionId,
+    });
+    if (!created.ok) throw new Error("task_create failed");
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+    expect(card.short_id).toBe("FUN-1");
+
+    const moved = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: "FUN-1",
+      project_id: "mkt",
+    });
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    const out = TaskUpdateOutputSchema.parse(moved.value);
+    expect(out.task.short_id).toBe("MKT-3");
+    expect(out.task.project_id).toBe(target.id);
+    expect(out.task.previous_short_ids).toEqual(["FUN-1"]);
+    // Missions are workspace wide and cross projects by design.
+    expect(out.task.mission_id).toBe(world.missionId);
+    expect(out.project_move?.short_ids).toEqual([{ from: "FUN-1", to: "MKT-3" }]);
+    expect(out.project_move?.from_prefix).toBe("FUN");
+    expect(out.project_move?.to_prefix).toBe("MKT");
+    expect(out.subtasks_moved).toBe(0);
+
+    // The destination counter advanced, so the next card there does not collide.
+    const next = await invokeTool(world.db, ctx(), "task_create", cardArgs("MKT"));
+    if (!next.ok) throw new Error("task_create failed");
+    expect(TaskCreateOutputSchema.parse(next.value).task.short_id).toBe("MKT-4");
+
+    // The card answers to its new id and left the source project behind.
+    const sourceCards = await invokeTool(world.db, ctx(), "task_list", {
+      project_id: "FUN",
+    });
+    if (!sourceCards.ok) throw new Error("task_list failed");
+    expect(TaskListOutputSchema.parse(sourceCards.value).tasks).toHaveLength(0);
+
+    const byNewId = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: "MKT-3",
+    });
+    expect(byNewId.ok).toBe(true);
+
+    // Naming the project the card already sits in changes nothing.
+    const noop = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: "MKT-3",
+      project_id: "MKT",
+    });
+    if (!noop.ok) throw new Error("task_update failed");
+    const same = TaskUpdateOutputSchema.parse(noop.value);
+    expect(same.task.short_id).toBe("MKT-3");
+    expect(same.project_move).toBeUndefined();
+
+    const nowhere = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: "MKT-3",
+      project_id: "NOPE",
+    });
+    expect(nowhere.ok).toBe(false);
+    if (nowhere.ok) return;
+    expect(nowhere.error.code).toBe("NOT_FOUND");
+    expect(nowhere.error.message).toContain("project_list");
+  });
+
+  it("takes the subtasks with the parent and refuses to move one on its own", async () => {
+    world = await createTestWorld();
+    const source = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Funil",
+    });
+    if (!source.ok) throw new Error("project_create failed");
+    const dest = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Marketing",
+      id_prefix: "MKT",
+    });
+    if (!dest.ok) throw new Error("project_create failed");
+    const target = ProjectCreateOutputSchema.parse(dest.value).project;
+
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      ...cardArgs("FUN"),
+      mode: "team" as const,
+      subtasks: [
+        { title: "Primeira", scope: "backend", boundary: "sem tocar no front" },
+        { title: "Segunda", scope: "frontend", boundary: "sem tocar no back" },
+      ],
+    });
+    if (!created.ok) throw new Error("task_create failed");
+    const family = TaskCreateOutputSchema.parse(created.value);
+    expect(family.subtasks.map((child) => child.short_id)).toEqual([
+      "FUN-1.1",
+      "FUN-1.2",
+    ]);
+
+    const orphan = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: "FUN-1.1",
+      project_id: "MKT",
+    });
+    expect(orphan.ok).toBe(false);
+    if (orphan.ok) return;
+    expect(orphan.error.code).toBe("INVALID_ARGUMENT");
+    expect(orphan.error.message).toContain("parent");
+
+    const moved = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: "FUN-1",
+      project_id: "MKT",
+    });
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    const out = TaskUpdateOutputSchema.parse(moved.value);
+    expect(out.task.short_id).toBe("MKT-1");
+    expect(out.subtasks_moved).toBe(2);
+    expect(out.project_move?.short_ids).toEqual([
+      { from: "FUN-1", to: "MKT-1" },
+      { from: "FUN-1.1", to: "MKT-1.1" },
+      { from: "FUN-1.2", to: "MKT-1.2" },
+    ]);
+
+    const landed = await invokeTool(world.db, ctx(), "task_list", {
+      project_id: target.id,
+    });
+    if (!landed.ok) throw new Error("task_list failed");
+    const tasks = TaskListOutputSchema.parse(landed.value).tasks;
+    expect(tasks.map((row) => row.short_id).sort()).toEqual([
+      "MKT-1",
+      "MKT-1.1",
+      "MKT-1.2",
+    ]);
+
+    const child = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: "MKT-1.2",
+    });
+    expect(child.ok).toBe(true);
+
+    const left = await invokeTool(world.db, ctx(), "task_list", {
+      project_id: "FUN",
+    });
+    if (!left.ok) throw new Error("task_list failed");
+    expect(TaskListOutputSchema.parse(left.value).tasks).toHaveLength(0);
   });
 });

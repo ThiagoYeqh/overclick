@@ -130,11 +130,38 @@ describe("executors_update manages the executor config over MCP", () => {
     expect(out.executors.filter((item) => item.id === "claude-code")).toHaveLength(1);
   });
 
+  it("stays quiet while a policy line still has a successor to fall back on", async () => {
+    world = await createTestWorld();
+    // microcopy runs haiku-4-5 → sonnet-5 → gpt-5.6-sol. Losing the head costs
+    // the line nothing, because the successor is still configured.
+    const removed = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "claude-code",
+      remove_models: ["haiku-4-5"],
+    });
+    expect(removed.ok).toBe(true);
+    if (!removed.ok) return;
+    const out = ExecutorsUpdateOutputSchema.parse(removed.value);
+    expect(
+      out.executors.find((item) => item.id === "claude-code")?.models,
+    ).not.toContain("haiku-4-5");
+    expect(out.policy_warnings).toBeUndefined();
+
+    const rec = await invokeTool(world.db, worker(), "harness_recommend", {
+      type: "microcopy",
+    });
+    expect(rec.ok).toBe(true);
+    if (!rec.ok) return;
+    const recommended = HarnessRecommendOutputSchema.parse(rec.value);
+    expect(recommended.available).toBe(true);
+    expect(recommended.harness.model).toBe("sonnet-5");
+    expect(recommended.chain_position).toBe(1);
+  });
+
   it("removes a model and warns about the policy line it orphans", async () => {
     world = await createTestWorld();
     const removed = await invokeTool(world.db, manager(), "executors_update", {
       cli: "claude-code",
-      remove_models: ["sonnet-5"],
+      remove_models: ["haiku-4-5", "sonnet-5"],
     });
     expect(removed.ok).toBe(true);
     if (!removed.ok) return;
@@ -142,12 +169,12 @@ describe("executors_update manages the executor config over MCP", () => {
     expect(
       out.executors.find((item) => item.id === "claude-code")?.models,
     ).not.toContain("sonnet-5");
-    // The seeded factory policy sends features to sonnet-5.
-    expect(out.policy_warnings?.join(" ")).toContain("feature");
+    // microcopy and drone are the two lines with no link left standing.
+    expect(out.policy_warnings?.join(" ")).toContain("microcopy");
     expect(out.policy_warnings?.join(" ")).toContain("harness_set");
 
     const rec = await invokeTool(world.db, worker(), "harness_recommend", {
-      type: "feature",
+      type: "microcopy",
     });
     expect(rec.ok).toBe(true);
     if (!rec.ok) return;
@@ -156,18 +183,17 @@ describe("executors_update manages the executor config over MCP", () => {
 
   it("warns only about what this call broke, not about orphans it inherited", async () => {
     world = await createTestWorld();
-    // Leave the board already broken: features point at a model nobody has.
+    // Leave the board already broken: the cheap lines lose every link.
     const first = await invokeTool(world.db, manager(), "executors_update", {
       cli: "claude-code",
-      remove_models: ["sonnet-5"],
+      remove_models: ["haiku-4-5", "sonnet-5"],
     });
     expect(first.ok).toBe(true);
     if (!first.ok) return;
-    // The factory policy sends both bug and feature to sonnet-5.
-    expect(ExecutorsUpdateOutputSchema.parse(first.value).policy_warnings).toEqual([
-      expect.stringContaining("'bug'"),
-      expect.stringContaining("'feature'"),
-    ]);
+    const broke = ExecutorsUpdateOutputSchema.parse(first.value).policy_warnings ?? [];
+    expect(broke).toHaveLength(2);
+    expect(broke.join(" ")).toContain("'microcopy'");
+    expect(broke.join(" ")).toContain("'drone'");
 
     // An unrelated add must not re-report the orphan that was already there.
     const second = await invokeTool(world.db, manager(), "executors_update", {
@@ -235,7 +261,13 @@ describe("executors_update manages the executor config over MCP", () => {
       (item) => item.id === "claude-code",
     );
     expect(row?.enabled).toBe(false);
-    expect(row?.models).toEqual(["opus-4-8", "sonnet-5", "haiku-4"]);
+    expect(row?.models).toEqual([
+      "fable-5",
+      "opus-5",
+      "opus-4-8",
+      "sonnet-5",
+      "haiku-4-5",
+    ]);
 
     // harness_list only reports what is on, so the policy has nothing left.
     const listed = await invokeTool(world.db, worker(), "harness_list", {});

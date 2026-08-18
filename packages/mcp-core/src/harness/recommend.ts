@@ -6,12 +6,44 @@ export type ModelTier = (typeof MODEL_TIERS)[number];
 export const EFFORT_LEVELS = ["low", "medium", "high"] as const;
 export type EffortLevel = (typeof EFFORT_LEVELS)[number];
 
+/**
+ * The activities a workspace routes, grouped by the question they answer:
+ * build, debug, design, publish, decide, orchestrate, verify, ship, learn.
+ *
+ * These are shapes of work, not topics. Two requests share a type when the same
+ * thing decides whether a model succeeds at them: a dictated one-line tweak and
+ * a repo-wide migration are both "code", and belong nowhere near each other in
+ * a routing table.
+ */
 export const CARDAPIO_TASK_TYPES = [
-  "bug",
+  // Build
   "feature",
+  "tweak",
+  "contract",
+  "refactor",
+  // Debug
+  "bug",
+  "deep_bug",
+  "fleet_triage",
+  // Design
+  "showpiece",
+  "visual_fix",
+  "publish",
+  // Words
+  "page_copy",
+  "docs",
+  "microcopy",
+  // Decide
   "rfc",
-  "architecture",
-  "mechanical",
+  // Orchestrate
+  "fanout",
+  "doctrine",
+  // Verify
+  "review",
+  "drone",
+  // Ship and learn
+  "ship",
+  "research",
 ] as const;
 export type CardapioTaskType = (typeof CARDAPIO_TASK_TYPES)[number];
 
@@ -54,6 +86,13 @@ export type RecommendInput = {
   catalog?: readonly ModelInfo[];
   /** Stored workspace policy. When set, recommend is a lookup (factory fallback). */
   policy?: readonly CardapioPolicyEntry[];
+  /**
+   * Which try this is, zero-based. The chain walk starts here, so a card whose
+   * delivery was rejected comes back on the next model down the line instead of
+   * on the one that just failed review. Ignored by the explicit path: a harness
+   * somebody pinned by hand is not the board's to escalate.
+   */
+  attempt?: number;
   explicit?: {
     cli?: string;
     model: string;
@@ -61,11 +100,20 @@ export type RecommendInput = {
   };
 };
 
-/** One declared row of the workspace cardapio: activity type → CLI · model · effort. */
+/**
+ * One declared row of the workspace cardapio: activity type → CLI · chain · effort.
+ *
+ * The chain is the line of succession for that activity, best first. The board
+ * claims the first model in it that the workspace can actually run, so a policy
+ * survives an executor being switched off instead of falling back to a tier
+ * guess. `model` is the head of the chain, kept as its own field because the
+ * card, the DB column and the MCP contract all want one name to print.
+ */
 export type CardapioPolicyEntry = {
   type: string;
   cli: string | null;
   model: string | null;
+  chain?: readonly string[];
   effort: EffortLevel;
 };
 
@@ -75,41 +123,189 @@ export type RecommendResult = {
   available: boolean;
   source: "cardapio" | "explicit";
   matched_executor: MatchedExecutor | null;
+  /** The declared line of succession, best first, whether or not it was needed. */
+  chain?: readonly string[];
+  /** 0 when the first choice was free, 1 when the second answered, and so on. */
+  chain_position?: number;
   divergence?: string;
 };
 
+/** One row of the shipped routing table: what the activity is, and who runs it. */
+export type ActivityHarness = {
+  /** One line, in the words someone would use to recognise their own request. */
+  hint: string;
+  /** Line of succession, best first. Three deep: first choice, escalation, floor. */
+  chain: readonly [string, string, string];
+  effort: EffortLevel;
+  model_tier: ModelTier;
+};
+
 /**
- * Factory default distilled from the overclock-app B1–B6 matrix:
- * bug → mid; rfc/architecture → top · high; mechanical → cheap · low.
+ * The shipped routing table, one row per activity.
+ *
+ * Every chain reads the same way: the first model is the one that should answer,
+ * the second is where the work goes when the first is off or out of its depth,
+ * and the third is the floor that keeps the lane moving. A workspace that has
+ * only some of these configured still routes, because the board claims the
+ * first link it can actually run.
+ *
+ * The order is not a preference. It is what the public head-to-head boards say
+ * about each shape of work: fable-5 leads text and instruction following, opus-5
+ * leads agentic tool use and front-end, gpt-5.6-sol is the strongest non-Anthropic
+ * second opinion, sonnet-5 is the mid-price lane and haiku-4-5 is the floor for
+ * work with a checkable ground truth. Re-derive it when the boards move.
  */
-export const DEFAULT_CARDAPIO: Cardapio = {
-  bug: {
-    model_tier: "mid",
-    effort: "medium",
-  },
+export const ACTIVITY_HARNESS: Readonly<Record<CardapioTaskType, ActivityHarness>> = {
   feature: {
-    model_tier: "mid",
+    hint: "build a new capability from a written contract",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
+    effort: "high",
+    model_tier: "top",
+  },
+  tweak: {
+    hint: "one dictated change to the app already in front of you",
+    chain: ["fable-5", "opus-5", "gpt-5.6-sol"],
+    effort: "low",
+    model_tier: "top",
+  },
+  contract: {
+    hint: "spec, schema, migration and public surface moved together",
+    chain: ["fable-5", "opus-5", "gpt-5.6-sol"],
+    effort: "high",
+    model_tier: "top",
+  },
+  refactor: {
+    hint: "repo-wide rename, sweep or dead-code removal",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
     effort: "medium",
+    model_tier: "top",
+  },
+  bug: {
+    hint: "a symptom on a running app, usually with a screenshot",
+    chain: ["fable-5", "opus-5", "gpt-5.6-sol"],
+    effort: "medium",
+    model_tier: "top",
+  },
+  deep_bug: {
+    hint: "no reproduction, and the earlier fixes did not hold",
+    chain: ["opus-5", "gpt-5.6-sol", "fable-5"],
+    effort: "high",
+    model_tier: "top",
+  },
+  fleet_triage: {
+    hint: "a worker stalled, died, or reported work it did not do",
+    chain: ["opus-5", "fable-5", "haiku-4-5"],
+    effort: "medium",
+    model_tier: "top",
+  },
+  showpiece: {
+    hint: "a surface built from nothing where the taste is the deliverable",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
+    effort: "high",
+    model_tier: "top",
+  },
+  visual_fix: {
+    hint: "surgical visual correction against a screenshot or a reference",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
+    effort: "medium",
+    model_tier: "top",
+  },
+  publish: {
+    hint: "the public feed: posts, titles, thumbnails, scene prompts, cuts",
+    chain: ["fable-5", "opus-5", "gpt-5.6-sol"],
+    effort: "medium",
+    model_tier: "top",
+  },
+  page_copy: {
+    hint: "offer, landing copy and naming, shipped inside the markup",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
+    effort: "high",
+    model_tier: "top",
+  },
+  docs: {
+    hint: "repo-grounded documentation and long form",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
+    effort: "high",
+    model_tier: "top",
+  },
+  microcopy: {
+    hint: "hard-constraint compression: UI strings, card titles, exact counts",
+    chain: ["haiku-4-5", "sonnet-5", "gpt-5.6-sol"],
+    effort: "low",
+    model_tier: "cheap",
   },
   rfc: {
-    model_tier: "top",
+    hint: "options, trade-offs, and the interrogation before anything is built",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
     effort: "high",
-  },
-  architecture: {
     model_tier: "top",
-    effort: "high",
   },
-  mechanical: {
-    model_tier: "cheap",
+  fanout: {
+    hint: "spawn, route and drive a fleet of workers",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
+    effort: "medium",
+    model_tier: "top",
+  },
+  doctrine: {
+    hint: "write the instructions other agents have to obey",
+    chain: ["fable-5", "opus-5", "sonnet-5"],
+    effort: "high",
+    model_tier: "top",
+  },
+  review: {
+    hint: "adversarial review of a claimed delivery, on screen or in the diff",
+    chain: ["opus-5", "fable-5", "gpt-5.6-sol"],
+    effort: "high",
+    model_tier: "top",
+  },
+  drone: {
+    hint: "identical slices and checkable probes, fanned out cheap",
+    chain: ["haiku-4-5", "gpt-5.6-sol", "sonnet-5"],
     effort: "low",
+    model_tier: "cheap",
+  },
+  ship: {
+    hint: "the irreversible ones: release, merge, git surgery, production data",
+    chain: ["opus-5", "gpt-5.6-sol", "fable-5"],
+    effort: "medium",
+    model_tier: "top",
+  },
+  research: {
+    hint: "read the whole pile, or explain it back in plain language",
+    chain: ["gpt-5.6-sol", "fable-5", "haiku-4-5"],
+    effort: "medium",
+    model_tier: "mid",
   },
 };
 
+/** Tier and effort per activity, projected out of the routing table. */
+export const DEFAULT_CARDAPIO: Cardapio = Object.fromEntries(
+  CARDAPIO_TASK_TYPES.map((type) => [
+    type,
+    { model_tier: ACTIVITY_HARNESS[type].model_tier, effort: ACTIVITY_HARNESS[type].effort },
+  ]),
+) as Cardapio;
+
+/**
+ * Every model the shipped routing table can name, plus the common neighbours.
+ * Order matters: findByTier walks it, so the first entry of a tier is the one a
+ * tier-only policy lands on.
+ */
 export const DEFAULT_MODEL_CATALOG: readonly ModelInfo[] = [
+  {
+    id: "fable-5",
+    tier: "top",
+    aliases: ["fable", "claude-fable", "claude-fable-5"],
+  },
+  {
+    id: "opus-5",
+    tier: "top",
+    aliases: ["opus", "claude-opus", "claude-opus-5"],
+  },
   {
     id: "opus-4-8",
     tier: "top",
-    aliases: ["opus", "claude-opus", "claude-opus-4"],
+    aliases: ["claude-opus-4-8", "claude-opus-4"],
   },
   {
     id: "sonnet-5",
@@ -117,15 +313,19 @@ export const DEFAULT_MODEL_CATALOG: readonly ModelInfo[] = [
     aliases: ["sonnet", "claude-sonnet", "claude-sonnet-5"],
   },
   {
-    id: "haiku-4",
+    id: "haiku-4-5",
     tier: "cheap",
-    aliases: ["haiku", "claude-haiku"],
+    aliases: ["haiku", "claude-haiku", "claude-haiku-4-5", "haiku-4"],
   },
+  { id: "gpt-5.6-sol", tier: "mid", aliases: ["sol", "gpt-5-6-sol"] },
+  { id: "gpt-5.6-terra", tier: "mid", aliases: ["terra", "gpt-5-6-terra"] },
+  { id: "gpt-5.6-luna", tier: "cheap", aliases: ["luna", "gpt-5-6-luna"] },
+  { id: "gpt-5.5", tier: "mid", aliases: ["gpt-5-5"] },
   { id: "gpt-5", tier: "top", aliases: ["gpt5"] },
-  { id: "gpt-4.1", tier: "mid" },
-  { id: "gpt-4.1-mini", tier: "cheap" },
-  { id: "gemini-2.5-pro", tier: "top" },
-  { id: "gemini-2.5-flash", tier: "cheap" },
+  { id: "kimi-k3", tier: "top", aliases: ["k3", "kimi-k3-max"] },
+  { id: "grok-4.6", tier: "mid", aliases: ["grok-4-6"] },
+  { id: "gemini-3.7-flash", tier: "mid", aliases: ["3-7-flash"] },
+  { id: "gemini-3-flash", tier: "cheap", aliases: ["3-flash"] },
 ];
 
 function normalize(value: string): string {
@@ -186,16 +386,18 @@ function catalogModelForTier(
 }
 
 /**
- * Factory seed of the explicit policy table, distilled from DEFAULT_CARDAPIO × catalog.
- * CLI is null until the user picks an executor; model is the catalog id for that tier.
+ * Factory seed of the explicit policy table, one row per activity, each born
+ * with its whole line of succession. CLI stays null until the user picks an
+ * executor: the chain names models, and any enabled CLI that offers one counts.
  */
 export const FACTORY_CARDAPIO_POLICY: readonly CardapioPolicyEntry[] =
   CARDAPIO_TASK_TYPES.map((type) => {
-    const entry = DEFAULT_CARDAPIO[type];
+    const entry = ACTIVITY_HARNESS[type];
     return {
       type,
       cli: null,
-      model: catalogModelForTier(entry.model_tier),
+      model: entry.chain[0],
+      chain: entry.chain,
       effort: entry.effort,
     };
   });
@@ -221,24 +423,67 @@ export function lookupCardapioPolicy(
   };
 }
 
-function matchPolicyExecutor(
+/**
+ * The row's line of succession, best first and without repeats. A row that only
+ * ever declared one model still reads as a chain of one, so every caller can
+ * walk the same shape.
+ */
+export function policyChain(entry: CardapioPolicyEntry): readonly string[] {
+  const out: string[] = [];
+  for (const model of [entry.model, ...(entry.chain ?? [])]) {
+    if (!model) continue;
+    if (out.some((name) => normalize(name) === normalize(model))) continue;
+    out.push(model);
+  }
+  return out;
+}
+
+function matchOneModel(
   executors: readonly ConfiguredExecutor[],
-  entry: CardapioPolicyEntry,
+  cli: string | null,
+  modelName: string,
 ): MatchedExecutor | null {
-  if (!entry.model) return null;
-  if (entry.cli) {
-    const needleCli = normalize(entry.cli);
+  if (cli) {
+    const needleCli = normalize(cli);
     for (const executor of executors) {
       if (normalize(executor.cli) !== needleCli && normalize(executor.id) !== needleCli) {
         continue;
       }
-      const model = executor.models.find((name) => normalize(name) === normalize(entry.model!));
+      const model = executor.models.find((name) => normalize(name) === normalize(modelName));
       if (model) {
         return { id: executor.id, cli: executor.cli, model };
       }
     }
   }
-  return findByModelName(executors, entry.model);
+  return findByModelName(executors, modelName);
+}
+
+/**
+ * Walks the chain and stops at the first model the workspace can actually run.
+ * The CLI pin only applies to the head: once the first choice is unavailable the
+ * point of the fallback is to leave that CLI behind.
+ *
+ * `from` is where the walk starts. A card on its second try starts at 1, so a
+ * rejected delivery does not go back to the model that just produced it. It is
+ * clamped to the last link: the line runs out, it does not wrap.
+ */
+function matchPolicyExecutor(
+  executors: readonly ConfiguredExecutor[],
+  entry: CardapioPolicyEntry,
+  from = 0,
+): { matched: MatchedExecutor; position: number } | null {
+  const chain = policyChain(entry);
+  if (chain.length === 0) return null;
+  const start = Math.min(Math.max(from, 0), chain.length - 1);
+  for (let position = start; position < chain.length; position += 1) {
+    const modelName = chain[position];
+    if (!modelName) continue;
+    const matched = matchOneModel(executors, position === 0 ? entry.cli : null, modelName);
+    if (matched) {
+      return { matched, position };
+    }
+  }
+  return null;
 }
 
 export function recommendHarness(
@@ -273,26 +518,45 @@ export function recommendHarness(
 
   if (input.policy) {
     const entry = lookupCardapioPolicy(input.policy, input.type);
-    const matched = matchPolicyExecutor(input.executors, entry);
+    const chain = policyChain(entry);
+    const retry = Math.min(Math.max(input.attempt ?? 0, 0), Math.max(chain.length - 1, 0));
+    const hit = matchPolicyExecutor(input.executors, entry, retry);
+    // The harness prints the model that will actually run. When the first
+    // choice is off, that is the one the chain reached, not the one declared.
+    const running = hit?.matched.model ?? entry.model;
     const tier =
-      (entry.model ? resolveModelTier(entry.model, catalog) : null) ??
+      (running ? resolveModelTier(running, catalog) : null) ??
       DEFAULT_CARDAPIO[input.type]?.model_tier ??
       "mid";
+    // Two different reasons to be past the head, and a reader has to be able to
+    // tell them apart: the retry moved on purpose, the fall-through had to.
+    const divergence = !hit
+      ? entry.model
+        ? chain.length > 1
+          ? `No model in the chain (${chain.join(" → ")}) is among the configured executors.`
+          : `Policy model '${entry.model}' is not among the configured executors.`
+        : undefined
+      : hit.position > retry
+        ? `'${chain[retry]}' is not among the configured executors; the chain fell through to '${hit.matched.model}'.`
+        : hit.position > 0
+          ? `Try ${retry + 1} for this card, so the chain starts at '${hit.matched.model}' instead of '${chain[0]}'.`
+          : undefined;
     return ok({
       harness: {
-        cli: entry.cli,
-        model: entry.model,
+        // A null cli is "no preference", and staying on the first choice does
+        // not overrule it. Falling through does: the declared CLI is the one
+        // that just failed, so the harness names the one actually answering.
+        cli: hit && hit.position > 0 ? hit.matched.cli : entry.cli,
+        model: running,
         effort: entry.effort,
       },
       model_tier: tier,
-      available: Boolean(entry.model) && matched !== null,
+      available: Boolean(entry.model) && hit !== null,
       source: "cardapio",
-      matched_executor: matched,
-      ...(entry.model && !matched
-        ? {
-            divergence: `Policy model '${entry.model}' is not among the configured executors.`,
-          }
-        : {}),
+      matched_executor: hit?.matched ?? null,
+      ...(chain.length > 0 ? { chain } : {}),
+      ...(hit ? { chain_position: hit.position } : {}),
+      ...(divergence ? { divergence } : {}),
     });
   }
 
