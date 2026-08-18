@@ -87,6 +87,7 @@ function fmtLastUse(iso: string | null, t: Dict): string {
 
 export function SettingsClient({
   host,
+  origin,
   workspaceName,
   projectName,
   executors,
@@ -109,6 +110,7 @@ export function SettingsClient({
   sourceCommand,
 }: {
   host: string;
+  origin: string;
   workspaceName: string;
   projectName: string;
   executors: ExecutorSelection;
@@ -404,7 +406,7 @@ export function SettingsClient({
     if (!fresh) return;
     try {
       await navigator.clipboard.writeText(
-        `claude mcp add --transport http overclick \\\n  http://${host}/mcp \\\n  --header "Authorization: Bearer ${fresh.secret}"`,
+        `claude mcp add --transport http overclick \\\n  ${origin}/mcp \\\n  --header "Authorization: Bearer ${fresh.secret}"`,
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -415,7 +417,7 @@ export function SettingsClient({
   const [pairFresh, setPairFresh] = useState<{ code: string } | null>(null);
   const [pairCopied, setPairCopied] = useState(false);
   const pairCmd = pairFresh
-    ? `curl -sX POST http://${host}/api/pair \\\n  -H 'Content-Type: application/json' -d '{"code":"${pairFresh.code}"}'`
+    ? `curl -sX POST ${origin}/api/pair \\\n  -H 'Content-Type: application/json' -d '{"code":"${pairFresh.code}"}'`
     : "";
   const genPair = () =>
     start(async () => {
@@ -910,7 +912,7 @@ export function SettingsClient({
           <div className="sec-cap">{t.settings.connectAgent}</div>
           <div className="cmd">
 {`claude mcp add --transport http overclick \\
-  http://${host}/mcp \\
+  ${origin}/mcp \\
   --header "Authorization: Bearer ocb_••••••••••••"`}
           </div>
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>

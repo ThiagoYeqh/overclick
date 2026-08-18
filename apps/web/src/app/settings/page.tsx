@@ -114,7 +114,14 @@ export default async function SettingsPage() {
     ]),
   );
 
-  const host = (await headers()).get("host") ?? "<your-host>";
+  const h = await headers();
+  // A TLS instance sits behind a proxy that terminates it, so the scheme comes
+  // from the forwarded header. Never hardcode http: the commands we print carry
+  // a bearer token.
+  const host = h.get("host") ?? "<your-host>";
+  const proto = h.get("x-forwarded-proto")?.split(",")[0].trim()
+    ?? (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+  const origin = `${proto}://${host}`;
 
   // Read on the server, from the volume the sidecar shares: a mounted trigger
   // directory says nothing, only a fresh heartbeat means somebody can pull.
@@ -138,6 +145,7 @@ export default async function SettingsPage() {
     <div className="nb nebula-surface">
       <SettingsClient
         host={host}
+        origin={origin}
         workspaceName={ws.name}
         projectName={proj?.name ?? ws.name}
         executors={selectionFromConfig(ws.executors)}

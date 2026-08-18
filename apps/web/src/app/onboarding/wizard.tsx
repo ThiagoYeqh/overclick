@@ -48,12 +48,14 @@ function commandFor(cli: string, baseUrl: string, secret: string): string {
 
 export function Wizard({
   host,
+  origin,
   initialStep,
   project,
   executors,
   lang,
 }: {
   host: string;
+  origin: string;
   initialStep: number;
   project: ProjectData | null;
   executors: ExecutorSelection;
@@ -97,9 +99,9 @@ export function Wizard({
   const [connected, setConnected] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const baseUrl = `http://${host}/mcp`;
+  const baseUrl = `${origin}/mcp`;
   const pairCmd = pair
-    ? `curl -sX POST http://${host}/api/pair \\\n  -H 'Content-Type: application/json' -d '{"code":"${pair.code}"}'`
+    ? `curl -sX POST ${origin}/api/pair \\\n  -H 'Content-Type: application/json' -d '{"code":"${pair.code}"}'`
     : "";
 
   useEffect(() => {
