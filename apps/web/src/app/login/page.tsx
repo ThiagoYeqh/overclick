@@ -44,7 +44,7 @@ export default async function LoginPage() {
             <h1>{t.auth.loginTitle}</h1>
             <p className="sub">{t.auth.loginSub}</p>
             <LoginForm lang={ws?.language ?? "en"} />
-            <p className="foot">v0.1.11 · {t.auth.foot}</p>
+            <p className="foot">v0.1.12 · {t.auth.foot}</p>
           </div>
         </div>
       </div>
