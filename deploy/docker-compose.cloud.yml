@@ -1,0 +1,58 @@
+# OverClick cloud instance. Isolated from anything else on the host: own project
+# name (COMPOSE_PROJECT_NAME=overclick), own network, own volume, own port.
+# Bring it up with:
+#   docker compose -p overclick -f deploy/docker-compose.cloud.yml up -d --build
+name: overclick
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: overclick
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: overclick
+    volumes:
+      - overclick_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U overclick -d overclick"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [overclick]
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://overclick:${POSTGRES_PASSWORD}@postgres:5432/overclick
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in deploy/.env (32+ chars)}
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: "3000"
+    # Bound to loopback: the reverse proxy is the only way in from outside.
+    ports:
+      - "127.0.0.1:${OVERCLICK_PORT:-3100}:3000"
+    networks: [overclick]
+
+  # Optional one-click updater, same as the main compose file. Enable with:
+  #   docker compose -p overclick -f deploy/docker-compose.cloud.yml --profile updater up -d
+  updater:
+    image: docker:27-cli
+    restart: unless-stopped
+    profiles: ["updater"]
+    command: ["sh", "-c", "while true; do sleep 30; done"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [overclick]
+
+volumes:
+  overclick_pgdata:
+
+networks:
+  overclick:
+    name: overclick

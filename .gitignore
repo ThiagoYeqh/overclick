@@ -42,3 +42,4 @@ pnpm-debug.log*
 # drizzle journal is committed; kit cache is not
 packages/db/drizzle/*.sql.bak
 .internal/
+deploy/.env
