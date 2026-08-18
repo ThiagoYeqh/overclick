@@ -70,6 +70,22 @@ own arithmetic.
 
 Found the real numbers only later? `task_update` accepts usage after delivery.
 
+## Dispatching a card to a worker
+
+When you hand a card to another agent (a pane, a subagent, a colleague), the whole
+message is:
+
+    Execute card OCL-2 on the OverClick board.
+
+Nothing else. The card already carries the contract; the claim returns the briefing
+with the harness, the mission context, the branch convention and the usage recipe;
+this skill teaches the loop. Re-explaining any of that in the prompt is paid twice —
+once when the card was written, again as output tokens on every dispatch — and it
+drifts from the card the moment either is edited. If a worker needs something the
+briefing does not carry (a run-wide convention, a constraint you just discovered),
+put it where the briefing reads from: the card (`task_update` comment) or the
+mission context — then dispatch with the one line above.
+
 ## What the board is good for beyond cards
 
 - `harness_list` tells you which CLI and model the team decided each kind of
