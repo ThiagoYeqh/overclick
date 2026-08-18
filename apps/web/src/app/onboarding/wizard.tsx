@@ -9,6 +9,7 @@ import {
   createTokenAction,
   pollPairingAction,
   pollTokenAction,
+  workspaceEverConnectedAction,
 } from "../../actions/tokens";
 import { Icon } from "../../components/icon";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
@@ -103,6 +104,19 @@ export function Wizard({
   const pairCmd = pair
     ? `curl -sX POST ${origin}/api/pair \\\n  -H 'Content-Type: application/json' -d '{"code":"${pair.code}"}'`
     : "";
+
+  // The indicator must survive the reload that happens while the human is in a
+  // terminal pasting the command: ask the server on mount instead of trusting
+  // what this tab remembers.
+  useEffect(() => {
+    let cancelled = false;
+    void workspaceEverConnectedAction().then((r) => {
+      if (!cancelled && r.connected) setConnected(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if ((!token && !pair) || connected) return;

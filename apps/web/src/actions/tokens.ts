@@ -1,7 +1,7 @@
 "use server";
 
 import { mcpToken } from "@agent-board/db";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
@@ -120,4 +120,29 @@ export async function pollTokenAction(
     used: row?.lastUsedAt != null,
     usedAt: row?.lastUsedAt?.toISOString() ?? null,
   };
+}
+
+/**
+ * Has any agent ever reached this workspace? The wizard asks this on mount,
+ * because the human leaves the page to paste the command in a terminal: the
+ * token id lives in React state and does not survive a reload, so an indicator
+ * that only polls what the tab remembers waits forever for a connection that
+ * already happened.
+ */
+export async function workspaceEverConnectedAction(): Promise<{
+  connected: boolean;
+  at: string | null;
+}> {
+  const session = await getSession();
+  if (!session) return { connected: false, at: null };
+
+  const rows = await db()
+    .select({ lastUsedAt: mcpToken.lastUsedAt })
+    .from(mcpToken)
+    .where(isNotNull(mcpToken.lastUsedAt))
+    .orderBy(desc(mcpToken.lastUsedAt))
+    .limit(1);
+
+  const at = rows[0]?.lastUsedAt ?? null;
+  return { connected: at != null, at: at ? at.toISOString() : null };
 }
