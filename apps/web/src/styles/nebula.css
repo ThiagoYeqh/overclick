@@ -525,31 +525,63 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .mf-create-error { margin: 0; color: #e8a1a1; font-size: 11px; line-height: 1.4; }
 
-/* ---------- type + priority facets (OCL-1) ----------
-   Seven direct chips make multi-selection one gesture per answer. The two
-   labelled groups stay compact in the desktop bar and wrap in the narrow
-   filters panel without changing controls or losing state. */
-.nb .facet-filters { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.nb .facet-group { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
-.nb .facet-label, .nb .filter-result {
+/* ---------- type + priority facets (OCL-31) ----------
+   The seven choices live in one vertical menu. This keeps the scarce topbar
+   width for scope while preserving multi-select semantics inside each facet. */
+.nb .facet-filters { position: relative; display: inline-flex; min-width: 0; }
+.nb .ff-trigger {
+  appearance: none; color: var(--nebula-text-secondary); cursor: pointer;
+  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+}
+.nb .ff-trigger.on {
+  color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.4);
+  background: rgba(255,255,255,0.06);
+}
+.nb .ff-panel {
+  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
+  width: 240px; max-width: min(320px, calc(100vw - 32px));
+  padding: 8px; background: rgba(13, 15, 19, 0.96);
+}
+.nb .ff-section + .ff-section {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--nebula-glass-border);
+}
+.nb .ff-section h3 {
+  margin: 0; padding: 4px 8px;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 9px; font-weight: var(--nebula-weight-medium);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.nb .ff-list { display: flex; flex-direction: column; }
+.nb .ff-opt {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 8px; border-radius: 8px; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: 0.04em; cursor: pointer;
+}
+.nb .ff-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+.nb .ff-opt.on { color: var(--nebula-text-primary); }
+.nb .ff-opt input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.nb .ff-opt:has(input:focus-visible) { outline: none; box-shadow: var(--nebula-focus-ring-offset); }
+.nb .ff-box {
+  flex: none; width: 14px; height: 14px; border-radius: 4px;
+  border: 1px solid var(--nebula-glass-border);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.nb .ff-opt.on .ff-box { border-color: rgba(209,217,235,0.5); background: rgba(255,255,255,0.10); }
+.nb .ff-opt-name { flex: 1; min-width: 0; }
+.nb .ff-clear {
+  width: 100%; margin-top: 8px; padding: 8px;
+  border: 0; border-top: 1px solid var(--nebula-glass-border);
+  background: transparent; color: var(--nebula-mist);
+  font-family: var(--nebula-font-mono); font-size: 11px; text-align: left;
+  cursor: pointer;
+}
+.nb .ff-clear:hover:not(:disabled) { color: var(--nebula-text-primary); }
+.nb .ff-clear:disabled { opacity: 0.4; cursor: default; }
+.nb .filter-result {
   color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
   font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
   white-space: nowrap;
-}
-.nb .facet-chip {
-  appearance: none; border: 1px solid var(--nebula-glass-border);
-  border-radius: 999px; padding: 4px 7px;
-  background: rgba(255,255,255,0.025); color: var(--nebula-text-secondary);
-  font-family: var(--nebula-font-mono); font-size: 9px;
-  letter-spacing: 0.035em; line-height: 1; cursor: pointer; white-space: nowrap;
-}
-.nb .facet-chip:hover { color: var(--nebula-text-primary); background: rgba(255,255,255,0.06); }
-.nb .facet-chip.on {
-  color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.5);
-  background: rgba(209,217,235,0.12); box-shadow: 0 0 12px rgba(209,217,235,0.07);
-}
-.nb .facet-chip:focus-visible {
-  outline: none; box-shadow: var(--nebula-focus-ring-offset);
 }
 .nb .filter-result { padding-left: 8px; border-left: 1px solid var(--nebula-glass-border); }
 .nb .clear-board-filters { color: var(--nebula-text-secondary); }
@@ -2029,9 +2061,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-more .pf-label, .nb .topbar-more .mf-label { max-width: none; }
   .nb .topbar-more .mission-filter { max-width: none; }
   .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
-  .nb .topbar-more .facet-filters { flex-direction: column; align-items: stretch; }
-  .nb .topbar-more .facet-group { flex-wrap: wrap; }
-  .nb .topbar-more .facet-label { width: 70px; }
+  .nb .topbar-more .facet-filters, .nb .topbar-more .ff-trigger { width: 100%; }
+  .nb .topbar-more .ff-trigger { text-align: left; }
   .nb .topbar-more .filter-result { align-self: flex-start; }
   .nb .topbar-more .btn-ghost { display: block; width: 100%; text-align: left; }
 }
@@ -2088,9 +2119,14 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-more .mf-label { max-width: none; }
   .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
   .nb .topbar-more .filter-chip select { max-width: none; flex: 1; }
-  .nb .topbar-more .facet-filters { flex-direction: column; align-items: stretch; }
-  .nb .topbar-more .facet-group { flex-wrap: wrap; }
-  .nb .topbar-more .facet-label { width: 70px; }
+  .nb .topbar-more .facet-filters, .nb .topbar-more .ff-trigger { width: 100%; }
+  .nb .topbar-more .ff-trigger { text-align: left; }
+  .nb .ff-panel {
+    position: fixed; top: auto; right: 0; bottom: 0; left: 0; z-index: 60;
+    width: auto; max-width: none; max-height: min(80vh, 620px); overflow-y: auto;
+    padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+  }
   .nb .topbar-more .filter-result { align-self: flex-start; }
   /* the state chips shrink to mark and count; the word returns with width */
   .nb .state-chip { padding: 5px 8px; }

@@ -1,0 +1,41 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import { dict } from "../../lib/i18n";
+import { FacetFilters, toggleFacet } from "./facet-filters";
+
+describe("facet filter menu", () => {
+  it("adds and removes choices while preserving the canonical order", () => {
+    const order = ["bug", "feature", "rfc"] as const;
+    expect(toggleFacet(["rfc"], "bug", order)).toEqual(["bug", "rfc"]);
+    expect(toggleFacet(["bug", "rfc"], "bug", order)).toEqual(["rfc"]);
+  });
+
+  it("keeps selections independent between the two menu sections", () => {
+    const priorities = ["urgente", "alta", "media", "baixa"] as const;
+    expect(toggleFacet(["alta"], "urgente", priorities)).toEqual([
+      "urgente",
+      "alta",
+    ]);
+  });
+
+  it("renders one counted trigger and seven vertical checkbox options", () => {
+    const html = renderToStaticMarkup(
+      createElement(FacetFilters, {
+        types: ["bug"],
+        priorities: ["urgente"],
+        onTypesChange: vi.fn(),
+        onPrioritiesChange: vi.fn(),
+        onClear: vi.fn(),
+        defaultOpen: true,
+        t: dict("en"),
+      }),
+    );
+
+    expect(html).toContain("Filters · 2");
+    expect(html).toContain(">Type</h3>");
+    expect(html).toContain(">Priority</h3>");
+    expect(html.match(/type="checkbox"/g)).toHaveLength(7);
+    expect(html).not.toContain("facet-chip");
+  });
+});

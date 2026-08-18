@@ -331,6 +331,7 @@ export function HomeShell({
             onPrioritiesChange={(priorities) =>
               apply({ ...filter, priorities })
             }
+            onClear={() => apply({ ...filter, types: [], priorities: [] })}
             t={t}
           />
           <span className="filter-result">{t.board.cardsShown(visible.length)}</span>
