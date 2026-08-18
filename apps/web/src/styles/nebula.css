@@ -541,6 +541,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    already are */
 .nb .crumb:has(> .crumb-ws) {
   display: flex; align-items: center; gap: 4px; text-overflow: clip;
+  /* OCL-9: one of the three pieces opens a panel below the bar, and the
+     one-line rule above clips it out of existence — the filter looked dead
+     because nothing it drew could leave the crumb's single line of text. The
+     truncating here is done by .crumb-ws on itself, so the parent has no
+     clipping left to do. */
+  overflow: visible;
 }
 .nb .crumb-ws { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nb .project-filter, .nb .pf-trigger { min-width: 0; }
