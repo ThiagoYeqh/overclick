@@ -5,6 +5,7 @@ import {
   factoryModelPrices,
   findModelPrice,
   mergeCostSources,
+  MODEL_PRICES_FAMILIES_SEEDED_AT,
   MODEL_PRICES_SEEDED_AT,
   normalizeModelKey,
   resolveAttemptCost,
@@ -104,15 +105,57 @@ describe("cost source ladder", () => {
 });
 
 describe("seeded price list", () => {
-  it("stamps every row with the date the prices were captured", () => {
+  it("stamps every row with the date its prices were captured", () => {
     const rows = factoryModelPrices();
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       expect(row.source).toBe("seed");
-      expect(row.seededAt).toBe(MODEL_PRICES_SEEDED_AT);
+      // A date per row, not one date for the table: a family added later is
+      // a week younger, and the stamp has to be able to say so.
+      expect(row.seededAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(row.model).toBe(normalizeModelKey(row.model));
-      expect(row.outputPerMtok).toBeGreaterThan(0);
+      expect(row.inputPerMtok).toBeGreaterThanOrEqual(0);
+      expect(row.outputPerMtok).toBeGreaterThanOrEqual(0);
     }
+    expect(rows.some((row) => row.seededAt === MODEL_PRICES_SEEDED_AT)).toBe(true);
+    expect(
+      rows.some((row) => row.seededAt === MODEL_PRICES_FAMILIES_SEEDED_AT),
+    ).toBe(true);
+  });
+
+  it("covers the model families the CLI catalog actually offers", () => {
+    const rows = factoryModelPrices();
+    const priced = (model: string) => findModelPrice(rows, model) != null;
+    // The names agents really send, spelled the way they send them.
+    for (const model of [
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "gpt-5.6-sol",
+      "gpt-5.4-mini",
+      "3.1-pro",
+      "3.5-flash",
+      "kimi-code/k3",
+      "kimi-for-coding",
+      "grok-4.6",
+      "grok-composer-2.5-fast",
+    ]) {
+      expect(priced(model), `${model} has no price`).toBe(true);
+    }
+  });
+
+  it("leaves a model with no published rate unpriced instead of guessing", () => {
+    const rows = factoryModelPrices();
+    // Subscription plans do not publish a per-million rate. A zero here would
+    // read as free work, so the row simply is not there.
+    expect(findModelPrice(rows, "auto")).toBeNull();
+    expect(findModelPrice(rows, "muse-spark-1.2")).toBeNull();
+  });
+
+  it("prices a free tier at zero, which is a price and not a missing one", () => {
+    const rows = factoryModelPrices();
+    const free = findModelPrice(rows, "mimo-v2.5-free");
+    expect(free).not.toBeNull();
+    expect(free?.outputPerMtok).toBe(0);
   });
 });
 

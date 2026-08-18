@@ -329,7 +329,9 @@ describe("insights_query answers what the Insights page answers", () => {
     if (!queried.ok) return;
     const out = InsightsQueryOutputSchema.parse(queried.value);
     expect(out.totals.attempts).toBe(0);
-    expect(out.totals.cost_usd).toBe(0);
+    // Null, not zero: with nothing to price there is no figure to report, and
+    // a zero here would read as work that happened and cost nothing.
+    expect(out.totals.cost_usd).toBeNull();
     expect(out.note).toBe("all usage reported");
     expect(out.reopened_by_model).toEqual([]);
   });

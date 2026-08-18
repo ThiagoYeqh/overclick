@@ -401,10 +401,12 @@ describe("usage in segments per model", () => {
       prices,
     );
     // Unpriced on both sides: the attempt keeps the agent's figure once, and
-    // neither model group claims a slice of it.
+    // neither model group claims a slice of it. Null, not zero: a group that
+    // could not be priced did not spend nothing.
     expect(result.totals.costUsd).toBeCloseTo(9);
-    expect(result.byModel.every((g) => g.costUsd === 0)).toBe(true);
+    expect(result.byModel.every((g) => g.costUsd === null)).toBe(true);
     expect(result.byModel.every((g) => g.costUnpriced === 1)).toBe(true);
+    expect(result.byModel.every((g) => g.unpricedTokens === 1_000)).toBe(true);
   });
 
   it("reads an attempt stored before segments as a single segment", () => {
@@ -439,5 +441,87 @@ describe("usage in segments per model", () => {
     expect(result.byModel).toHaveLength(1);
     expect(result.byModel[0]?.label).toBe("sonnet-5");
     expect(result.byModel[0]?.missing).toBe(1);
+  });
+});
+
+describe("a model nobody priced", () => {
+  const prices = [
+    { model: "sonnet-5", label: "sonnet-5", inputPerMtok: 3, outputPerMtok: 15, cachePerMtok: 0.3 },
+  ];
+
+  /** One run of a model with no price row, reporting no dollars of its own. */
+  const unpricedRun = (overrides: Partial<InsightAttemptRow> = {}) =>
+    attempt({
+      model: "kimi-code/k3",
+      costUsd: null,
+      tokensIn: 1_000_000,
+      tokensOut: 0,
+      tokensCache: 0,
+      usageSegments: [{ model: "kimi-code/k3", input: 1_000_000 }],
+      ...overrides,
+    });
+
+  it("reports no cost at all instead of a zero that reads as free work", () => {
+    const result = computeInsights([unpricedRun()], [], prices);
+    expect(result.totals.costUsd).toBeNull();
+    expect(result.byModel[0]?.costUsd).toBeNull();
+    expect(result.byProject[0]?.costUsd).toBeNull();
+    expect(result.perCard[0]?.costUsd).toBeNull();
+  });
+
+  it("counts its tokens apart, so a total says how much it leaves out", () => {
+    const result = computeInsights([unpricedRun()], [], prices);
+    expect(result.totals.tokens).toBe(1_000_000);
+    expect(result.totals.unpricedTokens).toBe(1_000_000);
+    expect(result.totals.costUnpriced).toBe(1);
+    expect(result.perCard[0]?.unpricedTokens).toBe(1_000_000);
+  });
+
+  it("never folds an unpriced run into the sum of the priced ones", () => {
+    const result = computeInsights(
+      [
+        attempt({
+          taskId: "task-2",
+          taskShortId: "OC-2",
+          model: "sonnet-5",
+          costUsd: null,
+          tokensIn: 1_000_000,
+          tokensOut: 0,
+          tokensCache: 0,
+          usageSegments: [{ model: "sonnet-5", input: 1_000_000 }],
+        }),
+        unpricedRun(),
+      ],
+      [],
+      prices,
+    );
+    // The priced side is exactly what sonnet spent. The unpriced million
+    // tokens are named next to it, never summed in at zero.
+    expect(result.totals.costUsd).toBeCloseTo(3);
+    expect(result.totals.unpricedTokens).toBe(1_000_000);
+    expect(result.totals.tokens).toBe(2_000_000);
+
+    const kimi = result.byModel.find((g) => g.label === "kimi-code/k3");
+    const sonnet = result.byModel.find((g) => g.label === "sonnet-5");
+    expect(kimi?.costUsd).toBeNull();
+    expect(sonnet?.costUsd).toBeCloseTo(3);
+    // A group with no figure sorts below one that has a real number.
+    expect(result.byModel[0]?.label).toBe("sonnet-5");
+  });
+
+  it("stops being unpriced once the price table covers the model", () => {
+    const result = computeInsights([unpricedRun()], [], [
+      ...prices,
+      { model: "k3", label: "k3", inputPerMtok: 0.6, outputPerMtok: 2.5, cachePerMtok: 0.06 },
+    ]);
+    expect(result.totals.costUsd).toBeCloseTo(0.6);
+    expect(result.totals.unpricedTokens).toBe(0);
+    expect(result.totals.costUnpriced).toBe(0);
+  });
+
+  it("still says nothing when the money layer has no prices at all", () => {
+    const result = computeInsights([unpricedRun()], [], []);
+    expect(result.totals.costUsd).toBeNull();
+    expect(result.totals.costComputed).toBe(0);
   });
 });

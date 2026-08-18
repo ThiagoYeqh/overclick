@@ -4,6 +4,14 @@ export function fmtCostUsd(v: number): string {
   return `US$ ${v.toFixed(2)}`;
 }
 
+/**
+ * A cost that may not exist. Null is not zero: it means no attempt here could
+ * be priced, and printing US$ 0.00 would sell unpriced work as free.
+ */
+export function fmtCostUsdOrNone(v: number | null, none: string): string {
+  return v == null ? none : fmtCostUsd(v);
+}
+
 export function fmtTokens(n: number): string {
   if (n >= 1_000_000) {
     const v = (n / 1_000_000).toFixed(1).replace(".0", "");

@@ -1376,3 +1376,197 @@ describe("task_id accepts uuid and short id", () => {
     expect(home.ok).toBe(true);
   });
 });
+
+describe("a card joins or leaves a mission after creation", () => {
+  let world: TestWorld;
+
+  afterEach(async () => {
+    if (world) await closeTestWorld(world);
+  });
+
+  function ctx() {
+    return {
+      tokenId: world.tokenId,
+      workspaceId: world.workspaceId,
+      tokenLabel: "test",
+    };
+  }
+
+  async function makeLooseCard(title: string) {
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title,
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error("create failed");
+    const out = TaskCreateOutputSchema.parse(created.value);
+    expect(out.task.mission_id).toBeNull();
+    return out.task;
+  }
+
+  it("attaches a loose card to a mission and lists it under that mission", async () => {
+    world = await createTestWorld();
+    const card = await makeLooseCard("Card born loose");
+
+    const attached = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.short_id,
+      mission_id: world.missionId,
+    });
+    expect(attached.ok).toBe(true);
+    if (!attached.ok) return;
+    expect(TaskUpdateOutputSchema.parse(attached.value).task.mission_id).toBe(
+      world.missionId,
+    );
+
+    const listed = await invokeTool(world.db, ctx(), "task_list", {
+      mission_id: world.missionId,
+    });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    expect(
+      TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.id),
+    ).toContain(card.id);
+
+    // The briefing the next executor reads now carries the mission context.
+    const briefed = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(briefed.ok).toBe(true);
+    if (!briefed.ok) return;
+    const payload = TaskGetOutputSchema.parse(briefed.value);
+    expect(payload.mission?.id).toBe(world.missionId);
+    expect(payload.briefing_markdown).toContain("Norte do board");
+  });
+
+  it("detaches with mission_id null without touching anything else", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      mission: world.missionId,
+      project_id: world.projectId,
+      title: "Card com missao",
+      type: "bug",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      priority: "alta",
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+    expect(card.mission_id).toBe(world.missionId);
+
+    const detached = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      mission_id: null,
+    });
+    expect(detached.ok).toBe(true);
+    if (!detached.ok) return;
+    const out = TaskUpdateOutputSchema.parse(detached.value);
+    expect(out.task.mission_id).toBeNull();
+    expect(out.task.title).toBe("Card com missao");
+    expect(out.task.priority).toBe("alta");
+    expect(out.task.status).toBe("aberto");
+    expect(out.task.como_confirmo).toHaveLength(1);
+
+    const stillListed = await invokeTool(world.db, ctx(), "task_list", {
+      mission_id: world.missionId,
+    });
+    expect(stillListed.ok).toBe(true);
+    if (!stillListed.ok) return;
+    expect(
+      TaskListOutputSchema.parse(stillListed.value).tasks.map((row) => row.id),
+    ).not.toContain(card.id);
+  });
+
+  it("moves the subtasks of a team card with their parent", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Card time solto",
+      type: "rfc",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      mode: "team",
+      origem,
+      subtasks: [
+        { title: "Parte 1", scope: "a", boundary: "b" },
+        { title: "Parte 2", scope: "c", boundary: "d" },
+      ],
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const out = TaskCreateOutputSchema.parse(created.value);
+
+    const moved = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: out.task.id,
+      mission_id: world.missionId,
+    });
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(TaskUpdateOutputSchema.parse(moved.value).subtasks_moved).toBe(2);
+
+    const rows = await world.db
+      .select({ missionId: task.missionId })
+      .from(task)
+      .where(eq(task.parentId, out.task.id));
+    expect(rows.map((row) => row.missionId)).toEqual([
+      world.missionId,
+      world.missionId,
+    ]);
+  });
+
+  it("refuses a mission from another workspace and leaves the card where it was", async () => {
+    world = await createTestWorld();
+    const card = await makeLooseCard("Card do workspace certo");
+
+    const [otherWs] = await world.db
+      .insert(workspace)
+      .values({ name: "Other", executors: [] })
+      .returning({ id: workspace.id });
+    if (!otherWs) throw new Error("failed to insert other workspace");
+    const [otherMission] = await world.db
+      .insert(mission)
+      .values({
+        workspaceId: otherWs.id,
+        title: "Missao alheia",
+        objective: "Nao e deste board.",
+        status: "ativa",
+      })
+      .returning({ id: mission.id });
+    if (!otherMission) throw new Error("failed to insert other mission");
+
+    const refused = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      mission_id: otherMission.id,
+    });
+    expect(refused.ok).toBe(false);
+    if (refused.ok) return;
+    expect(refused.error.code).toBe("NOT_FOUND");
+    expect(refused.error.message).toContain("mission_list");
+
+    const [row] = await world.db
+      .select({ missionId: task.missionId })
+      .from(task)
+      .where(eq(task.id, card.id));
+    expect(row?.missionId).toBeNull();
+  });
+
+  it("refuses a mission id that is not an id at all", async () => {
+    world = await createTestWorld();
+    const card = await makeLooseCard("Card com id invalido");
+    const refused = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      mission_id: "Norte do board",
+    });
+    expect(refused.ok).toBe(false);
+    if (refused.ok) return;
+    expect(refused.error.code).toBe("NOT_FOUND");
+  });
+});

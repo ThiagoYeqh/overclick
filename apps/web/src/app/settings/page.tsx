@@ -77,26 +77,39 @@ export default async function SettingsPage() {
   // Models this board has actually run, or is configured to run, that the
   // price table cannot price yet. Offered in Settings so nobody has to guess
   // which name to type.
-  const ranModels = await db()
-    .selectDistinct({ model: executionAttempt.model })
+  // Both the model recorded at claim and every model the run actually
+  // switched to: a segment nobody priced spends just as much as the first one.
+  const attemptModels = await db()
+    .select({
+      model: executionAttempt.model,
+      segments: executionAttempt.usageSegments,
+    })
     .from(executionAttempt)
     .innerJoin(task, eq(executionAttempt.taskId, task.id))
     .innerJoin(project, eq(task.projectId, project.id))
-    .where(
-      and(eq(project.workspaceId, ws.id), isNotNull(executionAttempt.model)),
-    );
-  const candidates = [
-    ...ranModels.map((row) => row.model),
-    ...ws.executors.flatMap((row) => row.models),
-    ...ws.seenExecutors.map((row) => row.model),
-  ].filter((model): model is string => Boolean(model?.trim()));
-  const unpricedModels = [
-    ...new Set(
-      candidates
-        .map((model) => model.trim())
-        .filter((model) => findModelPrice(prices, model) == null),
-    ),
-  ].sort();
+    .where(eq(project.workspaceId, ws.id));
+  const ranModels = attemptModels.flatMap((row) => [
+    row.model,
+    ...(row.segments ?? []).map((segment) => segment.model),
+  ]);
+  const clean = (models: (string | null)[]) =>
+    models
+      .map((model) => model?.trim())
+      .filter((model): model is string => Boolean(model));
+  const unpriced = (models: string[]) =>
+    [...new Set(models.filter((model) => findModelPrice(prices, model) == null))].sort();
+
+  // Two lists, because they carry different weight. A model that already ran
+  // cards here is spending money nobody can count; a model that is merely
+  // configured has not cost anything yet.
+  const unpricedRanModels = unpriced(clean(ranModels));
+  const unpricedModels = unpriced(
+    clean([
+      ...ranModels,
+      ...ws.executors.flatMap((row) => row.models),
+      ...ws.seenExecutors.map((row) => row.model),
+    ]),
+  );
 
   const host = (await headers()).get("host") ?? "<your-host>";
 
@@ -145,6 +158,7 @@ export default async function SettingsPage() {
         cardapio={cardapioRows}
         prices={prices}
         unpricedModels={unpricedModels}
+        unpricedRanModels={unpricedRanModels}
         recipes={recipes}
         pricingEnabled={ws.pricingEnabled}
         tokens={tokens.map((t) => ({

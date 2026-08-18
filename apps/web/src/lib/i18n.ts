@@ -17,6 +17,11 @@ const en = {
     colInProgress: "In progress",
     colDone: "Done · review",
     colValidated: "Validated",
+    /**
+     * The phone shows one column at a time, so the column head becomes a
+     * control. This names the control, not the column it happens to be on.
+     */
+    columnShown: "Column shown",
     statusOpen: "open",
     statusInProgress: "in progress",
     statusDone: "done · review",
@@ -43,8 +48,45 @@ const en = {
     /** The same, for the card line, where every word costs a column. */
     openShort: (value: string) => `open ${value}`,
     myReview: "My review",
+    /**
+     * The running total of the board: the same numbers Insights reports for
+     * the filter in force, on the one line the topbar has for them.
+     */
+    totalLabel: "What this board consumed",
+    totalNone: "no usage yet",
+    totalEstimated: (n: number) => `${n} estimated`,
+    totalMissing: (n: number) => `${n} usage not reported`,
+    /** The same two, short enough to sit beside the numbers. */
+    totalEstShort: (n: number) => `${n} est.`,
+    totalMissingShort: (n: number) => `${n} no usage`,
+    /** A model with no row in the price table adds nothing and says so. */
+    totalUnpriced: (n: number) => `${n} unpriced model`,
+    totalUnpricedShort: (n: number) => `${n} no price`,
     allProjects: "All projects",
+    /**
+     * The project filter takes any combination, so the chip stops naming what
+     * it holds once naming it would cost the topbar a second line.
+     */
+    projectFilter: "Filter by project",
+    projectsPicked: (n: number) => `${n} projects`,
     allMissions: "All missions",
+    /**
+     * The mission filter: only missions holding cards here, each with its
+     * count, a one-click way out and a search box once the list grows.
+     */
+    missionFilter: "Filter by mission",
+    clearMission: "Clear mission filter",
+    searchMissions: "Search missions",
+    noMissionMatch: "No mission matches.",
+    /** Bulk move: the board's way out of an instance where every card is loose. */
+    moveToMission: "Move to mission",
+    pickCardsHint: "Pick the cards to move.",
+    selectedCount: (n: number) => `${n} selected`,
+    assignTo: "Assign to",
+    noMission: "No mission",
+    assign: "Assign",
+    assigning: "Assigning…",
+    cancelSelection: "Cancel",
     settings: "Settings",
     logout: "Log out",
     running: (n: number) => `${n} in progress`,
@@ -59,6 +101,9 @@ const en = {
     howToConfirm: "How to confirm",
     validationHowToConfirm: "Validation · How to confirm",
     mission: "Mission",
+    /** Blank option of the mission select: leaving the card loose is a choice. */
+    missionNone: "no mission",
+    missionNoneAvailable: "No mission on this workspace yet.",
     harness: "Harness",
     harnessRan: "ran as",
     roles: "Roles",
@@ -179,6 +224,11 @@ const en = {
     savePrices: "Save prices",
     pricesSaved: "Prices saved. Cost recomputes from the new table.",
     priceSeenModels: "seen on this board with no price",
+    priceMissingRan: (n: number) =>
+      `${n} model${n === 1 ? "" : "s"} ran cards here with no price`,
+    priceMissingRanNote:
+      "Their runs are counted apart everywhere instead of at zero: an unpriced model is not free work. Fill a price in and every total that includes them stops being short.",
+    priceFillAll: "+ Add all of them",
     tabRecipes: "Usage recipes",
     recipesSub:
       "How each CLI measures the run it just did. The recipe for the CLI that claims a card is appended to its briefing, so a transcript format changing is fixed here, once, instead of in every agent's head.",
@@ -366,6 +416,7 @@ const ptBR: Dict = {
     colInProgress: "Em execução",
     colDone: "Feito · revisão",
     colValidated: "Validado",
+    columnShown: "Coluna exibida",
     statusOpen: "aberto",
     statusInProgress: "em execução",
     statusDone: "feito · revisão",
@@ -389,9 +440,31 @@ const ptBR: Dict = {
     costEstimated: "estimado",
     openFor: (value: string) => `aberto por ${value}`,
     openShort: (value: string) => `aberto ${value}`,
+    moveToMission: "Mover para missão",
+    pickCardsHint: "Escolha os cards para mover.",
+    selectedCount: (n: number) => `${n} selecionados`,
+    assignTo: "Atribuir a",
+    noMission: "Sem missão",
+    assign: "Atribuir",
+    assigning: "Atribuindo…",
+    cancelSelection: "Cancelar",
     myReview: "Minha revisão",
+    totalLabel: "O que este board consumiu",
+    totalNone: "sem uso ainda",
+    totalEstimated: (n: number) => `${n} estimados`,
+    totalMissing: (n: number) => `${n} sem uso reportado`,
+    totalEstShort: (n: number) => `${n} est.`,
+    totalMissingShort: (n: number) => `${n} sem uso`,
+    totalUnpriced: (n: number) => `${n} modelo sem preço`,
+    totalUnpricedShort: (n: number) => `${n} sem preço`,
     allProjects: "Todos os projetos",
+    projectFilter: "Filtrar por projeto",
+    projectsPicked: (n: number) => `${n} projetos`,
     allMissions: "Todas as missões",
+    missionFilter: "Filtrar por missão",
+    clearMission: "Limpar filtro de missão",
+    searchMissions: "Buscar missões",
+    noMissionMatch: "Nenhuma missão corresponde.",
     settings: "Configurações",
     logout: "Sair",
     running: (n: number) => `${n} em execução`,
@@ -406,6 +479,8 @@ const ptBR: Dict = {
     howToConfirm: "Como confirmo",
     validationHowToConfirm: "Validação · Como confirmo",
     mission: "Missão",
+    missionNone: "sem missão",
+    missionNoneAvailable: "Nenhuma missão neste workspace ainda.",
     harness: "Harness",
     harnessRan: "rodou como",
     roles: "Papéis",
@@ -525,6 +600,11 @@ const ptBR: Dict = {
     savePrices: "Salvar preços",
     pricesSaved: "Preços salvos. O custo é recalculado pela nova tabela.",
     priceSeenModels: "vistos neste board e ainda sem preço",
+    priceMissingRan: (n: number) =>
+      `${n} modelo${n === 1 ? " executou" : "s executaram"} cards aqui sem preço`,
+    priceMissingRanNote:
+      "As execuções deles são contadas à parte em todo lugar, nunca como zero: modelo sem preço não é trabalho de graça. Preencha o preço e todo total que os inclui deixa de ficar curto.",
+    priceFillAll: "+ Adicionar todos",
     tabRecipes: "Receitas de uso",
     recipesSub:
       "Como cada CLI mede a execução que acabou de fazer. A receita do CLI que pega o card entra no briefing dele, então uma mudança de formato do transcript se conserta aqui, uma vez, em vez de na cabeça de cada agente.",

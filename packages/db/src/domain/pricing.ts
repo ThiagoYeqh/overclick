@@ -27,6 +27,9 @@ export type ModelPrice = {
   cachePerMtok: number;
 };
 
+/** A seeded entry: the price plus the day that price was read off the list. */
+type SeedPrice = ModelPrice & { seededAt: string };
+
 /** Where a price came from: the seeded public list, or a human edit. */
 export type PriceSource = "seed" | "custom";
 
@@ -40,33 +43,90 @@ export type ModelPriceRow = ModelPrice & {
 };
 
 /**
- * The day the prices below were read off the public price lists. Stamped on
- * every seeded row so nobody has to guess how old a number is.
+ * The day the first batch of prices below was read off the public lists. Kept
+ * as the default stamp so a row that never moved still says how old it is.
  */
 export const MODEL_PRICES_SEEDED_AT = "2026-08-16";
 
 /**
- * Public list prices, per million tokens, captured on MODEL_PRICES_SEEDED_AT.
+ * The day the rest of the families this board actually runs were captured.
+ * A second date instead of restamping everything: a price read a week ago is
+ * a week old, and pretending otherwise is how a stale number hides.
+ */
+export const MODEL_PRICES_FAMILIES_SEEDED_AT = "2026-08-17";
+
+/** Shorthand for a seeded row, so the table below reads as a table. */
+const at =
+  (seededAt: string) =>
+  (
+    model: string,
+    inputPerMtok: number,
+    outputPerMtok: number,
+    cachePerMtok: number,
+  ): SeedPrice => ({
+    model,
+    label: model,
+    inputPerMtok,
+    outputPerMtok,
+    cachePerMtok,
+    seededAt,
+  });
+
+const p0 = at(MODEL_PRICES_SEEDED_AT);
+const p1 = at(MODEL_PRICES_FAMILIES_SEEDED_AT);
+
+/**
+ * Public list prices, per million tokens, each row carrying the day it was
+ * read. Keys are normalized (see normalizeModelKey), so "claude-opus-5",
+ * "opus-5" and "kimi-code/k3" all land on the row that prices them.
  *
  * Only models whose public price is published as a plain per-million rate are
  * seeded. A model the board has never been told the price of stays unpriced
  * and shows up in Settings waiting for a number: inventing a price would be
- * worse than admitting there isn't one.
+ * worse than admitting there isn't one. That is why the subscription-only
+ * entries of the CLI catalog ("auto" on Cursor and Copilot) and the models
+ * with no published rate are absent instead of guessed.
  */
-const SEED: ModelPrice[] = [
-  { model: "fable-5", label: "fable-5", inputPerMtok: 10, outputPerMtok: 50, cachePerMtok: 1 },
-  { model: "opus-5", label: "opus-5", inputPerMtok: 5, outputPerMtok: 25, cachePerMtok: 0.5 },
-  { model: "opus-4-8", label: "opus-4-8", inputPerMtok: 5, outputPerMtok: 25, cachePerMtok: 0.5 },
-  { model: "sonnet-5", label: "sonnet-5", inputPerMtok: 3, outputPerMtok: 15, cachePerMtok: 0.3 },
-  { model: "haiku-4-5", label: "haiku-4-5", inputPerMtok: 1, outputPerMtok: 5, cachePerMtok: 0.1 },
+const SEED: SeedPrice[] = [
+  // Claude
+  p0("fable-5", 10, 50, 1),
+  p0("opus-5", 5, 25, 0.5),
+  p0("opus-4-8", 5, 25, 0.5),
+  p0("sonnet-5", 3, 15, 0.3),
+  p0("haiku-4-5", 1, 5, 0.1),
+  // OpenAI, as Codex runs them
+  p1("gpt-5-6-sol", 1.75, 14, 0.175),
+  p1("gpt-5-6-terra", 1.25, 10, 0.125),
+  p1("gpt-5-6-luna", 0.5, 4, 0.05),
+  p1("gpt-5-5", 1.25, 10, 0.125),
+  p1("gpt-5-4-mini", 0.25, 2, 0.025),
+  // Gemini, and the Antigravity flash tiers that bill at the flash rate
+  p1("3-1-pro", 1.25, 10, 0.125),
+  p1("3-5-flash", 0.3, 2.5, 0.03),
+  p1("3-flash", 0.15, 0.6, 0.015),
+  p1("3-7-flash-high", 0.3, 2.5, 0.03),
+  p1("3-7-flash-medium", 0.3, 2.5, 0.03),
+  p1("3-7-flash-low", 0.3, 2.5, 0.03),
+  // Kimi
+  p1("k3", 0.6, 2.5, 0.06),
+  p1("k3-256k", 1.2, 5, 0.12),
+  p1("kimi-for-coding", 0.6, 2.5, 0.06),
+  p1("kimi-for-coding-highspeed", 1.2, 5, 0.12),
+  // Grok
+  p1("grok-4-6", 3, 15, 0.75),
+  p1("grok-4-5", 3, 15, 0.75),
+  p1("grok-composer-2-5-fast", 1.5, 7.5, 0.375),
+  // Free tiers. A published zero is a price, and it is not the same thing as
+  // a model nobody priced: this row says the run really cost nothing.
+  p1("deepseek-v4-flash-free", 0, 0, 0),
+  p1("mimo-v2-5-free", 0, 0, 0),
 ];
 
-/** The seeded price list, stamped with the date it was captured. */
+/** The seeded price list, each row stamped with the date it was captured. */
 export function factoryModelPrices(): ModelPriceRow[] {
   return SEED.map((price) => ({
     ...price,
     source: "seed" as const,
-    seededAt: MODEL_PRICES_SEEDED_AT,
     updatedBy: null,
     updatedAt: null,
   }));

@@ -64,16 +64,20 @@ export function ShareBars({
   pricingEnabled: boolean;
   t: InsightsCopy;
 }) {
-  const value = (r: GroupInsight) => (pricingEnabled ? r.costUsd : r.tokens);
+  // Null means this row has no figure at all. It keeps its line, with no bar
+  // and no share: a model nobody priced is not a model that cost nothing, and
+  // it must not push everyone else's percentage up either.
+  const value = (r: GroupInsight): number | null =>
+    pricingEnabled ? r.costUsd : r.tokens;
   const fmt = pricingEnabled ? fmtCostUsd : fmtTokens;
-  const sum = rows.reduce((acc, r) => acc + value(r), 0);
-  const max = rows.reduce((acc, r) => Math.max(acc, value(r)), 0);
+  const sum = rows.reduce((acc, r) => acc + (value(r) ?? 0), 0);
+  const max = rows.reduce((acc, r) => Math.max(acc, value(r) ?? 0), 0);
   return (
     <div className="ins-share">
       {rows.map((r) => {
         const v = value(r);
-        const pct = sum > 0 ? Math.round((v / sum) * 100) : 0;
-        const w = max > 0 ? (v / max) * 100 : 0;
+        const pct = v != null && sum > 0 ? Math.round((v / sum) * 100) : 0;
+        const w = v != null && max > 0 ? (v / max) * 100 : 0;
         const name = r.label ?? t.noModel;
         return (
           <div className="ins-share-row" key={r.key}>
@@ -83,11 +87,22 @@ export function ShareBars({
             <span className="ins-share-track">
               <span
                 className="ins-share-fill"
-                style={{ width: `${w}%`, opacity: 0.35 + 0.65 * (max > 0 ? v / max : 0) }}
+                style={{
+                  width: `${w}%`,
+                  opacity: 0.35 + 0.65 * (v != null && max > 0 ? v / max : 0),
+                }}
               />
             </span>
-            <span className="ins-share-val">{fmt(v)}</span>
-            <span className="ins-share-pct">{pct}%</span>
+            <span className={`ins-share-val${v == null ? " ins-dim" : ""}`}>
+              {v == null
+                ? r.unpricedTokens > 0
+                  ? t.costNoPrice
+                  : t.costNotReported
+                : fmt(v)}
+            </span>
+            <span className="ins-share-pct">
+              {v == null ? t.sourceNone : `${pct}%`}
+            </span>
           </div>
         );
       })}

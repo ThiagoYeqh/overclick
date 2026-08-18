@@ -283,6 +283,99 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-size: 11px; letter-spacing: 0.04em; cursor: pointer; max-width: 180px;
 }
 .nb .filter-chip select:focus { outline: none; }
+
+/* ---------- project filter ----------
+   The crumb keeps its shape: the trigger reads like the select it replaced,
+   the panel below it is where any combination of projects is a valid answer. */
+.nb .project-filter { position: relative; display: inline-flex; }
+.nb .pf-trigger {
+  appearance: none; background: transparent; border: 0; padding: 0 2px 0 0;
+  color: var(--nebula-text-primary); font: inherit;
+  font-weight: var(--nebula-weight-medium); letter-spacing: inherit; cursor: pointer;
+}
+.nb .pf-label {
+  display: block; max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb .pf-panel {
+  position: absolute; z-index: 20; top: calc(100% + 8px); left: 0;
+  min-width: 240px; max-width: min(320px, calc(100vw - 32px));
+  padding: 8px; background: rgba(13, 15, 19, 0.96);
+}
+.nb .pf-list { display: flex; flex-direction: column; max-height: 46vh; overflow-y: auto; }
+.nb .pf-opt {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 8px; background: transparent; border: 0; border-radius: 8px;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11px; letter-spacing: 0.04em; text-align: left; cursor: pointer;
+}
+.nb .pf-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+.nb .pf-opt.on { color: var(--nebula-text-primary); }
+.nb .pf-box {
+  flex: none; width: 14px; height: 14px; border-radius: 4px;
+  border: 1px solid var(--nebula-glass-border);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; line-height: 1;
+}
+.nb .pf-opt.on .pf-box { border-color: rgba(209,217,235,0.5); background: rgba(255,255,255,0.10); }
+.nb .pf-opt-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb .pf-opt-count { flex: none; opacity: 0.65; font-variant-numeric: tabular-nums; }
+
+/* ---------- mission filter ----------
+   The chip reads as the select it replaced; the panel it opens is what a
+   select could not be: counts beside each mission, a clear that costs one
+   click, and a search box once the list grows past a handful. */
+.nb .mission-filter { position: relative; display: inline-flex; }
+.nb .mf-chip { gap: 6px; }
+.nb .mf-chip.on {
+  border-color: rgba(209,217,235,0.4);
+  background: rgba(255,255,255,0.06);
+}
+.nb .mf-trigger, .nb .mf-clear {
+  appearance: none; background: transparent; border: 0; padding: 0;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11px; letter-spacing: 0.04em; cursor: pointer;
+}
+.nb .mf-chip.on .mf-trigger { color: var(--nebula-text-primary); }
+.nb .mf-label {
+  display: block; max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb .mf-clear { font-size: 13px; line-height: 1; opacity: 0.7; }
+.nb .mf-clear:hover { opacity: 1; color: var(--nebula-text-primary); }
+.nb .mf-panel {
+  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
+  min-width: 240px; max-width: min(320px, calc(100vw - 32px));
+  padding: 8px; background: rgba(13, 15, 19, 0.96);
+}
+.nb .mf-search {
+  width: 100%; margin-bottom: 6px; padding: 6px 8px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--nebula-glass-border);
+  border-radius: 8px; color: var(--nebula-text-primary);
+  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+}
+.nb .mf-search:focus { outline: none; border-color: rgba(209,217,235,0.4); }
+.nb .mf-list { display: flex; flex-direction: column; max-height: 46vh; overflow-y: auto; }
+.nb .mf-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 8px; background: transparent; border: 0; border-radius: 8px;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11px; letter-spacing: 0.04em; text-align: left; cursor: pointer;
+}
+.nb .mf-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+.nb .mf-opt.on { color: var(--nebula-text-primary); background: rgba(255,255,255,0.08); }
+.nb .mf-opt-title {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nb .mf-opt-count { flex: none; opacity: 0.65; font-variant-numeric: tabular-nums; }
+.nb .mf-empty {
+  margin: 0; padding: 8px; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-mono); font-size: 11px;
+}
 .nb .spacer { flex: 1; }
 /* o globals.css legado estiliza <form> como painel — na home ele é inline */
 .nb form { display: inline; background: none; border: none; padding: 0; gap: 0; }
@@ -306,6 +399,44 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .btn-ghost .badge { color: var(--nebula-dust-core); font-weight: 600; }
 .nb .pill { cursor: default; }
 
+/* ---------- the running total ----------
+   The headline figure of the bar, not a caption: it is the number that
+   justifies the board, so it carries the size. Everything beside it stays
+   small, and the whole thing holds one line at any width, cut with an
+   ellipsis while the title keeps the full reading. */
+.nb .board-total {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  margin-left: 4px; padding-left: 14px;
+  border-left: 1px solid var(--nebula-glass-border);
+  text-decoration: none; cursor: pointer;
+  white-space: nowrap; overflow: hidden;
+}
+.nb .board-total .bt-lead {
+  font-family: var(--nebula-font-mono); font-size: 19px; line-height: 1;
+  color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--nebula-glow-text);
+}
+.nb .board-total:hover .bt-lead { color: var(--nebula-dust-core); }
+.nb .board-total .bt-sub {
+  font-family: var(--nebula-font-mono); font-size: 10px;
+  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+/* The estimate, the silence and the model with no price are named beside the
+   figure. None of them is ever folded into it. */
+.nb .board-total .bt-mark {
+  font-family: var(--nebula-font-mono); font-size: 9px;
+  color: var(--nebula-text-secondary);
+  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  padding: 1px 6px;
+}
+.nb .board-total .bt-none {
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  color: var(--nebula-text-secondary);
+}
+
 /* ---------- board ---------- */
 .nb .board-tools {
   display: flex; align-items: center; justify-content: space-between; gap: var(--nebula-space-4);
@@ -318,6 +449,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   margin-top: 3px; font-size: 12px; color: var(--nebula-text-tertiary);
 }
 .nb .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--nebula-space-4); }
+/* The phone list is in the markup at every width and waits for its media
+   query. Both layouts render the same cards, so only one may ever be on. */
+.nb .board-mobile { display: none; }
 .nb .col-head {
   display: flex; align-items: baseline; gap: var(--nebula-space-2);
   padding: 2px 6px 10px;
@@ -352,6 +486,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .card .cid {
   font-family: var(--nebula-font-mono); font-size: 10px;
   color: var(--nebula-text-tertiary); letter-spacing: 0.06em;
+}
+/* With several projects on the board the prefix is the origin, not a number. */
+.nb .card .cid-prefix {
+  color: var(--nebula-text-secondary);
+  font-weight: var(--nebula-weight-medium);
 }
 .nb .selo {
   font-family: var(--nebula-font-mono); font-size: 8.5px; letter-spacing: 0.08em;
@@ -589,6 +728,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .seen-add { background: #fff; border: none; border-radius: 999px; color: #0a0c10;
   font-size: 11.5px; font-weight: 500; padding: 4px 12px; cursor: pointer; }
 .nb .seen-add:disabled { opacity: .4; cursor: not-allowed; }
+
+/* preços: um modelo que já rodou aqui e continua sem preço */
+.nb .price-alert { border: 1px solid rgba(240,180,120,.32); border-radius: 12px;
+  background: rgba(240,180,120,.05); padding: 12px 14px; }
+.nb .price-alert .sec-cap { color: rgba(245,196,148,.95); }
+.nb .policy .act small.price-flag { display: inline-block; margin-top: 4px;
+  font-size: 9.5px; font-family: var(--nebula-font-mono); color: rgba(245,196,148,.9);
+  border: 1px solid rgba(240,180,120,.35); border-radius: 999px; padding: 1px 8px;
+  letter-spacing: .04em; }
 .nb .seen-note { font-size: 11.5px; color: var(--nebula-text-tertiary); margin-top: 8px; line-height: 1.5; }
 .nb .exec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .nb .exec {
@@ -827,3 +975,126 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .upd-step-status { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-tertiary); }
 .nb .upd-step.ok .upd-step-status { color: #7dd6a0; }
 .nb .upd-step.failed .upd-step-status { color: #e8a1a1; }
+
+/* ---- moving cards between missions (AGB-49) ---- */
+/* the mission of the card, as a control instead of a label */
+.nb .d-mission {
+  appearance: none; background: rgba(10,12,16,.6);
+  border: 1px solid var(--nebula-glass-border); border-radius: 8px;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-sans);
+  font-size: 12.5px; padding: 6px 10px; max-width: 100%; cursor: pointer;
+}
+.nb .d-mission:focus { outline: none; border-color: rgba(209,217,235,.35); }
+.nb .d-mission:disabled { opacity: .5; cursor: progress; }
+/* picking mode: the card stops opening and starts answering the checkbox */
+.nb .card.selectable { cursor: pointer; }
+.nb .card.picked { border-color: rgba(209,217,235,0.4); box-shadow: 0 0 0 1px rgba(209,217,235,0.18); }
+.nb .card-pick { flex: 0 0 auto; margin: 0; accent-color: #d1d9eb; cursor: pointer; }
+/* the bar only exists while a selection does, so it sits over the board */
+.nb .bulk-bar {
+  position: fixed; z-index: 10; left: 50%; bottom: 24px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  background: rgba(13, 15, 19, 0.94);
+}
+.nb .bulk-count {
+  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: var(--nebula-text-secondary);
+}
+.nb .bulk-err { font-size: 12px; color: #e8a1a1; max-width: 320px; }
+.nb .btn-ghost.on { color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.4); }
+
+/* ============================================================
+   PHONE: the board as one list you can read (AGB-58, AGB-62)
+
+   Below 768px, and on a phone held in landscape, the four columns stop
+   squeezing side by side. AGB-58 turned them into a snap carousel; AGB-62
+   replaced that with a single vertical list, because the carousel still kept
+   two columns fighting for the screen and the card title, the one thing
+   anyone opens the board to read, was what paid for it. Now one column shows
+   at a time, the card takes the whole width, and the column head becomes the
+   selector that switches it, carrying that column's count.
+
+   The one-line rule the card footer already had now holds for everything:
+   column headers, counters, empty states, the topbar crumb, the mission
+   chip and card titles each take exactly one line. Whatever cannot fit
+   truncates with an ellipsis and stays reachable whole: the card title
+   opens in the detail panel, the selects list their full options natively,
+   and the truncated texts carry a title attribute.
+   ============================================================ */
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
+  .nb { padding: 16px 16px 48px; }
+
+  /* topbar: a control may take another row, never another line */
+  .nb .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; margin-bottom: 14px; }
+  .nb .topbar > * { flex: none; }
+  .nb .spacer { display: none; }
+  .nb .btn-ghost { padding: 6px 10px; font-size: 11px; white-space: nowrap; }
+  .nb .agent-status { white-space: nowrap; }
+  /* the total takes another row of the bar, never a second line of its own,
+     and keeps the size that makes it the figure you read first */
+  .nb .board-total {
+    max-width: 60vw; margin-left: auto;
+    padding-left: 10px; gap: 6px;
+  }
+  .nb .board-total .bt-lead { font-size: 16px; }
+  .nb .crumb {
+    flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .nb .crumb-ws { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nb .crumb select { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
+  /* the project chip holds its one line; its panel takes the width it needs */
+  .nb .pf-label { max-width: 34vw; }
+  .nb .pf-panel { min-width: min(280px, calc(100vw - 32px)); }
+  .nb .filter-chip { max-width: 44vw; }
+  .nb .filter-chip select { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; }
+  /* the mission chip keeps its one line; its panel takes the width it needs */
+  .nb .mission-filter { max-width: 44vw; }
+  .nb .mf-label { max-width: 34vw; }
+  .nb .mf-panel { min-width: min(280px, calc(100vw - 32px)); }
+
+  /* the columns step aside for the list; the cards they hold are the same */
+  .nb .board { display: none; }
+  .nb .board-mobile { display: block; }
+  .nb .col { min-height: 140px; }
+
+  /* The column head, made into a control: same label, same count, now the
+     thing that switches which column is on screen. A pill, not a bare line,
+     because on a phone it has to look like something you press. The row is
+     explicit: the global `label` rule stacks its children in a column. */
+  .nb .ml-head {
+    display: flex; flex-direction: row; align-items: center;
+    gap: var(--nebula-space-2);
+    min-width: 0; margin-bottom: var(--nebula-space-3);
+    padding: 8px 14px;
+    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+    font-family: var(--nebula-font-mono); font-size: 12px;
+    letter-spacing: var(--nebula-tracking-wide);
+    text-transform: uppercase; color: var(--nebula-text-secondary);
+  }
+  .nb .ml-status {
+    flex: 0 1 auto; min-width: 0;
+    appearance: none; background: transparent; border: 0; padding: 0;
+    color: inherit; font: inherit; letter-spacing: inherit;
+    text-transform: inherit; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .nb .ml-status:focus { outline: none; }
+  .nb .ml-caret { flex: none; font-size: 9px; color: var(--nebula-text-tertiary); }
+  /* the count leans on the far edge and never shrinks: the label may lose
+     characters to an ellipsis, the number may not lose a digit */
+  .nb .ml-head .count { flex: none; margin-left: auto; color: var(--nebula-text-tertiary); }
+
+  /* one line each, the ellipsis standing for the rest */
+  .nb .empty-col {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 14px 10px;
+  }
+  .nb .card h4 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nb .card .id-row { white-space: nowrap; overflow: hidden; }
+
+  /* the overlays meet the same width */
+  .nb .ov { padding: 20px 10px; }
+  .nb .bulk-bar { max-width: calc(100vw - 20px); flex-wrap: wrap; row-gap: 8px; }
+}

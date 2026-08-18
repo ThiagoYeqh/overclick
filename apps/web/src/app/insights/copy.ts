@@ -40,6 +40,12 @@ const en = {
   noMission: "no mission",
   noModel: "model not reported",
   costNotReported: "not reported",
+  /** Never "US$ 0.00": a model nobody priced did not work for free. */
+  costNoPrice: "no price",
+  noPriceTitle: (tokens: string) =>
+    `${tokens} spent by a model with no price in Settings, counted apart from the cost`,
+  unpricedTokensNote: (tokens: string) =>
+    `${tokens} on models with no price, not in the total above`,
   estimatedTag: "estimated",
   missingTag: "usage not reported",
   colSource: "cost from",
@@ -71,6 +77,15 @@ const en = {
     "No delivered work yet. When an agent claims and delivers a card, its tokens and time land here.",
   emptyReopens:
     "No deliveries to measure. The reopened rate appears after the first review cycle.",
+  /**
+   * The board hands its filter over in the link, so the page says what it is
+   * counting and offers the way back to the whole workspace.
+   */
+  filteredBy: "Counting only",
+  filterProjects: (n: number) => `${n} project${n === 1 ? "" : "s"}`,
+  filterMission: "one mission",
+  filterNoMission: "cards with no mission",
+  clearFilter: "Count everything",
 };
 
 export type InsightsCopy = typeof en;
@@ -112,6 +127,11 @@ const ptBR: InsightsCopy = {
   noMission: "sem missão",
   noModel: "modelo não reportado",
   costNotReported: "não reportado",
+  costNoPrice: "sem preço",
+  noPriceTitle: (tokens: string) =>
+    `${tokens} gastos por um modelo sem preço em Configurações, contados à parte do custo`,
+  unpricedTokensNote: (tokens: string) =>
+    `${tokens} em modelos sem preço, fora do total acima`,
   estimatedTag: "estimado",
   missingTag: "uso não reportado",
   colSource: "custo veio de",
@@ -142,6 +162,11 @@ const ptBR: InsightsCopy = {
     "Nenhuma entrega ainda. Quando um agente pegar e entregar um card, os tokens e o tempo aparecem aqui.",
   emptyReopens:
     "Nenhuma entrega para medir. A taxa de reabertura aparece depois do primeiro ciclo de revisão.",
+  filteredBy: "Contando apenas",
+  filterProjects: (n: number) => `${n} projeto${n === 1 ? "" : "s"}`,
+  filterMission: "uma missão",
+  filterNoMission: "cards sem missão",
+  clearFilter: "Contar tudo",
 };
 
 export function insightsCopy(lang: string | null | undefined): InsightsCopy {

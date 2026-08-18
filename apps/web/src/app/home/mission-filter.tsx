@@ -1,0 +1,159 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  NO_MISSION,
+  searchMissions,
+  shouldSearchMissions,
+  type MissionCount,
+} from "../../lib/board-filter";
+import type { Dict } from "../../lib/i18n";
+
+/**
+ * The mission filter of the board. A native select could not do the three
+ * things this filter needs: a count beside each mission, a clear that costs
+ * one click instead of a trip through the list, and a search box once the
+ * list grows past a handful. So the chip opens a panel it owns.
+ *
+ * What it offers is decided upstream by missionFilterOptions: only missions
+ * holding cards in the current scope. Choosing a mission for a card is a
+ * different question and still lists every mission of the workspace.
+ */
+export function MissionFilter({
+  options,
+  looseCount,
+  totalCount,
+  value,
+  onChange,
+  t,
+}: {
+  options: MissionCount[];
+  /** Cards here that are in no mission, the bucket at the end of the list. */
+  looseCount: number;
+  /** Every card in scope, the count of "All missions". */
+  totalCount: number;
+  value: string | null;
+  onChange: (missionId: string | null) => void;
+  t: Dict;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const root = useRef<HTMLDivElement | null>(null);
+  const search = useRef<HTMLInputElement | null>(null);
+
+  const searchable = shouldSearchMissions(options.length);
+  const shown = useMemo(
+    () => (searchable ? searchMissions(options, query) : options),
+    [options, query, searchable],
+  );
+
+  // Closing is the same gesture people already use on a select: click away,
+  // or press Escape. Without it the panel would outlive the choice it exists
+  // for and sit on top of the board.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open && searchable) search.current?.focus();
+    if (!open) setQuery("");
+  }, [open, searchable]);
+
+  const selected = value ? options.find((item) => item.id === value) : undefined;
+  const label =
+    value === NO_MISSION
+      ? t.board.noMission
+      : (selected?.title ?? t.board.allMissions);
+
+  function pick(next: string | null) {
+    onChange(next);
+    setOpen(false);
+  }
+
+  function row(id: string | null, text: string, count: number) {
+    const active = (id ?? null) === value;
+    return (
+      <button
+        key={id ?? "all"}
+        type="button"
+        role="option"
+        aria-selected={active}
+        className={`mf-opt${active ? " on" : ""}`}
+        onClick={() => pick(id)}
+      >
+        <span className="mf-opt-title" title={text}>
+          {text}
+        </span>
+        <span className="mf-opt-count">{count}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="mission-filter" ref={root}>
+      <div className={`filter-chip mf-chip${value ? " on" : ""}`}>
+        <button
+          type="button"
+          className="mf-trigger"
+          aria-label={t.board.missionFilter}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className="mf-label" title={label}>
+            {label}
+          </span>
+        </button>
+        {value ? (
+          <button
+            type="button"
+            className="mf-clear"
+            aria-label={t.board.clearMission}
+            title={t.board.clearMission}
+            onClick={() => pick(null)}
+          >
+            ×
+          </button>
+        ) : null}
+      </div>
+
+      {open ? (
+        <div className="mf-panel nebula-glass">
+          {searchable ? (
+            <input
+              ref={search}
+              className="mf-search"
+              type="search"
+              value={query}
+              placeholder={t.board.searchMissions}
+              aria-label={t.board.searchMissions}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          ) : null}
+          <div className="mf-list" role="listbox" aria-label={t.board.missionFilter}>
+            {row(null, t.board.allMissions, totalCount)}
+            {shown.map((option) => row(option.id, option.title, option.count))}
+            {looseCount > 0 || value === NO_MISSION
+              ? row(NO_MISSION, t.board.noMission, looseCount)
+              : null}
+            {searchable && shown.length === 0 ? (
+              <p className="mf-empty">{t.board.noMissionMatch}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

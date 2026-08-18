@@ -21,6 +21,7 @@ import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { UpdateBanner } from "../../components/update-banner";
 import { resolveBoardFilter } from "../../lib/board-filter";
 import { buildCardHistory } from "../../lib/card-history";
+import { loadBoardTotals } from "../../lib/board-totals-query";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
 import { dict, type Dict } from "../../lib/i18n";
@@ -519,6 +520,15 @@ export default async function HomePage() {
     projects,
     missions,
   );
+  // The topbar total, aggregated by the same code the Insights page runs so
+  // the board and the page can only report the same numbers for one filter.
+  const initialTotals = await loadBoardTotals(
+    db(),
+    ws.id,
+    ws.pricingEnabled,
+    prices,
+    initialFilter,
+  );
 
   return (
     <div className="nb nebula-surface">
@@ -542,6 +552,7 @@ export default async function HomePage() {
         missions={missions}
         cards={cards}
         initialFilter={initialFilter}
+        initialTotals={initialTotals}
       />
 
       <div className="nebula-glass-fade viewport-fade" aria-hidden="true" />

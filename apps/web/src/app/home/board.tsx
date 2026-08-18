@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState, useTransition } from "react";
+import { assignCardsToMissionAction } from "../../actions/missions";
 import {
   reopenTaskAction,
   tickValidationStepAction,
@@ -9,7 +10,14 @@ import {
 } from "../../actions/review";
 import { createBoardTaskAction } from "../../actions/tasks";
 import type { BoardCardHistoryEvent } from "../../lib/card-history";
+import {
+  COLUMN_STATUSES,
+  type ColumnStatus,
+} from "../../lib/board-columns";
 import { dict, type Dict } from "../../lib/i18n";
+import { BoardMobileList } from "./board-mobile-list";
+
+export type BoardMissionOption = { id: string; title: string };
 
 export type ConfirmStep = { step: string; expected: string };
 export type ValidationTickView = { index: number; byEmail: string; at: string };
@@ -96,11 +104,6 @@ export type BoardCard = {
 };
 
 type BoardProject = { id: string; name: string };
-
-const COLUMN_STATUSES = ["aberto", "em_execucao", "feito", "validado"] as const;
-
-type ColumnStatus = (typeof COLUMN_STATUSES)[number];
-
 function columnLabels(t: Dict): Record<ColumnStatus, string> {
   return {
     aberto: t.board.colOpen,
@@ -128,9 +131,14 @@ const STATUS_CHIP: Record<ColumnStatus, string> = {
 
 /** Empty-state microcopy (briefing §4.2). */
 function EmptyState({ status, t }: { status: ColumnStatus; t: Dict }) {
+  // On the phone layout this holds one line and truncates; the title keeps
+  // the full sentence reachable.
   if (status === "aberto") {
     return (
-      <div className="empty-col">
+      <div
+        className="empty-col"
+        title={`${t.board.emptyOpenBefore}${t.board.emptyOpenCmd}${t.board.emptyOpenAfter}`}
+      >
         {t.board.emptyOpenBefore}
         <i>{t.board.emptyOpenCmd}</i>
         {t.board.emptyOpenAfter}
@@ -138,12 +146,24 @@ function EmptyState({ status, t }: { status: ColumnStatus; t: Dict }) {
     );
   }
   if (status === "em_execucao") {
-    return <div className="empty-col">{t.board.emptyInProgress}</div>;
+    return (
+      <div className="empty-col" title={t.board.emptyInProgress}>
+        {t.board.emptyInProgress}
+      </div>
+    );
   }
   if (status === "feito") {
-    return <div className="empty-col">{t.board.emptyDone}</div>;
+    return (
+      <div className="empty-col" title={t.board.emptyDone}>
+        {t.board.emptyDone}
+      </div>
+    );
   }
-  return <div className="empty-col">{t.board.emptyValidated}</div>;
+  return (
+    <div className="empty-col" title={t.board.emptyValidated}>
+      {t.board.emptyValidated}
+    </div>
+  );
 }
 
 function Telemetry({ text }: { text: string }) {
@@ -235,13 +255,39 @@ function CardMetaTail({
   );
 }
 
+/**
+ * The project the card came from, read off its short id. With several
+ * projects on the board the prefix is what says where a card belongs, so it
+ * stops being part of the number and becomes the origin.
+ */
+function CardId({ shortId, showProject }: { shortId: string; showProject: boolean }) {
+  const cut = shortId.indexOf("-");
+  if (!showProject || cut <= 0) return <span className="cid">{shortId}</span>;
+  return (
+    <span className="cid">
+      <span className="cid-prefix">{shortId.slice(0, cut)}</span>
+      {shortId.slice(cut)}
+    </span>
+  );
+}
+
 function Card({
   card,
   onOpen,
+  showProject,
+  selectable,
+  selected,
+  onToggleSelect,
   t,
 }: {
   card: BoardCard;
   onOpen: (c: BoardCard) => void;
+  /** True while more than one project shares the board. */
+  showProject: boolean;
+  /** True while the board is picking cards to move between missions. */
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
   t: Dict;
 }) {
   const exec = card.status === "em_execucao";
@@ -253,18 +299,31 @@ function Card({
   // click away in the detail panel.
   return (
     <div
-      className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}`}
-      onClick={() => onOpen(card)}
+      className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}${
+        selectable ? " selectable" : ""
+      }${selected ? " picked" : ""}`}
+      onClick={() => (selectable ? onToggleSelect(card.id) : onOpen(card))}
     >
       <div className="id-row">
-        <span className="cid">{card.shortId}</span>
+        {selectable ? (
+          <input
+            type="checkbox"
+            className="card-pick"
+            checked={selected}
+            aria-label={card.shortId}
+            onChange={() => onToggleSelect(card.id)}
+            onClick={(event) => event.stopPropagation()}
+          />
+        ) : null}
+        <CardId shortId={card.shortId} showProject={showProject} />
         <span className={`tag ${card.tipo}`}>{card.tipo}</span>
         {card.isExample ? <span className="selo">{t.board.example}</span> : null}
         {card.awaitingMyReview ? (
           <span className="review-chip">{t.board.yourReview}</span>
         ) : null}
       </div>
-      <h4>{card.title}</h4>
+      {/* One line on the phone: the ellipsis points here and to the panel. */}
+      <h4 title={card.title}>{card.title}</h4>
       <div className={`card-foot${exec ? " exec-pulse" : ""}`}>
         {exec ? <span className="dot-exec" /> : null}
         {harness ? <span className="meta-harness">{harness}</span> : null}
@@ -390,6 +449,67 @@ function Transcript({ view, t }: { view: TranscriptView; t: Dict }) {
         ) : null}
       </div>
       <p className="d-transcript-note">{t.detail.transcriptNote}</p>
+    </div>
+  );
+}
+
+/**
+ * The mission of the card, as something a human can change. Cards created
+ * before missions existed are all loose, and until this select existed the
+ * product had no way to put them anywhere: the mission was chosen at creation
+ * or never. Picking the blank option detaches the card again.
+ */
+function MissionField({
+  card,
+  missions,
+  t,
+}: {
+  card: BoardCard;
+  missions: BoardMissionOption[];
+  t: Dict;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [value, setValue] = useState(card.missionId ?? "");
+  const [err, setErr] = useState<string | null>(null);
+
+  const change = (next: string) => {
+    const previous = value;
+    setValue(next);
+    setErr(null);
+    start(async () => {
+      const r = await assignCardsToMissionAction([card.id], next || null);
+      if (!r.ok) {
+        setValue(previous);
+        setErr(r.error);
+      } else {
+        router.refresh();
+      }
+    });
+  };
+
+  return (
+    <div>
+      <div className="lbl">{t.detail.mission}</div>
+      {missions.length === 0 ? (
+        <p>{t.detail.missionNoneAvailable}</p>
+      ) : (
+        <select
+          className="d-mission"
+          aria-label={t.detail.mission}
+          value={value}
+          disabled={pending}
+          onChange={(event) => change(event.target.value)}
+        >
+          <option value="">{t.detail.missionNone}</option>
+          {missions.map((miss) => (
+            <option key={miss.id} value={miss.id}>
+              {miss.title}
+            </option>
+          ))}
+        </select>
+      )}
+      {err ? <p className="d-err">{err}</p> : null}
     </div>
   );
 }
@@ -543,7 +663,17 @@ function History({ card }: { card: BoardCard }) {
   );
 }
 
-function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t: Dict }) {
+function Detail({
+  card,
+  missions,
+  onClose,
+  t,
+}: {
+  card: BoardCard;
+  missions: BoardMissionOption[];
+  onClose: () => void;
+  t: Dict;
+}) {
   const router = useRouter();
   const [, start] = useTransition();
   const [ticks, setTicks] = useState<ValidationTickView[]>(card.validationTicks);
@@ -623,10 +753,7 @@ function Detail({ card, onClose, t }: { card: BoardCard; onClose: () => void; t:
           {tickErr ? <p className="d-err">{tickErr}</p> : null}
         </div>
         <div className="d-sec d-grid">
-          <div>
-            <div className="lbl">{t.detail.mission}</div>
-            <p>{card.mission ?? "—"}</p>
-          </div>
+          <MissionField card={card} missions={missions} t={t} />
           <div>
             <div className="lbl">{t.detail.harness}</div>
             <p className="d-mono">{card.harness ?? "—"}</p>
@@ -817,16 +944,28 @@ export function Board({
   lang,
   projects,
   selectedProjectId,
+  missions,
+  showProject = false,
+  selectable = false,
+  selectedIds = [],
+  onToggleSelect,
 }: {
   cards: BoardCard[];
   lang: string;
   projects: BoardProject[];
   selectedProjectId: string;
+  missions: BoardMissionOption[];
+  /** True while more than one project shares the board. */
+  showProject?: boolean;
+  selectable?: boolean;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string) => void;
 }) {
   const t = dict(lang);
   const colLabel = columnLabels(t);
   const [open, setOpen] = useState<BoardCard | null>(null);
   const [creating, setCreating] = useState(false);
+  const picked = new Set(selectedIds);
 
   const onKey = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -838,6 +977,21 @@ export function Board({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onKey]);
+
+  // The same card in both layouts: the phone list is a different arrangement
+  // of this board, never a second version of it.
+  const renderCard = (card: BoardCard) => (
+    <Card
+      key={card.id}
+      card={card}
+      onOpen={setOpen}
+      showProject={showProject}
+      selectable={selectable}
+      selected={picked.has(card.id)}
+      onToggleSelect={onToggleSelect ?? (() => {})}
+      t={t}
+    />
+  );
 
   return (
     <>
@@ -862,21 +1016,14 @@ export function Board({
                 {list.length === 0 ? (
                   <EmptyState status={status} t={t} />
                 ) : (
-                  list.map((card) => (
-                    <Card
-                      key={card.id}
-                      card={card}
-                      onOpen={setOpen}
-                      t={t}
-                    />
-                  ))
+                  list.map(renderCard)
                 )}
               </div>
             </div>
           );
         })}
       </div>
-      {open ? <Detail card={open} onClose={() => setOpen(null)} t={t} /> : null}
+      {open ? <Detail card={open} missions={missions} onClose={() => setOpen(null)} t={t} /> : null}
       {creating ? (
         <CreateCardModal
           projects={projects}
@@ -884,6 +1031,15 @@ export function Board({
           onClose={() => setCreating(false)}
         />
       ) : null}
+      {/* Below the mobile breakpoint the stylesheet hides the columns and
+          shows this instead: one column at a time, as a list you can read. */}
+      <BoardMobileList
+        cards={cards}
+        labels={colLabel}
+        renderCard={renderCard}
+        renderEmpty={(status) => <EmptyState status={status} t={t} />}
+        t={t}
+      />
     </>
   );
 }

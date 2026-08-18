@@ -277,6 +277,16 @@
   max-width: 560px;
 }
 
+/* The filter the board handed over, named so the numbers are not read as
+   the whole workspace, with one link back to counting everything. */
+.nb .ins-filter {
+  margin: -6px 0 18px;
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+}
+.nb .ins-filter b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); }
+.nb .ins-filter a { margin-left: 8px; color: var(--nebula-text-secondary); }
+
 /* ---------- narrow windows: stack, tiles halve, tables scroll in-card ---------- */
 @media (max-width: 900px) {
   .nb .ins-tiles { grid-template-columns: repeat(2, 1fr); }
