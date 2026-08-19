@@ -1,5 +1,10 @@
 import type { UsageRecipe } from "@agent-board/db";
-import type { BranchConvention, Mission, Task } from "@agent-board/mcp-core";
+import type {
+  BranchConvention,
+  Mission,
+  Task,
+  TaskComment,
+} from "@agent-board/mcp-core";
 
 /**
  * How this executor measures the run it just did, taken from the board's
@@ -16,6 +21,28 @@ function renderRecipe(recipe: UsageRecipe): string[] {
     recipe.instructions,
     "",
     ...block,
+    "",
+  ];
+}
+
+/**
+ * Comment is a live part of the contract: the owner corrects o_que/por_que/
+ * como_confirmo after creation by commenting, not by editing the card. A
+ * claim that never surfaces those corrections delivers the original,
+ * already-superseded contract. Empty on purpose when there are none — no
+ * section beats an empty one.
+ */
+function renderComments(comments: readonly TaskComment[]): string[] {
+  if (comments.length === 0) return [];
+  return [
+    "## Comentários do card",
+    "",
+    "Os comentários abaixo alteram/refinam o contrato acima (o_que/por_que/como_confirmo); em caso de conflito, o comentário mais recente vence.",
+    "",
+    ...comments.map(
+      (c) =>
+        `- **${c.author}** (${c.created_at})${c.kind === "report" ? " [report]" : ""}: ${c.body}`,
+    ),
     "",
   ];
 }
@@ -65,6 +92,8 @@ export function renderBriefingMarkdown(input: {
     currentVersion: string | null;
   } | null;
   branchConvention: BranchConvention;
+  /** All prose comments and reports on the card, oldest first. */
+  comments?: readonly TaskComment[] | null;
   /** Recipe for the CLI running the card; omitted when none could be resolved. */
   recipe?: UsageRecipe | null;
   /**
@@ -85,6 +114,7 @@ export function renderBriefingMarkdown(input: {
     mission,
     project,
     branchConvention,
+    comments,
     recipe,
     chain,
     attempt,
@@ -162,6 +192,7 @@ export function renderBriefingMarkdown(input: {
     "",
     steps || "(sem roteiro)",
     "",
+    ...renderComments(comments ?? []),
     "## Harness",
     "",
     harness,

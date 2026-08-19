@@ -28,6 +28,7 @@ import {
   ReviewerSchema,
   StoredTranscriptRefSchema,
   SubtaskCreateSchema,
+  TaskCommentSchema,
   TaskReadSchema,
   TaskSchema,
   TaskListItemSchema,
@@ -546,6 +547,8 @@ export const TaskGetOutputSchema = z.object({
   /** Heavy sections are absent unless the caller requests them. */
   briefing_markdown: z.string().optional(),
   mission: MissionSchema.optional(),
+  /** Chronological, oldest first; only present with `include: ["comments"]` or `view: "full"`. */
+  comments: z.array(TaskCommentSchema).optional(),
   branch_convention: BranchConventionSchema,
   usage_recipe: UsageRecipeSchema.optional(),
   /** Latest attempt reported usage outside the trustworthy claim window. */

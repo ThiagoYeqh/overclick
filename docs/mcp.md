@@ -54,7 +54,8 @@ context are listed there with a short excerpt and a pointer to `project_get`.
 | `task_list` | the queue (project, `mission_id`, exact `resolved_in`, status, priority, `claimed_by: "me"`, `awaiting_review_by`, `limit`) |
 | `task_list` | thin queue rows (ids, title, type, status, priority, mission, planned harness, claim, branch and frozen cost; no card contract or briefing), with unset fields omitted and no `workspace_id`; filtered by project, `mission_id`, exact `resolved_in`, status, priority, `awaiting_review_by` and `limit` |
 | | `limit` defaults to 50 and caps at 200. The response carries `truncated` and the `limit` it used, so a caller can tell a full queue from a cut one instead of reading a page as the whole board |
-| `task_get` | the card contract, branch and latest attempt's frozen cost/status by default; unset fields and `workspace_id` are omitted. The heavy briefing, recipe and mission are opt-in with `view: "briefing"`/`"full"` or `include: ["briefing", "usage_recipe", "mission"]` |
+| `task_get` | the card contract, branch and latest attempt's frozen cost/status by default; unset fields and `workspace_id` are omitted. The heavy briefing, recipe, mission and comments are opt-in with `view: "briefing"`/`"full"` or `include: ["briefing", "usage_recipe", "mission", "comments"]` |
+| | `include: ["comments"]` returns every prose comment and delivery report on the card, oldest first, as `{author, kind, body, created_at}` — the same list `task_claim`'s briefing embeds. Typed timeline entries (executor swaps, stale-claim takeovers) are not comments and are left out |
 | `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin); by default it returns only the short id, status, `updated_at` and generated `changed` fields. Pass `return: "full"` for the card and subtasks. `supersedes` atomically discards an in-execution predecessor, and `inherit: true` reuses its contract without copying comments |
 | | `project_id` takes the project uuid **or** its card prefix (`AGB`), so an agent that just called `project_list` never needs the uuid |
 | `task_search` | search the queue by text (`q`) and metadata filters, including exact `resolved_in` |
@@ -207,9 +208,14 @@ planning and dispatch belong to the mission attempt.
 
 `task_claim` always returns the complete briefing; `task_get` is compact unless its
 caller opts into the heavy sections. The executor needs no other source of context
-after claiming. `## Project context` follows the mission section (including its
-orchestration telemetry) and carries the project markdown plus `current_version`. The briefing always ends with two things, in this order: how to measure the run,
-then what to send.
+after claiming. Right after `## Como confirmo`, a `## Comentários do card` section
+lists every prose comment and delivery report in chronological order (author, date,
+text) whenever the card has any — comments are a live part of the contract, so the
+briefing says explicitly that they refine what came before and the most recent one
+wins on conflict; a card with no comments gets no empty section. `## Project context`
+follows the mission section (including its orchestration telemetry) and carries the
+project markdown plus `current_version`. The briefing always ends with two things,
+in this order: how to measure the run, then what to send.
 
 The same complete markdown is a discoverable MCP resource at
 `overclick://project/<PREFIX>/context`. `resources/list` only advertises projects that

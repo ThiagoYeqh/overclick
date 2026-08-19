@@ -73,6 +73,7 @@ export const ReadIncludeSchema = z.enum([
   "mission",
   "project",
   "context",
+  "comments",
 ]);
 
 export const ReadOptionsSchema = z.object({
@@ -378,6 +379,19 @@ export const TaskSummarySchema = z.object({
   reports_count: z.number().int().nonnegative().default(0),
 });
 
+/**
+ * A prose comment or delivery report attached to a card, in the order they
+ * were written. Typed timeline events (executor swaps, stale-claim
+ * takeovers) are operational traces, not contract corrections, and are left
+ * out: this is only what a human or agent deliberately said about the card.
+ */
+export const TaskCommentSchema = z.object({
+  author: z.string().min(1),
+  kind: z.enum(["comment", "report"]),
+  body: z.string().min(1),
+  created_at: IsoDateTimeSchema,
+});
+
 export const TaskSchema = TaskSummarySchema.extend({
   workspace_id: z.string().min(1),
   /**
@@ -594,6 +608,7 @@ export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 export type ProjectCardCounts = z.infer<typeof ProjectCardCountsSchema>;
 export type Task = z.infer<typeof TaskSchema>;
+export type TaskComment = z.infer<typeof TaskCommentSchema>;
 export type TaskRead = z.infer<typeof TaskReadSchema>;
 export type TaskListItem = z.infer<typeof TaskListItemSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;

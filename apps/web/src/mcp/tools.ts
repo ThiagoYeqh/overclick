@@ -24,6 +24,7 @@ import {
   task,
   taskComment,
   transcriptRef,
+  user,
   workspace,
   type ExecutorConfig,
   type ProjectContextSource,
@@ -57,6 +58,7 @@ import {
   type Result,
   type Reviewer,
   type Task,
+  type TaskComment,
   type TranscriptRefWire,
   type Usage,
 } from "@agent-board/mcp-core";
@@ -143,12 +145,14 @@ type TaskReadLayers = {
   briefing: boolean;
   mission: boolean;
   usage_recipe: boolean;
+  comments: boolean;
 };
 
 const FULL_TASK_READ_LAYERS: TaskReadLayers = {
   briefing: true,
   mission: true,
   usage_recipe: true,
+  comments: true,
 };
 
 function requestedFullRead(input?: ReadOptions): boolean {
@@ -162,6 +166,7 @@ function taskReadLayers(input?: ReadOptions, fullByDefault = false): TaskReadLay
     briefing: full || includes.has("briefing"),
     mission: full || includes.has("mission"),
     usage_recipe: full || includes.has("usage_recipe"),
+    comments: full || includes.has("comments"),
   };
 }
 
@@ -4620,6 +4625,7 @@ async function assembleTaskPayload(
   const wantsBriefing = read.briefing;
   const wantsMission = read.mission || wantsBriefing;
   const wantsRecipe = read.usage_recipe || wantsBriefing;
+  const wantsComments = read.comments || wantsBriefing;
   const comment =
     reopenComment !== undefined
       ? reopenComment
@@ -4634,6 +4640,7 @@ async function assembleTaskPayload(
     const miss = await findMission(db, proj.workspaceId, row.missionId);
     if (miss) missionPayload = mapMission(miss);
   }
+  const comments = wantsComments ? await listTaskComments(db, row.id) : [];
   const convention = branchConvention(mapped.short_id, mapped.title);
   const [latestAttempt] = await db
     .select({
@@ -4692,6 +4699,7 @@ async function assembleTaskPayload(
           currentVersion: proj.currentVersion,
         },
         branchConvention: convention,
+        comments,
         recipe,
         chain,
         attempt: delivered,
@@ -4715,6 +4723,7 @@ async function assembleTaskPayload(
       ? { briefing_markdown: briefingMarkdown }
       : {}),
     ...(read.mission ? { mission: missionPayload } : {}),
+    ...(read.comments ? { comments } : {}),
     ...(read.usage_recipe
       ? {
           usage_recipe: recipe
@@ -4749,6 +4758,7 @@ function compactTaskReadPayload(
       ? { briefing_markdown: payload.briefing_markdown }
       : {}),
     ...(payload.mission ? { mission: payload.mission } : {}),
+    ...(payload.comments ? { comments: payload.comments } : {}),
     ...(payload.usage_recipe ? { usage_recipe: payload.usage_recipe } : {}),
     ...(payload.usage_suspect_reason
       ? { usage_suspect_reason: payload.usage_suspect_reason }
@@ -4870,6 +4880,42 @@ async function countReports(db: McpDatabase, row: TaskRow): Promise<number> {
     .from(taskComment)
     .where(and(eq(taskComment.taskId, row.id), eq(taskComment.kind, "report")));
   return Number(rowCount?.n ?? 0);
+}
+
+/**
+ * Every prose comment or delivery report on a card, oldest first — the
+ * corrections the owner makes to a contract after the card was created.
+ * Typed timeline events (executor_swap, claim_stale, claim_release,
+ * spawn_failure) are operational traces, not contract text, so they are
+ * left out.
+ */
+async function listTaskComments(
+  db: McpDatabase,
+  taskId: string,
+): Promise<TaskComment[]> {
+  const rows = await db
+    .select({
+      body: taskComment.body,
+      kind: taskComment.kind,
+      createdAt: taskComment.createdAt,
+      authorAgentRef: taskComment.authorAgentRef,
+      authorEmail: user.email,
+    })
+    .from(taskComment)
+    .leftJoin(user, eq(taskComment.authorUserId, user.id))
+    .where(
+      and(
+        eq(taskComment.taskId, taskId),
+        inArray(taskComment.kind, ["comment", "report"]),
+      ),
+    )
+    .orderBy(asc(taskComment.createdAt));
+  return rows.map((row) => ({
+    author: row.authorAgentRef ?? row.authorEmail ?? "desconhecido",
+    kind: row.kind === "report" ? "report" : "comment",
+    body: row.body,
+    created_at: iso(row.createdAt),
+  }));
 }
 
 /**

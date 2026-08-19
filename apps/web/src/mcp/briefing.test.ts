@@ -172,6 +172,50 @@ describe("self-contained briefing markdown", () => {
     expect(md).toContain("estimated: true");
   });
 
+  it("lists every comment chronologically right after the contract, with the most-recent-wins rule", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const md = renderBriefingMarkdown({
+      task,
+      mission,
+      branchConvention: convention,
+      comments: [
+        {
+          author: "dono@board",
+          kind: "comment",
+          body: "cadência: 1 post por dia",
+          created_at: "2026-08-19T10:00:00.000Z",
+        },
+        {
+          author: "dono@board",
+          kind: "report",
+          body: "remove o card parcial",
+          created_at: "2026-08-19T11:00:00.000Z",
+        },
+      ],
+    });
+
+    const sectionAt = md.indexOf("## Comentários do card");
+    expect(sectionAt).toBeGreaterThan(-1);
+    expect(md).toContain(
+      "comentários abaixo alteram/refinam o contrato acima",
+    );
+    expect(md).toContain("comentário mais recente vence");
+    const firstAt = md.indexOf("cadência: 1 post por dia");
+    const secondAt = md.indexOf("remove o card parcial");
+    expect(firstAt).toBeGreaterThan(sectionAt);
+    expect(secondAt).toBeGreaterThan(firstAt);
+    expect(md.indexOf("## Comentários do card")).toBeLessThan(
+      md.indexOf("## Harness"),
+    );
+  });
+
+  it("adds no comments section when the card has none", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const md = renderBriefingMarkdown({ task, mission, branchConvention: convention, comments: [] });
+
+    expect(md).not.toContain("## Comentários do card");
+  });
+
   it("renders the Codex measurement fallback without invented model defaults", () => {
     const convention = branchConvention(task.short_id, task.title);
     const recipe = findUsageRecipe(factoryUsageRecipes(), "codex");

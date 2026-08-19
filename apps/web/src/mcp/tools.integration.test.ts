@@ -1586,7 +1586,11 @@ describe("MCP tool edge cases against a test db", () => {
     if (!claimed.ok) return;
     const out = TaskClaimOutputSchema.parse(claimed.value);
     expect(out.task.reopen_comment).toBeNull();
-    expect(out.briefing_markdown).not.toContain("Usuário não abre mais o fluxo");
+    // reopen_comment stays narrow (latest human comment after the handoff),
+    // but every comment/report is still a live part of the contract: the new
+    // claim's briefing must surface it in "## Comentários do card".
+    expect(out.briefing_markdown).toContain("## Comentários do card");
+    expect(out.briefing_markdown).toContain("Usuário não abre mais o fluxo");
   });
 
   it("ignores agent comments on an open card when there is no reopen handoff", async () => {
@@ -1604,6 +1608,113 @@ describe("MCP tool edge cases against a test db", () => {
     expect(claimed.ok).toBe(true);
     if (!claimed.ok) return;
     expect(TaskClaimOutputSchema.parse(claimed.value).task.reopen_comment).toBeNull();
+  });
+
+  it("carries every comment on the card into the claim briefing, oldest first", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Contrato corrigido via comentário");
+
+    const first = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "cadência: publica um post por dia, não por hora",
+    });
+    expect(first.ok).toBe(true);
+    const second = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "remove o card parcial do carrossel",
+    });
+    expect(second.ok).toBe(true);
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+
+    const section = out.briefing_markdown.slice(
+      out.briefing_markdown.indexOf("## Comentários do card"),
+    );
+    expect(section).toContain(
+      "comentários abaixo alteram/refinam o contrato acima",
+    );
+    expect(section).toContain("comentário mais recente vence");
+    const firstAt = section.indexOf("cadência: publica um post por dia");
+    const secondAt = section.indexOf("remove o card parcial do carrossel");
+    expect(firstAt).toBeGreaterThan(-1);
+    expect(secondAt).toBeGreaterThan(firstAt);
+    // The section sits right after the contract it refines, before ## Harness.
+    expect(out.briefing_markdown.indexOf("## Comentários do card")).toBeLessThan(
+      out.briefing_markdown.indexOf("## Harness"),
+    );
+  });
+
+  it("adds no empty comments section to the briefing of a card with none", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Sem comentário nenhum");
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.briefing_markdown).not.toContain("## Comentários do card");
+  });
+
+  it("exposes comments via task_get include only when asked, matching the briefing's list", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Comentários via include");
+
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "primeiro ajuste",
+    });
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "segundo ajuste",
+      comment_kind: "report",
+    });
+
+    const lean = await invokeTool(world.db, ctx(), "task_get", { task_id: card.id });
+    expect(lean.ok).toBe(true);
+    if (!lean.ok) return;
+    const leanPayload = TaskGetOutputSchema.parse(lean.value);
+    expect(leanPayload).not.toHaveProperty("comments");
+
+    const withComments = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      include: ["comments"],
+    });
+    expect(withComments.ok).toBe(true);
+    if (!withComments.ok) return;
+    const payload = TaskGetOutputSchema.parse(withComments.value);
+    expect(payload.comments).toHaveLength(2);
+    expect(payload.comments?.[0]).toMatchObject({
+      kind: "comment",
+      body: "primeiro ajuste",
+    });
+    expect(payload.comments?.[1]).toMatchObject({
+      kind: "report",
+      body: "segundo ajuste",
+    });
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const claimOut = TaskClaimOutputSchema.parse(claimed.value);
+    expect(claimOut.briefing_markdown).toContain("primeiro ajuste");
+    expect(claimOut.briefing_markdown).toContain("segundo ajuste");
+  });
+
+  it("returns no comments for a card that has none, without a fake empty section", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Card limpo");
+
+    const withComments = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      include: ["comments"],
+    });
+    expect(withComments.ok).toBe(true);
+    if (!withComments.ok) return;
+    const payload = TaskGetOutputSchema.parse(withComments.value);
+    expect(payload.comments).toEqual([]);
   });
 
   it("uses the user comment as reopen comment only after the latest handoff", async () => {
