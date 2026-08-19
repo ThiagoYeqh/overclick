@@ -24,6 +24,7 @@ import {
   ReviewerSchema,
   StoredTranscriptRefSchema,
   SubtaskCreateSchema,
+  TaskReadSchema,
   TaskSchema,
   TaskListItemSchema,
   TaskTypeSchema,
@@ -303,18 +304,18 @@ export const UsageRecipeSchema = z.object({
 });
 
 export const TaskGetOutputSchema = z.object({
-  task: TaskSchema,
+  task: TaskReadSchema,
   /** Heavy sections are absent unless the caller requests them. */
   briefing_markdown: z.string().optional(),
-  mission: MissionSchema.nullable().optional(),
+  mission: MissionSchema.optional(),
   branch_convention: BranchConventionSchema,
-  usage_recipe: UsageRecipeSchema.nullable().optional(),
+  usage_recipe: UsageRecipeSchema.optional(),
   /** Latest attempt reported usage outside the trustworthy claim window. */
   usage_suspect: z.boolean(),
-  usage_suspect_reason: z.string().nullable(),
+  usage_suspect_reason: z.string().min(1).optional(),
   /** Frozen board-owned cost, distinct from the executor's reported figure. */
-  cost_usd: z.number().nullable(),
-  cost_source: z.enum(["computed", "reported", "estimated"]).nullable(),
+  cost_usd: z.number().optional(),
+  cost_source: z.enum(["computed", "reported", "estimated"]).optional(),
   cost_status: z
     .enum([
       "computed",
@@ -325,8 +326,8 @@ export const TaskGetOutputSchema = z.object({
       "zero_usage",
       "suspect",
     ])
-    .nullable(),
-  cost_unpriced_models: z.array(z.string()),
+    .optional(),
+  cost_unpriced_models: z.array(z.string().min(1)).min(1).optional(),
   /** Discarded run whose abandoned attempt still needs usage telemetry. */
   usage_warning: z.string().optional(),
 });
