@@ -2311,15 +2311,22 @@ async function taskCreate(
   const rec = await recommendFor(db, ctx.workspaceId, input.type, input.harness);
   if (!rec.ok) return rec;
 
+  // A disabled executor is the owner's emergency stop: naming its model by
+  // hand is rejected, with the fallback the caller can resend instead
+  // (OCL-77). An entirely unconfigured model is left alone here; that case
+  // already has its own divergence text from recommendHarness above.
+  if (input.harness && rec.value.available === false) {
+    const rejection = await explicitHarnessRejection(
+      db,
+      ctx.workspaceId,
+      input.type,
+      input.harness,
+    );
+    if (rejection) return rejection;
+  }
+
   const reviewer = reviewerToColumns(input.devolve_para);
   const harness = harnessToDb(rec.value.harness);
-  // The explicit path never blocks on an unavailable model, only the chain
-  // lookup does: a creator naming a disabled executor by hand still gets the
-  // card, just told why it will not run yet.
-  const harnessWarning =
-    input.harness && rec.value.available === false
-      ? await explicitHarnessWarning(db, ctx.workspaceId, input.harness)
-      : undefined;
 
   return db.transaction(async (tx) => {
     const original = input.supersedes
@@ -2441,7 +2448,6 @@ async function taskCreate(
       return {
         task: mapTask(created, proj),
         subtasks: children.map((child) => mapTask(child, proj)),
-        ...(harnessWarning ? { harness_warning: harnessWarning } : {}),
       };
     }
 
@@ -2455,7 +2461,6 @@ async function taskCreate(
       ...(children.length
         ? { subtasks: children.map((child) => child.shortId) }
         : {}),
-      ...(harnessWarning ? { harness_warning: harnessWarning } : {}),
     };
     return taskWriteAck(created, changed);
   });
@@ -3162,7 +3167,6 @@ async function taskUpdate(
     }
   }
 
-  let harnessWarning: string | undefined;
   if (input.harness) {
     const resolved = await resolveHarnessAgainstExecutors(
       db,
@@ -3170,7 +3174,19 @@ async function taskUpdate(
       input.harness,
     );
     if (!resolved.ok) return resolved;
-    harnessWarning = resolved.value.warning;
+    // A disabled executor's warning is the OCL-75 resolution; OCL-77 turns it
+    // into a rejection here too, with harness_recommend's own fallback in the
+    // error so the caller can resend in one step. Other fields on this card
+    // stay editable — this only blocks writing the harness itself.
+    if (resolved.value.warning) {
+      const rejection = await explicitHarnessRejection(
+        db,
+        ctx.workspaceId,
+        nextRow.tipo as CardapioTaskType,
+        input.harness,
+      );
+      if (rejection) return rejection;
+    }
     const [updated] = await db
       .update(task)
       .set({ harness: harnessToDb(resolved.value) })
@@ -3304,7 +3320,6 @@ async function taskUpdate(
   if (usageRecorded) changed.usage_recorded = true;
   if (subtasksMoved !== null) changed.subtasks_moved = subtasksMoved;
   if (projectMove) changed.project_move = projectMove;
-  if (harnessWarning) changed.harness_warning = harnessWarning;
 
   if (input.return !== "full") {
     return taskWriteAck(nextRow, changed);
@@ -3320,7 +3335,6 @@ async function taskUpdate(
     ...(usageRecorded ? { usage_recorded: true } : {}),
     ...(subtasksMoved !== null ? { subtasks_moved: subtasksMoved } : {}),
     ...(projectMove ? { project_move: projectMove } : {}),
-    ...(harnessWarning ? { harness_warning: harnessWarning } : {}),
   };
 }
 
@@ -3527,16 +3541,22 @@ function disabledExecutorWarning(model: string, executorId: string): string {
 }
 
 /**
- * Explains an unavailable explicit harness on task_create, when the reason is
- * a disabled executor rather than a model the workspace never configured at
- * all. Returns undefined for the latter: that case already has its own,
- * more specific divergence text from recommendHarness.
+ * Rejects a task_create/task_update write whose explicit harness names a
+ * model that only exists on a disabled executor, instead of the OCL-75
+ * warning-and-accept: the disable switch is the owner's emergency stop, so a
+ * write naming its model does not get quietly saved anyway (OCL-77). The
+ * error carries harness_recommend's own fallback for that activity type, so
+ * the caller can resend with a working harness in one step. Returns
+ * undefined when the model is not on any executor at all, disabled or not:
+ * that case already has its own, more specific divergence text from
+ * recommendHarness and is left alone.
  */
-async function explicitHarnessWarning(
+async function explicitHarnessRejection(
   db: McpDatabase,
   workspaceId: string,
+  type: CardapioTaskType,
   harness: Harness,
-): Promise<string | undefined> {
+): Promise<Result<never> | undefined> {
   const model = harness.model?.trim();
   if (!model) return undefined;
   const [ws] = await db
@@ -3550,7 +3570,18 @@ async function explicitHarnessWarning(
     harness.cli?.trim().toLowerCase(),
     model.toLowerCase(),
   );
-  return disabledMatch ? disabledExecutorWarning(model, disabledMatch.id) : undefined;
+  if (!disabledMatch) return undefined;
+  const fallback = await recommendFor(db, workspaceId, type);
+  const suggestion =
+    fallback.ok && fallback.value.harness.model
+      ? ` Fallback available: '${fallback.value.harness.model}'${
+          fallback.value.harness.cli ? ` (${fallback.value.harness.cli})` : ""
+        }.`
+      : " Call harness_recommend for a working alternative.";
+  return err(
+    "INVALID_ARGUMENT",
+    `Model '${model}' is configured on executor '${disabledMatch.id}', which is currently disabled.${suggestion} Re-enable the executor, or resend with the fallback harness.`,
+  );
 }
 
 /**

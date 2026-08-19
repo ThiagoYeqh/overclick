@@ -26,6 +26,7 @@ import {
   CUSTOM_EXECUTOR_ID,
   EXECUTOR_CATALOG,
   cardapioLabel,
+  modelsForCli,
   resolveCatalogCli,
 } from "../../lib/executors";
 import { LANGUAGES, dict, type Dict } from "../../lib/i18n";
@@ -265,16 +266,7 @@ export function SettingsClient({
       ? [{ id: CUSTOM_EXECUTOR_ID, label: sel.customName.trim() || "Custom" }]
       : []),
   ];
-  const modelsFor = (cli: string | null): string[] => {
-    if (!cli) {
-      const all = cliOptions.flatMap((o) => sel.enabled[o.id] ?? []);
-      return [...new Set(all)];
-    }
-    if (cli === CUSTOM_EXECUTOR_ID) return ["generic-mcp"];
-    return sel.enabled[cli]?.length
-      ? sel.enabled[cli]
-      : (sel.models[cli] ?? EXECUTOR_CATALOG.find((d) => d.id === cli)?.models ?? []);
-  };
+  const modelsFor = (cli: string | null): string[] => modelsForCli(sel, cli);
   const setRow = (i: number, patch: Partial<CardapioRow>) => {
     setRows(rows.map((r, j) => {
       if (j !== i) return r;

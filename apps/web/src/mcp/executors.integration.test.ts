@@ -5,6 +5,7 @@ import {
   HarnessRecommendOutputSchema,
   TaskClaimOutputSchema,
   TaskCreateFullOutputSchema as TaskCreateOutputSchema,
+  TaskSearchOutputSchema,
   toolContracts,
 } from "@agent-board/mcp-core";
 import { eq } from "drizzle-orm";
@@ -500,7 +501,7 @@ describe("harness_recommend falls back across CLIs when a policy's own executor 
     });
   });
 
-  it("accepts task_create citing a disabled executor's model with a warning instead of blocking it", async () => {
+  it("rejects task_create/task_update citing a disabled executor's model, with the fallback in the error (OCL-77)", async () => {
     world = await createTestWorld();
     const addedCodex = await invokeTool(world.db, manager(), "executors_update", {
       cli: "codex",
@@ -514,9 +515,10 @@ describe("harness_recommend falls back across CLIs when a policy's own executor 
     });
     expect(disabled.ok).toBe(true);
 
-    // 4. task_create with a harness citing a disabled executor is accepted,
-    // not blocked, and says so with an explicit warning.
-    const created = await invokeTool(world.db, worker(), "task_create", {
+    // 4. task_create with a harness citing a disabled executor is a typed
+    // rejection, never a silent accept, and the error already carries the
+    // fallback harness_recommend would give for this activity type.
+    const rejected = await invokeTool(world.db, worker(), "task_create", {
       project_id: world.projectId,
       title: "Card pinned to a disabled executor",
       type: "feature",
@@ -526,20 +528,79 @@ describe("harness_recommend falls back across CLIs when a policy's own executor 
       origem: { cli: "codex" },
       harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
     });
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) return;
+    expect(rejected.error.code).toBe("INVALID_ARGUMENT");
+    expect(rejected.error.message).toContain("codex");
+    expect(rejected.error.message).toContain("disabled");
+    expect(rejected.error.message).toContain("opus-5");
+
+    // No half-created card left behind by the rejected write.
+    const search = await invokeTool(world.db, worker(), "task_search", {
+      q: "Card pinned to a disabled executor",
+    });
+    expect(search.ok).toBe(true);
+    if (search.ok) expect(TaskSearchOutputSchema.parse(search.value).tasks).toHaveLength(0);
+
+    // task_update citing the same disabled executor is rejected the same
+    // way; other fields on an existing card stay editable (OCL-77 item 4).
+    const created = await invokeTool(world.db, worker(), "task_create", {
+      project_id: world.projectId,
+      title: "Card without a pinned harness",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem: { cli: "codex" },
+    });
     expect(created.ok).toBe(true);
     if (!created.ok) return;
-    const out = TaskCreateOutputSchema.parse(created.value);
-    expect(out.task.harness).toMatchObject({ cli: "codex", model: "gpt-5.6-sol" });
-    expect(out.harness_warning).toContain("codex");
-    expect(out.harness_warning).toContain("disabled");
+    const card = TaskCreateOutputSchema.parse(created.value).task;
 
-    // task_update citing the same disabled executor is likewise accepted.
-    const updated = await invokeTool(world.db, worker(), "task_update", {
-      task_id: out.task.short_id,
+    const rejectedUpdate = await invokeTool(world.db, worker(), "task_update", {
+      task_id: card.short_id,
       harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
     });
-    expect(updated.ok).toBe(true);
-    if (!updated.ok) return;
-    expect(updated.value).toHaveProperty("harness_warning");
+    expect(rejectedUpdate.ok).toBe(false);
+    if (rejectedUpdate.ok) return;
+    expect(rejectedUpdate.error.code).toBe("INVALID_ARGUMENT");
+    expect(rejectedUpdate.error.message).toContain("disabled");
+
+    const commented = await invokeTool(world.db, worker(), "task_update", {
+      task_id: card.short_id,
+      comment: "still editable without touching the harness",
+    });
+    expect(commented.ok).toBe(true);
+
+    // 5. Re-enabling codex makes the same explicit harness a normal accept
+    // again, on both task_create and task_update.
+    const reenabled = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "codex",
+      enabled: true,
+    });
+    expect(reenabled.ok).toBe(true);
+
+    const acceptedCreate = await invokeTool(world.db, worker(), "task_create", {
+      project_id: world.projectId,
+      title: "Card pinned to a re-enabled executor",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem: { cli: "codex" },
+      harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+    });
+    expect(acceptedCreate.ok).toBe(true);
+    if (!acceptedCreate.ok) return;
+    expect(TaskCreateOutputSchema.parse(acceptedCreate.value).task.harness).toMatchObject({
+      cli: "codex",
+      model: "gpt-5.6-sol",
+    });
+
+    const acceptedUpdate = await invokeTool(world.db, worker(), "task_update", {
+      task_id: card.short_id,
+      harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+    });
+    expect(acceptedUpdate.ok).toBe(true);
   });
 });

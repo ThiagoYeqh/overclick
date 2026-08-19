@@ -2431,7 +2431,7 @@ describe("MCP tool edge cases against a test db", () => {
     if (!badCli.ok) expect(badCli.error.code).toBe("INVALID_ARGUMENT");
   });
 
-  it("accepts a harness naming a disabled executor's model, with a warning instead of a block (OCL-75)", async () => {
+  it("rejects a harness naming a disabled executor's model instead of blocking (OCL-77, refines OCL-75)", async () => {
     world = await createTestWorld();
     const off = await invokeTool(world.db, { ...ctx(), canManage: true }, "executors_update", {
       cli: "claude-code",
@@ -2453,21 +2453,28 @@ describe("MCP tool edge cases against a test db", () => {
     if (!created.ok) return;
     const card = TaskCreateOutputSchema.parse(created.value).task;
 
-    // haiku-4-5 exists on claude-code, which is off; the write still applies.
+    // haiku-4-5 exists on claude-code, but claude-code is off: the write is
+    // a typed rejection, not a silent accept with a warning.
     const updated = await invokeTool(world.db, ctx(), "task_update", {
       task_id: card.id,
       harness: { cli: "claude-code", model: "haiku-4-5", effort: "low" },
     });
-    expect(updated.ok).toBe(true);
-    if (!updated.ok) return;
-    const out = TaskUpdateOutputSchema.parse(updated.value);
-    expect(out.task.harness).toEqual({
-      cli: "claude-code",
-      model: "haiku-4-5",
-      effort: "low",
+    expect(updated.ok).toBe(false);
+    if (updated.ok) return;
+    expect(updated.error.code).toBe("INVALID_ARGUMENT");
+    expect(updated.error.message).toContain("claude-code");
+    expect(updated.error.message).toContain("disabled");
+
+    // The card's harness is untouched by the rejected write, and other
+    // fields on it stay editable (OCL-77 item 4).
+    const reread = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "still editable without touching the harness",
     });
-    expect(out.harness_warning).toContain("claude-code");
-    expect(out.harness_warning).toContain("disabled");
+    expect(reread.ok).toBe(true);
+    if (!reread.ok) return;
+    const out = TaskUpdateOutputSchema.parse(reread.value);
+    expect(out.task.harness).toEqual(card.harness);
   });
 
   it("returns NOT_FOUND when deleting a card that does not exist", async () => {
