@@ -7,6 +7,15 @@
  * ellipsis while the title keeps the full reading, or moves behind the phone
  * menu. It never wraps.
  *
+ * OCL-82 added the second rule, one rung up from the first: where the bar has
+ * collapsed behind the Filtros button, the whole chrome is ONE row. The line
+ * rule above holds per control, so a bar could pass it while spending a rung
+ * on the wordmark and another on the single button left beside it — which is
+ * exactly what the board did on a phone. So the guard counts the bands the
+ * visible controls sit on, and where the Filtros button is on screen it
+ * requires exactly one. The wordmark counts even though it is drawn rather
+ * than typed: it is one of the controls the row has to hold.
+ *
  * A phone-sized check alone does not hold that rule: the regression this
  * script was written for showed up at 1440, where there is the most room, and
  * a 390 check was green the whole time. So the guard sweeps a list of widths
@@ -161,11 +170,41 @@ const MEASURE = `(() => {
     }
   }
 
+  // A line is a band of vertical overlap, not a shared top edge: a chip that
+  // sets a 19px figure beside a 10px caption aligns them on one baseline and
+  // their tops differ by design. Boxes that overlap vertically are the same
+  // line; a box that clears the band below it is a second line. The same
+  // counting answers both questions the guard asks — how many lines a label
+  // took, and how many rows the bar itself took.
+  const bands = (boxes) => {
+    boxes.sort((a, b) => a.top - b.top);
+    let lines = 0;
+    let bandBottom = -Infinity;
+    for (const box of boxes) {
+      if (box.top >= bandBottom) {
+        lines += 1;
+        bandBottom = box.bottom;
+      } else if (box.bottom > bandBottom) {
+        bandBottom = box.bottom;
+      }
+    }
+    return lines;
+  };
+
   const offenders = [];
   const measured = [];
+  // OCL-82: the rows the chrome itself spends. Collected before the text walk,
+  // because a control with no text of its own — the wordmark, which is drawn —
+  // still occupies a row.
+  const chromeBoxes = [];
   for (const control of controls) {
     const style = getComputedStyle(control);
     if (style.display === "none" || style.visibility === "hidden") continue;
+
+    const own = control.getBoundingClientRect();
+    if (own.width > 0 && own.height > 0) {
+      chromeBoxes.push({ top: own.top, bottom: own.bottom });
+    }
 
     const boxes = [];
     const pieces = [];
@@ -189,25 +228,9 @@ const MEASURE = `(() => {
     }
     if (!pieces.length) continue;
 
-    // A line is a band of vertical overlap, not a shared top edge: a chip that
-    // sets a 19px figure beside a 10px caption aligns them on one baseline and
-    // their tops differ by design. Boxes that overlap vertically are the same
-    // line; a box that clears the band below it is a second line.
-    boxes.sort((a, b) => a.top - b.top);
-    let lines = 0;
-    let bandBottom = -Infinity;
-    for (const box of boxes) {
-      if (box.top >= bandBottom) {
-        lines += 1;
-        bandBottom = box.bottom;
-      } else if (box.bottom > bandBottom) {
-        bandBottom = box.bottom;
-      }
-    }
-
     const entry = {
       text: pieces.join(" "),
-      lines,
+      lines: bands(boxes),
       width: Math.round(control.getBoundingClientRect().width),
       natural: control.scrollWidth,
       where: where(control),
@@ -220,6 +243,7 @@ const MEASURE = `(() => {
     offenders,
     labels: measured.length,
     measured,
+    rows: bands(chromeBoxes),
     barWidth: Math.round(bar.clientWidth),
     contentWidth: Math.round(bar.scrollWidth),
     overflow: Math.max(0, Math.round(bar.scrollWidth - bar.clientWidth)),
@@ -353,6 +377,19 @@ async function main() {
           }
         } else {
           console.log(`  ok   ${label}: ${row.labels} labels, one line each`);
+        }
+        // OCL-82: collapsed means the Filtros button is on screen, which is
+        // where the two levels merge. The closed bar is what a person sees on
+        // a phone before they touch anything, so that is what owes one row.
+        if (row.state === "bar" && row.menuVisible) {
+          if (row.rows === 1) {
+            console.log(`  ok   ${label}: one row of chrome`);
+          } else {
+            failed = true;
+            console.log(
+              `  FAIL ${label}: the collapsed bar spends ${row.rows} rows of chrome, and it may spend one`,
+            );
+          }
         }
         if (process.env.VERBOSE) {
           for (const item of row.measured) {
