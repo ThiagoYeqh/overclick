@@ -44,3 +44,7 @@ packages/db/drizzle/*.sql.bak
 .internal/
 deploy/.env
 .worktrees/
+
+# python bytecode (docs/design/logo-variants/tools)
+__pycache__/
+*.pyc
