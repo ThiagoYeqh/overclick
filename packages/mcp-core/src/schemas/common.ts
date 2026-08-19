@@ -311,13 +311,6 @@ export const TaskSummarySchema = z.object({
   reports_count: z.number().int().nonnegative().default(0),
 });
 
-/** Queue rows stay metadata-only; the card contract is deliberately absent. */
-export const TaskListItemSchema = TaskSummarySchema.extend({
-  branch: z.string().min(1).nullable(),
-  claimed_by: z.string().min(1).nullable(),
-  cost_usd: z.number().nullable(),
-});
-
 export const TaskSchema = TaskSummarySchema.extend({
   workspace_id: z.string().min(1),
   /**
@@ -349,6 +342,71 @@ export const TaskSchema = TaskSummarySchema.extend({
   claimed_by: z.string().nullable(),
   created_at: IsoDateTimeSchema,
   updated_at: IsoDateTimeSchema,
+});
+
+/**
+ * Read payload for task_get. Workspace identity and absent optional values do
+ * not belong in a card read: the MCP token already scopes the workspace, and
+ * callers can distinguish an unset field from an empty string without paying
+ * for a collection of null placeholders.
+ */
+export const TaskReadSchema = TaskSchema.omit({
+  workspace_id: true,
+  mission_id: true,
+  commit: true,
+  delivery_verification: true,
+  delivery_warning: true,
+  previous_short_ids: true,
+  parent_id: true,
+  supersedes: true,
+  superseded_by: true,
+  harness: true,
+  branch: true,
+  pull_request_url: true,
+  resolved_in: true,
+  reopen_comment: true,
+  claimed_by: true,
+  reports_count: true,
+}).extend({
+  mission_id: z.string().min(1).optional(),
+  commit: z.string().min(1).optional(),
+  delivery_verification: DeliveryVerificationSchema.optional(),
+  delivery_warning: z.string().min(1).optional(),
+  previous_short_ids: z.array(z.string().min(1)).min(1).optional(),
+  parent_id: z.string().min(1).optional(),
+  supersedes: z.string().min(1).optional(),
+  superseded_by: z.string().min(1).optional(),
+  harness: HarnessSchema.optional(),
+  branch: z.string().min(1).optional(),
+  pull_request_url: z.string().url().optional(),
+  resolved_in: z.string().min(1).optional(),
+  reopen_comment: z.string().min(1).optional(),
+  claimed_by: z.string().min(1).optional(),
+  reports_count: z.number().int().positive().optional(),
+});
+
+/** Queue rows stay metadata-only while carrying the planned harness. */
+export const TaskListItemSchema = TaskReadSchema.pick({
+  id: true,
+  short_id: true,
+  title: true,
+  type: true,
+  status: true,
+  revisado: true,
+  priority: true,
+  project_id: true,
+  mission_id: true,
+  devolve_para: true,
+  commit: true,
+  delivery_unverified: true,
+  delivery_verification: true,
+  delivery_warning: true,
+  reports_count: true,
+  harness: true,
+}).extend({
+  branch: z.string().min(1).optional(),
+  claimed_by: z.string().min(1).optional(),
+  cost_usd: z.number().optional(),
 });
 
 export const ExecutionAttemptSchema = z.object({
@@ -423,6 +481,7 @@ export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 export type ProjectCardCounts = z.infer<typeof ProjectCardCountsSchema>;
 export type Task = z.infer<typeof TaskSchema>;
+export type TaskRead = z.infer<typeof TaskReadSchema>;
 export type TaskListItem = z.infer<typeof TaskListItemSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;
 export type Handoff = z.infer<typeof HandoffSchema>;

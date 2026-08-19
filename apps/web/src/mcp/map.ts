@@ -21,6 +21,7 @@ import {
   type Reviewer,
   type StoredTranscriptRefWire,
   type Task,
+  type TaskRead,
   type Usage,
 } from "@agent-board/mcp-core";
 import type { mission, project, task } from "@agent-board/db/schema";
@@ -256,6 +257,54 @@ export function mapTask(
     claimed_by: row.claimedByTokenId,
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
+  };
+}
+
+/**
+ * Read-only card payloads omit workspace identity and unset values. Write
+ * responses keep using mapTask so their established nullable contract stays
+ * compatible with clients that consume mutation acknowledgements.
+ */
+export function mapTaskForRead(value: Task): TaskRead {
+  const {
+    workspace_id: _workspaceId,
+    mission_id,
+    commit,
+    delivery_verification: deliveryVerification,
+    delivery_warning: deliveryWarning,
+    previous_short_ids: previousShortIds,
+    parent_id: parentId,
+    supersedes,
+    superseded_by: supersededBy,
+    harness,
+    branch,
+    pull_request_url: pullRequestUrl,
+    resolved_in: resolvedIn,
+    reopen_comment: reopenComment,
+    claimed_by: claimedBy,
+    reports_count: reportsCount,
+    ...stable
+  } = value;
+
+  return {
+    ...stable,
+    ...(mission_id ? { mission_id } : {}),
+    ...(commit ? { commit } : {}),
+    ...(deliveryVerification ? { delivery_verification: deliveryVerification } : {}),
+    ...(deliveryWarning ? { delivery_warning: deliveryWarning } : {}),
+    ...(previousShortIds.length > 0
+      ? { previous_short_ids: previousShortIds }
+      : {}),
+    ...(parentId ? { parent_id: parentId } : {}),
+    ...(supersedes ? { supersedes } : {}),
+    ...(supersededBy ? { superseded_by: supersededBy } : {}),
+    ...(harness ? { harness } : {}),
+    ...(branch ? { branch } : {}),
+    ...(pullRequestUrl ? { pull_request_url: pullRequestUrl } : {}),
+    ...(resolvedIn ? { resolved_in: resolvedIn } : {}),
+    ...(reopenComment ? { reopen_comment: reopenComment } : {}),
+    ...(claimedBy ? { claimed_by: claimedBy } : {}),
+    ...(reportsCount > 0 ? { reports_count: reportsCount } : {}),
   };
 }
 

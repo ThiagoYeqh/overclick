@@ -112,6 +112,7 @@ import {
   mapProject,
   mapProjectDetail,
   mapTask,
+  mapTaskForRead,
   originToDb,
   parseComoConfirmo,
   reviewerFromRow,
@@ -1230,7 +1231,8 @@ async function taskList(
     truncated,
     limit,
     tasks: selected.map((row) => {
-      const mapped = mapTask(row.task, row.project);
+      const mapped = mapTaskForRead(mapTask(row.task, row.project));
+      const costUsd = latestCostByTask.get(mapped.id);
       return {
         id: mapped.id,
         short_id: mapped.short_id,
@@ -1240,15 +1242,21 @@ async function taskList(
         revisado: mapped.revisado,
         priority: mapped.priority,
         project_id: mapped.project_id,
-        mission_id: mapped.mission_id,
         devolve_para: mapped.devolve_para,
-        commit: mapped.commit,
         delivery_unverified: mapped.delivery_unverified,
-        delivery_verification: mapped.delivery_verification,
-        delivery_warning: mapped.delivery_warning,
-        branch: mapped.branch,
-        claimed_by: mapped.claimed_by,
-        cost_usd: latestCostByTask.get(mapped.id) ?? null,
+        ...(mapped.mission_id ? { mission_id: mapped.mission_id } : {}),
+        ...(mapped.commit ? { commit: mapped.commit } : {}),
+        ...(mapped.delivery_verification
+          ? { delivery_verification: mapped.delivery_verification }
+          : {}),
+        ...(mapped.delivery_warning
+          ? { delivery_warning: mapped.delivery_warning }
+          : {}),
+        ...(mapped.reports_count ? { reports_count: mapped.reports_count } : {}),
+        ...(mapped.harness ? { harness: mapped.harness } : {}),
+        ...(mapped.branch ? { branch: mapped.branch } : {}),
+        ...(mapped.claimed_by ? { claimed_by: mapped.claimed_by } : {}),
+        ...(costUsd != null ? { cost_usd: costUsd } : {}),
       };
     }),
   };
@@ -1270,7 +1278,7 @@ async function taskGet(
       `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
     );
   }
-  return assembleTaskPayload(
+  const payload = await assembleTaskPayload(
     db,
     found.row,
     found.proj,
@@ -1280,6 +1288,7 @@ async function taskGet(
     undefined,
     taskReadLayers(input),
   );
+  return compactTaskReadPayload(payload);
 }
 
 /**
@@ -3602,6 +3611,32 @@ async function assembleTaskPayload(
             "custo do attempt abandonado não reportado — envie task_update {usage} no card descartado",
         }
       : {}),
+  };
+}
+
+/** Keep task_get's compact read contract free of null and empty placeholders. */
+function compactTaskReadPayload(
+  payload: Awaited<ReturnType<typeof assembleTaskPayload>>,
+) {
+  return {
+    task: mapTaskForRead(payload.task),
+    branch_convention: payload.branch_convention,
+    usage_suspect: payload.usage_suspect,
+    ...(payload.briefing_markdown !== undefined
+      ? { briefing_markdown: payload.briefing_markdown }
+      : {}),
+    ...(payload.mission ? { mission: payload.mission } : {}),
+    ...(payload.usage_recipe ? { usage_recipe: payload.usage_recipe } : {}),
+    ...(payload.usage_suspect_reason
+      ? { usage_suspect_reason: payload.usage_suspect_reason }
+      : {}),
+    ...(payload.cost_usd != null ? { cost_usd: payload.cost_usd } : {}),
+    ...(payload.cost_source ? { cost_source: payload.cost_source } : {}),
+    ...(payload.cost_status ? { cost_status: payload.cost_status } : {}),
+    ...(payload.cost_unpriced_models.length > 0
+      ? { cost_unpriced_models: payload.cost_unpriced_models }
+      : {}),
+    ...(payload.usage_warning ? { usage_warning: payload.usage_warning } : {}),
   };
 }
 

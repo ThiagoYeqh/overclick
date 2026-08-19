@@ -11,6 +11,8 @@ import {
   ProjectUpdateInputSchema,
   TaskCreateInputSchema,
   TaskListInputSchema,
+  TaskListItemSchema,
+  TaskReadSchema,
   TaskClaimInputSchema,
   ExecutorsUpdateInputSchema,
   isTelemetryIncomplete,
@@ -78,6 +80,48 @@ describe("task_list", () => {
     expect(
       TaskListInputSchema.safeParse({ claimed_by: "another-token" }).success,
     ).toBe(false);
+  });
+
+  it("models compact read rows with an optional harness and absent fields", () => {
+    const task = TaskReadSchema.parse({
+      id: "task-1",
+      short_id: "OC-1",
+      title: "Compact read",
+      type: "feature",
+      status: "aberto",
+      revisado: false,
+      priority: "media",
+      project_id: "project-1",
+      devolve_para: { kind: "workspace_queue" },
+      delivery_unverified: false,
+      o_que: "The contract is available.",
+      por_que: "The queue stays cheap.",
+      como_confirmo: [{ step: "read", expected: "compact" }],
+      harness: { cli: "codex", model: "model-1", effort: "medium" },
+      origem: { cli: "codex" },
+      mode: "solo",
+      created_at: "2026-08-19T12:00:00.000Z",
+      updated_at: "2026-08-19T12:00:00.000Z",
+      workspace_id: "must-not-cross-the-wire",
+    });
+
+    expect(task.harness).toEqual({
+      cli: "codex",
+      model: "model-1",
+      effort: "medium",
+    });
+    expect(task).not.toHaveProperty("workspace_id");
+    expect(TaskReadSchema.safeParse({ ...task, commit: null }).success).toBe(false);
+
+    const row = TaskListItemSchema.parse({
+      ...task,
+      cost_usd: 0.25,
+    });
+    expect(row.cost_usd).toBe(0.25);
+    expect(row).not.toHaveProperty("workspace_id");
+    expect(TaskListItemSchema.safeParse({ ...row, cost_usd: null }).success).toBe(
+      false,
+    );
   });
 });
 

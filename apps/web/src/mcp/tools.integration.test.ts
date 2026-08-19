@@ -734,8 +734,10 @@ describe("MCP tool edge cases against a test db", () => {
         cost_usd: 0.455,
         cost_source: "computed",
         cost_status: "computed",
-        cost_unpriced_models: [],
       });
+      expect(TaskGetOutputSchema.parse(fetched.value)).not.toHaveProperty(
+        "cost_unpriced_models",
+      );
     }
   });
 
@@ -779,11 +781,13 @@ describe("MCP tool edge cases against a test db", () => {
     expect(fetched.ok).toBe(true);
     if (fetched.ok) {
       expect(TaskGetOutputSchema.parse(fetched.value)).toMatchObject({
-        cost_usd: null,
-        cost_source: null,
         cost_status: "unpriced",
         cost_unpriced_models: ["future-model"],
       });
+      expect(TaskGetOutputSchema.parse(fetched.value)).not.toHaveProperty("cost_usd");
+      expect(TaskGetOutputSchema.parse(fetched.value)).not.toHaveProperty(
+        "cost_source",
+      );
     }
   });
 
@@ -1818,10 +1822,13 @@ describe("MCP tool edge cases against a test db", () => {
     const listRow = listPayload.tasks.find((row) => row.id === card.id);
     expect(listRow).toMatchObject({
       short_id: card.short_id,
-      claimed_by: null,
-      branch: null,
-      cost_usd: null,
+      harness: card.harness,
     });
+    expect(listRow).not.toHaveProperty("claimed_by");
+    expect(listRow).not.toHaveProperty("branch");
+    expect(listRow).not.toHaveProperty("cost_usd");
+    expect(listRow).not.toHaveProperty("workspace_id");
+    expect(Object.values(listRow ?? {})).not.toContain(null);
     expect(listRow).not.toHaveProperty("o_que");
     expect(listRow).not.toHaveProperty("como_confirmo");
     expect(listRow).not.toHaveProperty("briefing_markdown");
@@ -1839,6 +1846,16 @@ describe("MCP tool edge cases against a test db", () => {
     const compactPayload = TaskGetOutputSchema.parse(compact.value);
     const briefingPayload = TaskGetOutputSchema.parse(briefing.value);
     expect(compactPayload.task.o_que).toContain("contract stays available");
+    expect(compactPayload.task).not.toHaveProperty("workspace_id");
+    expect(compactPayload.task).not.toHaveProperty("commit");
+    expect(compactPayload.task).not.toHaveProperty("previous_short_ids");
+    expect(compactPayload.task).not.toHaveProperty("parent_id");
+    expect(compactPayload.task).not.toHaveProperty("supersedes");
+    expect(compactPayload.task).not.toHaveProperty("branch");
+    expect(compactPayload.task).not.toHaveProperty("claimed_by");
+    expect(compactPayload.task).not.toHaveProperty("reopen_comment");
+    expect(Object.values(compactPayload.task)).not.toContain(null);
+    expect(Object.values(compactPayload)).not.toContain(null);
     expect(compactPayload).not.toHaveProperty("briefing_markdown");
     expect(compactPayload).not.toHaveProperty("usage_recipe");
     expect(compactPayload).not.toHaveProperty("mission");

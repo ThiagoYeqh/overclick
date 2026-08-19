@@ -73,7 +73,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   mission_delete:
     "Deletes an empty mission shell. A mission with cards is refused with its count unless force: true explicitly detaches those cards first.",
   task_list:
-    "The card queue of the workspace. Filters: project, mission, resolved_in (exact release), status, priority, claimed_by: me, awaiting_review_by, limit (default 50, max 200). The response returns truncated: true when the board has more cards than fit.",
+    "The card queue of the workspace. Each row includes the planned harness (CLI, model, effort), so task_list is enough to dispatch; the executor receives the full contract at task_claim. Unset fields are omitted and workspace_id is not repeated. Filters: project, mission, resolved_in (exact release), status, priority, claimed_by: me, awaiting_review_by, limit (default 50, max 200). The response returns truncated: true when the board has more cards than fit.",
   task_get:
     "The self-contained card: contract, harness, mission and branch convention, in markdown.",
   task_search:

@@ -94,6 +94,10 @@ progress and therefore invisible to the board.
 
 ## Dispatching
 
+`task_list` is enough to dispatch: each queue row carries the planned CLI,
+model, and effort. Do not call `task_get` just to choose an executor; the
+executor receives the full contract when it claims the card.
+
 When another executor receives a card, send only:
 
 ```text
