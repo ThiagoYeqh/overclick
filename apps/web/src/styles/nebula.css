@@ -189,16 +189,17 @@
   border: 1px solid var(--nebula-glass-border);
   border-radius: var(--nebula-glass-radius);
   box-shadow: var(--nebula-glass-shadow);
-  backdrop-filter: blur(var(--nebula-glass-blur));
+  /* Prefix first: Lightning CSS keeps the standards form that comes last. */
   -webkit-backdrop-filter: blur(var(--nebula-glass-blur));
+  backdrop-filter: blur(var(--nebula-glass-blur));
 }
 .nebula-glass-fade {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: 38%;
   pointer-events: none;
-  backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   mask-image: linear-gradient(to bottom, transparent, black 70%);
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 70%);
 }
@@ -206,8 +207,8 @@
   content: "";
   position: absolute;
   inset: 30% 0 0 0;
-  backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
   mask-image: linear-gradient(to bottom, transparent, black 80%);
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 80%);
 }
@@ -672,8 +673,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   border: 1px solid var(--nebula-glass-border);
   border-radius: var(--oc-radius-pill); font-size: 12px;
   padding: 7px 14px; cursor: pointer;
-  backdrop-filter: blur(var(--nebula-btn-account-blur));
   -webkit-backdrop-filter: blur(var(--nebula-btn-account-blur));
+  backdrop-filter: blur(var(--nebula-btn-account-blur));
   transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
 }
 .nb .btn-ghost:hover { color: var(--nebula-text-primary); border-color: var(--oc-border-hover); }
@@ -706,8 +707,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   appearance: none; background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
   border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
   padding: 6px 11px; cursor: pointer;
-  backdrop-filter: blur(var(--nebula-btn-account-blur));
   -webkit-backdrop-filter: blur(var(--nebula-btn-account-blur));
+  backdrop-filter: blur(var(--nebula-btn-account-blur));
   transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
 }
 .nb .am-trigger:hover { color: var(--nebula-text-primary); border-color: var(--oc-border-hover); }
@@ -859,7 +860,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   height: 32px; padding: 0 12px;
   border: 1px solid var(--nebula-glass-border); border-radius: 8px;
   background: transparent;
-  backdrop-filter: none; -webkit-backdrop-filter: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
   color: var(--nebula-text-secondary);
   font-family: var(--nebula-font-sans); font-size: 13px;
   font-weight: var(--nebula-weight-medium); letter-spacing: 0;
@@ -1354,7 +1355,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    and the menu it opens (40), because a bar drawn over the panel is the same
    bleed-through the panel exists to end. */
 .nb .ov { position: fixed; inset: 0; z-index: var(--oc-z-modal); background: var(--oc-overlay-bg);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 48px 20px;
   animation: nb-ov-in .18s ease-out; }
 @keyframes nb-ov-in { from { opacity: 0 } to { opacity: 1 } }
@@ -2618,7 +2619,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .ov {
     padding: 0;
     background: var(--nebula-panel-solid);
-    backdrop-filter: none; -webkit-backdrop-filter: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
     /* no opacity here: a fade over readable text is the bug itself */
     animation: none;
     align-items: stretch;
@@ -2629,7 +2630,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     width: 100%; max-width: none; height: 100%;
     border: 0; border-radius: 0; box-shadow: none;
     background: var(--nebula-panel-solid);
-    backdrop-filter: none; -webkit-backdrop-filter: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
     /* the sheet carries its own scroll, so nothing scrolls behind it */
     overflow-y: auto; overscroll-behavior: contain;
     animation: nb-sheet-in .22s cubic-bezier(.2,.8,.2,1);
