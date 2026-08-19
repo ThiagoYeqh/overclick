@@ -305,7 +305,7 @@
    reforço e o fallback.
    ============================================================ */
 .atmo, .atmo canvas, .atmo-overlay { position: fixed; inset: 0; }
-.atmo { z-index: -3; background: var(--nebula-void); }
+.atmo { z-index: var(--oc-z-atmo-back); background: var(--nebula-void); }
 /* the 2D layer is drawn in JS with the nebula palette baked in: a theme
    that has no atmosphere turns it off here, and the fixed layer behind
    everything moves nothing when it goes */
@@ -313,12 +313,12 @@
 .atmo-overlay { pointer-events: none; }
 
 .atmo-mist {
-  z-index: -2;
+  z-index: var(--oc-z-atmo-mid);
   background: var(--oc-atmo-mist);
   animation: nebula-drift-a var(--nebula-duration-drift) var(--nebula-ease-atmosphere) infinite alternate;
 }
 .atmo-veil {
-  z-index: -2;
+  z-index: var(--oc-z-atmo-mid);
   background: var(--oc-atmo-veil);
   animation: nebula-drift-b var(--nebula-duration-flow) var(--nebula-ease-atmosphere) infinite alternate;
 }
@@ -331,12 +331,12 @@
   to   { transform: translate3d(2.5vw, -3vh, 0); opacity: 1; }
 }
 .atmo-grain {
-  z-index: -1;
+  z-index: var(--oc-z-atmo-front);
   opacity: calc(var(--nebula-grain-opacity) * 0.22);
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
 }
-.atmo-vignette { z-index: -1; background: var(--nebula-vignette); }
+.atmo-vignette { z-index: var(--oc-z-atmo-front); background: var(--nebula-vignette); }
 
 @media (prefers-reduced-motion: reduce) {
   .atmo-mist, .atmo-veil { animation: none; }
@@ -367,12 +367,25 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    of every squeezed header. Both levels sit on the canvas — no glass — and
    the only chrome is the 1px line under level 2. The bare `.topbar` rule
    below still serves the other screens (Insights, Settings), which keep
-   their one glass bar. */
+   their one glass bar.
+
+   OCL-59: whatever a bar is made of, it owns a rung, at every width, and it
+   owns it because of what hangs off it. A bar that is a stacking context —
+   the glass one on Insights, or any level that gains one tomorrow — locks
+   its menu's `--oc-z-menu` inside itself: from outside, bar and menu are one
+   box with no layer at all, and the cards, later in the document, draw over
+   an open menu and take its clicks. So the rung is named on the wrap, which
+   carries both levels, and on `.topbar` itself, which is the whole bar
+   everywhere else. */
 .nb .topbar {
   display: flex; align-items: center; gap: var(--nebula-space-4);
   padding: var(--nebula-space-3) 18px; margin-bottom: 22px;
+  position: relative; z-index: var(--oc-z-chrome);
 }
-.nb .topbar-wrap { margin-bottom: 22px; }
+.nb .topbar-wrap {
+  margin-bottom: 22px;
+  position: relative; z-index: var(--oc-z-chrome);
+}
 .nb .topbar-l1 { padding: 10px 0; margin-bottom: 0; }
 .nb .topbar-l2 {
   display: flex; align-items: center; flex-wrap: nowrap;
@@ -454,7 +467,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nb .pf-panel {
-  position: absolute; z-index: 20; top: calc(100% + 8px); left: 0;
+  position: absolute; z-index: var(--oc-z-panel); top: calc(100% + 8px); left: 0;
   min-width: 240px; max-width: min(320px, calc(100vw - 32px));
   padding: 8px; background: var(--oc-panel-bg);
 }
@@ -506,7 +519,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mf-clear { font-size: 13px; line-height: 1; opacity: 0.7; }
 .nb .mf-clear:hover { opacity: 1; color: var(--nebula-text-primary); }
 .nb .mf-panel {
-  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
+  position: absolute; z-index: var(--oc-z-panel); top: calc(100% + 6px); left: 0;
   min-width: 240px; max-width: min(320px, calc(100vw - 32px));
   padding: 8px; background: var(--oc-panel-bg);
 }
@@ -586,7 +599,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   background: var(--oc-surface-hover);
 }
 .nb .ff-panel {
-  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
+  position: absolute; z-index: var(--oc-z-panel); top: calc(100% + 6px); left: 0;
   width: 240px; max-width: min(320px, calc(100vw - 32px));
   padding: 8px; background: var(--oc-panel-bg);
 }
@@ -699,7 +712,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .am-trigger:hover { color: var(--nebula-text-primary); border-color: var(--oc-border-hover); }
 .nb .am-panel {
-  position: absolute; z-index: 40; top: calc(100% + 8px); right: 0;
+  position: absolute; z-index: var(--oc-z-menu); top: calc(100% + 8px); right: 0;
   min-width: 200px; max-width: min(300px, calc(100vw - 32px));
   padding: 8px; background: var(--oc-panel-bg);
   display: flex; flex-direction: column; gap: 2px;
@@ -983,7 +996,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 /* The reading of the figure, one line per fact, each caveat linked to where
    it is resolved. */
 .nb .bt-popover {
-  position: absolute; z-index: 40; top: calc(100% + 8px); right: 0;
+  position: absolute; z-index: var(--oc-z-menu); top: calc(100% + 8px); right: 0;
   min-width: 260px; max-width: min(340px, calc(100vw - 32px));
   padding: 12px; background: var(--oc-panel-bg);
   display: flex; flex-direction: column; gap: 6px;
@@ -1334,13 +1347,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 
 /* ---------- progressive blur no rodapé do viewport ---------- */
-.nb .viewport-fade { position: fixed; height: 15vh; z-index: 5; }
+.nb .viewport-fade { position: fixed; height: 15vh; z-index: var(--oc-z-fade); }
 
 /* ---------- detalhe do card (overlay client-side) ---------- */
 /* The modal is the top layer of the board: above the phone's sticky bar (30)
    and the menu it opens (40), because a bar drawn over the panel is the same
    bleed-through the panel exists to end. */
-.nb .ov { position: fixed; inset: 0; z-index: 50; background: var(--oc-overlay-bg);
+.nb .ov { position: fixed; inset: 0; z-index: var(--oc-z-modal); background: var(--oc-overlay-bg);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 48px 20px;
   animation: nb-ov-in .18s ease-out; }
@@ -1668,7 +1681,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    ============================================================ */
 .nb a { color: inherit; text-decoration: none; }
 .nb-center .stage { min-height: calc(100vh - 88px); display: flex; align-items: center; justify-content: center; }
-.nb .stage { position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 20px 0; }
+.nb .stage { position: relative; z-index: var(--oc-z-content); display: flex; align-items: center; justify-content: center; padding: 20px 0; }
 
 /* ---------- wizard ---------- */
 /* The side padding is a variable because the footer hangs off it with a
@@ -1902,11 +1915,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .btn-back:focus-visible, .nb .btn-next:focus-visible, .nb .skip:focus-visible {
   outline: none; box-shadow: var(--nebula-focus-ring-offset); border-radius: var(--oc-radius-pill);
 }
-.nb .werr { color: var(--oc-danger); font-size: 12.5px; margin: 10px 0 0; position: relative; z-index: 2; }
+.nb .werr { color: var(--oc-danger); font-size: 12.5px; margin: 10px 0 0; position: relative; z-index: var(--oc-z-content); }
 .nb .wok { color: var(--oc-ok); font-size: 12.5px; margin: 10px 0; font-family: var(--nebula-font-label); }
 
 /* ---------- settings ---------- */
-.nb .page { position: relative; z-index: 2; max-width: 1020px; margin: 0 auto; }
+.nb .page { position: relative; z-index: var(--oc-z-content); max-width: 1020px; margin: 0 auto; }
 .nb h1 { font-size: 24px; font-weight: var(--nebula-weight-medium); letter-spacing: -.015em; margin-bottom: 4px; text-shadow: var(--nebula-glow-text); }
 .nb .page-sub { font-size: 12.5px; color: var(--nebula-text-secondary); margin-bottom: 20px; }
 /* Seven tabs is more than a narrow window fits, so the strip scrolls instead
@@ -2245,7 +2258,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .card-pick { flex: 0 0 auto; margin: 0; accent-color: var(--oc-accent); cursor: pointer; }
 /* the bar only exists while a selection does, so it sits over the board */
 .nb .bulk-bar {
-  position: fixed; z-index: 10; left: 50%; bottom: 24px; transform: translateX(-50%);
+  position: fixed; z-index: var(--oc-z-bar); left: 50%; bottom: 24px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 12px; padding: 10px 14px;
   background: var(--oc-modal-bg);
 }
@@ -2346,13 +2359,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    level 2 collapses behind the same Filters control used on phones. This
    prevents the level from clipping while preserving the desktop board. */
 @media (min-width: 769px) and (max-width: 1050px) {
-  .nb .topbar-l2 { position: relative; z-index: 30; }
+  /* level 2 is the origin the collapsed panel hangs off, so it is positioned
+     here; the rung it rides is the wrap's, stated once in the base rule */
+  .nb .topbar-l2 { position: relative; }
   .nb .filters-btn { display: inline-flex; }
-  .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
+  .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: var(--oc-z-backdrop); }
   .nb .topbar-more { display: none; }
   .nb .topbar-more.open {
     display: flex; flex-direction: column; align-items: stretch; gap: 8px;
-    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 40;
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: var(--oc-z-menu);
     padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-panel);
     background: var(--nebula-panel-solid);
   }
@@ -2389,11 +2404,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
      The whole wrap sticks to the top on the canvas itself — no glass — so
      the list scrolls under it. */
   .nb .topbar {
-    position: sticky; top: 8px; z-index: 30;
+    position: sticky; top: 8px; z-index: var(--oc-z-chrome);
     gap: 8px; padding: 10px 12px; margin-bottom: 14px;
   }
   .nb .topbar-wrap {
-    position: sticky; top: 8px; z-index: 30; margin-bottom: 14px;
+    position: sticky; top: 8px; z-index: var(--oc-z-chrome); margin-bottom: 14px;
     /* opaque: the list scrolls under the levels, and a bright row title
        bleeding through the bar reads as a bug, not as depth */
     background: var(--nebula-void);
@@ -2412,12 +2427,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-l2 .filters-btn,
   .nb .topbar-l1 .am-trigger,
   .nb .topbar-l1 .board-total { min-height: var(--nebula-tap); height: auto; }
-  .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
+  .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: var(--oc-z-backdrop); }
   /* the panel behind the button: same controls, same order, one per row */
   .nb .topbar-more { display: none; }
   .nb .topbar-more.open {
     display: flex; flex-direction: column; align-items: stretch; gap: 8px;
-    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 40;
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: var(--oc-z-menu);
     padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-panel);
     /* opaque: the list scrolls under the bar, and a bright row title bleeding
        through the panel reads as a bug, not as depth */
@@ -2438,7 +2453,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-more .facet-filters, .nb .topbar-more .ff-trigger { width: 100%; }
   .nb .topbar-more .ff-trigger { text-align: left; }
   .nb .ff-panel {
-    position: fixed; top: auto; right: 0; bottom: 0; left: 0; z-index: 60;
+    position: fixed; top: auto; right: 0; bottom: 0; left: 0; z-index: var(--oc-z-sheet);
     width: auto; max-width: none; max-height: min(80vh, 620px); overflow-y: auto;
     padding: 16px 16px max(16px, env(safe-area-inset-bottom));
     border-radius: var(--oc-radius-sheet) var(--oc-radius-sheet) 0 0;
@@ -2644,7 +2659,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   /* AGB-72: the sheet scrolls under the way out, so the way out stays put.
      It sits on the sheet's own colour because the text passes beneath it. */
   .nb .d-close {
-    position: fixed; z-index: 2;
+    position: fixed; z-index: var(--oc-z-content);
     top: calc(12px + env(safe-area-inset-top, 0px));
     right: calc(12px + env(safe-area-inset-right, 0px));
     width: var(--nebula-tap, 44px); height: var(--nebula-tap, 44px);

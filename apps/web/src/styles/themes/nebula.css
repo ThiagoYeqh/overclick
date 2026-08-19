@@ -251,6 +251,46 @@
      from padding and font size, never from the target. */
   --oc-tap: 44px;
 
+  /* ---------- layers (OCL-59) ----------
+     The one ladder the board stacks on. Before this, every panel picked its
+     own number and the order held only while no ancestor happened to open a
+     stacking context; the day the bar's glass opened one, its menu was
+     trapped inside it and the cards below — later in the document, so later
+     in paint order — drew over an open menu and swallowed its clicks.
+
+     The rungs are absolute: a rule never writes a number, it names a rung,
+     and a rung above another is above it on screen no matter which element
+     carries it. Read from the floor up:
+
+       atmo-*   the canvas behind everything, below the content plane
+       content  the content plane over the atmosphere: the board's own
+                columns and cards, and every page that is not the board
+       fade     the viewport's bottom blur, over the board, under any control
+       bar      the floating bulk-selection bar
+       panel    a filter panel hanging off a control in the bar
+       backdrop the tap-away sheet that closes a phone panel
+       chrome   the bars themselves — this is what keeps a bar's own panels
+                over the board even when the bar is a stacking context
+       menu     dropdowns, menus and popovers: always over the board
+       modal    the card detail and its overlay: over the menu that opened it
+       sheet    the phone's full-screen detail, over everything
+
+     A number is a value, so it lives here; the choice of rung is layout, so
+     it lives in the component sheet. Nothing between rungs: a new layer gets
+     a name here, never a `+1` at the call site. */
+  --oc-z-atmo-back: -3;
+  --oc-z-atmo-mid: -2;
+  --oc-z-atmo-front: -1;
+  --oc-z-content: 2;
+  --oc-z-fade: 5;
+  --oc-z-bar: 10;
+  --oc-z-panel: 20;
+  --oc-z-backdrop: 25;
+  --oc-z-chrome: 30;
+  --oc-z-menu: 40;
+  --oc-z-modal: 50;
+  --oc-z-sheet: 60;
+
   /* ---------- motion ---------- */
   /* the micro-interaction window the doctrine sets for hover states */
   --oc-duration-micro: 200ms;
