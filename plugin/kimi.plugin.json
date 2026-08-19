@@ -26,6 +26,12 @@
     },
     {
       "event": "PostToolUse",
+      "matcher": "task_claim|mcp__.*__task_claim|task_deliver|mcp__.*__task_deliver|task_release|mcp__.*__task_release",
+      "command": "./hooks/claim-guard.sh",
+      "timeout": 15
+    },
+    {
+      "event": "PostToolUse",
       "matcher": "task_deliver|mcp__.*__task_deliver",
       "command": "./hooks/post-deliver.sh",
       "timeout": 30
@@ -40,6 +46,12 @@
       "event": "PreToolUse",
       "matcher": "task_create|mcp__.*__task_create",
       "command": "./hooks/pre-create.sh",
+      "timeout": 15
+    },
+    {
+      "event": "PreToolUse",
+      "matcher": "Edit|Write|Bash",
+      "command": "./hooks/claim-guard.sh",
       "timeout": 15
     }
   ],
