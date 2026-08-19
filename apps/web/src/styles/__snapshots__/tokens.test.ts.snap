@@ -150,6 +150,18 @@ exports[`the token snapshot, per theme > nebula resolves to the values it was re
   "--oc-weight-light": "300",
   "--oc-weight-medium": "500",
   "--oc-white-rgb": "255 255 255",
+  "--oc-z-atmo-back": "-3",
+  "--oc-z-atmo-front": "-1",
+  "--oc-z-atmo-mid": "-2",
+  "--oc-z-backdrop": "25",
+  "--oc-z-bar": "10",
+  "--oc-z-chrome": "30",
+  "--oc-z-content": "2",
+  "--oc-z-fade": "5",
+  "--oc-z-menu": "40",
+  "--oc-z-modal": "50",
+  "--oc-z-panel": "20",
+  "--oc-z-sheet": "60",
 }
 `;
 

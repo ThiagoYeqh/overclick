@@ -103,6 +103,38 @@ Rules: no component may use a hex/rgba literal — tokens only. `--oc-ok`/`--oc-
 may appear **only** on status dots, status text, error text and destructive actions;
 never on tags, counters, borders-as-decoration.
 
+### Layers (`--oc-z-*`, OCL-59)
+
+Depth is a token too. A rule never writes a z-index number; it names a rung, and the
+rungs are the whole ladder the board stacks on:
+
+| Rung | Value | What sits there |
+|---|---|---|
+| `--oc-z-atmo-back/mid/front` | -3 / -2 / -1 | the canvas behind the content |
+| `--oc-z-content` | 2 | the board's columns and cards, and every non-board page |
+| `--oc-z-fade` | 5 | the viewport's bottom blur |
+| `--oc-z-bar` | 10 | the floating bulk-selection bar |
+| `--oc-z-panel` | 20 | a filter panel hanging off a control in a bar |
+| `--oc-z-backdrop` | 25 | the tap-away target that closes a phone panel |
+| `--oc-z-chrome` | 30 | the bars themselves |
+| `--oc-z-menu` | 40 | dropdowns, menus, popovers |
+| `--oc-z-modal` | 50 | the card detail and its overlay |
+| `--oc-z-sheet` | 60 | the phone's full-screen detail |
+
+Two rules make the ladder hold, and both are enforced by `styles/layers.test.ts`:
+
+1. **A bar that owns a panel owns a rung.** Glass makes a bar a stacking context, so
+   the panel's own rung counts only *inside* the bar; from outside, bar and panel are
+   one box, and anything later in the document draws over both. Both bars state
+   `--oc-z-chrome` in their base rule, at every width — `.topbar-wrap`, which carries
+   the board's two levels (§3), and `.topbar`, which is the whole bar on every other
+   screen. Never only inside a media query.
+2. **A menu is always over the board.** A hover state, a lift, a card: none of them
+   may cover an open menu or take its clicks. Anything the board draws stays under
+   `--oc-z-menu`, and the detail that a menu opens stays over it.
+
+New layer? It gets a name here, never a `+1` at the call site.
+
 ---
 
 ## 3. Component specs
