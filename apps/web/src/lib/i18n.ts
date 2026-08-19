@@ -255,6 +255,8 @@ const en = {
     copied: "Copied",
     /** The panel is a dialog, so the way out of it is named, not a glyph. */
     close: "Close card",
+    cardLocation: "Card location",
+    filterByMission: "Filter the board by this mission",
     /** An empty contract is a fact about the card, not a dash. */
     noSteps: "This card was written without confirmation steps.",
   },
@@ -784,6 +786,8 @@ const ptBR: Dict = {
     copyRecompute: "Copiar comando de usage",
     copied: "Copiado",
     close: "Fechar card",
+    cardLocation: "Localização do card",
+    filterByMission: "Filtrar o board por esta missão",
     noSteps: "Este card foi escrito sem passos de confirmação.",
   },
   wizard: {

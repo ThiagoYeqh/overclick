@@ -111,6 +111,7 @@ export type BoardCard = {
   validationTicks: ValidationTickView[];
   howToVerify: string | null;
   projectId: string;
+  projectName: string;
   missionId: string | null;
   mission: string | null;
   /** Planned harness with its effort, for the detail panel. */
@@ -742,8 +743,16 @@ function MissionField({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [value, setValue] = useState(card.missionId ?? "");
+  const currentMissionId = missions.some((miss) => miss.id === card.missionId)
+    ? card.missionId ?? ""
+    : "";
+  const [value, setValue] = useState(currentMissionId);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValue(currentMissionId);
+    setErr(null);
+  }, [card.id, currentMissionId]);
 
   const change = (next: string) => {
     const previous = value;
@@ -783,6 +792,53 @@ function MissionField({
       )}
       {err ? <p className="d-err">{err}</p> : null}
     </div>
+  );
+}
+
+function CardLocation({
+  card,
+  onMissionSelect,
+  onClose,
+  t,
+}: {
+  card: BoardCard;
+  onMissionSelect?: (missionId: string) => void;
+  onClose: () => void;
+  t: Dict;
+}) {
+  const hasMission = Boolean(card.missionId && card.mission?.trim());
+
+  return (
+    <nav className="d-location" aria-label={t.detail.cardLocation}>
+      <span className="d-location-project" title={card.projectName}>
+        {card.projectName}
+      </span>
+      <span className="d-location-separator" aria-hidden="true">
+        ›
+      </span>
+      {hasMission ? (
+        onMissionSelect ? (
+          <button
+            className="d-location-mission"
+            type="button"
+            onClick={() => {
+              onMissionSelect(card.missionId!);
+              onClose();
+            }}
+            aria-label={t.detail.filterByMission}
+            title={card.mission!}
+          >
+            {card.mission}
+          </button>
+        ) : (
+          <span className="d-location-mission" title={card.mission!}>
+            {card.mission}
+          </span>
+        )
+      ) : (
+        <span className="d-location-empty">{t.detail.missionNone}</span>
+      )}
+    </nav>
   );
 }
 
@@ -943,11 +999,13 @@ const SHEET_QUERY = "(max-width: 768px), (orientation: landscape) and (max-heigh
 function Detail({
   card,
   missions,
+  onMissionSelect,
   onClose,
   t,
 }: {
   card: BoardCard;
   missions: BoardMissionOption[];
+  onMissionSelect?: (missionId: string) => void;
   onClose: () => void;
   t: Dict;
 }) {
@@ -1045,6 +1103,12 @@ function Detail({
         </button>
         <div className="d-head">
           <span>{card.shortId}</span>
+          <CardLocation
+            card={card}
+            onMissionSelect={onMissionSelect}
+            onClose={onClose}
+            t={t}
+          />
           <span className={`tag ${card.tipo}`}>{card.tipo}</span>
           <span className={`d-status ${STATUS_CHIP[card.status]}`}>
             {/* The same mark the card's column carries on the board, so the
@@ -1282,6 +1346,7 @@ export function Board({
   selectable = false,
   selectedIds = [],
   onToggleSelect,
+  onMissionSelect,
 }: {
   cards: BoardCard[];
   lang: string;
@@ -1291,6 +1356,7 @@ export function Board({
   selectable?: boolean;
   selectedIds?: string[];
   onToggleSelect?: (id: string) => void;
+  onMissionSelect?: (missionId: string) => void;
 }) {
   const t = dict(lang);
   const colLabel = columnLabels(t);
@@ -1378,6 +1444,7 @@ export function Board({
         <Detail
           card={open}
           missions={missions}
+          onMissionSelect={onMissionSelect}
           onClose={() => setOpen(null)}
           t={t}
         />

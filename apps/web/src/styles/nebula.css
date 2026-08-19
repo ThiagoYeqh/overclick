@@ -1316,6 +1316,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-btn-pri:focus-visible,
 .nb .d-btn-sec:focus-visible,
 .nb .d-btn-ghost:focus-visible,
+.nb .d-location-mission:focus-visible,
 .nb .d-check-row:focus-within {
   outline: none;
   box-shadow: var(--nebula-focus-ring);
@@ -1360,6 +1361,21 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-head { display: flex; align-items: center; flex-wrap: wrap; row-gap: 6px;
   padding-right: 44px; gap: var(--nebula-space-2); margin-bottom: var(--nebula-space-2);
   font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-tertiary); }
+.nb .d-location {
+  flex: 1 1 100%; min-width: 0; display: inline-flex; align-items: baseline;
+  flex-wrap: wrap; gap: 4px; font-family: var(--nebula-font-sans); font-size: 12px;
+  line-height: 1.45; color: var(--nebula-text-secondary);
+}
+.nb .d-location-project { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); }
+.nb .d-location-separator { color: var(--nebula-text-tertiary); }
+.nb .d-location-mission {
+  min-width: 0; padding: 0; border: 0; background: none; color: var(--nebula-text-secondary);
+  font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere;
+  text-decoration: underline; text-decoration-color: var(--nebula-text-tertiary);
+  text-underline-offset: 3px;
+}
+.nb button.d-location-mission:hover { color: var(--nebula-text-primary); }
+.nb .d-location-empty { color: var(--nebula-text-tertiary); }
 .nb .d-status { font-family: var(--nebula-font-label); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase;
   border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); padding: 2px 9px; color: var(--nebula-text-secondary); }
 .nb .d-status.exec { color: var(--oc-info); border-color: rgb(var(--oc-info-rgb) / .3); }
