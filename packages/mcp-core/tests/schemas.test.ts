@@ -9,6 +9,7 @@ import {
   PROJECT_CONTEXT_MAX_CHARS,
   ProjectCreateInputSchema,
   TaskCreateInputSchema,
+  TaskListInputSchema,
   isTelemetryIncomplete,
   toolContracts,
 } from "../src/index.js";
@@ -47,6 +48,17 @@ describe("MCP tool contracts", () => {
       expect(toolContracts[name].input).toBeDefined();
       expect(toolContracts[name].output).toBeDefined();
     }
+  });
+});
+
+describe("task_list", () => {
+  it("accepts only the caller shorthand for claimed cards", () => {
+    expect(TaskListInputSchema.parse({ claimed_by: "me" })).toEqual({
+      claimed_by: "me",
+    });
+    expect(
+      TaskListInputSchema.safeParse({ claimed_by: "another-token" }).success,
+    ).toBe(false);
   });
 });
 

@@ -31,23 +31,37 @@ time, because those are facts on every plan. Money is an optional layer, off by 
 
 ## Quickstart
 
+Start your self-hosted board:
+
 ```bash
-git clone https://github.com/ustoppble/overclick && cd overclick
+gh repo clone ustoppble/overclick && cd overclick
 docker compose up --build
 ```
 
-Open `http://localhost:3000`, create the local admin account (e-mail + password, stored in
-your own Postgres, used only for login), and follow the 3-step onboarding: project,
-executors, connect your agent. Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
+Open the board, create the local admin account, and complete project and executor
+setup. The account stays in your own database and is used only for login. Full
+walkthrough: [docs/getting-started.md](docs/getting-started.md).
 
-### Connect an agent
+Then install the official plugin from your own instance:
 
 ```bash
-claude mcp add --transport http overclick http://<your-host>/mcp \
-  --header "Authorization: Bearer <your-token>"
+export OVERCLICK_INSTANCE_URL="<your-instance-url>"
+curl --fail --silent --show-error "$OVERCLICK_INSTANCE_URL/install.sh" | bash
 ```
 
-Then, in your terminal: *"grab the next task from the board."* Watch the example card move.
+The installer detects Claude Code, Codex, Grok CLI, and Kimi Code; asks for the
+instance and token without echoing the token; installs the native plugin; and configures
+the MCP connection. Run it again safely when the plugin changes. Credentials stay in
+private user configuration and are never written into this repository.
+
+For Claude Code, the native manual path is `/plugin marketplace add
+ustoppble/overclick`, followed by installing `overclick@overclick`. The package also
+ships native Grok, Kimi, and Codex manifests. See
+[`docs/design/plugin.md`](docs/design/plugin.md) for the compatibility matrix and hook
+defaults.
+
+Open a new agent session and run `/overclick:board`, or ask it to execute a card. The
+plugin loads the claim-to-deliver discipline automatically.
 
 ## What makes it different
 

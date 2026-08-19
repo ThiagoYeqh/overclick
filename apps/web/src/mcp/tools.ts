@@ -961,6 +961,7 @@ async function taskList(
     status?: CardStatus | CardStatus[];
     priority?: Task["priority"];
     type?: Task["type"];
+    claimed_by?: "me";
     awaiting_review_by?: "me" | string;
     limit?: number;
   },
@@ -989,6 +990,9 @@ async function taskList(
   if (input.resolved_in) filters.push(eq(task.resolvedIn, input.resolved_in));
   if (input.priority) filters.push(eq(task.priority, input.priority));
   if (input.type) filters.push(eq(task.tipo, input.type));
+  if (input.claimed_by === "me") {
+    filters.push(eq(task.claimedByTokenId, ctx.tokenId));
+  }
 
   if (input.awaiting_review_by !== undefined) {
     filters.push(eq(task.status, "feito"));

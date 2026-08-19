@@ -235,6 +235,8 @@ export const TaskListInputSchema = z.object({
   status: z.union([CardStatusSchema, z.array(CardStatusSchema)]).optional(),
   priority: PrioritySchema.optional(),
   type: TaskTypeSchema.optional(),
+  /** Restrict the queue to cards claimed with the caller's MCP token. */
+  claimed_by: z.literal("me").optional(),
   awaiting_review_by: z.union([z.literal("me"), z.string().min(1)]).optional(),
   /**
    * Cards to return, oldest first. Default 50, at most 200. The whole answer

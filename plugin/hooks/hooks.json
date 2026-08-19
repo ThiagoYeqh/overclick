@@ -1,0 +1,57 @@
+{
+  "description": "OverClick workflow guards and board context.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-start.sh",
+            "timeout": 15,
+            "statusMessage": "Loading the OverClick board"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "task_deliver|mcp__.*__task_deliver",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/post-deliver.sh",
+            "timeout": 30,
+            "statusMessage": "Checking the delivered commit"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/stop-guard.sh",
+            "timeout": 15,
+            "statusMessage": "Checking active OverClick claims"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "task_create|mcp__.*__task_create",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pre-create.sh",
+            "timeout": 15,
+            "statusMessage": "Checking the current harness recommendation"
+          }
+        ]
+      }
+    ]
+  }
+}
