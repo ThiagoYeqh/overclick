@@ -38,6 +38,12 @@ import {
   recipeForCli,
 } from "../../lib/recipes";
 import { detectRuntime } from "../../lib/runtime";
+import { detectDeployMode } from "../../lib/deploy-mode";
+import {
+  SOURCE_UPDATE_COMMAND,
+  updateCommand,
+  updaterEnableCommand,
+} from "../../lib/update-commands";
 import { scheduledUpdateCheck } from "../../lib/update-scheduler";
 import { scheduledProjectContextRefresh } from "../../lib/project-context-scheduler";
 import { readUpdaterState } from "../../lib/updates";
@@ -725,6 +731,9 @@ export default async function HomePage() {
           helper={updater?.running ?? false}
           runtime={detectRuntime()}
           lang={ws.language}
+          manualCommand={updateCommand(detectDeployMode())}
+          enableCommand={updaterEnableCommand(detectDeployMode())}
+          sourceCommand={SOURCE_UPDATE_COMMAND}
         />
       ) : null}
 

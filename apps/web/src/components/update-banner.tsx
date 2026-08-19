@@ -4,11 +4,6 @@ import { useState, useTransition } from "react";
 import { triggerUpdateAction } from "../actions/updates";
 import { dict } from "../lib/i18n";
 import type { Runtime } from "../lib/runtime";
-import {
-  SOURCE_UPDATE_COMMAND,
-  UPDATE_COMMAND,
-  UPDATER_ENABLE_COMMAND,
-} from "../lib/update-commands";
 
 export function UpdateBanner({
   version,
@@ -17,6 +12,9 @@ export function UpdateBanner({
   helper,
   runtime,
   lang,
+  manualCommand,
+  enableCommand,
+  sourceCommand,
 }: {
   version: string;
   changelog: string;
@@ -25,6 +23,11 @@ export function UpdateBanner({
   /** From the checkout there is no image to pull: the commands differ. */
   runtime: Runtime;
   lang: string;
+  /** Resolved server-side from the deploy mode (OCL-73): hosted instances
+   * must never see the quickstart's raw compose command. */
+  manualCommand: string;
+  enableCommand: string;
+  sourceCommand: string;
 }) {
   const t = dict(lang);
   const [pending, start] = useTransition();
@@ -73,17 +76,17 @@ export function UpdateBanner({
         runtime === "source" ? (
           <div className="ub-cmd">
             <span>{t.updates.sourceDetected}</span>
-            <code>{SOURCE_UPDATE_COMMAND}</code>
+            <code>{sourceCommand}</code>
           </div>
         ) : (
           <>
             <div className="ub-cmd">
               <span>{t.updates.runOnServer}</span>
-              <code>{UPDATE_COMMAND}</code>
+              <code>{manualCommand}</code>
             </div>
             <div className="ub-cmd">
               <span>{t.updates.updaterAbsent}</span>
-              <code>{UPDATER_ENABLE_COMMAND}</code>
+              <code>{enableCommand}</code>
             </div>
           </>
         )

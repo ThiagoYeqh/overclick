@@ -20,10 +20,11 @@ import {
 import { loadModelPrices } from "../../lib/prices";
 import { loadUsageRecipes } from "../../lib/recipes";
 import { detectRuntime } from "../../lib/runtime";
+import { detectDeployMode } from "../../lib/deploy-mode";
 import {
   SOURCE_UPDATE_COMMAND,
-  UPDATE_COMMAND,
-  UPDATER_ENABLE_COMMAND,
+  updateCommand,
+  updaterEnableCommand,
 } from "../../lib/update-commands";
 import { APP_VERSION, readUpdaterState } from "../../lib/updates";
 import { SettingsClient } from "./settings-client";
@@ -195,6 +196,10 @@ export default async function SettingsPage({
   // Which update advice can possibly apply here: a container can be recreated,
   // a checkout can only be pulled and restarted.
   const runtime = detectRuntime();
+  // Hosted vs quickstart (OCL-73): picks the command that matches the compose
+  // project this instance actually runs under, so a hosted instance is never
+  // shown the quickstart's raw docker compose command.
+  const deployMode = detectDeployMode();
 
   // Pairs observed on real connections that the config still does not cover.
   const seenSuggestions = normalizedSeen
@@ -234,8 +239,8 @@ export default async function SettingsPage({
         version={APP_VERSION}
         runtime={runtime}
         updater={updater}
-        enableCommand={UPDATER_ENABLE_COMMAND}
-        manualCommand={UPDATE_COMMAND}
+        enableCommand={updaterEnableCommand(deployMode)}
+        manualCommand={updateCommand(deployMode)}
         sourceCommand={SOURCE_UPDATE_COMMAND}
         seenSuggestions={seenSuggestions}
         cardapio={cardapioRows}

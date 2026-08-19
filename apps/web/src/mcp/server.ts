@@ -137,7 +137,7 @@ export async function createOverclickMcpServer(opts: {
     .where(eq(project.workspaceId, opts.ctx.workspaceId))
     .orderBy(asc(project.createdAt));
   const server = new McpServer(
-    { name: "overclick", version: "0.1.12" },
+    { name: "overclick", version: "0.2.0" },
     { instructions: instructionsWithProjects(projects) },
   );
 

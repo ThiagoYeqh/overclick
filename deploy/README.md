@@ -75,6 +75,35 @@ enabled, `deploy/docker-compose.traefik.yml`. If the listing contains a root
 compose file, stop and remove that legacy project before retrying; the deploy
 script refuses to guess which project is safe to change.
 
+## One-click update from the UI
+
+Off by default; a signed-in owner turns it on from Settings → Updates, or a
+human runs it directly:
+
+```bash
+docker compose -p overclick -f deploy/docker-compose.cloud.yml --profile updater up -d
+```
+
+It watches for the Update button in the board, then runs `./deploy/deploy.sh`
+itself, from inside the sidecar container, over the checkout and the docker
+socket. It takes the same `/tmp/overclick-deploy.lock` flock a human running
+`./deploy/deploy.sh` on the host takes, so the two can never interleave: one
+waits its turn. Progress and any failure detail land in the board's Settings
+page. It needs the docker socket, which is root on the host — that is the
+whole reason it stays behind the `updater` profile instead of running always.
+
+## Releasing a new version
+
+A release is a tag and a version bump in the *same commit* — `scripts/verify-
+release-version.sh` fails the `release-image` workflow if a pushed `v*` tag
+does not match every `package.json` in the repo. This is what OCL-73 fixed:
+a tag pushed without the matching bump left the deployed instance's own
+`APP_VERSION` reading older than the release it already ran, so the update
+banner offered an update to an instance that was already current. Bump
+`package.json`, `apps/web/package.json`, `packages/db/package.json` and
+`packages/mcp-core/package.json` to the same version, commit, tag `vX.Y.Z` on
+that commit, and push the tag.
+
 ## Backups
 
 The whole instance is one Postgres volume:

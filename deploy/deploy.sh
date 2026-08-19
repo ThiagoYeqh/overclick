@@ -136,28 +136,18 @@ for row in rows:
 remove_legacy_orphans
 assert_deploy_project_files
 
-PORT="$(grep -E '^OVERCLICK_PORT=' deploy/.env 2>/dev/null | cut -d= -f2 || true)"
-PORT="${PORT:-3100}"
-
-# Where to knock. The proxy overlay drops the host port on purpose (the proxy
-# reaches the container over the shared network), so knocking on the host
-# loopback there answers nothing no matter how healthy the app is: a good
-# deploy would spend two minutes timing out and then exit 1. Under the overlay
-# the probe runs inside the container, where the app always listens on 3000.
-if [ "$OVERLAY" = 1 ]; then
-  WHERE="inside the container"
-else
-  WHERE="127.0.0.1:${PORT}"
-fi
+# Always probe by exec'ing into the app container over the docker socket,
+# never the host's published loopback port. The overlay case already needed
+# this (the port is dropped on purpose there); OCL-73's sidecar runs this same
+# script from inside its own container, where 127.0.0.1 is the sidecar, not
+# the app, so the host-loopback probe would time out on every sidecar-driven
+# update even though the deploy itself succeeded.
+WHERE="inside the container"
 
 probe() {
-  if [ "$OVERLAY" = 1 ]; then
-    "${COMPOSE[@]}" exec -T app node -e \
-      'fetch("http://127.0.0.1:3000/setup").then(r=>console.log(r.status)).catch(()=>console.log("000"))' \
-      2>/dev/null || echo "000"
-  else
-    curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/setup" || true
-  fi
+  "${COMPOSE[@]}" exec -T app node -e \
+    'fetch("http://127.0.0.1:3000/setup").then(r=>console.log(r.status)).catch(()=>console.log("000"))' \
+    2>/dev/null || echo "000"
 }
 
 echo "==> pulling"
