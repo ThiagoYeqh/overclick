@@ -33,7 +33,12 @@ import { ProjectFilter } from "./project-filter";
 import { ReleaseHeader } from "./release-header";
 import { ThemePicker } from "./theme-picker";
 
-export type BoardProjectOption = { id: string; name: string; hasContext: boolean };
+export type BoardProjectOption = {
+  id: string;
+  name: string;
+  hasContext: boolean;
+  contextStatus: string | null;
+};
 export type { BoardMissionOption };
 
 /**
@@ -260,6 +265,8 @@ export function HomeShell({
         ...option,
         hasContext:
           projects.find((project) => project.id === option.id)?.hasContext ?? false,
+        contextStatus:
+          projects.find((project) => project.id === option.id)?.contextStatus ?? null,
       })),
     [cards, projects, filter],
   );

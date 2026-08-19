@@ -6,6 +6,7 @@ import { mission } from "./mission";
 import { missionAttempt } from "./mission-attempt";
 import { missionAttemptReport } from "./mission-attempt-report";
 import { project } from "./project";
+import { projectContextAudit } from "./project-context-audit";
 import { taskComment } from "./task-comment";
 import { task } from "./task";
 import { user } from "./user";
@@ -53,6 +54,16 @@ export const missionRelations = relations(mission, ({ one, many }) => ({
   attempts: many(missionAttempt),
 }));
 
+export const projectContextAuditRelations = relations(
+  projectContextAudit,
+  ({ one }) => ({
+    project: one(project, {
+      fields: [projectContextAudit.projectId],
+      references: [project.id],
+    }),
+  }),
+);
+
 export const projectRelations = relations(project, ({ one, many }) => ({
   workspace: one(workspace, {
     fields: [project.workspaceId],
@@ -60,6 +71,7 @@ export const projectRelations = relations(project, ({ one, many }) => ({
   }),
   tasks: many(task),
   missionAttempts: many(missionAttempt),
+  contextAudits: many(projectContextAudit),
 }));
 
 export const missionAttemptRelations = relations(

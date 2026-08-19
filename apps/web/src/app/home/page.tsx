@@ -39,6 +39,7 @@ import {
 } from "../../lib/recipes";
 import { detectRuntime } from "../../lib/runtime";
 import { scheduledUpdateCheck } from "../../lib/update-scheduler";
+import { scheduledProjectContextRefresh } from "../../lib/project-context-scheduler";
 import { readUpdaterState } from "../../lib/updates";
 import { decodeExecutor, parseComoConfirmo } from "../../mcp/map";
 import type {
@@ -72,6 +73,22 @@ function fmtElapsed(from: Date, t: Dict): string {
 
 function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-US", { day: "2-digit", month: "2-digit" });
+}
+
+function formatProjectContextStatus(
+  updatedAt: Date,
+  source: { releasesRepo?: string; contextFile?: string } | null,
+  lang: string,
+): string {
+  const days = Math.max(
+    0,
+    Math.floor((Date.now() - updatedAt.getTime()) / 86_400_000),
+  );
+  const sourceLabel = source?.releasesRepo ?? source?.contextFile ?? "manual";
+  if (lang === "pt-BR") {
+    return `contexto atualizado há ${days} dias · ${sourceLabel}`;
+  }
+  return `context updated ${days} days ago · ${sourceLabel}`;
 }
 
 function githubCommitUrl(
@@ -544,12 +561,25 @@ export default async function HomePage() {
   const projects = await db().query.project.findMany({
     where: eq(project.workspaceId, ws.id),
     orderBy: asc(project.createdAt),
-    columns: { id: true, name: true, context: true },
+    columns: {
+      id: true,
+      name: true,
+      context: true,
+      contextSource: true,
+      contextUpdatedAt: true,
+    },
   }).then((rows) =>
     rows.map((row) => ({
       id: row.id,
       name: row.name,
       hasContext: Boolean(row.context?.trim()),
+      contextStatus: row.contextUpdatedAt
+        ? formatProjectContextStatus(
+            row.contextUpdatedAt,
+            row.contextSource,
+            ws.language,
+          )
+        : null,
     })),
   );
   if (projects.length === 0) redirect("/setup");
@@ -641,6 +671,7 @@ export default async function HomePage() {
   // Opt-in only: in the default mode this instance makes zero outbound calls.
   // In automatic it also starts the update here, without holding the render.
   const release = await scheduledUpdateCheck(ws);
+  scheduledProjectContextRefresh(db(), ws.id);
   // Only a live sidecar makes the banner's button do anything. Read it just
   // when there is a banner to draw.
   const updater = release ? await readUpdaterState() : null;

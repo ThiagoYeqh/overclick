@@ -16,6 +16,7 @@ import {
   normalizeModelKey,
   normalizeShortId,
   project,
+  projectContextAudit,
   readTranscriptRef,
   resolveUsageSegments,
   task,
@@ -23,6 +24,7 @@ import {
   transcriptRef,
   workspace,
   type ExecutorConfig,
+  type ProjectContextSource,
   type UsageSegment,
   type UsageReport,
 } from "@agent-board/db";
@@ -93,6 +95,7 @@ import {
   type DeliveryVerificationResult,
 } from "../lib/delivery-verification";
 import { renderBriefingMarkdown } from "./briefing";
+import { refreshProjectContext } from "../lib/project-context-refresh";
 import {
   isExecutorPairConfigured,
   normalizeClaimCli,
@@ -384,6 +387,13 @@ async function dispatchTool(
         data as Parameters<typeof projectUpdate>[2],
       );
       break;
+    case "project_context_refresh":
+      value = await projectContextRefresh(
+        db,
+        ctx,
+        data as Parameters<typeof projectContextRefresh>[2],
+      );
+      break;
     case "project_delete":
       value = await projectDelete(
         db,
@@ -563,6 +573,11 @@ async function projectCreate(
     repo_url?: string;
     context?: string;
     current_version?: string;
+    context_source?: {
+      releases_repo?: string;
+      context_file?: string;
+      refresh: "on_release" | "daily" | "manual";
+    };
     id_prefix?: string;
   },
 ) {
@@ -607,6 +622,21 @@ async function projectCreate(
         repoUrl: input.repo_url?.trim() || null,
         context: input.context?.trim() ? input.context : null,
         currentVersion: input.current_version?.trim() || null,
+        contextSource: input.context_source
+          ? {
+              ...(input.context_source.releases_repo
+                ? { releasesRepo: input.context_source.releases_repo }
+                : {}),
+              ...(input.context_source.context_file
+                ? { contextFile: input.context_source.context_file }
+                : {}),
+              refresh: input.context_source.refresh,
+            }
+          : null,
+        contextUpdatedAt:
+          input.context || input.current_version || input.context_source
+            ? new Date()
+            : null,
         idPrefix: prefix,
         nextNumber: 1,
       })
@@ -709,6 +739,11 @@ async function projectUpdate(
     expected_len?: number;
     expected_hash?: string;
     current_version?: string | null;
+    context_source?: {
+      releases_repo?: string;
+      context_file?: string;
+      refresh: "on_release" | "daily" | "manual";
+    } | null;
     id_prefix?: string;
   },
 ) {
@@ -726,6 +761,8 @@ async function projectUpdate(
       repoUrl?: string | null;
       context?: string | null;
       currentVersion?: string | null;
+      contextSource?: ProjectContextSource | null;
+      contextUpdatedAt?: Date;
       idPrefix?: string;
     } = {};
 
@@ -767,6 +804,26 @@ async function projectUpdate(
     if (input.current_version !== undefined) {
       patch.currentVersion = input.current_version?.trim() || null;
     }
+
+    if (input.context_source !== undefined) {
+      patch.contextSource = input.context_source
+        ? {
+            ...(input.context_source.releases_repo
+              ? { releasesRepo: input.context_source.releases_repo }
+              : {}),
+            ...(input.context_source.context_file
+              ? { contextFile: input.context_source.context_file }
+              : {}),
+            refresh: input.context_source.refresh,
+          }
+        : null;
+    }
+    const contextWasTouched =
+      input.context !== undefined ||
+      input.context_ops !== undefined ||
+      input.current_version !== undefined ||
+      input.context_source !== undefined;
+    if (contextWasTouched) patch.contextUpdatedAt = new Date();
 
     if (input.id_prefix !== undefined) {
       const prefix = input.id_prefix.trim().toUpperCase();
@@ -820,9 +877,52 @@ async function projectUpdate(
       throw new Error("failed to update project");
     }
 
+    if (contextWasTouched) {
+      await tx.insert(projectContextAudit).values({
+        projectId: row.id,
+        source: "manual",
+        sourceRef: `manual:${row.updatedAt.toISOString()}:${ctx.tokenId}`,
+        version: row.currentVersion,
+        prerelease: false,
+        summary: "project context updated manually",
+        actor: ctx.tokenLabel || "manual",
+      });
+    }
+
     const counts = await projectCardCounts(tx, row.id);
     return { project: mapProjectDetail(row, counts) };
   });
+}
+
+async function projectContextRefresh(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: { project_id: string; force?: boolean },
+) {
+  const row = await findProject(db, ctx.workspaceId, input.project_id);
+  if (!row) {
+    return err(
+      "NOT_FOUND",
+      `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
+    );
+  }
+  if (!row.contextSource) {
+    return err(
+      "INVALID_ARGUMENT",
+      "Project has no context_source. Configure releases_repo, context_file or both with project_update first.",
+    );
+  }
+
+  const refreshed = await refreshProjectContext(db, ctx.workspaceId, row.id, {
+    actor: ctx.tokenLabel || "mcp",
+  });
+  if (!refreshed) return err("NOT_FOUND", "Project disappeared during refresh.");
+  const counts = await projectCardCounts(db, refreshed.project.id);
+  return {
+    project: mapProjectDetail(refreshed.project, counts),
+    updated: refreshed.updated,
+    updates: refreshed.updates,
+  };
 }
 
 async function projectDelete(

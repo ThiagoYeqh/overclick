@@ -32,6 +32,8 @@ export const workspace = pgTable("workspace", {
    * shows it so an update nobody watched still leaves a record.
    */
   updateLog: jsonb("update_log").$type<AutoUpdateRecord>(),
+  /** Optional GitHub token used only for project-context source refreshes. */
+  githubToken: text("github_token"),
   /**
    * Opt-in money layer. OFF by default: tokens and time are facts on every
    * plan, while a dollar figure is fiction on a flat subscription and a price

@@ -117,6 +117,19 @@ export type ValidationTick = {
  */
 export type UpdateMode = "off" | "check" | "auto";
 
+/** Optional GitHub sources that keep one project's context current. */
+export type ProjectContextSource = {
+  releasesRepo?: string;
+  contextFile?: string;
+  refresh: "on_release" | "daily" | "manual";
+};
+
+/** Where a project context audit entry came from. */
+export type ProjectContextAuditSource =
+  | "github_release"
+  | "context_file"
+  | "manual";
+
 /** What an automatic update did, kept so the panel can say what and when. */
 export type AutoUpdateRecord = {
   /** When the attempt finished, ISO. */

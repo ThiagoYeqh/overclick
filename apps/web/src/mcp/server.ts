@@ -55,11 +55,13 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   project_list:
     "Lists the workspace projects with card prefix, repo url, has_context and card counts by status. Start here on a fresh board: task_create needs a project.",
   project_get:
-    "Returns one complete project, including context markdown and current_version. Read it before changing the project.",
+    "Returns one project, including context markdown, current_version, latest_prerelease, context_updated_at and context_source when the briefing view is requested.",
+  project_context_refresh:
+    "Refreshes a project's configured GitHub release and context-file sources. Stable releases advance current_version; prereleases are kept in latest_prerelease. Managed sections change while manual context outside their markers stays intact. The operation is idempotent and writes an audit entry for each unseen source update.",
   project_create:
-    "Creates a project (name, optional repo_url, context, current_version and id_prefix). Context is limited to 32000 characters. The card prefix is derived from the name when omitted and is unique per workspace.",
+    "Creates a project (name, optional repo_url, context, current_version, context_source and id_prefix). Context is limited to 32000 characters. The card prefix is derived from the name when omitted and is unique per workspace.",
   project_update:
-    "Partially updates a project (name, repo_url, context, current_version, id_prefix); omitted fields stay unchanged. Use context_ops to edit one markdown section or list line against the current server value; do not resend the whole context blob for a small change. context is still accepted for an intentional full rewrite and optional expected_len/expected_hash detects a stale legacy read. Context is limited to 32000 characters. The card prefix is only editable while the project has no cards, because every card carries it in its short id: to reorganize a project that holds cards, move them with task_update passing project_id.",
+    "Partially updates a project (name, repo_url, context, current_version, id_prefix); omitted fields stay unchanged. Use context_ops to edit one markdown section or list line against the current server value; do not resend the whole context blob for a small change. context is still accepted for an intentional full rewrite and optional expected_len/expected_hash detects a stale legacy read. Context is limited to 32000 characters. The card prefix is only editable while the project has no cards, because every card carries it in its short id: to reorganize a project that holds cards, move them with task_update passing project_id. Accepts context_source (releases_repo, context_file, refresh) to keep the context synced from GitHub.",
   project_delete:
     "Hard delete: removes the project. Only an empty one by default; a project with cards comes back refused with the count that blocks it, and force: true destroys the project with every card in it, and their attempts, handoffs and subtasks. Irreversible.",
   mission_list:

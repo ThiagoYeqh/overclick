@@ -14,6 +14,11 @@ export type ProjectContextRow = {
   idPrefix: string;
   context: string;
   currentVersion: string;
+  contextSource: {
+    releasesRepo?: string;
+    contextFile?: string;
+    refresh: "on_release" | "daily" | "manual";
+  } | null;
 };
 
 export function ProjectContextEditor({
@@ -50,6 +55,11 @@ export function ProjectContextEditor({
         projectId: selected.id,
         context: selected.context,
         currentVersion: selected.currentVersion,
+        contextSource:
+          selected.contextSource?.releasesRepo?.trim() ||
+          selected.contextSource?.contextFile?.trim()
+            ? selected.contextSource
+            : null,
       });
       if (!result.ok) {
         setError(result.error);
@@ -96,6 +106,66 @@ export function ProjectContextEditor({
           onChange={(event) => patchSelected({ currentVersion: event.target.value })}
           placeholder={t.settings.projectVersionPlaceholder}
         />
+
+        <label className={styles.fieldLabel} htmlFor="project-releases-repo">
+          {t.settings.projectReleasesRepo}
+        </label>
+        <input
+          id="project-releases-repo"
+          className={`input ${styles.version}`}
+          value={selected.contextSource?.releasesRepo ?? ""}
+          onChange={(event) =>
+            patchSelected({
+              contextSource: {
+                releasesRepo: event.target.value,
+                contextFile: selected.contextSource?.contextFile,
+                refresh: selected.contextSource?.refresh ?? "manual",
+              },
+            })
+          }
+          placeholder={t.settings.projectReleasesRepoPlaceholder}
+        />
+
+        <label className={styles.fieldLabel} htmlFor="project-context-file">
+          {t.settings.projectContextFile}
+        </label>
+        <input
+          id="project-context-file"
+          className={`input ${styles.version}`}
+          value={selected.contextSource?.contextFile ?? ""}
+          onChange={(event) =>
+            patchSelected({
+              contextSource: {
+                releasesRepo: selected.contextSource?.releasesRepo,
+                contextFile: event.target.value,
+                refresh: selected.contextSource?.refresh ?? "manual",
+              },
+            })
+          }
+          placeholder={t.settings.projectContextFilePlaceholder}
+        />
+
+        <label className={styles.fieldLabel} htmlFor="project-context-refresh">
+          {t.settings.projectRefresh}
+        </label>
+        <select
+          id="project-context-refresh"
+          className={`sel ${styles.projectPicker}`}
+          value={selected.contextSource?.refresh ?? "manual"}
+          onChange={(event) =>
+            patchSelected({
+              contextSource: {
+                releasesRepo: selected.contextSource?.releasesRepo,
+                contextFile: selected.contextSource?.contextFile,
+                refresh: event.target.value as "on_release" | "daily" | "manual",
+              },
+            })
+          }
+        >
+          <option value="on_release">{t.settings.projectRefreshOnRelease}</option>
+          <option value="daily">{t.settings.projectRefreshDaily}</option>
+          <option value="manual">{t.settings.projectRefreshManual}</option>
+        </select>
 
         <div className={styles.workspace}>
           <div>

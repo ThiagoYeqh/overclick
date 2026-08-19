@@ -18,6 +18,7 @@ import {
   MissionSummarySchema,
   OrigemSchema,
   PrioritySchema,
+  ProjectContextSourceSchema,
   ProjectDetailSchema,
   ProjectSchema,
   ReadOptionsSchema,
@@ -212,6 +213,9 @@ const ProjectReadSchema = ProjectSchema.extend({
   /** Present only with `view: briefing|full` or `include: [context]`. */
   context: z.string().nullable().optional(),
   current_version: z.string().nullable().optional(),
+  latest_prerelease: z.string().nullable().optional(),
+  context_updated_at: IsoDateTimeSchema.nullable().optional(),
+  context_source: ProjectContextSourceSchema.nullable().optional(),
 });
 
 export const ProjectGetOutputSchema = z.object({
@@ -229,6 +233,7 @@ export const ProjectCreateInputSchema = z.object({
   repo_url: z.string().url().optional(),
   context: ProjectContextSchema.optional(),
   current_version: ProjectVersionSchema.optional(),
+  context_source: ProjectContextSourceSchema.optional(),
   id_prefix: z
     .string()
     .min(1)
@@ -274,6 +279,7 @@ export const ProjectUpdateInputSchema = z
     /** SHA-256 of the context as last read by the caller. */
     expected_hash: z.string().trim().min(1).max(128).optional(),
     current_version: ProjectVersionSchema.nullable().optional(),
+    context_source: ProjectContextSourceSchema.nullable().optional(),
     id_prefix: z
       .string()
       .min(1)
@@ -289,10 +295,11 @@ export const ProjectUpdateInputSchema = z
       value.context !== undefined ||
       value.context_ops !== undefined ||
       value.current_version !== undefined ||
+      value.context_source !== undefined ||
       value.id_prefix !== undefined,
     {
       message:
-        "provide name, repo_url, context, current_version or id_prefix",
+        "provide name, repo_url, context, current_version, context_source or id_prefix",
     },
   )
   .refine(
@@ -302,6 +309,17 @@ export const ProjectUpdateInputSchema = z
 
 export const ProjectUpdateOutputSchema = z.object({
   project: ProjectDetailSchema,
+});
+
+export const ProjectContextRefreshInputSchema = z.object({
+  project_id: ProjectRefSchema,
+  force: z.boolean().optional(),
+}).strict();
+
+export const ProjectContextRefreshOutputSchema = z.object({
+  project: ProjectDetailSchema,
+  updated: z.boolean(),
+  updates: z.number().int().nonnegative(),
 });
 
 /**
@@ -1140,6 +1158,7 @@ export const MCP_TOOL_NAMES = [
   "project_get",
   "project_create",
   "project_update",
+  "project_context_refresh",
   "project_delete",
   "mission_list",
   "mission_get",
@@ -1182,6 +1201,10 @@ export const toolContracts = {
   project_update: {
     input: ProjectUpdateInputSchema,
     output: ProjectUpdateOutputSchema,
+  },
+  project_context_refresh: {
+    input: ProjectContextRefreshInputSchema,
+    output: ProjectContextRefreshOutputSchema,
   },
   project_delete: {
     input: ProjectDeleteInputSchema,
@@ -1322,6 +1345,8 @@ export type ProjectCreateInput = z.infer<typeof ProjectCreateInputSchema>;
 export type ProjectCreateOutput = z.infer<typeof ProjectCreateOutputSchema>;
 export type ProjectUpdateInput = z.infer<typeof ProjectUpdateInputSchema>;
 export type ProjectUpdateOutput = z.infer<typeof ProjectUpdateOutputSchema>;
+export type ProjectContextRefreshInput = z.infer<typeof ProjectContextRefreshInputSchema>;
+export type ProjectContextRefreshOutput = z.infer<typeof ProjectContextRefreshOutputSchema>;
 export type ProjectDeleteInput = z.infer<typeof ProjectDeleteInputSchema>;
 export type ProjectDeleteOutput = z.infer<typeof ProjectDeleteOutputSchema>;
 export type ProjectMove = z.infer<typeof ProjectMoveSchema>;

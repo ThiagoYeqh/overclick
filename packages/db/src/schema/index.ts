@@ -14,6 +14,7 @@ export { mission } from "./mission";
 export { missionAttempt } from "./mission-attempt";
 export { missionAttemptReport } from "./mission-attempt-report";
 export { project } from "./project";
+export { projectContextAudit } from "./project-context-audit";
 export { task } from "./task";
 export { taskComment } from "./task-comment";
 export { executionAttempt } from "./execution-attempt";
@@ -29,6 +30,7 @@ export {
   mcpTokenRelations,
   missionRelations,
   projectRelations,
+  projectContextAuditRelations,
   taskCommentRelations,
   taskRelations,
   workspaceRelations,

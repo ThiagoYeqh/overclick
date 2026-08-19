@@ -19,7 +19,7 @@ export function ProjectFilter({
   onAll,
   t,
 }: {
-  options: Array<ProjectCount & { hasContext?: boolean }>;
+  options: Array<ProjectCount & { hasContext?: boolean; contextStatus?: string | null }>;
   value: string[];
   onToggle: (projectId: string) => void;
   onAll: () => void;
@@ -105,8 +105,11 @@ export function ProjectFilter({
                   <span className="pf-box">
                     {picked ? <Icon name="check" label={null} size={11} /> : null}
                   </span>
-                  <span className="pf-opt-name" title={option.name}>
+                  <span className="pf-opt-name" title={option.contextStatus ?? option.name}>
                     {option.name}
+                    {option.contextStatus ? (
+                      <small className="pf-context-status">{option.contextStatus}</small>
+                    ) : null}
                   </span>
                   {option.hasContext ? (
                     <span

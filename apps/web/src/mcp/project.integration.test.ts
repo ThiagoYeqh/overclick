@@ -1,4 +1,5 @@
-import { project, workspace } from "@agent-board/db";
+import { project, projectContextAudit, workspace } from "@agent-board/db";
+import { eq } from "drizzle-orm";
 import {
   ProjectCreateOutputSchema,
   ProjectDeleteOutputSchema,
@@ -221,70 +222,48 @@ describe("projects over MCP", () => {
     expect(tooLong.error.message).toContain("32000");
   });
 
-  it("applies granular context updates to the current blob and guards stale rewrites", async () => {
+  it("round-trips context sources and records manual updates", async () => {
     world = await createTestWorld();
-    const initial = [
-      "# Project",
-      "",
-      "## Alpha",
-      "one",
-      "",
-      "## Beta",
-      "two",
-    ].join("\n");
-    const seeded = await invokeTool(world.db, ctx(), "project_update", {
-      project_id: world.projectId,
-      context: initial,
+    const created = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Synced project",
+      id_prefix: "SYN",
+      context_source: {
+        releases_repo: "owner/releases",
+        context_file: "owner/releases:context.md",
+        refresh: "daily",
+      },
     });
-    expect(seeded.ok).toBe(true);
-
-    const [alpha, beta] = await Promise.all([
-      invokeTool(world.db, ctx(), "project_update", {
-        project_id: world.projectId,
-        context_ops: [
-          { op: "replace_section", heading: "Alpha", text: "alpha changed" },
-        ],
-      }),
-      invokeTool(world.db, ctx(), "project_update", {
-        project_id: world.projectId,
-        context_ops: [
-          { op: "replace_section", heading: "Beta", text: "beta changed" },
-        ],
-      }),
-    ]);
-    expect(alpha.ok).toBe(true);
-    expect(beta.ok).toBe(true);
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const projectOut = ProjectCreateOutputSchema.parse(created.value).project;
+    expect(projectOut.context_source).toEqual({
+      releases_repo: "owner/releases",
+      context_file: "owner/releases:context.md",
+      refresh: "daily",
+    });
+    expect(projectOut.latest_prerelease).toBeNull();
+    expect(projectOut.context_updated_at).not.toBeNull();
 
     const got = await invokeTool(world.db, ctx(), "project_get", {
-      project_id: world.projectId,
-      view: "briefing",
+      project_id: "SYN",
+      view: "full",
     });
     expect(got.ok).toBe(true);
     if (!got.ok) return;
-    expect(ProjectGetOutputSchema.parse(got.value).project.context).toContain(
-      "## Alpha\nalpha changed",
-    );
-    expect(ProjectGetOutputSchema.parse(got.value).project.context).toContain(
-      "## Beta\nbeta changed",
+    expect(ProjectGetOutputSchema.parse(got.value).project.context_source).toEqual(
+      projectOut.context_source,
     );
 
-    const stale = await invokeTool(world.db, ctx(), "project_update", {
-      project_id: world.projectId,
-      context: "# stale full rewrite",
-      expected_len: initial.length,
+    const updated = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: "SYN",
+      context: "# Manual context",
     });
-    expect(stale.ok).toBe(false);
-    if (!stale.ok) expect(stale.error.code).toBe("INVALID_ARGUMENT");
-
-    const legacy = await invokeTool(world.db, ctx(), "project_update", {
-      project_id: world.projectId,
-      context: "# intentional full rewrite",
-    });
-    expect(legacy.ok).toBe(true);
-    if (!legacy.ok) return;
-    expect(ProjectUpdateOutputSchema.parse(legacy.value).project.context).toBe(
-      "# intentional full rewrite",
-    );
+    expect(updated.ok).toBe(true);
+    const audits = await world.db
+      .select({ source: projectContextAudit.source })
+      .from(projectContextAudit)
+      .where(eq(projectContextAudit.projectId, projectOut.id));
+    expect(audits.some((row) => row.source === "manual")).toBe(true);
   });
 
   it("takes an explicit prefix and refuses one already in use", async () => {
@@ -738,5 +717,71 @@ describe("projects over MCP", () => {
     });
     if (!left.ok) throw new Error("task_list failed");
     expect(TaskListOutputSchema.parse(left.value).tasks).toHaveLength(0);
+  });
+
+  it("applies granular context updates to the current blob and guards stale rewrites", async () => {
+    world = await createTestWorld();
+    const initial = [
+      "# Project",
+      "",
+      "## Alpha",
+      "one",
+      "",
+      "## Beta",
+      "two",
+    ].join("\n");
+    const seeded = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: world.projectId,
+      context: initial,
+    });
+    expect(seeded.ok).toBe(true);
+
+    const [alpha, beta] = await Promise.all([
+      invokeTool(world.db, ctx(), "project_update", {
+        project_id: world.projectId,
+        context_ops: [
+          { op: "replace_section", heading: "Alpha", text: "alpha changed" },
+        ],
+      }),
+      invokeTool(world.db, ctx(), "project_update", {
+        project_id: world.projectId,
+        context_ops: [
+          { op: "replace_section", heading: "Beta", text: "beta changed" },
+        ],
+      }),
+    ]);
+    expect(alpha.ok).toBe(true);
+    expect(beta.ok).toBe(true);
+
+    const got = await invokeTool(world.db, ctx(), "project_get", {
+      project_id: world.projectId,
+      view: "briefing",
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(ProjectGetOutputSchema.parse(got.value).project.context).toContain(
+      "## Alpha\nalpha changed",
+    );
+    expect(ProjectGetOutputSchema.parse(got.value).project.context).toContain(
+      "## Beta\nbeta changed",
+    );
+
+    const stale = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: world.projectId,
+      context: "# stale full rewrite",
+      expected_len: initial.length,
+    });
+    expect(stale.ok).toBe(false);
+    if (!stale.ok) expect(stale.error.code).toBe("INVALID_ARGUMENT");
+
+    const legacy = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: world.projectId,
+      context: "# intentional full rewrite",
+    });
+    expect(legacy.ok).toBe(true);
+    if (!legacy.ok) return;
+    expect(ProjectUpdateOutputSchema.parse(legacy.value).project.context).toBe(
+      "# intentional full rewrite",
+    );
   });
 });
