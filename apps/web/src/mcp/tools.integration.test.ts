@@ -35,6 +35,13 @@ const origem = {
   cli: "overclock",
 };
 
+function githubResponse(body: unknown, ok = true): Response {
+  return new Response(JSON.stringify(body), {
+    status: ok ? 200 : 404,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 describe("MCP tool edge cases against a test db", () => {
   let world: TestWorld;
 
@@ -368,6 +375,8 @@ describe("MCP tool edge cases against a test db", () => {
     const delivered = TaskDeliverOutputSchema.parse(submitted.value);
     expect(delivered.telemetry_incomplete).toBe(true);
     expect(delivered.task.status).toBe("feito");
+    expect(delivered.delivery_unverified).toBe(false);
+    expect(delivered.delivery_verification).toBeNull();
     // Usage is required by contract: a usage-less delivery still lands, but
     // the response tells the agent how to fix it after the fact.
     expect(delivered.usage_warning).toContain("task_update");
@@ -379,6 +388,114 @@ describe("MCP tool edge cases against a test db", () => {
       .where(eq(executionAttempt.taskId, card.id));
     expect(attempt?.serverDurationMs).not.toBeNull();
     expect(attempt?.serverDurationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("verifies a pushed commit and branch against a GitHub project remote", async () => {
+    world = await createTestWorld();
+    await world.db
+      .update(project)
+      .set({ repoUrl: "https://github.com/example/board" })
+      .where(eq(project.id, world.projectId));
+    const card = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Commit remoto confirmado",
+      type: "feature",
+      o_que: "Persistir o commit.",
+      por_que: "A entrega precisa ser auditável.",
+      como_confirmo: [{ step: "abrir o card", expected: "commit e status visíveis" }],
+      origem,
+    });
+    expect(card.ok).toBe(true);
+    if (!card.ok) return;
+    const taskOut = TaskCreateOutputSchema.parse(card.value).task;
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: taskOut.id });
+
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+      if (url.endsWith("/commits/abc123")) return githubResponse({ sha: "abc123" });
+      if (url.endsWith("/branches/main")) {
+        return githubResponse({ commit: { sha: "abc123" } });
+      }
+      throw new Error("unexpected GitHub request");
+    };
+    try {
+      const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+        task_id: taskOut.id,
+        summary: "commit confirmado",
+        branch: "main",
+        commit: "abc123",
+        usage: { tokens_in: 10, tokens_out: 5, duration_ms: 1000, turns: 1 },
+      });
+      expect(delivered.ok).toBe(true);
+      if (!delivered.ok) return;
+      const out = TaskDeliverOutputSchema.parse(delivered.value);
+      expect(out.delivery_unverified).toBe(false);
+      expect(out.delivery_verification).toBe("verified");
+      expect(out.delivery_warning).toBeNull();
+      expect(out.task.commit).toBe("abc123");
+      expect(out.task.delivery_verification).toBe("verified");
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  it("accepts a fake or missing commit but records the unverified warning", async () => {
+    world = await createTestWorld();
+    await world.db
+      .update(project)
+      .set({ repoUrl: "https://github.com/example/board" })
+      .where(eq(project.id, world.projectId));
+    const createCard = async (title: string) => {
+      const card = await invokeTool(world.db, ctx(), "task_create", {
+        project_id: world.projectId,
+        title,
+        type: "feature",
+        o_que: "Persistir o commit.",
+        por_que: "A entrega precisa ser auditável.",
+        como_confirmo: [{ step: "abrir o card", expected: "warning visível" }],
+        origem,
+      });
+      expect(card.ok).toBe(true);
+      if (!card.ok) throw new Error("card not created");
+      return TaskCreateOutputSchema.parse(card.value).task;
+    };
+
+    const fake = await createCard("Commit falso");
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: fake.id });
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => githubResponse({ message: "Not Found" }, false);
+    try {
+      const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+        task_id: fake.id,
+        summary: "aceito com aviso",
+        branch: "main",
+        commit: "deadbeef",
+      });
+      expect(delivered.ok).toBe(true);
+      if (!delivered.ok) return;
+      const out = TaskDeliverOutputSchema.parse(delivered.value);
+      expect(out.delivery_unverified).toBe(true);
+      expect(out.delivery_verification).toBe("unverified");
+      expect(out.delivery_warning).toBe("commit não encontrado no remoto");
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+
+    const missing = await createCard("Commit ausente");
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: missing.id });
+    const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: missing.id,
+      summary: "aceito com aviso",
+      branch: "main",
+    });
+    expect(delivered.ok).toBe(true);
+    if (!delivered.ok) return;
+    expect(TaskDeliverOutputSchema.parse(delivered.value)).toMatchObject({
+      delivery_unverified: true,
+      delivery_verification: "unverified",
+      delivery_warning: "commit não encontrado no remoto",
+    });
   });
 
   it("marks estimated usage on the attempt and skips the warning", async () => {

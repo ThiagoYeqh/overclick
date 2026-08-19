@@ -16,7 +16,7 @@ import type {
 } from "../domain/pricing";
 import type { TranscriptRef } from "../domain/transcript";
 import type { UsageSegment } from "../domain/usage";
-import type { AttemptModelSource } from "../types";
+import type { AttemptModelSource, DeliveryVerification } from "../types";
 import { task } from "./task";
 
 export const executionAttempt = pgTable(
@@ -87,6 +87,10 @@ export const executionAttempt = pgTable(
    */
   usageSuspect: boolean("usage_suspect").notNull().default(false),
   usageSuspectReason: text("usage_suspect_reason"),
+  /** True when the delivered commit could not be verified on the project remote. */
+  deliveryUnverified: boolean("delivery_unverified").notNull().default(false),
+  deliveryVerification: text("delivery_verification").$type<DeliveryVerification>(),
+  deliveryWarning: text("delivery_warning"),
   result: text("result"),
   resultNote: text("result_note"),
   },

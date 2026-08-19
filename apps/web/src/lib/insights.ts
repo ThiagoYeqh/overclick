@@ -64,6 +64,8 @@ export type InsightAttemptRow = {
   turns: number | null;
   usageEstimated: boolean;
   usageSuspect: boolean;
+  /** A delivery accepted without a verified commit on the project remote. */
+  deliveryUnverified?: boolean;
 };
 
 export type ReopenRow = {
@@ -110,6 +112,7 @@ export async function loadInsightAttemptRows(
       turns: executionAttempt.turns,
       usageEstimated: executionAttempt.usageEstimated,
       usageSuspect: executionAttempt.usageSuspect,
+      deliveryUnverified: executionAttempt.deliveryUnverified,
     })
     .from(executionAttempt)
     .innerJoin(task, eq(executionAttempt.taskId, task.id))
@@ -172,6 +175,9 @@ export function usageHonestyNote(totals: UsageTotals): string {
     parts.push(
       `${totals.suspect} suspect · ${totals.suspectTokens} tokens kept separate`,
     );
+  }
+  if (totals.deliveryUnverified > 0) {
+    parts.push(`${totals.deliveryUnverified} delivery commit unverified`);
   }
   return parts.length > 0 ? parts.join(" · ") : "all usage reported";
 }
@@ -241,6 +247,8 @@ export type UsageTotals = {
   suspectTokens: number;
   suspectDurationMs: number;
   suspectCostUsd: number | null;
+  /** Deliveries accepted without a verified remote commit. */
+  deliveryUnverified: number;
 };
 
 export type GroupInsight = UsageTotals & {
@@ -306,6 +314,7 @@ export type CardInsight = {
   suspectTokens: number;
   suspectDurationMs: number;
   suspectCostUsd: number | null;
+  deliveryUnverified: boolean;
 };
 
 export type Insights = {
@@ -326,6 +335,7 @@ export type Insights = {
   byProject: GroupInsight[];
   byMission: GroupInsight[];
   byRelease: GroupInsight[];
+  byExecutor: GroupInsight[];
   byModel: GroupInsight[];
   reopensByModel: ModelReopenInsight[];
   perCard: CardInsight[];
@@ -377,6 +387,7 @@ function emptyTotals(): RunningTotals {
     suspectTokens: 0,
     suspectDurationMs: 0,
     suspectCostUsd: 0,
+    deliveryUnverified: 0,
     suspectCostKnown: false,
   };
 }
@@ -545,6 +556,7 @@ function addAttempt(
   priced: boolean,
 ): void {
   totals.attempts += 1;
+  if (a.deliveryUnverified) totals.deliveryUnverified += 1;
   if (a.usageSuspect) {
     totals.suspect += 1;
     totals.suspectTokens += attemptTokens(a);
@@ -585,6 +597,7 @@ function addSegment(
 ): void {
   const tokens = segmentTotalTokens(segment);
   totals.attempts += 1;
+  if (a.deliveryUnverified) totals.deliveryUnverified += 1;
   if (a.usageSuspect) {
     totals.suspect += 1;
     totals.suspectTokens += tokens;
@@ -666,6 +679,7 @@ export function computeInsights(
   const byProject = new Map<string, RunningGroup>();
   const byMission = new Map<string, RunningGroup>();
   const byRelease = new Map<string, RunningGroup>();
+  const byExecutor = new Map<string, RunningGroup>();
   const byModel = new Map<string, RunningGroup>();
   const byCard = new Map<
     string,
@@ -721,6 +735,16 @@ export function computeInsights(
       cost,
       priced,
     );
+    addAttempt(
+      group(
+        byExecutor,
+        executorLabel(a.executor) ?? NO_MODEL,
+        executorLabel(a.executor),
+      ),
+      a,
+      cost,
+      priced,
+    );
     // Per model, from the segments: a run that switched model lands in both
     // groups with the tokens each one actually spent.
     const shared = segments.length > 1;
@@ -761,12 +785,14 @@ export function computeInsights(
         suspectTokens: 0,
         suspectDurationMs: 0,
         suspectCostUsd: null,
+        deliveryUnverified: false,
         hasCost: false,
         sources: [],
       };
       byCard.set(a.taskId, card);
     }
     card.attempts += 1;
+    if (a.deliveryUnverified) card.deliveryUnverified = true;
     if (a.usageSuspect) {
       card.suspect = true;
       card.suspectTokens += attemptTokens(a);
@@ -915,6 +941,7 @@ export function computeInsights(
     byProject: seal(byProject),
     byMission: seal(byMission),
     byRelease: seal(byRelease),
+    byExecutor: seal(byExecutor),
     byModel: seal(byModel),
     reopensByModel,
     perCard,

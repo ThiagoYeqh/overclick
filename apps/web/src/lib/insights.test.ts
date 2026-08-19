@@ -173,6 +173,28 @@ describe("computeInsights totals", () => {
     });
   });
 
+  it("counts unverified deliveries by executor and model without hiding the run", () => {
+    const result = computeInsights(
+      [
+        attempt({
+          deliveryUnverified: true,
+          executor: JSON.stringify({ cli: "codex" }),
+        }),
+      ],
+      [],
+    );
+
+    expect(result.totals.deliveryUnverified).toBe(1);
+    expect(result.byExecutor[0]).toMatchObject({
+      label: "codex",
+      deliveryUnverified: 1,
+    });
+    expect(result.byModel[0]).toMatchObject({
+      label: "sonnet-5",
+      deliveryUnverified: 1,
+    });
+  });
+
   it("counts the server-measured time as elapsed, never as execution", () => {
     const result = computeInsights(
       [attempt({ durationMs: null, serverDurationMs: 120_000 })],

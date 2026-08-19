@@ -357,6 +357,7 @@ describe("task_deliver usage and artifacts", () => {
       summary: "corrigido",
       evidence: [{ url: "https://example.com/pr/12" }],
       branch: "oc-1-corrige-login",
+      commit: "0123456789abcdef0123456789abcdef01234567",
       pull_request_url: "https://example.com/pr/12",
       usage: {
         tokens_in: 12000,
@@ -375,6 +376,7 @@ describe("task_deliver usage and artifacts", () => {
       duration_ms: 34 * 60 * 1000,
       turns: 11,
     });
+    expect(parsed.commit).toBe("0123456789abcdef0123456789abcdef01234567");
   });
 
   it("accepts estimated usage and a usage-only task_update", () => {

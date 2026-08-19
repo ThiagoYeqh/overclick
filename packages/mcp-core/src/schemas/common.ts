@@ -42,6 +42,9 @@ export const ModelTierSchema = z.enum(["top", "mid", "cheap"]);
 
 export const ExecutionModeSchema = z.enum(["solo", "team"]);
 
+/** Outcome of checking a delivered commit against the project's remote. */
+export const DeliveryVerificationSchema = z.enum(["verified", "unverified"]);
+
 export const MissionStatusSchema = z.enum(["ativa", "pausada", "concluida"]);
 
 export const CliNameSchema = z.enum([
@@ -273,6 +276,12 @@ export const TaskSummarySchema = z.object({
   project_id: z.string().min(1),
   mission_id: z.string().min(1).nullable(),
   devolve_para: ReviewerSchema,
+  /** Commit hash reported at the latest delivery, when one was sent. */
+  commit: z.string().min(1).nullable(),
+  /** True when a project remote exists but the latest delivery was not verified. */
+  delivery_unverified: z.boolean(),
+  delivery_verification: DeliveryVerificationSchema.nullable(),
+  delivery_warning: z.string().nullable(),
   /**
    * Only comments with kind `report` are counted.
    * 0 by default in list payloads and detailed counts in get/update.
@@ -330,6 +339,9 @@ export const ExecutionAttemptSchema = z.object({
   usage: UsageSchema.nullable(),
   usage_suspect: z.boolean(),
   usage_suspect_reason: z.string().nullable(),
+  delivery_unverified: z.boolean(),
+  delivery_verification: DeliveryVerificationSchema.nullable(),
+  delivery_warning: z.string().nullable(),
   result: z.enum(["success", "failure", "abandoned"]).nullable(),
   /** Why an attempt failed or was abandoned; usage remains on the attempt. */
   result_note: z.string().nullable(),
@@ -347,6 +359,10 @@ export const HandoffSchema = z.object({
   artifacts: z.array(ArtifactSchema),
   branch: z.string().min(1).nullable(),
   pull_request_url: z.string().url().nullable(),
+  commit: z.string().min(1).nullable(),
+  delivery_unverified: z.boolean(),
+  delivery_verification: DeliveryVerificationSchema.nullable(),
+  delivery_warning: z.string().nullable(),
   usage: UsageSchema.nullable(),
   telemetry_incomplete: z.boolean(),
   created_at: IsoDateTimeSchema,
@@ -357,6 +373,7 @@ export type TaskType = z.infer<typeof TaskTypeSchema>;
 export type Priority = z.infer<typeof PrioritySchema>;
 export type Effort = z.infer<typeof EffortSchema>;
 export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
+export type DeliveryVerification = z.infer<typeof DeliveryVerificationSchema>;
 export type ConfirmationStep = z.infer<typeof ConfirmationStepSchema>;
 export type Origem = z.infer<typeof OrigemSchema>;
 export type Reviewer = z.infer<typeof ReviewerSchema>;

@@ -138,6 +138,11 @@ export type BoardCard = {
   /** True once another executor may reclaim without force. */
   claimStale: boolean;
   branch: string | null;
+  commit?: string | null;
+  commitUrl?: string | null;
+  deliveryUnverified?: boolean;
+  deliveryVerification?: "verified" | "unverified" | null;
+  deliveryWarning?: string | null;
   resolvedIn: string | null;
   reportsCount: number;
   timeline: TimelineEntry[];
@@ -1174,6 +1179,31 @@ function Detail({
             <div>
               <SectionLabel icon="branch" text={t.detail.branch} />
               <p className="d-mono">{card.branch ?? "—"}</p>
+              {card.commit ? (
+                <p>
+                  <span className="d-mono">{t.detail.commit} </span>
+                  {card.commitUrl ? (
+                    <a
+                      href={card.commitUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="d-mono"
+                    >
+                      {card.commit}
+                      <Icon name="external" label={null} size={12} />
+                    </a>
+                  ) : (
+                    <span className="d-mono">{card.commit}</span>
+                  )}
+                </p>
+              ) : null}
+              {card.deliveryVerification ? (
+                <p className={card.deliveryUnverified ? "d-usage-warning" : "d-empty"}>
+                  {card.deliveryUnverified
+                    ? card.deliveryWarning ?? t.detail.commitUnverified
+                    : t.detail.commitVerified}
+                </p>
+              ) : null}
               {card.supersedes ? (
                 <p>
                   <a href={`#board-card-${card.supersedes.id}`}>

@@ -122,6 +122,31 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-US", { day: "2-digit", month: "2-digit" });
 }
 
+function githubCommitUrl(
+  repoUrl: string | null | undefined,
+  commit: string | null | undefined,
+): string | null {
+  if (!repoUrl || !commit) return null;
+  const ssh = /^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i.exec(repoUrl.trim());
+  if (ssh?.[1] && ssh[2]) {
+    return `https://github.com/${encodeURIComponent(ssh[1])}/${encodeURIComponent(ssh[2])}/commit/${encodeURIComponent(commit)}`;
+  }
+  try {
+    const parsed = new URL(repoUrl);
+    if (parsed.protocol !== "https:" || parsed.hostname !== "github.com") {
+      return null;
+    }
+    if (parsed.username || parsed.password) return null;
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    if (parts.length !== 2) return null;
+    const repo = parts[1]?.replace(/\.git$/, "");
+    if (!parts[0] || !repo) return null;
+    return `https://github.com/${encodeURIComponent(parts[0])}/${encodeURIComponent(repo)}/commit/${encodeURIComponent(commit)}`;
+  } catch {
+    return null;
+  }
+}
+
 type TaskRow = Awaited<ReturnType<typeof loadTasks>>[number];
 
 async function loadTasks(projectIds: string[]) {
@@ -131,6 +156,7 @@ async function loadTasks(projectIds: string[]) {
     orderBy: asc(task.createdAt),
     with: {
       mission: { columns: { id: true, title: true } },
+      project: { columns: { repoUrl: true } },
       createdBy: { columns: { email: true } },
       reviewer: { columns: { email: true } },
       attempts: true,
@@ -517,6 +543,16 @@ function toBoardCard(
     claimInactive,
     claimStale,
     branch: t.branch ?? latestHandoff?.branch ?? null,
+    commit: t.commitHash ?? latestHandoff?.commitHash ?? null,
+    commitUrl: githubCommitUrl(
+      t.project?.repoUrl,
+      t.commitHash ?? latestHandoff?.commitHash ?? null,
+    ),
+    deliveryUnverified:
+      t.deliveryUnverified || latestHandoff?.deliveryUnverified === true,
+    deliveryVerification:
+      t.deliveryVerification ?? latestHandoff?.deliveryVerification ?? null,
+    deliveryWarning: t.deliveryWarning ?? latestHandoff?.deliveryWarning ?? null,
     resolvedIn: t.resolvedIn ?? null,
     reportsCount,
     timeline,

@@ -5,6 +5,9 @@ export type Effort = "low" | "medium" | "high";
 /** Where the model identity on an execution attempt came from. */
 export type AttemptModelSource = "declared" | "harness" | "measured";
 
+/** Whether a delivered commit could be checked against the project's remote. */
+export type DeliveryVerification = "verified" | "unverified";
+
 export type Harness = {
   cli?: string | null;
   model: string | null;

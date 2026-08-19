@@ -225,6 +225,13 @@
       "when": 1787142619708,
       "tag": "0031_session-revocation",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787143198773,
+      "tag": "0032_delivery_verification",
+      "breakpoints": true
     }
   ]
 }
