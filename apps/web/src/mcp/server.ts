@@ -18,6 +18,7 @@ export const SERVER_INSTRUCTIONS = [
   "If an executor must stop, task_release returns its card to the queue without deleting the attempt. Long runs may call task_heartbeat; an inactive claim expires at the workspace timeout and the next task_claim reports reclaimed_stale: true.",
   "Missions group cards: mission_create returns the id that task_create accepts. Every task_id argument accepts the card uuid or the workspace short id (for example AGB-5).",
   "Round-wide conventions belong in mission context: edit them with mission_update. Remove empty mission shells with mission_delete.",
+  "Shared markdown is edited incrementally: use context_ops (and objective_ops for a mission objective) to change one section or list line; never resend a whole blob for a one-line change. Send context/objective only for an intentional full rewrite.",
   "Cards live in projects: project_list shows the projects of the workspace and project_create starts one. task_create takes the project uuid or its card prefix (for example AGB).",
   "Reorganizing is project_update to rename, project_delete to remove (empty by default), and task_update with project_id to move a card to another project, which restamps its short id and returns the old-to-new mapping.",
   "If an executor dies or reaches its model limit, create the continuation with task_create supersedes (and inherit: true when reusing the contract); never leave the old card in execution.",
@@ -58,7 +59,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   project_create:
     "Creates a project (name, optional repo_url, context, current_version and id_prefix). Context is limited to 32000 characters. The card prefix is derived from the name when omitted and is unique per workspace.",
   project_update:
-    "Updates a project (name, repo_url, context, current_version, id_prefix). Context is limited to 32000 characters. The card prefix is only editable while the project has no cards, because every card carries it in its short id: to reorganize a project that holds cards, move them with task_update passing project_id.",
+    "Partially updates a project (name, repo_url, context, current_version, id_prefix); omitted fields stay unchanged. Use context_ops to edit one markdown section or list line against the current server value; do not resend the whole context blob for a small change. context is still accepted for an intentional full rewrite and optional expected_len/expected_hash detects a stale legacy read. Context is limited to 32000 characters. The card prefix is only editable while the project has no cards, because every card carries it in its short id: to reorganize a project that holds cards, move them with task_update passing project_id.",
   project_delete:
     "Hard delete: removes the project. Only an empty one by default; a project with cards comes back refused with the count that blocks it, and force: true destroys the project with every card in it, and their attempts, handoffs and subtasks. Irreversible.",
   mission_list:
@@ -68,7 +69,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   mission_create:
     "Creates a mission in the workspace (title, objective and context in markdown, status). Pass the id it returns as task_create.mission.",
   mission_update:
-    "Updates a mission in place (title, objective/context markdown, status). Omitted fields stay unchanged; conventions for one round belong in the mission context.",
+    "Partially updates a mission in place (title, objective/context markdown, status). Use context_ops or objective_ops to change one markdown section or list line against the current server value; never resend a whole blob for a one-line change. context/objective remain available for intentional full rewrites, with optional expected_len/expected_hash stale-read guards. Omitted fields stay unchanged; conventions for one round belong in the mission context.",
   mission_delete:
     "Deletes an empty mission shell. A mission with cards is refused with its count unless force: true explicitly detaches those cards first.",
   task_list:

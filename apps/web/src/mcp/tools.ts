@@ -27,6 +27,7 @@ import {
   type UsageReport,
 } from "@agent-board/db";
 import {
+  applyContextOps,
   applyTransition,
   branchConvention,
   err,
@@ -43,6 +44,7 @@ import {
   type CardapioPolicyEntry,
   type CardapioTaskType,
   type CardStatus,
+  type ContextOp,
   type EffortLevel,
   type Harness,
   type McpToolName,
@@ -54,6 +56,7 @@ import {
   type TranscriptRefWire,
   type Usage,
 } from "@agent-board/mcp-core";
+import { createHash } from "node:crypto";
 import {
   and,
   asc,
@@ -652,6 +655,47 @@ async function projectCardCounts(db: Tx, projectId: string) {
   return tally;
 }
 
+function contextHash(value: string | null | undefined): string {
+  return createHash("sha256").update(value ?? "", "utf8").digest("hex");
+}
+
+function contextGuardError(
+  value: string | null | undefined,
+  input: { expected_len?: number; expected_hash?: string },
+  field: string,
+) {
+  const current = value ?? "";
+  if (input.expected_len !== undefined && current.length !== input.expected_len) {
+    return err(
+      "INVALID_ARGUMENT",
+      `${field} changed since it was read (expected length ${input.expected_len}, current length ${current.length}). Re-read it and retry, or use granular context_ops.`,
+    );
+  }
+  if (
+    input.expected_hash !== undefined &&
+    contextHash(current) !== input.expected_hash.toLowerCase()
+  ) {
+    return err(
+      "INVALID_ARGUMENT",
+      `${field} changed since it was read (expected_hash does not match). Re-read it and retry, or use granular context_ops.`,
+    );
+  }
+  return null;
+}
+
+function applyContextDelta(
+  value: string | null | undefined,
+  operations: readonly ContextOp[],
+  field: string,
+): { ok: true; value: string } | ReturnType<typeof err> {
+  try {
+    return { ok: true, value: applyContextOps(value, operations) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "invalid context operation";
+    return err("INVALID_ARGUMENT", `${field}: ${message}`);
+  }
+}
+
 async function projectUpdate(
   db: McpDatabase,
   ctx: AuthContext,
@@ -660,100 +704,124 @@ async function projectUpdate(
     name?: string;
     repo_url?: string | null;
     context?: string | null;
+    context_ops?: ContextOp[];
+    expected_len?: number;
+    expected_hash?: string;
     current_version?: string | null;
     id_prefix?: string;
   },
 ) {
-  const proj = await findProject(db, ctx.workspaceId, input.project_id);
-  if (!proj) {
-    return err(
-      "NOT_FOUND",
-      `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
-    );
-  }
-
-  const patch: {
-    name?: string;
-    repoUrl?: string | null;
-    context?: string | null;
-    currentVersion?: string | null;
-    idPrefix?: string;
-  } = {};
-
-  if (input.name !== undefined) {
-    const name = input.name.trim();
-    if (!name) {
-      return err("INVALID_ARGUMENT", "Project name cannot be empty.");
-    }
-    patch.name = name;
-  }
-
-  if (input.repo_url !== undefined) {
-    patch.repoUrl = input.repo_url?.trim() || null;
-  }
-
-  if (input.context !== undefined) {
-    patch.context = input.context?.trim() ? input.context : null;
-  }
-
-  if (input.current_version !== undefined) {
-    patch.currentVersion = input.current_version?.trim() || null;
-  }
-
-  if (input.id_prefix !== undefined) {
-    const prefix = input.id_prefix.trim().toUpperCase();
-    if (!isValidPrefix(prefix)) {
+  return db.transaction(async (tx) => {
+    const proj = await findProject(tx, ctx.workspaceId, input.project_id, true);
+    if (!proj) {
       return err(
-        "INVALID_ARGUMENT",
-        `Card prefix '${prefix}' is invalid: use 2 to 4 letters or digits, for example AGB.`,
+        "NOT_FOUND",
+        `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
       );
     }
-    if (prefix !== proj.idPrefix) {
-      // Every card already carries the prefix in its short id (FUN-1, FUN-2),
-      // and those ids live outside the board too: branches, commits, PR
-      // titles. Rewriting the prefix here would either leave the board naming
-      // cards that never existed or silently break every external reference,
-      // so the project keeps its prefix for as long as it holds cards.
-      const cards = await countCards(db, proj.id);
-      if (cards > 0) {
+
+    const patch: {
+      name?: string;
+      repoUrl?: string | null;
+      context?: string | null;
+      currentVersion?: string | null;
+      idPrefix?: string;
+    } = {};
+
+    if (input.name !== undefined) {
+      const name = input.name.trim();
+      if (!name) {
+        return err("INVALID_ARGUMENT", "Project name cannot be empty.");
+      }
+      patch.name = name;
+    }
+
+    if (input.repo_url !== undefined) {
+      patch.repoUrl = input.repo_url?.trim() || null;
+    }
+
+    if (input.context !== undefined || input.context_ops !== undefined) {
+      const guard = contextGuardError(proj.context, input, "Project context");
+      if (guard) return guard;
+
+      if (input.context_ops !== undefined) {
+        const applied = applyContextDelta(
+          proj.context,
+          input.context_ops,
+          "Project context",
+        );
+        if (!applied.ok) return applied;
+        if (applied.value.length > 32_000) {
+          return err(
+            "INVALID_ARGUMENT",
+            "Project context cannot exceed 32000 characters after applying context_ops.",
+          );
+        }
+        patch.context = applied.value.trim() ? applied.value : null;
+      } else {
+        patch.context = input.context?.trim() ? input.context : null;
+      }
+    }
+
+    if (input.current_version !== undefined) {
+      patch.currentVersion = input.current_version?.trim() || null;
+    }
+
+    if (input.id_prefix !== undefined) {
+      const prefix = input.id_prefix.trim().toUpperCase();
+      if (!isValidPrefix(prefix)) {
         return err(
           "INVALID_ARGUMENT",
-          `Project '${proj.name}' holds ${cards} card${cards === 1 ? "" : "s"} whose short ids already start with ${proj.idPrefix} (${proj.idPrefix}-1, ${proj.idPrefix}-2), and those ids are also in branches, commits and PR titles. Renumbering them is not offered. To reorganize, create the project you want with project_create and move the cards into it with task_update passing project_id: each card is restamped with the destination prefix, keeps its old id in previous_short_ids, and the response returns the old-to-new mapping. The prefix of an empty project can still be changed here.`,
+          `Card prefix '${prefix}' is invalid: use 2 to 4 letters or digits, for example AGB.`,
         );
       }
-      const taken = await findProject(db, ctx.workspaceId, prefix);
-      if (taken) {
+      if (prefix !== proj.idPrefix) {
+        // Every card already carries the prefix in its short id (FUN-1, FUN-2),
+        // and those ids live outside the board too: branches, commits, PR
+        // titles. Rewriting the prefix here would either leave the board naming
+        // cards that never existed or silently break every external reference,
+        // so the project keeps its prefix for as long as it holds cards.
+        const cards = await countCards(tx, proj.id);
+        if (cards > 0) {
+          return err(
+            "INVALID_ARGUMENT",
+            `Project '${proj.name}' holds ${cards} card${cards === 1 ? "" : "s"} whose short ids already start with ${proj.idPrefix} (${proj.idPrefix}-1, ${proj.idPrefix}-2), and those ids are also in branches, commits and PR titles. Renumbering them is not offered. To reorganize, create the project you want with project_create and move the cards into it with task_update passing project_id: each card is restamped with the destination prefix, keeps its old id in previous_short_ids, and the response returns the old-to-new mapping. The prefix of an empty project can still be changed here.`,
+          );
+        }
+        const taken = await findProject(tx, ctx.workspaceId, prefix);
+        if (taken) {
+          return err(
+            "INVALID_ARGUMENT",
+            `Card prefix '${prefix}' is already used by project '${taken.name}'. Pass a different id_prefix.`,
+          );
+        }
+        patch.idPrefix = prefix;
+      }
+    }
+
+    let row: ProjectRow | undefined;
+    try {
+      [row] = await tx
+        .update(project)
+        .set(patch)
+        .where(eq(project.id, proj.id))
+        .returning();
+    } catch (error) {
+      if (isPrefixConflict(error)) {
         return err(
           "INVALID_ARGUMENT",
-          `Card prefix '${prefix}' is already used by project '${taken.name}'. Pass a different id_prefix.`,
+          `Card prefix '${patch.idPrefix}' was just taken by another project. Pass a different id_prefix.`,
         );
       }
-      patch.idPrefix = prefix;
+      throw error;
     }
-  }
-
-  let row: ProjectRow | undefined;
-  try {
-    [row] = await db
-      .update(project)
-      .set(patch)
-      .where(eq(project.id, proj.id))
-      .returning();
-  } catch (error) {
-    if (isPrefixConflict(error)) {
-      return err(
-        "INVALID_ARGUMENT",
-        `Card prefix '${patch.idPrefix}' was just taken by another project. Pass a different id_prefix.`,
-      );
+    if (!row) {
+      throw new Error("failed to update project");
     }
-    throw error;
-  }
-  if (!row) {
-    throw new Error("failed to update project");
-  }
 
-  const counts = await projectCardCounts(db, row.id);
-  return { project: mapProjectDetail(row, counts) };
+    const counts = await projectCardCounts(tx, row.id);
+    return { project: mapProjectDetail(row, counts) };
+  });
 }
 
 async function projectDelete(
@@ -905,54 +973,104 @@ async function missionUpdate(
     mission_id: string;
     title?: string;
     objective?: string;
+    objective_ops?: ContextOp[];
     context?: string;
+    context_ops?: ContextOp[];
+    expected_len?: number;
+    expected_hash?: string;
     status?: "ativa" | "pausada" | "concluida";
   },
 ) {
-  const current = await findMission(db, ctx.workspaceId, input.mission_id);
-  if (!current) {
-    return err(
-      "NOT_FOUND",
-      `Mission ${input.mission_id} not found in this workspace. Call mission_list to see the available missions.`,
-    );
-  }
+  return db.transaction(async (tx) => {
+    const current = await findMission(tx, ctx.workspaceId, input.mission_id, true);
+    if (!current) {
+      return err(
+        "NOT_FOUND",
+        `Mission ${input.mission_id} not found in this workspace. Call mission_list to see the available missions.`,
+      );
+    }
 
-  const patch: {
-    title?: string;
-    objective?: string;
-    context?: string;
-    status?: "ativa" | "pausada" | "concluida";
-  } = {};
-  if (input.title !== undefined) patch.title = input.title.trim();
-  if (input.objective !== undefined) patch.objective = input.objective.trim();
-  if (input.context !== undefined) patch.context = input.context.trim();
-  if (input.status !== undefined) patch.status = input.status;
+    const contextChanged =
+      input.context !== undefined || input.context_ops !== undefined;
+    const objectiveChanged =
+      input.objective !== undefined || input.objective_ops !== undefined;
+    if (
+      (input.expected_len !== undefined || input.expected_hash !== undefined) &&
+      Number(contextChanged) + Number(objectiveChanged) !== 1
+    ) {
+      return err(
+        "INVALID_ARGUMENT",
+        "expected_len/expected_hash guard exactly one mission blob (context or objective) per update.",
+      );
+    }
 
-  if (Object.keys(patch).length === 0) {
-    const [counted] = await db
+    const patch: {
+      title?: string;
+      objective?: string;
+      context?: string;
+      status?: "ativa" | "pausada" | "concluida";
+    } = {};
+    if (input.title !== undefined) patch.title = input.title.trim();
+    if (input.status !== undefined) patch.status = input.status;
+
+    if (contextChanged) {
+      const guard = contextGuardError(current.context, input, "Mission context");
+      if (guard) return guard;
+      if (input.context_ops !== undefined) {
+        const applied = applyContextDelta(
+          current.context,
+          input.context_ops,
+          "Mission context",
+        );
+        if (!applied.ok) return applied;
+        patch.context = applied.value;
+      } else {
+        patch.context = input.context?.trim() ?? "";
+      }
+    }
+
+    if (objectiveChanged) {
+      const guard = contextGuardError(current.objective, input, "Mission objective");
+      if (guard) return guard;
+      if (input.objective_ops !== undefined) {
+        const applied = applyContextDelta(
+          current.objective,
+          input.objective_ops,
+          "Mission objective",
+        );
+        if (!applied.ok) return applied;
+        patch.objective = applied.value;
+      } else {
+        patch.objective = input.objective?.trim() ?? "";
+      }
+    }
+
+    if (Object.keys(patch).length === 0) {
+      const [counted] = await tx
+        .select({ n: count() })
+        .from(task)
+        .where(eq(task.missionId, current.id));
+      return { mission: mapMission(current, Number(counted?.n ?? 0)) };
+    }
+
+    const [row] = await tx
+      .update(mission)
+      .set(patch)
+      .where(
+        and(
+          eq(mission.id, current.id),
+          eq(mission.workspaceId, ctx.workspaceId),
+        ),
+      )
+      .returning();
+    if (!row) throw new Error("failed to update mission");
+
+    const [counted] = await tx
       .select({ n: count() })
       .from(task)
-      .where(eq(task.missionId, current.id));
-    return { mission: mapMission(current, Number(counted?.n ?? 0)) };
-  }
-
-  const [row] = await db
-    .update(mission)
-    .set(patch)
-    .where(
-      and(
-        eq(mission.id, current.id),
-        eq(mission.workspaceId, ctx.workspaceId),
-      ),
-    )
-    .returning();
-  if (!row) throw new Error("failed to update mission");
-
-  const [counted] = await db
-    .select({ n: count() })
-    .from(task)
-    .where(eq(task.missionId, row.id));
-  return { mission: mapMission(row, Number(counted?.n ?? 0)) };
+      .where(eq(task.missionId, row.id));
+    return { mission: mapMission(row, Number(counted?.n ?? 0)) };
+  });
 }
 
 async function missionDelete(
@@ -3569,6 +3687,7 @@ async function findProject(
   db: Tx,
   workspaceId: string,
   projectRef: string,
+  lock = false,
 ): Promise<ProjectRow | null> {
   const ref = projectRef.trim();
   if (!ref) return null;
@@ -3576,11 +3695,13 @@ async function findProject(
     ? eq(project.id, ref)
     : sql`upper(${project.idPrefix}) = ${ref.toUpperCase()}`;
 
-  const [row] = await db
+  const query = db
     .select()
     .from(project)
     .where(and(eq(project.workspaceId, workspaceId), identity))
     .limit(1);
+  const rows = lock ? await query.for("update") : await query;
+  const row = rows[0];
   return row ?? null;
 }
 
@@ -3588,6 +3709,7 @@ async function findMission(
   db: Tx,
   workspaceId: string,
   missionRef: string,
+  lock = false,
 ) {
   // task_create.mission and mission_get take an existing mission id.
   // A missing or unknown id is a clean NOT_FOUND — we never match by title
@@ -3595,11 +3717,13 @@ async function findMission(
   if (!looksLikeUuid(missionRef)) {
     return null;
   }
-  const [row] = await db
+  const query = db
     .select()
     .from(mission)
     .where(and(eq(mission.workspaceId, workspaceId), eq(mission.id, missionRef)))
     .limit(1);
+  const rows = lock ? await query.for("update") : await query;
+  const row = rows[0];
   return row ?? null;
 }
 

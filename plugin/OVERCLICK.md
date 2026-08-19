@@ -104,3 +104,12 @@ The claim briefing already carries the contract, mission context, branch
 convention, harness, and usage recipe. Put any newly discovered run-wide rule
 on the card or mission before dispatching instead of duplicating it in the
 prompt.
+
+## Shared markdown is a live document
+
+When changing one section or list line of a project context or mission
+objective, call `project_update`/`mission_update` with `context_ops` (or
+`objective_ops`); never resend the whole blob for a one-line change. The board
+applies granular operations to the current value, preserving concurrent edits.
+Send `context`/`objective` only for an intentional full rewrite, optionally
+guarded with `expected_len` or `expected_hash`.

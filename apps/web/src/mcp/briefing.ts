@@ -97,6 +97,13 @@ export function renderBriefingMarkdown(input: {
       ].join("\n")
     : "## Project context\n\n(project context unavailable)";
 
+  const contextEditingBlock = [
+    "## Shared context edits",
+    "",
+    "To change one section or list line in project or mission markdown, use `context_ops` (or `objective_ops` for a mission objective) with `project_update`/`mission_update`.",
+    "Do not resend the whole blob for a one-line change: granular operations apply to the current server value and preserve concurrent edits. Send `context` or `objective` only for an intentional full rewrite; use `expected_len` or `expected_hash` when guarding a legacy blob rewrite.",
+  ].join("\n");
+
   const reopen = task.reopen_comment
     ? `\n## Comentário da reabertura\n\n${task.reopen_comment}\n`
     : "";
@@ -125,6 +132,8 @@ export function renderBriefingMarkdown(input: {
     missionBlock,
     "",
     projectBlock,
+    "",
+    contextEditingBlock,
     "",
     "## Convenção Git",
     "",
