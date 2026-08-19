@@ -1725,6 +1725,38 @@ describe("MCP tool edge cases against a test db", () => {
     );
   });
 
+  it("filters task_list to claims owned by the caller token", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Claim owned by this token",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const mine = TaskCreateOutputSchema.parse(created.value).task;
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: mine.id,
+      executor: { cli: "codex", model: "gpt-5.6-sol" },
+    });
+    expect(claimed.ok).toBe(true);
+
+    const listed = await invokeTool(world.db, ctx(), "task_list", {
+      status: "em_execucao",
+      claimed_by: "me",
+    });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    expect(TaskListOutputSchema.parse(listed.value).tasks).toEqual([
+      expect.objectContaining({ id: mine.id, status: "em_execucao" }),
+    ]);
+  });
+
   it("filters task_list by an exact release and returns an empty list for a missing one", async () => {
     world = await createTestWorld();
     const released = await invokeTool(world.db, ctx(), "task_create", {

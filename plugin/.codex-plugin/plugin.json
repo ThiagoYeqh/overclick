@@ -1,0 +1,19 @@
+{
+  "name": "overclick",
+  "version": "0.1.12",
+  "description": "Run the complete OverClick card workflow from Codex.",
+  "author": {
+    "name": "OverClick"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "OverClick",
+    "shortDescription": "Claim, execute, and deliver board cards.",
+    "longDescription": "Connect Codex to an OverClick board and keep every work item in the claim-to-deliver loop.",
+    "developerName": "OverClick",
+    "category": "Productivity",
+    "capabilities": ["MCP", "Skills"],
+    "defaultPrompt": "Show my OverClick board and help me execute the next card."
+  },
+  "mcpServers": "./.mcp.json"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "overclick",
+  "description": "Official OverClick plugins.",
+  "owner": {
+    "name": "OverClick"
+  },
+  "plugins": [
+    {
+      "name": "overclick",
+      "description": "Claim, execute, and deliver OverClick cards.",
+      "version": "0.1.12",
+      "source": "./plugin"
+    }
+  ]
+}

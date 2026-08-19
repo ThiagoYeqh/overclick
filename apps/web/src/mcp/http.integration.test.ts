@@ -80,6 +80,38 @@ describe("HTTP /mcp auth", () => {
     expect(json.result?.serverInfo?.name).toBe("overclick");
   });
 
+  it("allows stateless hook clients to call task_list directly", async () => {
+    world = await createTestWorld();
+    const response = await handleMcpRequest(
+      new Request("about:blank", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${world.secret}`,
+          Accept: "application/json, text/event-stream",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: "hook-test",
+          method: "tools/call",
+          params: { name: "task_list", arguments: { status: "aberto" } },
+        }),
+      }),
+      { db: world.db },
+    );
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      result?: {
+        structuredContent?: { tasks?: unknown[] };
+        content?: Array<{ text?: string }>;
+      };
+    };
+    const payload =
+      json.result?.structuredContent ??
+      JSON.parse(json.result?.content?.[0]?.text ?? "{}");
+    expect(Array.isArray(payload.tasks)).toBe(true);
+  });
+
   it("ships instructions that open with the board identity", async () => {
     world = await createTestWorld();
     const response = await handleMcpRequest(
