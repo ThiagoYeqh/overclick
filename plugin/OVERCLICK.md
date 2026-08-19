@@ -113,6 +113,12 @@ instance addresses, or organization-specific policies in this package.
   current card.
 - `/overclick:release <tag>` stamps the current card with an exact release tag.
 
+## Updating the plugin
+
+Re-run `install.sh`. It keeps its own persistent checkout of this package and
+fetches the latest version from there before reinstalling; there is no
+separate update command.
+
 ## Hook defaults
 
 `SessionStart`, the post-delivery remote check, and local claim-marker updates

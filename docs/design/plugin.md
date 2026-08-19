@@ -64,6 +64,22 @@ their native plugin managers. The stable package copy and a mode-600 config live
 the user's configuration area. Provider MCP config is updated idempotently; Codex gets
 an explicit `[mcp_servers.overclick]` block and merged global hooks.
 
+When install.sh runs without a local checkout to reuse (the `curl | bash` case),
+it clones the plugin package with plain `git` into a persistent
+`<config root>/overclick/plugin-src` checkout instead of an ephemeral `gh repo
+clone`. Re-running install.sh fetches and hard-resets that checkout to
+`origin/HEAD` — **updating the plugin is re-running install.sh**, nothing else.
+This checkout, not a `source github` marketplace entry, is what Claude's
+native marketplace add points at: a `source github` entry can register and
+report success without ever materializing a cache (confirmed 2026-08-19 on
+the owner's machine), while a local directory marketplace served from this
+checkout works. install.sh never uses `source github` for this reason.
+Because "successfully installed" only means the CLI accepted the command,
+install.sh also asks `claude plugin list --json` for the enabled overclick
+entry's `installPath` and checks that `OVERCLICK.md` actually exists there;
+if not, the run exits non-zero after configuring everything else, instead of
+reporting completion for a plugin that isn't really there.
+
 Claude receives an `@` import inside `<!-- overclick:start -->` and
 `<!-- overclick:end -->`. A CLI without native plugin support receives one AGENTS.md
 reference line inside the same markers. Re-running the installer replaces the marked

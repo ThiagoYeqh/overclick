@@ -60,29 +60,43 @@ else
   mcp_url="$instance_url/mcp"
 fi
 
-temporary_checkout=""
-cleanup() {
-  if [[ -n "$temporary_checkout" && -d "$temporary_checkout" ]]; then
-    rm -rf -- "$temporary_checkout"
-  fi
-}
-trap cleanup EXIT
+plugin_src="$overclick_root/plugin-src"
 
 script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
 if [[ -f "$script_dir/plugin/OVERCLICK.md" ]]; then
   source_root=$script_dir
 elif [[ -n "${OVERCLICK_PLUGIN_DIR:-}" && -f "$OVERCLICK_PLUGIN_DIR/OVERCLICK.md" ]]; then
   source_root=$(CDPATH='' cd -- "$OVERCLICK_PLUGIN_DIR/.." && pwd)
-elif command -v gh >/dev/null 2>&1; then
-  temporary_checkout=$(mktemp -d)
-  if ! gh repo clone "$plugin_source" "$temporary_checkout/repository" -- --depth 1 >/dev/null 2>&1; then
-    printf '%s\n' "Could not retrieve the OverClick plugin package." >&2
+else
+  # A `source github` marketplace entry can register without ever fetching the
+  # package (Claude CLI accepts it, marks it enabled, never materializes a
+  # cache). A plain git checkout served as a local directory marketplace is
+  # what actually works, so this installer keeps that checkout itself and
+  # re-running install.sh doubles as the update path (git pull, not a fresh
+  # ephemeral clone every run).
+  if ! command -v git >/dev/null 2>&1; then
+    printf '%s\n' "git is required to fetch the OverClick plugin package." >&2
     exit 1
   fi
-  source_root="$temporary_checkout/repository"
-else
-  printf '%s\n' "Run this installer from a checkout or install the repository client first." >&2
-  exit 1
+  case "$plugin_source" in
+    http://*|https://*|git@*|file://*) clone_url=$plugin_source ;;
+    *) clone_url="https://github.com/$plugin_source.git" ;;
+  esac
+  mkdir -p "$overclick_root"
+  if [[ -d "$plugin_src/.git" ]]; then
+    if ! git -C "$plugin_src" fetch --depth 1 origin >/dev/null 2>&1 || \
+      ! git -C "$plugin_src" reset --hard origin/HEAD >/dev/null 2>&1; then
+      printf '%s\n' "Could not update the local OverClick plugin checkout at $plugin_src." >&2
+      exit 1
+    fi
+  else
+    rm -rf -- "$plugin_src"
+    if ! git clone --depth 1 "$clone_url" "$plugin_src" >/dev/null 2>&1; then
+      printf '%s\n' "Could not clone the OverClick plugin package." >&2
+      exit 1
+    fi
+  fi
+  source_root="$plugin_src"
 fi
 
 if [[ ! -f "$source_root/plugin/.codex-plugin/plugin.json" || ! -f "$source_root/plugin/OVERCLICK.md" ]]; then
@@ -287,6 +301,46 @@ quiet_try() {
   fi
 }
 
+# "Successfully installed" only means the CLI accepted the command; the
+# github-source bug this fixes accepted it and never materialized anything.
+# Ask the CLI what it actually has on disk instead of trusting exit codes.
+verify_claude_plugin() {
+  local listing
+  listing=$(claude plugin list --json 2>/dev/null) || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$listing" | python3 -c '
+import json, sys
+try:
+    plugins = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+for entry in plugins:
+    if str(entry.get("id", "")).startswith("overclick@") and entry.get("enabled"):
+        print(entry.get("installPath", ""))
+        sys.exit(0)
+sys.exit(1)
+'
+    return $?
+  fi
+  if command -v node >/dev/null 2>&1; then
+    printf '%s' "$listing" | node -e '
+let data = "";
+process.stdin.on("data", chunk => { data += chunk; });
+process.stdin.on("end", () => {
+  let plugins;
+  try { plugins = JSON.parse(data); } catch { process.exit(1); }
+  const found = plugins.find(p => String(p.id || "").startsWith("overclick@") && p.enabled);
+  if (!found) process.exit(1);
+  process.stdout.write(String(found.installPath || ""));
+});
+'
+    return $?
+  fi
+  return 1
+}
+
+validation_failed=0
+
 if has_cli claude; then
   if claude plugin marketplace add "$native_marketplace" --scope user >/dev/null 2>&1 || \
     claude plugin marketplace update overclick >/dev/null 2>&1; then
@@ -305,6 +359,14 @@ if has_cli claude; then
     --header "Authorization: Bearer $token" overclick "$mcp_url"
   claude_block=$(printf '%s\n' '<!-- overclick:start -->' "@$plugin_target/OVERCLICK.md" '<!-- overclick:end -->')
   replace_marked_block "$install_home/.claude/CLAUDE.md" "$claude_block"
+
+  claude_install_path=$(verify_claude_plugin) || claude_install_path=""
+  if [[ -n "$claude_install_path" && -f "$claude_install_path/OVERCLICK.md" ]]; then
+    printf '%s\n' "Claude plugin verified: enabled and materialized at $claude_install_path."
+  else
+    printf '%s\n' "Claude plugin did not materialize: 'claude plugin list --json' shows no enabled overclick entry with OVERCLICK.md on disk. Do not trust the earlier \"configured\" messages; retry or install manually." >&2
+    validation_failed=1
+  fi
 fi
 
 if has_cli codex; then
@@ -365,6 +427,11 @@ if [[ "${OVERCLICK_AGENTS_FALLBACK:-0}" = "1" ]] || \
   agents_block=$(printf '%s\n' '<!-- overclick:start -->' "Read and follow $plugin_target/OVERCLICK.md for all OverClick board work." '<!-- overclick:end -->')
   replace_marked_block "$project_dir/AGENTS.md" "$agents_block"
   printf '%s\n' "No plugin-capable CLI was detected; the AGENTS.md fallback was installed."
+fi
+
+if [[ "$validation_failed" = "1" ]]; then
+  printf '%s\n' "OverClick plugin installation finished with unverified components; see warnings above. Credentials were stored privately and were not displayed." >&2
+  exit 1
 fi
 
 printf '%s\n' "OverClick plugin installation complete. Credentials were stored privately and were not displayed."
