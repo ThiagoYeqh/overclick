@@ -34,6 +34,57 @@ exhausted model context, create a continuation with `supersedes` and
 `inherit: true`; this closes the old attempt while retaining its measured cost.
 Use `task_heartbeat` during long runs.
 
+## Mission orchestration telemetry
+
+A mission's planning and dispatch work is measured separately from card
+execution. It belongs to one `mission_attempt`, not to a synthetic card. If you
+are the mission orchestrator, follow this cycle:
+
+1. At mission start, call `mission_attempt_start` with the `mission_id`, an
+   optional primary `project_id`, the effective CLI/model/session, and the
+   transcript reference. Save the returned `attempt_id`, sequence `0`, and the
+   server start time; this starts the measurement window.
+2. After every dispatch round—including a round that created no card—call
+   `mission_report_usage` with `checkpoint: "rodada"`. Send a cumulative
+   snapshot from the attempt start, never a delta. Increase `sequence` for
+   each new snapshot; retrying the same payload and sequence is safe.
+3. When the mission closes, send one final report with
+   `checkpoint: "final"` and `result: "success"` or `"abandoned"`. The final
+   snapshot is required for successful orchestration to enter trusted totals;
+   an abandoned attempt remains auditable but stays out of those totals.
+4. Report usage per model with `segments`, plus active `duration_ms`, `turns`,
+   and `estimated`:
+
+   ```json
+   {
+     "mission_id": "<mission>",
+     "attempt_id": "<attempt>",
+     "sequence": 2,
+     "checkpoint": "rodada",
+     "usage": {
+       "segments": [
+         {"model": "gpt-5.6-sol", "input": 70000, "output": 8000, "cache_read": 15000, "cache_write": 0}
+       ],
+       "duration_ms": 370000,
+       "turns": 5,
+       "estimated": false
+     }
+   }
+   ```
+
+   If the CLI does not expose exact counters, never send zero to mean “I do
+   not know”. Use an honest estimate with `estimated: true`; if no honest
+   estimate exists, leave usage unreported so the board can show `not reported`.
+   `unpriced` means a segment has no price, while `estimated` qualifies an
+   approximation; neither state is silently converted to `$0`.
+
+If the orchestrator's session also executes a card, declare the shared session
+and keep the scopes distinct. The board marks overlapping usage as `suspect`
+instead of counting the same session twice. Card deliveries report only that
+card's execution; planning and dispatch tokens belong to the mission attempt.
+A mission attempt has no card branch, PR, reviewer, or `task_deliver` of its
+own. Only the human validates the resulting card work and mission outcome.
+
 ## Card contract
 
 A card states what changes from the user's point of view, why that matters, and

@@ -20,6 +20,41 @@ function renderRecipe(recipe: UsageRecipe): string[] {
   ];
 }
 
+function renderMissionTelemetry(): string[] {
+  return [
+    "## Mission orchestration telemetry",
+    "",
+    "If you are orchestrating this mission, keep planning and dispatch usage in a separate `mission_attempt`; a card-only worker must not open one.",
+    "",
+    "1. At mission start, call `mission_attempt_start` with the mission, optional primary project, effective CLI/model/session, and transcript reference. Save the returned `attempt_id` and sequence `0`.",
+    "2. After every dispatch round—even a round that creates no card—call `mission_report_usage` with `checkpoint: \"rodada\"` and a cumulative snapshot since the attempt started. Never send a delta; increase `sequence` for each new snapshot.",
+    "3. At close, send the final cumulative snapshot with `checkpoint: \"final\"` and `result: \"success\"` or `\"abandoned\"`. A successful attempt needs that final checkpoint to enter trusted totals.",
+    "4. Put one entry per model in `usage.segments`, plus `duration_ms`, `turns`, and `estimated`:",
+    "",
+    "```json",
+    "{",
+    '  "mission_id": "<mission>",',
+    '  "attempt_id": "<attempt>",',
+    '  "sequence": 2,',
+    '  "checkpoint": "rodada",',
+    '  "usage": {',
+    '    "segments": [{"model": "gpt-5.6-sol", "input": 70000, "output": 8000, "cache_read": 15000, "cache_write": 0}],',
+    '    "duration_ms": 370000,',
+    '    "turns": 5,',
+    '    "estimated": false',
+    "  }",
+    "}",
+    "```",
+    "",
+    "Use the server's attempt start as the usage boundary; work from this session before that point is not part of the mission attempt. Repeating an identical sequence and payload is safe, but a new snapshot must advance the sequence.",
+    "",
+    "If exact counters are unavailable, never send zero to mean unknown: use an honest estimate with `estimated: true`, or leave usage unreported so the board can show `not reported`. `estimated` qualifies an approximation, `unpriced` means the model has no price, and `suspect` means the window/session check found an inconsistency; none is silently turned into `$0`.",
+    "",
+    "If the same session also executes a card, declare the sharing; OCL-11 marks overlapping usage `suspect` instead of counting it twice. Card delivery reports only card execution. A mission attempt has no branch, PR, reviewer, or `task_deliver` of its own.",
+    "",
+  ];
+}
+
 export function renderBriefingMarkdown(input: {
   task: Task;
   mission: Mission | null;
@@ -83,6 +118,8 @@ export function renderBriefingMarkdown(input: {
         mission.context && mission.context !== mission.objective
           ? `\n${mission.context}`
           : "",
+        "",
+        ...renderMissionTelemetry(),
       ].join("\n")
     : "## Missão\n\n(card solto — sem missão atribuída)";
 
