@@ -72,6 +72,10 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
     "Partially updates a mission in place (title, objective/context markdown, status). Use context_ops or objective_ops to change one markdown section or list line against the current server value; never resend a whole blob for a one-line change. context/objective remain available for intentional full rewrites, with optional expected_len/expected_hash stale-read guards. Omitted fields stay unchanged; conventions for one round belong in the mission context.",
   mission_delete:
     "Deletes an empty mission shell. A mission with cards is refused with its count unless force: true explicitly detaches those cards first.",
+  mission_attempt_start:
+    "Starts the one live orchestration attempt for an active mission. The executor session_id is required; a stale lease is abandoned before a new attempt is opened.",
+  mission_report_usage:
+    "Records a cumulative usage snapshot for a mission orchestration attempt. Replaying the current sequence identically is a no-op; conflicting or regressive sequences fail, and final closes the attempt with frozen cost.",
   task_list:
     "The card queue of the workspace. Each row includes the planned harness (CLI, model, effort), so task_list is enough to dispatch; the executor receives the full contract at task_claim. Unset fields are omitted and workspace_id is not repeated. Filters: project, mission, resolved_in (exact release), status, priority, claimed_by: me, awaiting_review_by, limit (default 50, max 200). The response returns truncated: true when the board has more cards than fit.",
   task_get:

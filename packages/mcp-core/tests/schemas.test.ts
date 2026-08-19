@@ -16,6 +16,8 @@ import {
   TaskClaimInputSchema,
   ExecutorsUpdateInputSchema,
   isTelemetryIncomplete,
+  MissionAttemptStartInputSchema,
+  MissionReportUsageInputSchema,
   toolContracts,
 } from "../src/index.js";
 
@@ -36,7 +38,7 @@ describe("model-specific efforts", () => {
 });
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 26 tools", () => {
+  it("exports input and output schemas for all 28 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "project_list",
       "project_get",
@@ -48,6 +50,8 @@ describe("MCP tool contracts", () => {
       "mission_create",
       "mission_update",
       "mission_delete",
+      "mission_attempt_start",
+      "mission_report_usage",
       "task_list",
       "task_get",
       "task_search",
@@ -69,6 +73,34 @@ describe("MCP tool contracts", () => {
       expect(toolContracts[name].input).toBeDefined();
       expect(toolContracts[name].output).toBeDefined();
     }
+  });
+
+  it("requires a session and cumulative final result on mission telemetry", () => {
+    expect(
+      MissionAttemptStartInputSchema.safeParse({
+        mission_id: "mission-1",
+        executor: { cli: "codex" },
+      }).success,
+    ).toBe(false);
+    expect(
+      MissionReportUsageInputSchema.safeParse({
+        mission_id: "mission-1",
+        attempt_id: "attempt-1",
+        sequence: 1,
+        checkpoint: "final",
+        usage: {},
+      }).success,
+    ).toBe(false);
+    expect(
+      MissionReportUsageInputSchema.parse({
+        mission_id: "mission-1",
+        attempt_id: "attempt-1",
+        sequence: 1,
+        checkpoint: "final",
+        usage: { segments: [{ model: "gpt-5-6-luna", input: 10 }] },
+        result: "success",
+      }).sequence,
+    ).toBe(1);
   });
 });
 

@@ -48,6 +48,19 @@ export const DeliveryVerificationSchema = z.enum(["verified", "unverified"]);
 
 export const MissionStatusSchema = z.enum(["ativa", "pausada", "concluida"]);
 
+/** Lifecycle of an orchestration run attached to a mission. */
+export const MissionAttemptStatusSchema = z.enum([
+  "aberto",
+  "sucesso",
+  "abandonado",
+]);
+
+/** A usage snapshot either advances a live run or closes it. */
+export const MissionAttemptCheckpointSchema = z.enum(["rodada", "final"]);
+
+/** Final result recorded by the closing snapshot. */
+export const MissionAttemptResultSchema = z.enum(["success", "abandoned"]);
+
 /**
  * Shared read controls. Reads default to the compact contract/summary view;
  * callers opt into the expensive prompt material explicitly.
@@ -437,6 +450,50 @@ export const ExecutionAttemptSchema = z.object({
   transcript: StoredTranscriptRefSchema.nullable().optional(),
 });
 
+/** Executor identity captured when an orchestration attempt starts. */
+export const MissionAttemptExecutorSchema = z.object({
+  cli: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  model_source: z.enum(["declared", "harness", "measured"]).optional(),
+  effort: EffortSchema.optional(),
+  agent: z.string().min(1).optional(),
+  session_id: z.string().min(1),
+});
+
+/** Public snapshot of a mission-level orchestration attempt. */
+export const MissionAttemptSchema = z.object({
+  id: z.string().min(1),
+  mission_id: z.string().min(1),
+  project_id: z.string().min(1).nullable(),
+  executor: MissionAttemptExecutorSchema,
+  transcript: StoredTranscriptRefSchema.nullable(),
+  status: MissionAttemptStatusSchema,
+  started_at: IsoDateTimeSchema,
+  last_activity_at: IsoDateTimeSchema,
+  finished_at: IsoDateTimeSchema.nullable(),
+  usage: UsageSchema.nullable(),
+  server_duration_ms: z.number().int().nonnegative().nullable(),
+  last_report_sequence: z.number().int().nonnegative(),
+  usage_suspect: z.boolean(),
+  usage_suspect_reason: z.string().nullable(),
+  cost_usd: z.number().nullable(),
+  cost_source: z.enum(["computed", "reported", "estimated"]).nullable(),
+  cost_status: z
+    .enum([
+      "computed",
+      "reported",
+      "estimated",
+      "unpriced",
+      "not_reported",
+      "zero_usage",
+      "suspect",
+    ])
+    .nullable(),
+  cost_unpriced_models: z.array(z.string()),
+  result: MissionAttemptResultSchema.nullable(),
+  result_note: z.string().nullable(),
+});
+
 export const HandoffSchema = z.object({
   id: z.string().min(1),
   task_id: z.string().min(1),
@@ -484,6 +541,8 @@ export type Task = z.infer<typeof TaskSchema>;
 export type TaskRead = z.infer<typeof TaskReadSchema>;
 export type TaskListItem = z.infer<typeof TaskListItemSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;
+export type MissionAttemptExecutor = z.infer<typeof MissionAttemptExecutorSchema>;
+export type MissionAttempt = z.infer<typeof MissionAttemptSchema>;
 export type Handoff = z.infer<typeof HandoffSchema>;
 export type BranchConvention = z.infer<typeof BranchConventionSchema>;
 

@@ -12,6 +12,8 @@ import {
   isClaimStale,
   mergeTranscriptRef,
   mission,
+  missionAttempt,
+  missionAttemptReport,
   nextShortId,
   normalizeModelKey,
   normalizeShortId,
@@ -416,6 +418,20 @@ async function dispatchTool(
         db,
         ctx,
         data as Parameters<typeof missionDelete>[2],
+      );
+      break;
+    case "mission_attempt_start":
+      value = await missionAttemptStart(
+        db,
+        ctx,
+        data as Parameters<typeof missionAttemptStart>[2],
+      );
+      break;
+    case "mission_report_usage":
+      value = await missionReportUsage(
+        db,
+        ctx,
+        data as Parameters<typeof missionReportUsage>[2],
       );
       break;
     case "task_list":
@@ -1005,6 +1021,27 @@ async function missionUpdate(
       );
     }
 
+    if (input.status === "concluida" && current.status !== "concluida") {
+      const [openAttempt] = await tx
+        .select({ id: missionAttempt.id })
+        .from(missionAttempt)
+        .where(
+          and(
+            eq(missionAttempt.missionId, current.id),
+            eq(missionAttempt.status, "aberto"),
+          ),
+        )
+        .orderBy(desc(missionAttempt.startedAt))
+        .limit(1);
+      if (openAttempt) {
+        return err(
+          "MISSION_ATTEMPT_ALREADY_OPEN",
+          `Mission '${current.title}' has an open orchestration attempt. Send its final mission_report_usage checkpoint before concluding the mission.`,
+          { attempt_id: openAttempt.id, mission_id: current.id },
+        );
+      }
+    }
+
     const patch: {
       title?: string;
       objective?: string;
@@ -1121,6 +1158,615 @@ async function missionDelete(
       mission_id: current.id,
       title: current.title,
       tasks_detached: taskCount,
+    };
+  });
+}
+
+type MissionAttemptExecutorInput = {
+  cli?: string;
+  model?: string;
+  effort?: string;
+  agent?: string;
+  session_id: string;
+};
+
+type MissionReportInput = {
+  mission_id: string;
+  attempt_id?: string;
+  mission_attempt_id?: string;
+  sequence: number;
+  checkpoint: "rodada" | "final";
+  usage: Usage;
+  result?: "success" | "abandoned";
+  result_note?: string;
+};
+
+function missionAttemptUsage(
+  row: typeof missionAttempt.$inferSelect,
+): Usage | null {
+  const hasUsage = Boolean(
+    (row.usageSegments?.length ?? 0) > 0 ||
+      row.tokensIn != null ||
+      row.tokensOut != null ||
+      row.tokensCache != null ||
+      row.reportedCostUsd != null ||
+      row.durationMs != null ||
+      row.turns != null,
+  );
+  if (!hasUsage) return null;
+  return {
+    ...(row.usageSegments?.length ? { segments: row.usageSegments } : {}),
+    ...(row.tokensIn != null ? { tokens_in: row.tokensIn } : {}),
+    ...(row.tokensOut != null ? { tokens_out: row.tokensOut } : {}),
+    ...(row.tokensCache != null ? { tokens_cache: row.tokensCache } : {}),
+    ...(row.reportedCostUsd != null
+      ? { cost_usd: Number(row.reportedCostUsd) }
+      : {}),
+    ...(row.durationMs != null ? { duration_ms: row.durationMs } : {}),
+    ...(row.turns != null ? { turns: row.turns } : {}),
+    estimated: row.usageEstimated,
+  };
+}
+
+function mapMissionAttempt(row: typeof missionAttempt.$inferSelect) {
+  const decoded = decodeExecutor(row.executor, row.model, row.modelSource);
+  const { token_id: _tokenId, ...executor } = decoded;
+  return {
+    id: row.id,
+    mission_id: row.missionId,
+    project_id: row.projectId,
+    executor: {
+      ...executor,
+      session_id: row.sessionId,
+    },
+    transcript: transcriptToWire(row.transcript),
+    status: row.status,
+    started_at: iso(row.startedAt),
+    last_activity_at: iso(row.lastActivityAt),
+    finished_at: row.finishedAt ? iso(row.finishedAt) : null,
+    usage: missionAttemptUsage(row),
+    server_duration_ms: row.serverDurationMs,
+    last_report_sequence: row.lastReportSequence,
+    usage_suspect: row.usageSuspect,
+    usage_suspect_reason: row.usageSuspectReason,
+    cost_usd: row.costUsd != null ? Number(row.costUsd) : null,
+    cost_source: row.costSource ?? null,
+    cost_status: row.costStatus ?? null,
+    cost_unpriced_models: row.costUnpricedModels ?? [],
+    result: row.result as "success" | "abandoned" | null,
+    result_note: row.resultNote ?? null,
+  };
+}
+
+function missionAttemptReportFingerprint(input: {
+  checkpoint: "rodada" | "final";
+  usageSegments: UsageSegment[];
+  tokensIn: number | null | undefined;
+  tokensOut: number | null | undefined;
+  tokensCache: number | null | undefined;
+  durationMs: number | null | undefined;
+  turns: number | null | undefined;
+  usageEstimated: boolean;
+  reportedCostUsd: number | null | undefined;
+  result: "success" | "abandoned" | null | undefined;
+  resultNote: string | null | undefined;
+}) {
+  const usageSegments = input.usageSegments.map((segment) => ({
+    model: segment.model ?? null,
+    input: segment.input ?? null,
+    output: segment.output ?? null,
+    cache_read: segment.cache_read ?? null,
+    cache_write: segment.cache_write ?? null,
+  }));
+  return JSON.stringify({
+    checkpoint: input.checkpoint,
+    usage_segments: usageSegments,
+    tokens_in: input.tokensIn ?? null,
+    tokens_out: input.tokensOut ?? null,
+    tokens_cache: input.tokensCache ?? null,
+    duration_ms: input.durationMs ?? null,
+    turns: input.turns ?? null,
+    estimated: input.usageEstimated,
+    reported_cost_usd: input.reportedCostUsd ?? null,
+    result: input.result ?? null,
+    result_note: input.resultNote ?? null,
+  });
+}
+
+function reportRowFingerprint(
+  row: typeof missionAttemptReport.$inferSelect,
+  reportedCostUsd: number | null | undefined,
+) {
+  return missionAttemptReportFingerprint({
+    checkpoint: row.checkpoint,
+    usageSegments: row.usageSegments ?? [],
+    tokensIn: row.tokensIn,
+    tokensOut: row.tokensOut,
+    tokensCache: row.tokensCache,
+    durationMs: row.durationMs,
+    turns: row.turns,
+    usageEstimated: row.estimated,
+    reportedCostUsd,
+    result: row.result as "success" | "abandoned" | null,
+    resultNote: row.resultNote,
+  });
+}
+
+function addUsageSuspectReason(
+  existing: string | null | undefined,
+  reason: string,
+): string {
+  const reasons = (existing ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!reasons.includes(reason)) reasons.push(reason);
+  return reasons.join(",");
+}
+
+/** Marks both sides when a transcript/session is shared with orchestration. */
+async function markOrchestrationSessionReuse(
+  db: Tx,
+  workspaceId: string,
+  sessionId: string,
+): Promise<boolean> {
+  const cardAttempts = await db
+    .select({ id: executionAttempt.id, usageSuspectReason: executionAttempt.usageSuspectReason })
+    .from(executionAttempt)
+    .innerJoin(task, eq(executionAttempt.taskId, task.id))
+    .innerJoin(project, eq(task.projectId, project.id))
+    .where(
+      and(
+        eq(project.workspaceId, workspaceId),
+        eq(executionAttempt.sessionId, sessionId),
+      ),
+    );
+
+  for (const cardAttempt of cardAttempts) {
+    await db
+      .update(executionAttempt)
+      .set({
+        usageSuspect: true,
+        usageSuspectReason: addUsageSuspectReason(
+          cardAttempt.usageSuspectReason,
+          "session_reused_orchestration",
+        ),
+      })
+      .where(eq(executionAttempt.id, cardAttempt.id));
+  }
+
+  if (cardAttempts.length === 0) return false;
+  return true;
+}
+
+/** The card side can be created after orchestration; flag its mission peers. */
+async function markMissionAttemptsForSessionReuse(
+  db: Tx,
+  workspaceId: string,
+  sessionId: string,
+): Promise<boolean> {
+  const orchestrationAttempts = await db
+    .select({
+      id: missionAttempt.id,
+      usageSuspectReason: missionAttempt.usageSuspectReason,
+    })
+    .from(missionAttempt)
+    .innerJoin(mission, eq(missionAttempt.missionId, mission.id))
+    .where(
+      and(
+        eq(mission.workspaceId, workspaceId),
+        eq(missionAttempt.sessionId, sessionId),
+      ),
+    );
+  for (const orchestration of orchestrationAttempts) {
+    await db
+      .update(missionAttempt)
+      .set({
+        usageSuspect: true,
+        usageSuspectReason: addUsageSuspectReason(
+          orchestration.usageSuspectReason,
+          "session_reused_orchestration",
+        ),
+      })
+      .where(eq(missionAttempt.id, orchestration.id));
+  }
+  return orchestrationAttempts.length > 0;
+}
+
+async function abandonStaleMissionAttempt(
+  db: Tx,
+  row: typeof missionAttempt.$inferSelect,
+  now: Date,
+) {
+  const hasUsage = Boolean(
+    (row.usageSegments?.length ?? 0) > 0 ||
+      row.tokensIn != null ||
+      row.tokensOut != null ||
+      row.tokensCache != null ||
+      row.reportedCostUsd != null ||
+      row.durationMs != null ||
+      row.turns != null,
+  );
+  const [updated] = await db
+    .update(missionAttempt)
+    .set({
+      status: "abandonado",
+      finishedAt: now,
+      lastActivityAt: now,
+      result: "abandoned",
+      resultNote: "stale",
+      serverDurationMs: Math.max(0, now.getTime() - row.startedAt.getTime()),
+      ...(!hasUsage ? { costStatus: "not_reported" as const } : {}),
+    })
+    .where(eq(missionAttempt.id, row.id))
+    .returning();
+  if (!updated) throw new Error("failed to abandon stale mission_attempt");
+  return updated;
+}
+
+async function missionAttemptStart(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: {
+    mission_id: string;
+    project_id?: string;
+    executor: MissionAttemptExecutorInput;
+    transcript?: TranscriptRefWire;
+  },
+) {
+  return db.transaction(async (tx) => {
+    const current = await findMission(tx, ctx.workspaceId, input.mission_id);
+    if (!current) {
+      return err(
+        "NOT_FOUND",
+        `Mission ${input.mission_id} not found in this workspace. Call mission_list to see the available missions.`,
+      );
+    }
+    if (current.status !== "ativa") {
+      return err(
+        "MISSION_NOT_ACTIVE",
+        `Mission '${current.title}' is ${current.status}; mission_attempt_start only accepts an active mission.`,
+        { mission_id: current.id, status: current.status },
+      );
+    }
+
+    let projectId: string | null = null;
+    if (input.project_id !== undefined) {
+      const proj = await findProject(tx, ctx.workspaceId, input.project_id);
+      if (!proj) {
+        return err(
+          "NOT_FOUND",
+          `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
+        );
+      }
+      projectId = proj.id;
+    }
+
+    const [ws] = await tx
+      .select({ claimTimeoutMinutes: workspace.claimTimeoutMinutes })
+      .from(workspace)
+      .where(eq(workspace.id, ctx.workspaceId))
+      .limit(1);
+    if (!ws) {
+      return err(
+        "NOT_FOUND",
+        "The workspace for this token no longer exists. Generate a new token in the board Settings.",
+      );
+    }
+
+    const [open] = await tx
+      .select()
+      .from(missionAttempt)
+      .where(
+        and(
+          eq(missionAttempt.missionId, current.id),
+          eq(missionAttempt.status, "aberto"),
+        ),
+      )
+      .orderBy(desc(missionAttempt.startedAt))
+      .limit(1);
+    const now = new Date();
+    if (open) {
+      if (isClaimStale(open.lastActivityAt, ws.claimTimeoutMinutes, now)) {
+        await abandonStaleMissionAttempt(tx, open, now);
+      } else {
+        return err(
+          "MISSION_ATTEMPT_ALREADY_OPEN",
+          `Mission '${current.title}' already has an open orchestration attempt. Report its next cumulative snapshot or wait for the lease to expire.`,
+          { attempt_id: open.id, mission_id: current.id },
+        );
+      }
+    }
+
+    const cli = normalizeClaimCli(input.executor.cli);
+    const model = input.executor.model
+      ? normalizeModelKey(input.executor.model)
+      : undefined;
+    const executor = {
+      token_id: ctx.tokenId,
+      ...(cli ? { cli } : {}),
+      ...(input.executor.effort ? { effort: input.executor.effort } : {}),
+      ...(input.executor.agent ? { agent: input.executor.agent } : {}),
+      session_id: input.executor.session_id,
+    };
+    const transcript = transcriptRef({
+      cli,
+      sessionId: input.executor.session_id,
+      path: input.transcript?.path,
+      resume: input.transcript?.resume,
+    });
+    const [created] = await tx
+      .insert(missionAttempt)
+      .values({
+        missionId: current.id,
+        projectId,
+        executor: JSON.stringify(executor),
+        model: model || null,
+        modelSource: model ? "declared" : null,
+        sessionId: input.executor.session_id,
+        transcript,
+        startedAt: now,
+        lastActivityAt: now,
+      })
+      .returning();
+    if (!created) throw new Error("failed to insert mission_attempt");
+
+    const reused = await markOrchestrationSessionReuse(
+      tx,
+      ctx.workspaceId,
+      input.executor.session_id,
+    );
+    const saved = reused
+      ? (
+          await tx
+            .update(missionAttempt)
+            .set({
+              usageSuspect: true,
+              usageSuspectReason: "session_reused_orchestration",
+            })
+            .where(eq(missionAttempt.id, created.id))
+            .returning()
+        )[0] ?? created
+      : created;
+
+    return {
+      attempt_id: saved.id,
+      mission_attempt_id: saved.id,
+      mission_id: saved.missionId,
+      sequence: 0 as const,
+      started_at: iso(saved.startedAt),
+      attempt: mapMissionAttempt(saved),
+    };
+  });
+}
+
+async function missionReportUsage(
+  db: McpDatabase,
+  ctx: AuthContext,
+  input: MissionReportInput,
+) {
+  const requestedAttemptId = input.attempt_id ?? input.mission_attempt_id;
+  if (
+    input.attempt_id &&
+    input.mission_attempt_id &&
+    input.attempt_id !== input.mission_attempt_id
+  ) {
+    return err(
+      "INVALID_ARGUMENT",
+      "attempt_id and mission_attempt_id must identify the same attempt",
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const current = await findMission(tx, ctx.workspaceId, input.mission_id);
+    if (!current) {
+      return err(
+        "MISSION_ATTEMPT_NOT_FOUND",
+        `Mission ${input.mission_id} not found in this workspace.`,
+      );
+    }
+
+    const [attempt] = await tx
+      .select()
+      .from(missionAttempt)
+      .where(
+        and(
+          eq(missionAttempt.missionId, current.id),
+          requestedAttemptId
+            ? eq(missionAttempt.id, requestedAttemptId)
+            : eq(missionAttempt.status, "aberto"),
+        ),
+      )
+      .orderBy(desc(missionAttempt.startedAt))
+      .limit(1);
+    if (!attempt) {
+      return err(
+        "MISSION_ATTEMPT_NOT_FOUND",
+        `No open orchestration attempt was found for mission '${current.title}'.`,
+        { mission_id: current.id, attempt_id: requestedAttemptId ?? null },
+      );
+    }
+    const existing = await tx
+      .select()
+      .from(missionAttemptReport)
+      .where(
+        and(
+          eq(missionAttemptReport.missionAttemptId, attempt.id),
+          eq(missionAttemptReport.sequence, input.sequence),
+        ),
+      )
+      .limit(1);
+    const incomingUsage = resolveUsageSegments(input.usage, attempt.model);
+    const incomingFingerprint = missionAttemptReportFingerprint({
+      checkpoint: input.checkpoint,
+      usageSegments: incomingUsage.segments,
+      tokensIn: incomingUsage.tokens_in,
+      tokensOut: incomingUsage.tokens_out,
+      tokensCache: incomingUsage.tokens_cache,
+      durationMs: incomingUsage.duration_ms,
+      turns: incomingUsage.turns,
+      usageEstimated: incomingUsage.estimated ?? false,
+      reportedCostUsd: incomingUsage.cost_usd,
+      result: input.result ?? null,
+      resultNote: input.result_note ?? null,
+    });
+    const idempotent =
+      input.sequence === attempt.lastReportSequence &&
+      Boolean(existing[0]) &&
+      reportRowFingerprint(
+        existing[0]!,
+        attempt.reportedCostUsd != null ? Number(attempt.reportedCostUsd) : null,
+      ) === incomingFingerprint;
+    if (attempt.status !== "aberto") {
+      if (idempotent) {
+        return {
+          attempt_id: attempt.id,
+          mission_attempt_id: attempt.id,
+          mission_id: attempt.missionId,
+          sequence: input.sequence,
+          checkpoint: existing[0]!.checkpoint,
+          idempotent: true,
+          attempt: mapMissionAttempt(attempt),
+        };
+      }
+      return err(
+        "INVALID_ARGUMENT",
+        `Mission attempt ${attempt.id} is already ${attempt.status}; reports after the final checkpoint are not accepted.`,
+        { attempt_id: attempt.id, status: attempt.status },
+      );
+    }
+
+    const [ws] = await tx
+      .select({ claimTimeoutMinutes: workspace.claimTimeoutMinutes })
+      .from(workspace)
+      .where(eq(workspace.id, ctx.workspaceId))
+      .limit(1);
+    if (!ws) return err("NOT_FOUND", "Workspace not found.");
+    const now = new Date();
+    if (isClaimStale(attempt.lastActivityAt, ws.claimTimeoutMinutes, now)) {
+      await abandonStaleMissionAttempt(tx, attempt, now);
+      return err(
+        "MISSION_ATTEMPT_NOT_FOUND",
+        `Mission attempt ${attempt.id} lease expired and was abandoned; start a new attempt.`,
+        { attempt_id: attempt.id, reason: "stale" },
+      );
+    }
+
+    if (input.sequence <= attempt.lastReportSequence) {
+      if (idempotent) {
+        return {
+          attempt_id: attempt.id,
+          mission_attempt_id: attempt.id,
+          mission_id: attempt.missionId,
+          sequence: input.sequence,
+          checkpoint: existing[0].checkpoint,
+          idempotent: true,
+          attempt: mapMissionAttempt(attempt),
+        };
+      }
+      return err(
+        "INVALID_SEQUENCE",
+        `Sequence ${input.sequence} is not a new cumulative snapshot for attempt ${attempt.id}.`,
+        {
+          last_report_sequence: attempt.lastReportSequence,
+        },
+      );
+    }
+
+    const usage = incomingUsage;
+    const sessionReused = await markOrchestrationSessionReuse(
+      tx,
+      ctx.workspaceId,
+      attempt.sessionId,
+    );
+    const prices = await loadModelPrices(tx as PricesDb, ctx.workspaceId);
+    const assessment = assessAttemptCost(usage.segments ?? [], prices, {
+      reportedCostUsd: usage.cost_usd,
+      usageEstimated: usage.estimated,
+      usageSuspect: attempt.usageSuspect || sessionReused,
+      tokensReported: tokenCountersReported(usage),
+    });
+    const storedUsage: UsageReport = {
+      ...usage,
+      segments: assessment.normalizedSegments,
+    };
+    const final = input.checkpoint === "final";
+    const result = final ? input.result ?? "success" : null;
+    const [report] = await tx
+      .insert(missionAttemptReport)
+      .values({
+        missionAttemptId: attempt.id,
+        sequence: input.sequence,
+        checkpoint: input.checkpoint,
+        usageSegments: storedUsage.segments?.length
+          ? storedUsage.segments
+          : null,
+        tokensIn: storedUsage.tokens_in,
+        tokensOut: storedUsage.tokens_out,
+        tokensCache: storedUsage.tokens_cache,
+        durationMs: storedUsage.duration_ms,
+        turns: storedUsage.turns,
+        estimated: storedUsage.estimated ?? false,
+        result,
+        resultNote: final ? input.result_note ?? null : null,
+      })
+      .returning();
+    if (!report) throw new Error("failed to insert mission_attempt_report");
+
+    const [updated] = await tx
+      .update(missionAttempt)
+      .set({
+        status: final
+          ? result === "abandoned"
+            ? "abandonado"
+            : "sucesso"
+          : "aberto",
+        lastActivityAt: now,
+        finishedAt: final ? now : null,
+        usageSegments: storedUsage.segments?.length
+          ? storedUsage.segments
+          : null,
+        tokensIn: storedUsage.tokens_in,
+        tokensOut: storedUsage.tokens_out,
+        tokensCache: storedUsage.tokens_cache,
+        durationMs: storedUsage.duration_ms,
+        serverDurationMs: final
+          ? Math.max(0, now.getTime() - attempt.startedAt.getTime())
+          : null,
+        turns: storedUsage.turns,
+        usageEstimated: storedUsage.estimated ?? false,
+        reportedCostUsd:
+          storedUsage.cost_usd !== undefined
+            ? String(storedUsage.cost_usd)
+            : null,
+        costUsd: assessment.costUsd != null ? String(assessment.costUsd) : null,
+        costSource: assessment.source,
+        costStatus: assessment.status,
+        costUnpricedModels: assessment.unpricedModels,
+        costBreakdown: assessment.breakdown,
+        usageSuspect: attempt.usageSuspect || sessionReused,
+        usageSuspectReason: sessionReused
+          ? addUsageSuspectReason(
+              attempt.usageSuspectReason,
+              "session_reused_orchestration",
+            )
+          : attempt.usageSuspectReason,
+        result,
+        resultNote: final ? input.result_note ?? null : null,
+        lastReportSequence: input.sequence,
+      })
+      .where(eq(missionAttempt.id, attempt.id))
+      .returning();
+    if (!updated) throw new Error("failed to update mission_attempt");
+
+    return {
+      attempt_id: updated.id,
+      mission_attempt_id: updated.id,
+      mission_id: updated.missionId,
+      sequence: input.sequence,
+      checkpoint: input.checkpoint,
+      idempotent: false,
+      attempt: mapMissionAttempt(updated),
     };
   });
 }
@@ -1742,7 +2388,7 @@ async function taskClaim(
         );
     }
 
-    const [attempt] = await tx
+    let [attempt] = await tx
       .insert(executionAttempt)
       .values({
         taskId: updated.id,
@@ -1762,6 +2408,25 @@ async function taskClaim(
       })
       .returning();
     if (!attempt) throw new Error("failed to insert execution_attempt");
+
+    if (attempt.sessionId) {
+      const orchestrationReuse = await markMissionAttemptsForSessionReuse(
+        tx,
+        ctx.workspaceId,
+        attempt.sessionId,
+      );
+      if (orchestrationReuse) {
+        const [flagged] = await tx
+          .update(executionAttempt)
+          .set({
+            usageSuspect: true,
+            usageSuspectReason: "session_reused_orchestration",
+          })
+          .where(eq(executionAttempt.id, attempt.id))
+          .returning();
+        attempt = flagged ?? attempt;
+      }
+    }
 
     if (reclaimedStale) {
       await tx.insert(taskComment).values({
@@ -3675,6 +4340,7 @@ async function usageGuardForAttempt(
 ): Promise<UsageGuard> {
   const window = checkUsageWindow(usage, measuredWindowMs);
   let reusedSession = false;
+  let orchestrationReuse = false;
 
   if (sessionId) {
     const [previous] = await db
@@ -3693,11 +4359,46 @@ async function usageGuardForAttempt(
       )
       .limit(1);
     reusedSession = Boolean(previous);
+
+    const orchestrationAttempts = await db
+      .select({
+        id: missionAttempt.id,
+        usageSuspectReason: missionAttempt.usageSuspectReason,
+      })
+      .from(missionAttempt)
+      .innerJoin(mission, eq(missionAttempt.missionId, mission.id))
+      .where(
+        and(
+          eq(mission.workspaceId, workspaceId),
+          eq(missionAttempt.sessionId, sessionId),
+        ),
+      );
+    orchestrationReuse = orchestrationAttempts.length > 0;
+    if (orchestrationReuse) {
+      await markOrchestrationSessionReuse(
+        db,
+        workspaceId,
+        sessionId,
+      );
+      for (const orchestration of orchestrationAttempts) {
+        await db
+          .update(missionAttempt)
+          .set({
+            usageSuspect: true,
+            usageSuspectReason: addUsageSuspectReason(
+              orchestration.usageSuspectReason,
+              "session_reused_orchestration",
+            ),
+          })
+          .where(eq(missionAttempt.id, orchestration.id));
+      }
+    }
   }
 
   const reasons = [
     ...(window.suspect ? ["claim_window_exceeded"] : []),
     ...(reusedSession ? ["session_reused"] : []),
+    ...(orchestrationReuse ? ["session_reused_orchestration"] : []),
   ];
   return {
     suspect: reasons.length > 0,
