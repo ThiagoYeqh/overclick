@@ -43,3 +43,4 @@ pnpm-debug.log*
 packages/db/drizzle/*.sql.bak
 .internal/
 deploy/.env
+.worktrees/
