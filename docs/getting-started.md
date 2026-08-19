@@ -16,14 +16,16 @@ Takes about 10 minutes.
 
 ```bash
 git clone https://github.com/ustoppble/overclick && cd overclick
+export AUTH_SECRET="$(openssl rand -base64 32)"
 docker compose up --build
 ```
 
 Open **http://localhost:3000**.
 
-> Self-hosting on a server? Set `AUTH_SECRET` to your own value (32+ chars) in the
-> compose environment before exposing it: the default is for local use only. Nothing
-> in the app ever calls out of your server either way.
+> `AUTH_SECRET` is required for every installation and has no built-in default.
+> Generate a different value for each installation and keep it in that deployment's
+> protected environment; Compose stops before startup if it is absent. Nothing in the
+> app ever calls out of your server.
 
 ## 2. Create the admin account
 

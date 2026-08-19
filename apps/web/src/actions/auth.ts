@@ -57,14 +57,20 @@ export async function signupAction(
   const [created] = await db()
     .insert(user)
     .values({ email, passwordHash })
-    .returning({ id: user.id, email: user.email });
+    .returning({
+      id: user.id,
+      sessionVersion: user.sessionVersion,
+    });
 
   if (!created) {
     return { error: (await authCopy()).errCreate };
   }
 
   await ensureWorkspace();
-  await setSession({ userId: created.id, email: created.email });
+  await setSession({
+    userId: created.id,
+    sessionVersion: created.sessionVersion,
+  });
   redirect("/onboarding");
 }
 
@@ -85,11 +91,18 @@ export async function loginAction(
     .where(eq(user.email, email))
     .limit(1);
 
-  if (!found || !(await verifyPassword(password, found.passwordHash))) {
+  if (
+    !found ||
+    !found.active ||
+    !(await verifyPassword(password, found.passwordHash))
+  ) {
     return { error: (await authCopy()).errCredentials };
   }
 
-  await setSession({ userId: found.id, email: found.email });
+  await setSession({
+    userId: found.id,
+    sessionVersion: found.sessionVersion,
+  });
   redirect("/home");
 }
 

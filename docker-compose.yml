@@ -28,7 +28,9 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://agentboard:agentboard@postgres:5432/agentboard
-      AUTH_SECRET: local-dev-only-change-me-32chars-min
+      # Required for every installation. Generate it before first boot with:
+      #   export AUTH_SECRET="$(openssl rand -base64 32)"
+      AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required; generate one per installation with openssl rand -base64 32}"
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_ENV: production
       UPDATE_TRIGGER_DIR: /update-trigger

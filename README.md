@@ -33,8 +33,13 @@ time, because those are facts on every plan. Money is an optional layer, off by 
 
 ```bash
 git clone https://github.com/ustoppble/overclick && cd overclick
+export AUTH_SECRET="$(openssl rand -base64 32)"
 docker compose up --build
 ```
+
+The signing key is mandatory and must be unique to each installation. Compose
+stops with an explanatory error when `AUTH_SECRET` is missing; keep the generated
+value in your deployment's protected environment so restarts use the same key.
 
 Open `http://localhost:3000`, create the local admin account (e-mail + password, stored in
 your own Postgres, used only for login), and follow the 3-step onboarding: project,

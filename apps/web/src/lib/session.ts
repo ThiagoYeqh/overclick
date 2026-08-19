@@ -3,8 +3,12 @@ import { SignJWT, jwtVerify } from "jose";
 export const SESSION_COOKIE = "ab_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
-export type SessionPayload = {
+export type SessionTokenPayload = {
   userId: string;
+  sessionVersion: number;
+};
+
+export type SessionPayload = SessionTokenPayload & {
   email: string;
 };
 
@@ -23,7 +27,9 @@ function secretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function signSession(payload: SessionPayload): Promise<string> {
+export async function signSession(
+  payload: SessionTokenPayload,
+): Promise<string> {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -33,13 +39,21 @@ export async function signSession(payload: SessionPayload): Promise<string> {
 
 export async function readSessionToken(
   token: string,
-): Promise<SessionPayload | null> {
+): Promise<SessionTokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, secretKey());
+    const { payload } = await jwtVerify(token, secretKey(), {
+      algorithms: ["HS256"],
+    });
     const userId = payload.userId;
-    const email = payload.email;
-    if (typeof userId !== "string" || typeof email !== "string") return null;
-    return { userId, email };
+    const sessionVersion = payload.sessionVersion;
+    if (
+      typeof userId !== "string" ||
+      !Number.isSafeInteger(sessionVersion) ||
+      (sessionVersion as number) < 1
+    ) {
+      return null;
+    }
+    return { userId, sessionVersion: sessionVersion as number };
   } catch {
     return null;
   }
