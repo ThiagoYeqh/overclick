@@ -14,8 +14,11 @@ import { dict } from "../../lib/i18n";
 import { db } from "../../lib/db";
 import {
   computeInsights,
+  filterMissionAttempts,
   loadInsightAttemptRows,
+  loadMissionAttemptRows,
   loadReopenRows,
+  type CombinedGroupInsight,
   type GroupInsight,
   type ModelReopenInsight,
   type UsageTotals,
@@ -107,7 +110,7 @@ function GroupFootnote({
   showUnverified,
   t,
 }: {
-  rows: GroupInsight[];
+  rows: GroupTableRow[];
   fallbackLabel: string;
   pricingEnabled: boolean;
   /** Only the by-model table names the models without a price row. */
@@ -117,8 +120,11 @@ function GroupFootnote({
   t: InsightsCopy;
 }) {
   const name = (r: GroupInsight) => r.label ?? fallbackLabel;
+  const qualifierRows = rows.filter(
+    (row) => !row.lineLabel || row.combinedTotal,
+  );
   const items: string[] = [];
-  const estimated = rows.filter((r) => r.estimated > 0);
+  const estimated = qualifierRows.filter((r) => r.estimated > 0);
   if (estimated.length > 0) {
     items.push(
       t.footEstimated(
@@ -126,13 +132,13 @@ function GroupFootnote({
       ),
     );
   }
-  const missing = rows.filter((r) => r.missing > 0);
+  const missing = qualifierRows.filter((r) => r.missing > 0);
   if (missing.length > 0) {
     items.push(
       t.footMissing(missing.map((r) => `${name(r)} ×${r.missing}`).join(" · ")),
     );
   }
-  const zeroUsage = rows.filter((r) => r.zeroUsage > 0);
+  const zeroUsage = qualifierRows.filter((r) => r.zeroUsage > 0);
   if (zeroUsage.length > 0) {
     items.push(
       t.footZeroUsage(
@@ -140,7 +146,7 @@ function GroupFootnote({
       ),
     );
   }
-  const suspect = rows.filter((r) => r.suspect > 0);
+  const suspect = qualifierRows.filter((r) => r.suspect > 0);
   if (suspect.length > 0) {
     items.push(
       t.footSuspect(
@@ -150,7 +156,7 @@ function GroupFootnote({
       ),
     );
   }
-  const elapsed = rows.filter((r) => r.elapsedOnly > 0);
+  const elapsed = qualifierRows.filter((r) => r.elapsedOnly > 0);
   if (elapsed.length > 0) {
     items.push(
       t.footElapsed(
@@ -161,13 +167,13 @@ function GroupFootnote({
     );
   }
   if (showUnpriced && pricingEnabled) {
-    const unpriced = rows.filter((r) => r.costUnpriced > 0);
+    const unpriced = qualifierRows.filter((r) => r.costUnpriced > 0);
     if (unpriced.length > 0) {
       items.push(t.footUnpriced(unpriced.map(name).join(", ")));
     }
   }
   if (showUnverified) {
-    const unverified = rows.filter((r) => r.deliveryUnverified > 0);
+    const unverified = qualifierRows.filter((r) => r.deliveryUnverified > 0);
     if (unverified.length > 0) {
       items.push(
         t.footUnverified(
@@ -190,6 +196,45 @@ function GroupFootnote({
   );
 }
 
+type GroupTableRow = GroupInsight & {
+  /** The parent group name when this is an execution/orchestration/total line. */
+  groupLabel?: string;
+  lineLabel?: string;
+  combinedTotal?: boolean;
+};
+
+function combinedRows(
+  groups: CombinedGroupInsight[],
+  t: InsightsCopy,
+): GroupTableRow[] {
+  return groups.flatMap((group) => [
+    {
+      ...group.execution,
+      key: `${group.key}:execution`,
+      label: group.label,
+      groupLabel: group.label ?? "",
+      lineLabel: t.executionLine,
+      combinedTotal: false,
+    },
+    {
+      ...group.orchestration,
+      key: `${group.key}:orchestration`,
+      label: group.label,
+      groupLabel: group.label ?? "",
+      lineLabel: t.orchestrationLine,
+      combinedTotal: false,
+    },
+    {
+      ...group.total,
+      key: `${group.key}:total`,
+      label: group.label,
+      groupLabel: group.label ?? "",
+      lineLabel: t.totalLine,
+      combinedTotal: true,
+    },
+  ]);
+}
+
 function GroupTable({
   rows,
   fallbackLabel,
@@ -198,7 +243,7 @@ function GroupTable({
   showUnpriced = false,
   showUnverified = false,
 }: {
-  rows: GroupInsight[];
+  rows: GroupTableRow[];
   fallbackLabel: string;
   t: InsightsCopy;
   /** Money is opt-in: with it off the cost column is not there at all. */
@@ -231,14 +276,22 @@ function GroupTable({
           <tbody>
             {rows.map((row) => {
               const name = row.label ?? fallbackLabel;
+              const groupName = row.groupLabel ?? name;
               return (
                 <tr key={row.key}>
                   <td>
                     <span
                       className={`ins-name${row.label ? "" : " ins-dim"}`}
-                      title={name}
+                      title={row.lineLabel ? `${groupName} · ${row.lineLabel}` : name}
                     >
-                      {name}
+                      {row.lineLabel ? (
+                        <>
+                          <span>{groupName}</span>
+                          <span className="ins-group-line">{row.lineLabel}</span>
+                        </>
+                      ) : (
+                        name
+                      )}
                     </span>
                   </td>
                   {/* A row the board could not price says so. A zero here
@@ -413,8 +466,9 @@ export default async function InsightsPage({
 
   // No price table to read when the money layer is off: there is nothing on
   // this page for it to fill.
-  const [attemptRows, reopenRows, prices, params] = await Promise.all([
+  const [attemptRows, missionAttemptRows, reopenRows, prices, params] = await Promise.all([
     loadInsightAttemptRows(db(), ws.id),
+    loadMissionAttemptRows(db(), ws.id),
     loadReopenRows(db(), ws.id),
     ws.pricingEnabled ? loadModelPrices(db(), ws.id) : Promise.resolve([]),
     searchParams,
@@ -449,13 +503,19 @@ export default async function InsightsPage({
     missionRows,
   );
   const filtered = filterBoardCards(attemptRows, filter);
+  const filteredMissionAttempts = filterMissionAttempts(missionAttemptRows, filter);
   const filterNote = describeFilter(filter, t);
 
-  const insights = computeInsights(filtered, reopenRows, prices);
+  const insights = computeInsights(
+    filtered,
+    reopenRows,
+    prices,
+    filteredMissionAttempts,
+  );
   const switchedRuns = insights.switchedRuns;
   const pricingEnabled = ws.pricingEnabled;
   const { totals } = insights;
-  const trend = buildDailyTrend(filtered, {
+  const trend = buildDailyTrend([...filtered, ...filteredMissionAttempts], {
     prices,
     pricingEnabled,
     lang: ws.language ?? "en",
@@ -567,6 +627,23 @@ export default async function InsightsPage({
               </div>
             </div>
 
+            <div className="ins-subtotals nebula-glass" aria-label={t.totalCost}>
+              <span>
+                {t.executionSubtotal(
+                  formatTokens(insights.executionTotals.tokens),
+                  formatDuration(insights.executionTotals.durationMs),
+                  insights.executionTotals.attempts,
+                )}
+              </span>
+              <span>
+                {t.orchestrationSubtotal(
+                  formatTokens(insights.orchestrationTotals.tokens),
+                  formatDuration(insights.orchestrationTotals.durationMs),
+                  insights.orchestrationTotals.attempts,
+                )}
+              </span>
+            </div>
+
             <div className="ins-charts">
               {/* the plot grows to meet the panel beside it instead of
                   leaving a band of empty glass under four days of bars */}
@@ -593,7 +670,7 @@ export default async function InsightsPage({
                   <span className="ins-cap-note">{t.shareNote}</span>
                 </div>
                 <ShareBars
-                  rows={insights.byModel}
+                  rows={insights.combinedGroups.byModel.map((group) => group.total)}
                   pricingEnabled={pricingEnabled}
                   t={t}
                 />
@@ -620,7 +697,7 @@ export default async function InsightsPage({
                   <span>{t.byProject}</span>
                 </div>
                 <GroupTable
-                  rows={insights.byProject}
+                  rows={combinedRows(insights.combinedGroups.byProject, t)}
                   fallbackLabel="—"
                   t={t}
                   pricingEnabled={pricingEnabled}
@@ -631,7 +708,7 @@ export default async function InsightsPage({
                   <span>{t.byMission}</span>
                 </div>
                 <GroupTable
-                  rows={insights.byMission}
+                  rows={combinedRows(insights.combinedGroups.byMission, t)}
                   fallbackLabel={t.noMission}
                   t={t}
                   pricingEnabled={pricingEnabled}
@@ -654,7 +731,7 @@ export default async function InsightsPage({
                   <span>{t.byModel}</span>
                 </div>
                 <GroupTable
-                  rows={insights.byModel}
+                  rows={combinedRows(insights.combinedGroups.byModel, t)}
                   fallbackLabel={t.noModel}
                   t={t}
                   pricingEnabled={pricingEnabled}

@@ -1141,6 +1141,21 @@ export const InsightGroupSchema = UsageTotalsSchema.extend({
   shared_attempts: z.number().int().nonnegative().optional(),
 });
 
+/** One dimension's execution/orchestration subtotals and their combined line. */
+export const CombinedInsightGroupSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().nullable(),
+  execution: InsightGroupSchema,
+  orchestration: InsightGroupSchema,
+  total: InsightGroupSchema,
+});
+
+export const CombinedInsightGroupSetSchema = z.object({
+  by_project: z.array(CombinedInsightGroupSchema),
+  by_mission: z.array(CombinedInsightGroupSchema),
+  by_model: z.array(CombinedInsightGroupSchema),
+});
+
 export const InsightCardSchema = z.object({
   task_id: z.string().min(1),
   short_id: z.string().min(1),
@@ -1221,7 +1236,20 @@ export const InsightsQueryOutputSchema = z.object({
     by_executor: z.array(InsightGroupSchema),
     by_mission: z.array(InsightGroupSchema),
     by_model: z.array(InsightGroupSchema),
+    orchestration: UsageTotalsSchema,
   }),
+  /** Card-only subtotal, kept for clients that need the old view explicitly. */
+  execution_totals: UsageTotalsSchema,
+  /** Successful mission-attempt subtotal. */
+  orchestration_totals: UsageTotalsSchema,
+  /** Mission-attempt groups, separate from the legacy card groups. */
+  orchestration_groups: z.object({
+    by_project: z.array(InsightGroupSchema),
+    by_mission: z.array(InsightGroupSchema),
+    by_model: z.array(InsightGroupSchema),
+  }),
+  /** Every group with execution, orchestration and total lines. */
+  combined_groups: CombinedInsightGroupSetSchema,
   /**
    * False by default: this workspace reports tokens and time only, and every
    * cost field comes back null. Turn the money layer on in Settings and the
@@ -1435,6 +1463,8 @@ export type ExecutorsUpdateOutput = z.infer<typeof ExecutorsUpdateOutputSchema>;
 export type InsightsQueryInput = z.infer<typeof InsightsQueryInputSchema>;
 export type InsightsQueryOutput = z.infer<typeof InsightsQueryOutputSchema>;
 export type InsightGroupContract = z.infer<typeof InsightGroupSchema>;
+export type CombinedInsightGroupContract = z.infer<typeof CombinedInsightGroupSchema>;
+export type CombinedInsightGroupSetContract = z.infer<typeof CombinedInsightGroupSetSchema>;
 export type InsightCardContract = z.infer<typeof InsightCardSchema>;
 export type HarnessSetInput = z.infer<typeof HarnessSetInputSchema>;
 export type HarnessSetOutput = z.infer<typeof HarnessSetOutputSchema>;

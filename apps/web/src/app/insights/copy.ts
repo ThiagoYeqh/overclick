@@ -8,7 +8,7 @@ const en = {
   /** The locale the money formatter reads off any copy object in hand. */
   lang: "en" as Lang,
   title: "Insights",
-  sub: "What execution takes on this board: tokens and time per project, per mission, per release, per executor, per model, per card.",
+  sub: "What this board consumes: execution and orchestration tokens and time per project, per mission, per release, per executor, per model, per card.",
   backToBoard: "Board",
   totalCost: "Total cost",
   totalTokens: "Total tokens",
@@ -18,6 +18,13 @@ const en = {
     `+ ${value} elapsed on ${n} run${n === 1 ? "" : "s"} that reported no execution time`,
   elapsedTag: (value: string) => `open for ${value}`,
   attempts: "Attempts",
+  executionLine: "execution",
+  orchestrationLine: "orchestration",
+  totalLine: "total",
+  executionSubtotal: (tokens: string, time: string, attempts: number) =>
+    `execution ${tokens} · ${time} · ${attempts} attempt${attempts === 1 ? "" : "s"}`,
+  orchestrationSubtotal: (tokens: string, time: string, attempts: number) =>
+    `orchestration ${tokens} · ${time} · ${attempts} attempt${attempts === 1 ? "" : "s"}`,
   estimatedCount: (n: number) => `${n} estimated`,
   missingCount: (n: number) => `${n} usage not reported`,
   zeroUsageCount: (n: number) => `${n} reported zero usage`,
@@ -124,7 +131,7 @@ export type InsightsCopy = typeof en;
 const ptBR: InsightsCopy = {
   lang: "pt-BR" as Lang,
   title: "Insights",
-  sub: "O que a execução consome neste board: tokens e tempo por projeto, por missão, por release, por executor, por modelo, por card.",
+  sub: "O que este board consome: tokens e tempo de execução e orquestração por projeto, por missão, por release, por executor, por modelo, por card.",
   backToBoard: "Board",
   totalCost: "Custo total",
   totalTokens: "Tokens totais",
@@ -133,6 +140,13 @@ const ptBR: InsightsCopy = {
     `+ ${value} decorrido${n === 1 ? "" : "s"} em ${n} execuç${n === 1 ? "ão que não reportou" : "ões que não reportaram"} tempo de execução`,
   elapsedTag: (value: string) => `aberto por ${value}`,
   attempts: "Execuções",
+  executionLine: "execução",
+  orchestrationLine: "orquestração",
+  totalLine: "total",
+  executionSubtotal: (tokens: string, time: string, attempts: number) =>
+    `execução ${tokens} · ${time} · ${attempts} execuç${attempts === 1 ? "ão" : "ões"}`,
+  orchestrationSubtotal: (tokens: string, time: string, attempts: number) =>
+    `orquestração ${tokens} · ${time} · ${attempts} execuç${attempts === 1 ? "ão" : "ões"}`,
   estimatedCount: (n: number) => `${n} estimado${n === 1 ? "" : "s"}`,
   missingCount: (n: number) => `${n} sem uso reportado`,
   zeroUsageCount: (n: number) => `${n} com uso reportado como zero`,
