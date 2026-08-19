@@ -68,6 +68,26 @@ describe("self-contained briefing markdown", () => {
     expect(md).toContain("faltou o teste do login");
   });
 
+  it("teaches the mission orchestration usage cycle", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const md = renderBriefingMarkdown({ task, mission, branchConvention: convention });
+
+    expect(md).toContain("## Mission orchestration telemetry");
+    expect(md).toContain("mission_attempt_start");
+    expect(md).toContain("mission_report_usage");
+    expect(md).toContain('checkpoint: \"rodada\"');
+    expect(md).toContain('checkpoint: \"final\"');
+    expect(md).toContain("cumulative snapshot since the attempt started");
+    expect(md).toContain('"attempt_id": "<attempt>"');
+    expect(md).toContain("server's attempt start as the usage boundary");
+    expect(md).toContain("never send zero to mean unknown");
+    expect(md).toContain('"segments": [{"model": "gpt-5.6-sol"');
+    expect(md).toContain("estimated: true");
+    expect(md).toContain("unpriced` means the model has no price");
+    expect(md).toContain("OCL-11 marks overlapping usage");
+    expect(md).toContain("marks overlapping usage `suspect`");
+  });
+
   it("ends with the executor contract so agents know to deliver with usage", () => {
     const convention = branchConvention(task.short_id, task.title);
     const md = renderBriefingMarkdown({ task, mission, branchConvention: convention });

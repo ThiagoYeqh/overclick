@@ -49,6 +49,8 @@ context are listed there with a short excerpt and a pointer to `project_get`.
 | `mission_create` | creates a mission (`title`, objective/context markdown, `status`) and returns its id |
 | `mission_update` | partially edits a mission (`title`, objective/context markdown, `context_ops`, `objective_ops`, `status`); omitted fields stay unchanged. Use granular ops for one section or list line and reserve objective/context for full rewrites. Put conventions for one round in mission context and update them here |
 | `mission_delete` | removes an empty mission shell. A mission holding cards is refused with its count; `force: true` detaches those cards (`mission_id: null`) and returns `tasks_detached` before deleting the mission |
+| `mission_attempt_start` | opens the mission's orchestration attempt and its measurement window; records mission/project, effective CLI/model/session and transcript reference |
+| `mission_report_usage` | records a cumulative orchestration snapshot for one dispatch round or the final checkpoint; retries are idempotent by attempt and sequence |
 | `task_list` | the queue (project, `mission_id`, exact `resolved_in`, status, priority, `claimed_by: "me"`, `awaiting_review_by`, `limit`) |
 | `task_list` | thin queue rows (ids, title, type, status, priority, mission, planned harness, claim, branch and frozen cost; no card contract or briefing), with unset fields omitted and no `workspace_id`; filtered by project, `mission_id`, exact `resolved_in`, status, priority, `awaiting_review_by` and `limit` |
 | | `limit` defaults to 50 and caps at 200. The response carries `truncated` and the `limit` it used, so a caller can tell a full queue from a cut one instead of reading a page as the whole board |
@@ -104,6 +106,7 @@ edit it in place with `mission_update` instead of repeating it on every card. Em
 mission shells can be removed with `mission_delete`; occupied missions require an
 explicit move/detach or `force: true`.
 
+<<<<<<< HEAD
 Project and mission markdown is shared live state. A granular operation has the
 shape `{op, heading, text}` (with `line` as the old line for `replace_line`):
 `replace_section`, `append_section`, `delete_section`, `append_line` and
@@ -114,11 +117,89 @@ sections do not overwrite each other. Send `context` or `objective` only for
 an intentional full rewrite; `expected_len` or the SHA-256 `expected_hash`
 turns a stale legacy rewrite into a clear argument error instead of silently
 discarding another agent's edit.
+=======
+## Mission orchestration telemetry
+
+The orchestrator is mission work, not card work. Keep its cost in one
+`mission_attempt`; never create a synthetic card for planning or dispatch. The
+attempt does not receive a branch, PR, reviewer, or `task_deliver`.
+
+### Start the attempt
+
+Call `mission_attempt_start` once, when the mission starts—not when the first
+card is dispatched:
+
+```json
+{
+  "mission_id": "<mission>",
+  "project_id": "<primary project or omit for cross-project>",
+  "executor": {"cli": "codex", "model": "gpt-5.6-sol", "session_id": "<session>"},
+  "transcript": {"cli": "codex", "session_id": "<session>", "path": "<local reference>"}
+}
+```
+
+Save the returned `attempt_id` and sequence `0`. The server's `started_at` is
+the usage boundary; do not include work from the same session before that time.
+There can be only one open attempt for a mission. If an attempt is abandoned,
+a later run opens a new one without overwriting the old record.
+
+### Report each dispatch round
+
+After every round, including a round that dispatches no card, call
+`mission_report_usage` with `checkpoint: "rodada"`. `usage` is a cumulative
+snapshot since the attempt started, not a delta. Increment `sequence` for each
+new snapshot. Repeating the same sequence with the same payload is a no-op;
+changing its payload or sending a lower sequence is rejected.
+
+```json
+{
+  "mission_id": "<mission>",
+  "attempt_id": "<attempt>",
+  "sequence": 2,
+  "checkpoint": "rodada",
+  "usage": {
+    "segments": [
+      {"model": "gpt-5.6-sol", "input": 70000, "output": 8000, "cache_read": 15000, "cache_write": 0}
+    ],
+    "duration_ms": 370000,
+    "turns": 5,
+    "estimated": false
+  }
+}
+```
+
+`segments` are one entry per model that actually ran. The board keeps the
+latest snapshot as the aggregate and retains reports for audit; it never sums
+the round rows together. `duration_ms` and the token counters are cumulative
+from the start of this attempt.
+
+### Close the mission
+
+Send the same report tool with `checkpoint: "final"`, the final cumulative
+snapshot, and `result: "success"` or `"abandoned"`. A successful attempt needs
+this final checkpoint to enter trusted orchestration totals. If the last round
+was the close, repeating its snapshot is valid. An abandoned attempt preserves
+its usage and server duration for audit but stays out of trusted totals.
+
+### Missing, unpriced, or shared usage
+
+If the CLI does not expose exact counters, never send `0` as a synonym for
+unknown. Use an honest estimate and set `estimated: true`; if no honest estimate
+exists, omit usage and let the board label it `not reported`. `unpriced` means
+the model segment has no price; `estimated` means the number is approximate;
+`suspect` means the window or session check found an inconsistency. These labels
+remain visible and none is silently changed into `$0`.
+
+If the orchestrator also executes a card, declare the shared session and keep
+the scopes non-overlapping. OCL-11 marks overlapping usage `suspect` rather than
+counting the same session twice. The card's deliver reports only card execution;
+planning and dispatch belong to the mission attempt.
+>>>>>>> c7e29c1
 
 `task_claim` always returns the complete briefing; `task_get` is compact unless its
 caller opts into the heavy sections. The executor needs no other source of context
-after claiming. `## Project context` comes immediately after the mission and carries the
-project markdown plus `current_version`. The briefing always ends with two things, in this order: how to measure the run,
+after claiming. `## Project context` follows the mission section (including its
+orchestration telemetry) and carries the project markdown plus `current_version`. The briefing always ends with two things, in this order: how to measure the run,
 then what to send.
 
 The same complete markdown is a discoverable MCP resource at
