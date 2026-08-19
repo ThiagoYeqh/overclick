@@ -30,6 +30,7 @@ import {
   applyTransition,
   branchConvention,
   err,
+  effortOptionsForExecutor,
   evaluateClaim,
   isMcpCoreError,
   isTelemetryIncomplete,
@@ -94,6 +95,7 @@ import {
   decodeExecutor,
   emptyCardCounts,
   encodeExecutor,
+  executorToWire,
   executorsFromWorkspace,
   harnessToDb,
   iso,
@@ -1381,6 +1383,7 @@ async function taskClaim(
     executor?: {
       cli?: string;
       model?: string;
+      effort?: string;
       agent?: string;
       session_id?: string;
     };
@@ -1523,6 +1526,7 @@ async function taskClaim(
         executor: encodeExecutor({
           token_id: ctx.tokenId,
           cli: executor.cli,
+          effort: executor.effort,
           agent: executor.agent,
           session_id: executor.session_id,
         }),
@@ -1579,14 +1583,34 @@ async function taskClaim(
 
   const recommended = payload.task.harness;
   const actual = claimed.value.executor;
+  const modelDiverges = Boolean(
+    recommended &&
+      actual.model &&
+      normalizeModelKey(actual.model) !== normalizeModelKey(recommended.model),
+  );
+  const effortDiverges = Boolean(
+    recommended &&
+      actual.effort &&
+      actual.effort.trim().toLowerCase() !== recommended.effort.trim().toLowerCase(),
+  );
   const divergence =
     recommended &&
-    actual.model &&
-    normalizeModelKey(actual.model) !== normalizeModelKey(recommended.model)
+    (modelDiverges || effortDiverges)
       ? {
           recommended,
-          actual,
-          warning: `Executor differs from the card harness: the card plans ${recommended.model} · ${recommended.effort}, the claim came with ${actual.model}.`,
+          actual: {
+            ...(actual.cli ? { cli: actual.cli } : {}),
+            ...(actual.model ? { model: actual.model } : {}),
+            ...(actual.effort ? { effort: actual.effort } : {}),
+          },
+          warning: `Executor differs from the card harness: the card plans ${
+            recommended.model
+          } · ${recommended.effort}, the claim came with ${[
+            actual.model,
+            actual.effort,
+          ]
+            .filter(Boolean)
+            .join(" · ")}.`,
         }
       : undefined;
 
@@ -1598,7 +1622,11 @@ async function taskClaim(
       recommended?.model,
       ` · ${recommended?.effort}`,
     ].join("");
-    const cameWith = [actual.cli ? `${actual.cli} · ` : "", actual.model].join("");
+    const cameWith = [
+      actual.cli ? `${actual.cli} · ` : "",
+      actual.model,
+      actual.effort ? ` · ${actual.effort}` : "",
+    ].join("");
     await db.insert(taskComment).values({
       taskId: claimed.value.updated.id,
       authorAgentRef: ctx.tokenLabel,
@@ -2345,6 +2373,18 @@ function resolveHarnessAgainstConfig(
         : `Model '${input.model}' is not among the configured executors. Call harness_list to see the available models.`,
     );
   }
+  const options = effortOptionsForExecutor(matched, matched.models.find(
+    (model) => model.trim().toLowerCase() === needleModel,
+  ) ?? input.model);
+  if (
+    options !== undefined &&
+    !options.some((value) => value.trim().toLowerCase() === input.effort.trim().toLowerCase())
+  ) {
+    return err(
+      "INVALID_ARGUMENT",
+      `Effort '${input.effort}' is not supported by model '${input.model}'. Valid efforts: ${options.join(", ")}.`,
+    );
+  }
   return ok({
     cli: input.cli ?? matched.cli,
     model: input.model,
@@ -2699,7 +2739,7 @@ async function harnessList(db: McpDatabase, ctx: AuthContext) {
   const prices = await loadModelPrices(db as PricesDb, ctx.workspaceId);
   return {
     policy: policy.length > 0 ? policy : factoryCardapioPolicy(),
-    executors: ws.executors,
+    executors: ws.executors.map(executorToWire),
     prices: prices.map((price) => ({
       model: price.model,
       label: price.label,
@@ -2979,6 +3019,7 @@ async function executorsUpdate(
     enabled?: boolean;
     add_models?: string[];
     remove_models?: string[];
+    efforts?: Record<string, string[]>;
     remove?: boolean;
   },
 ) {
@@ -3026,7 +3067,7 @@ async function executorsUpdate(
     .where(eq(workspace.id, ctx.workspaceId));
 
   return {
-    executors: applied.config,
+    executors: applied.config.map(executorToWire),
     updated: applied.targetId,
     removed: applied.removed,
     ...(warnings.length > 0 ? { policy_warnings: warnings } : {}),

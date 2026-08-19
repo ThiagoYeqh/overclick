@@ -1,10 +1,22 @@
 import { err, ok, type Result } from "../errors.js";
+import { effortOptionsForModel } from "./efforts.js";
 
 export const MODEL_TIERS = ["top", "mid", "cheap"] as const;
 export type ModelTier = (typeof MODEL_TIERS)[number];
 
-export const EFFORT_LEVELS = ["low", "medium", "high"] as const;
-export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+/** Common values shown by the built-in catalog. Providers may add others. */
+export const EFFORT_LEVELS = [
+  "minimal",
+  "none",
+  "off",
+  "on",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
+export type EffortLevel = string;
 
 /**
  * The activities a workspace routes, grouped by the question they answer:
@@ -65,6 +77,8 @@ export type ConfiguredExecutor = {
   cli: string;
   models: string[];
   agents?: string[];
+  /** Supported effort values keyed by model, when known. */
+  efforts?: Readonly<Record<string, readonly string[]>>;
 };
 
 export type Harness = {
@@ -332,6 +346,50 @@ function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function sameEffort(left: string, right: string): boolean {
+  return normalize(left) === normalize(right);
+}
+
+export function effortOptionsForExecutor(
+  executor: Pick<ConfiguredExecutor, "cli" | "models" | "efforts">,
+  model: string,
+): readonly string[] | undefined {
+  return effortOptionsForModel({
+    cli: executor.cli,
+    model,
+    efforts: executor.efforts,
+  });
+}
+
+function resolveRecommendedEffort(
+  executor: MatchedExecutor,
+  requested: EffortLevel,
+  source: ConfiguredExecutor,
+): { effort: EffortLevel; adjusted: boolean } {
+  const options = effortOptionsForExecutor(source, executor.model);
+  // An unknown/legacy model has no verified list. Keep its historical value so
+  // reading an old card remains non-breaking; known lists are strict.
+  if (!options || options.length === 0) {
+    return { effort: requested, adjusted: false };
+  }
+  if (options.some((value) => sameEffort(value, requested))) {
+    return { effort: requested, adjusted: false };
+  }
+  return { effort: options[0] ?? requested, adjusted: true };
+}
+
+function effortValidationError(
+  model: string,
+  effort: EffortLevel,
+  options: readonly string[],
+): ReturnType<typeof err> {
+  const valid = options.length > 0 ? options.join(", ") : "none";
+  return err(
+    "INVALID_ARGUMENT",
+    `Effort '${effort}' is not supported by model '${model}'. Valid efforts: ${valid}.`,
+  );
+}
+
 export function resolveModelTier(
   modelName: string,
   catalog: readonly ModelInfo[] = DEFAULT_MODEL_CATALOG,
@@ -492,17 +550,32 @@ export function recommendHarness(
   const catalog = input.catalog ?? DEFAULT_MODEL_CATALOG;
 
   if (input.explicit) {
+    const explicit = input.explicit;
     const matched = findByModelName(input.executors, input.explicit.model);
     const available = matched !== null;
+    if (matched) {
+      const matchedSource = input.executors.find(
+        (executor) => executor.id === matched.id,
+      );
+      const options = matchedSource
+        ? effortOptionsForExecutor(matchedSource, matched.model)
+        : undefined;
+      if (
+        options &&
+        !options.some((value) => sameEffort(value, explicit.effort))
+      ) {
+        return effortValidationError(explicit.model, explicit.effort, options);
+      }
+    }
     const tier =
-      resolveModelTier(input.explicit.model, catalog) ??
+      resolveModelTier(explicit.model, catalog) ??
       DEFAULT_CARDAPIO[input.type]?.model_tier ??
       "mid";
     return ok({
       harness: {
-        cli: input.explicit.cli ?? matched?.cli ?? null,
-        model: input.explicit.model,
-        effort: input.explicit.effort,
+        cli: explicit.cli ?? matched?.cli ?? null,
+        model: explicit.model,
+        effort: explicit.effort,
       },
       model_tier: tier,
       available,
@@ -530,7 +603,16 @@ export function recommendHarness(
       "mid";
     // Two different reasons to be past the head, and a reader has to be able to
     // tell them apart: the retry moved on purpose, the fall-through had to.
-    const divergence = !hit
+    const matchedSource = hit
+      ? input.executors.find((executor) => executor.id === hit.matched.id)
+      : undefined;
+    const effort = hit && matchedSource
+      ? resolveRecommendedEffort(hit.matched, entry.effort, matchedSource)
+      : { effort: entry.effort, adjusted: false };
+    const effortNote = effort.adjusted
+      ? `Policy effort '${entry.effort}' is not supported by '${running}'; using '${effort.effort}'.`
+      : undefined;
+    const chainDivergence = !hit
       ? entry.model
         ? chain.length > 1
           ? `No model in the chain (${chain.join(" → ")}) is among the configured executors.`
@@ -541,6 +623,7 @@ export function recommendHarness(
         : hit.position > 0
           ? `Try ${retry + 1} for this card, so the chain starts at '${hit.matched.model}' instead of '${chain[0]}'.`
           : undefined;
+    const divergence = [chainDivergence, effortNote].filter(Boolean).join(" ") || undefined;
     return ok({
       harness: {
         // A null cli is "no preference", and staying on the first choice does
@@ -548,7 +631,7 @@ export function recommendHarness(
         // that just failed, so the harness names the one actually answering.
         cli: hit && hit.position > 0 ? hit.matched.cli : entry.cli,
         model: running,
-        effort: entry.effort,
+        effort: effort.effort,
       },
       model_tier: tier,
       available: Boolean(entry.model) && hit !== null,
@@ -570,11 +653,17 @@ export function recommendHarness(
   }
 
   const matched = findByTier(input.executors, entry.model_tier, catalog);
+  const matchedSource = matched
+    ? input.executors.find((executor) => executor.id === matched.id)
+    : undefined;
+  const effort = matched && matchedSource
+    ? resolveRecommendedEffort(matched, entry.effort, matchedSource).effort
+    : entry.effort;
   return ok({
     harness: {
       cli: matched?.cli ?? null,
       model: matched?.model ?? null,
-      effort: entry.effort,
+      effort,
     },
     model_tier: entry.model_tier,
     available: matched !== null,

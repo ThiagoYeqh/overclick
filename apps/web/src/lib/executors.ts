@@ -1,3 +1,5 @@
+import { seededEffortSpec } from "@agent-board/mcp-core";
+
 /** Catalog of executor CLIs, shared between onboarding (T2) and /settings. */
 export type ExecutorDef = {
   id: string;
@@ -114,6 +116,10 @@ export type ExecutorSelection = {
    * the built-in catalog). Catalog CLIs keep their catalog label.
    */
   labels: Record<string, string>;
+  /** Explicit model effort overrides kept alongside the selection. */
+  efforts: Record<string, string[]>;
+  /** Evidence URL keyed by model for seeded or custom effort values. */
+  effortSources: Record<string, string>;
   customEnabled: boolean;
   customName: string;
 };
@@ -131,11 +137,15 @@ export function selectionFromConfig(
     enabled: boolean;
     models: string[];
     catalog?: string[];
+    efforts?: Record<string, string[]>;
+    effortSources?: Record<string, string>;
   }[],
 ): ExecutorSelection {
   const enabled: Record<string, string[]> = {};
   const models: Record<string, string[]> = {};
   const labels: Record<string, string> = {};
+  const efforts: Record<string, string[]> = {};
+  const effortSources: Record<string, string> = {};
   for (const def of EXECUTOR_CATALOG) {
     models[def.id] = [...def.models];
   }
@@ -158,6 +168,12 @@ export function selectionFromConfig(
     models[row.id] = row.catalog
       ? [...row.catalog]
       : [...new Set([...(models[row.id] ?? []), ...row.models])];
+    for (const [model, values] of Object.entries(row.efforts ?? {})) {
+      efforts[model] = [...values];
+    }
+    for (const [model, source] of Object.entries(row.effortSources ?? {})) {
+      effortSources[model] = source;
+    }
     if (row.enabled) {
       enabled[row.id] = row.models.length
         ? [...row.models]
@@ -169,7 +185,15 @@ export function selectionFromConfig(
   const FACTORY_CUSTOM_LABELS = ["Other (generic MCP)", "Outro (MCP genérico)"];
   const custom = config.find((r) => r.id === CUSTOM_EXECUTOR_ID);
   if (custom?.label && !FACTORY_CUSTOM_LABELS.includes(custom.label)) customName = custom.label;
-  return { enabled, models, labels, customEnabled, customName };
+  return {
+    enabled,
+    models,
+    labels,
+    efforts,
+    effortSources,
+    customEnabled,
+    customName,
+  };
 }
 
 /** Grid defs for executors learned from real connections (non-catalog ids). */
@@ -218,7 +242,15 @@ export function removeModelFromSelection(
   const enabled = checked
     ? { ...sel.enabled, [execId]: checked.filter((m) => m !== model) }
     : sel.enabled;
-  return { ...sel, models, enabled };
+  const efforts = { ...sel.efforts };
+  const effortSources = { ...sel.effortSources };
+  for (const key of Object.keys(efforts)) {
+    if (sameModel(key, model)) delete efforts[key];
+  }
+  for (const key of Object.keys(effortSources)) {
+    if (sameModel(key, model)) delete effortSources[key];
+  }
+  return { ...sel, models, enabled, efforts, effortSources };
 }
 
 /** One row of the persisted executor config, structurally. */
@@ -230,6 +262,10 @@ export type ExecutorConfigRow = {
   models: string[];
   /** Editable model list offered by the selects. */
   catalog?: string[];
+  /** Supported effort values keyed by model. */
+  efforts?: Record<string, string[]>;
+  /** Evidence URL keyed by model. */
+  effortSources?: Record<string, string>;
 };
 
 export type ExecutorUpdate = {
@@ -238,8 +274,32 @@ export type ExecutorUpdate = {
   enabled?: boolean;
   add_models?: string[];
   remove_models?: string[];
+  efforts?: Record<string, string[]>;
   remove?: boolean;
 };
+
+function sameModel(left: string, right: string): boolean {
+  return left.trim().toLowerCase().replace(/\./g, "-") ===
+    right.trim().toLowerCase().replace(/\./g, "-");
+}
+
+function effortKey(values: Record<string, string[]>, model: string): string | undefined {
+  return Object.keys(values).find((key) => sameModel(key, model));
+}
+
+function seedEffort(
+  row: ExecutorConfigRow,
+  cli: string,
+  model: string,
+): void {
+  if (row.efforts && effortKey(row.efforts, model) !== undefined) return;
+  const spec = seededEffortSpec(cli, model);
+  if (!spec) return;
+  row.efforts ??= {};
+  row.efforts[model] = [...spec.efforts];
+  row.effortSources ??= {};
+  row.effortSources[model] = spec.source;
+}
 
 /** Catalog of a stored row, filling the legacy shape saved before the field. */
 function catalogOf(row: ExecutorConfigRow, builtIn: readonly string[]): string[] {
@@ -268,6 +328,14 @@ export function applyExecutorUpdate(
     ...row,
     models: [...row.models],
     ...(row.catalog ? { catalog: [...row.catalog] } : {}),
+    ...(row.efforts
+      ? {
+          efforts: Object.fromEntries(
+            Object.entries(row.efforts).map(([model, values]) => [model, [...values]]),
+          ),
+        }
+      : {}),
+    ...(row.effortSources ? { effortSources: { ...row.effortSources } } : {}),
   }));
 
   if (update.remove) {
@@ -304,6 +372,7 @@ export function applyExecutorUpdate(
     if (!model) continue;
     if (!catalog.includes(model)) catalog.push(model);
     if (!checked.includes(model)) checked.push(model);
+    seedEffort(row, targetId, model);
   }
   for (const raw of update.remove_models ?? []) {
     const model = raw.trim();
@@ -312,10 +381,34 @@ export function applyExecutorUpdate(
     if (inCatalog >= 0) catalog.splice(inCatalog, 1);
     const inChecked = checked.indexOf(model);
     if (inChecked >= 0) checked.splice(inChecked, 1);
+    for (const key of Object.keys(row.efforts ?? {})) {
+      if (sameModel(key, model)) delete row.efforts?.[key];
+    }
+    for (const key of Object.keys(row.effortSources ?? {})) {
+      if (sameModel(key, model)) delete row.effortSources?.[key];
+    }
+  }
+
+  for (const [rawModel, rawValues] of Object.entries(update.efforts ?? {})) {
+    const model = rawModel.trim();
+    if (!model) continue;
+    const canonical = catalog.find((candidate) => sameModel(candidate, model)) ?? model;
+    if (!catalog.some((candidate) => sameModel(candidate, canonical))) {
+      catalog.push(canonical);
+    }
+    row.efforts ??= {};
+    const key = effortKey(row.efforts, canonical) ?? canonical;
+    row.efforts[key] = [...new Set(rawValues.map((value) => value.trim()).filter(Boolean))];
+    row.effortSources ??= {};
+    row.effortSources[key] = "custom";
   }
 
   row.catalog = catalog;
   row.models = checked;
+  if (row.efforts && Object.keys(row.efforts).length === 0) delete row.efforts;
+  if (row.effortSources && Object.keys(row.effortSources).length === 0) {
+    delete row.effortSources;
+  }
   if (update.enabled !== undefined) {
     row.enabled = update.enabled;
   } else if ((update.add_models ?? []).length > 0) {

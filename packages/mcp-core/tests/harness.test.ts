@@ -4,6 +4,8 @@ import {
   CARDAPIO_TASK_TYPES,
   CardapioTaskTypeSchema,
   DEFAULT_CARDAPIO,
+  effortOptionsForModel,
+  effortSourceForModel,
   FACTORY_CARDAPIO_POLICY,
   lookupCardapioPolicy,
   policyChain,
@@ -23,6 +25,27 @@ const mixedExecutors: ConfiguredExecutor[] = [
     models: ["gpt-5"],
   },
 ];
+
+describe("model-specific effort catalog", () => {
+  it("seeds provider values and their evidence without collapsing them to one enum", () => {
+    expect(effortOptionsForModel({ cli: "codex", model: "gpt-5.6-sol" })).toEqual([
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+    ]);
+    expect(effortOptionsForModel({ cli: "kimi", model: "k3" })).toEqual(["max"]);
+    expect(effortOptionsForModel({ cli: "kimi", model: "kimi-for-coding" })).toEqual([
+      "off",
+      "on",
+    ]);
+    expect(effortSourceForModel({ cli: "grok", model: "grok-4.5" })).toMatch(
+      /^https:\/\//,
+    );
+  });
+});
 
 describe("the routing table", () => {
   it("covers every activity type, once, with a three-deep chain", () => {
@@ -236,6 +259,28 @@ describe("harness recommendation (cardápio × executors)", () => {
     expect(result.value.divergence).toMatch(/mystery-model/);
   });
 
+  it("rejects an explicit effort that the configured model does not support", () => {
+    const result = recommendHarness({
+      type: "bug",
+      executors: [
+        {
+          id: "codex",
+          cli: "codex",
+          models: ["gpt-5.6-sol"],
+          efforts: { "gpt-5.6-sol": ["low", "high"] },
+        },
+      ],
+      explicit: {
+        model: "gpt-5.6-sol",
+        effort: "turbo",
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("low, high");
+  });
+
   it("lets a workspace override the default cardápio matrix", () => {
     const result = recommendHarness({
       type: "research",
@@ -293,6 +338,32 @@ describe("harness recommendation as stored-policy lookup", () => {
       cli: "codex",
       model: "gpt-5",
     });
+  });
+
+  it("adjusts a legacy policy effort to the first supported model value", () => {
+    const result = recommendHarness({
+      type: "bug",
+      executors: [
+        {
+          id: "codex",
+          cli: "codex",
+          models: ["gpt-5.6-sol"],
+          efforts: { "gpt-5.6-sol": ["low", "high"] },
+        },
+      ],
+      policy: [
+        {
+          type: "bug",
+          cli: "codex",
+          model: "gpt-5.6-sol",
+          effort: "turbo",
+        },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.harness.effort).toBe("low");
+    expect(result.value.divergence).toContain("turbo");
   });
 
   it("falls back to factory defaults when the type is missing from the stored policy", () => {

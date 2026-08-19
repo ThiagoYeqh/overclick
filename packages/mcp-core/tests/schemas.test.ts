@@ -9,9 +9,27 @@ import {
   PROJECT_CONTEXT_MAX_CHARS,
   ProjectCreateInputSchema,
   TaskCreateInputSchema,
+  TaskClaimInputSchema,
+  ExecutorsUpdateInputSchema,
   isTelemetryIncomplete,
   toolContracts,
 } from "../src/index.js";
+
+describe("model-specific efforts", () => {
+  it("accepts provider values beyond the old low/medium/high enum", () => {
+    const claim = TaskClaimInputSchema.parse({
+      task_id: "OCL-51",
+      executor: { cli: "codex", model: "gpt-5.6-sol", effort: "max" },
+    });
+    expect(claim.executor?.effort).toBe("max");
+
+    const update = ExecutorsUpdateInputSchema.parse({
+      cli: "codex",
+      efforts: { "gpt-5.6-sol": ["minimal", "low", "medium", "high", "xhigh", "max"] },
+    });
+    expect(update.efforts?.["gpt-5.6-sol"]).toContain("max");
+  });
+});
 
 describe("MCP tool contracts", () => {
   it("exports input and output schemas for all 26 tools", () => {

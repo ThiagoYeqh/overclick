@@ -3,6 +3,8 @@ import {
   ExecutorsUpdateOutputSchema,
   HarnessListOutputSchema,
   HarnessRecommendOutputSchema,
+  TaskClaimOutputSchema,
+  TaskCreateOutputSchema,
 } from "@agent-board/mcp-core";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
@@ -87,6 +89,91 @@ describe("executors_update manages the executor config over MCP", () => {
       harness: { cli: "claude-code", model: "opus-5", effort: "high" },
     });
     expect(created.ok).toBe(true);
+  });
+
+  it("publishes per-model efforts and validates harness writes against the override", async () => {
+    world = await createTestWorld();
+    const updated = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "codex",
+      label: "Codex",
+      add_models: ["gpt-5.6-sol"],
+      efforts: { "gpt-5.6-sol": ["low", "high"] },
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const listed = await invokeTool(world.db, worker(), "harness_list", {});
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    const row = HarnessListOutputSchema.parse(listed.value).executors.find(
+      (item) => item.id === "codex",
+    );
+    expect(row?.efforts["gpt-5.6-sol"]).toEqual(["low", "high"]);
+    expect(row?.effort_sources?.["gpt-5.6-sol"]).toBe("custom");
+
+    const invalidSet = await invokeTool(world.db, manager(), "harness_set", {
+      type: "bug",
+      cli: "codex",
+      model: "gpt-5.6-sol",
+      effort: "turbo",
+    });
+    expect(invalidSet.ok).toBe(false);
+    if (invalidSet.ok) return;
+    expect(invalidSet.error.code).toBe("INVALID_ARGUMENT");
+    expect(invalidSet.error.message).toContain("low, high");
+
+    const validSet = await invokeTool(world.db, manager(), "harness_set", {
+      type: "bug",
+      cli: "codex",
+      model: "gpt-5.6-sol",
+      effort: "high",
+    });
+    expect(validSet.ok).toBe(true);
+
+    const invalidCreate = await invokeTool(world.db, worker(), "task_create", {
+      project_id: world.projectId,
+      title: "Reject unsupported effort",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem: { cli: "codex" },
+      harness: { cli: "codex", model: "gpt-5.6-sol", effort: "turbo" },
+    });
+    expect(invalidCreate.ok).toBe(false);
+    if (invalidCreate.ok) return;
+    expect(invalidCreate.error.message).toContain("low, high");
+
+    const created = await invokeTool(world.db, worker(), "task_create", {
+      project_id: world.projectId,
+      title: "Record effort divergence",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem: { cli: "codex" },
+      harness: { cli: "codex", model: "gpt-5.6-sol", effort: "low" },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const createdOut = TaskCreateOutputSchema.parse(created.value);
+
+    const invalidUpdate = await invokeTool(world.db, worker(), "task_update", {
+      task_id: createdOut.task.short_id,
+      harness: { cli: "codex", model: "gpt-5.6-sol", effort: "turbo" },
+    });
+    expect(invalidUpdate.ok).toBe(false);
+    if (invalidUpdate.ok) return;
+    expect(invalidUpdate.error.message).toContain("low, high");
+
+    const claimed = await invokeTool(world.db, worker(), "task_claim", {
+      task_id: createdOut.task.short_id,
+      executor: { cli: "codex", model: "gpt-5.6-sol", effort: "max" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const claimedOut = TaskClaimOutputSchema.parse(claimed.value);
+    expect(claimedOut.harness_divergence?.actual.effort).toBe("max");
+    expect(claimedOut.harness_divergence?.warning).toContain("low");
   });
 
   it("refuses a worker token and leaves the config untouched", async () => {

@@ -11,6 +11,7 @@ export type ClaimActor = {
   executor?: {
     cli?: string;
     model?: string;
+    effort?: string;
     agent?: string;
     session_id?: string;
   };
@@ -35,6 +36,7 @@ export type ExecutionAttemptDraft = {
     token_id: string;
     cli?: string;
     model?: string;
+    effort?: string;
     agent?: string;
     session_id?: string;
   };

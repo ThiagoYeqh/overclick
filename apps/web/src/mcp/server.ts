@@ -80,7 +80,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   task_create:
     "Creates a card. The workspace comes from the token. mission is the id of an existing mission (mission_create, mission_list); omit it and the card stands on its own. mode is solo or team. supersedes atomically discards the card that was in execution, and inherit reuses its contract without carrying its comments over.",
   task_claim:
-    "Takes the card (status becomes em_execucao), opens an ExecutionAttempt and returns the briefing. Codex must declare the exact model it was given in --model (gpt-5.6-sol, for example), never just gpt-5. A claim left without activity past the workspace timeout is abandoned as stale and can be taken over without force; the response marks reclaimed_stale: true.",
+    "Takes the card (status becomes em_execucao), opens an ExecutionAttempt and returns the briefing. Declare the exact cli, model and optional provider effort actually used; the claim response reports divergence from the planned harness. Codex must declare the exact model it was given in --model (gpt-5.6-sol, for example), never just gpt-5. A claim left without activity past the workspace timeout is abandoned as stale and can be taken over without force; the response marks reclaimed_stale: true.",
   task_release:
     "Lets the current claim go: the card returns to aberto and the attempt ends as abandoned with the reason, keeping the usage it reported. Allowed to the token that made the claim, or to a token with manage.",
   task_heartbeat:
@@ -95,13 +95,13 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   harness_recommend:
     "Policy lookup: reads one activity type off the cardapio and returns its cli, model and effort.",
   harness_list:
-    "The whole workspace policy (every activity type to cli, model, effort) and the configured executors.",
+    "The whole workspace policy (every activity type to cli, model, effort) and configured executors, including the supported effort values and source URL keyed by model.",
   insights_query:
     "Cost, tokens and time over the workspace, grouped by project, mission, release, model or card, with an optional period, plus the reopened rate per model. Release groups use resolved_in and a null label for cards without one. Same numbers the Insights page shows: estimated and unreported usage come back counted, never silently summed.",
   executors_update:
-    "Adds or removes CLIs and models in the workspace executor config, in the same shape the Settings grid saves. Adding models turns the CLI on unless enabled:false says otherwise; remove:true drops the whole CLI. Needs a token with the manage flag.",
+    "Adds or removes CLIs and models in the workspace executor config, and can override the effort list keyed by model. Adding models turns the CLI on unless enabled:false says otherwise; remove:true drops the whole CLI. Needs a token with the manage flag.",
   harness_set:
-    "Writes one policy line (activity type to cli, model, effort), validated against the configured executors and stamped with who changed it. Needs a token with the manage flag; a plain worker token gets PERMISSION_DENIED.",
+    "Writes one policy line (activity type to cli, model, effort), validating the effort against that model's catalog and stamping who changed it. Needs a token with the manage flag; a plain worker token gets PERMISSION_DENIED.",
 };
 
 function inputSchemaFor(name: McpToolName) {

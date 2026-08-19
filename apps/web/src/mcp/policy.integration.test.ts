@@ -47,14 +47,23 @@ describe("cardápio policy via MCP", () => {
     for (const row of out.policy) {
       expect(row).not.toHaveProperty("skills");
     }
-    expect(out.executors).toEqual([
-      {
-        id: "claude-code",
-        label: "Claude Code",
-        enabled: true,
-        models: ["fable-5", "opus-5", "opus-4-8", "sonnet-5", "haiku-4-5"],
-      },
+    expect(out.executors).toHaveLength(1);
+    expect(out.executors[0]).toMatchObject({
+      id: "claude-code",
+      label: "Claude Code",
+      enabled: true,
+      models: ["fable-5", "opus-5", "opus-4-8", "sonnet-5", "haiku-4-5"],
+    });
+    expect(out.executors[0]?.efforts["fable-5"]).toEqual([
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
     ]);
+    expect(out.executors[0]?.effort_sources?.["fable-5"]).toMatch(
+      /\/effort$/,
+    );
   });
 
   it("editing the stored policy changes what harness_recommend returns", async () => {
@@ -103,6 +112,32 @@ describe("cardápio policy via MCP", () => {
     expect(out.harness.model).toBe("haiku-4-5");
     expect(out.harness.effort).toBe("low");
     expect(out.harness.cli).toBeNull();
+  });
+
+  it("returns a supported effort when a legacy policy row has an invalid value", async () => {
+    world = await createTestWorld();
+    await world.db
+      .update(cardapioEntry)
+      .set({ cli: "claude-code", model: "haiku-4-5", effort: "max" })
+      .where(
+        and(
+          eq(cardapioEntry.workspaceId, world.workspaceId),
+          eq(cardapioEntry.activityType, "bug"),
+        ),
+      );
+
+    const rec = await invokeTool(world.db, ctx(), "harness_recommend", {
+      type: "bug",
+    });
+    expect(rec.ok).toBe(true);
+    if (!rec.ok) return;
+    const out = HarnessRecommendOutputSchema.parse(rec.value);
+    expect(out.harness).toMatchObject({
+      cli: "claude-code",
+      model: "haiku-4-5",
+      effort: "low",
+    });
+    expect(out.divergence).toContain("max");
   });
 });
 

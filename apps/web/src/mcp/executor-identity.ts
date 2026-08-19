@@ -6,6 +6,7 @@ export type AttemptModelSource = "declared" | "harness" | "measured";
 export type ClaimExecutorInput = {
   cli?: string;
   model?: string;
+  effort?: string;
   agent?: string;
   session_id?: string;
 };
@@ -75,6 +76,7 @@ export function resolveClaimExecutor(
   return {
     ...(cli ? { cli } : {}),
     ...(model ? { model, model_source: modelSource } : {}),
+    ...(input?.effort?.trim() ? { effort: input.effort.trim() } : {}),
     ...(input?.agent ? { agent: input.agent } : {}),
     ...(input?.session_id ? { session_id: input.session_id } : {}),
   };

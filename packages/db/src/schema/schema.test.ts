@@ -45,6 +45,10 @@ describe("complete schema from spec §3", () => {
     expect(columnNames(cardapioEntry)).not.toContain("skills");
   });
 
+  it("keeps effort provider-specific by storing it as text", () => {
+    expect(getTableColumns(cardapioEntry).effort.getSQLType()).toBe("text");
+  });
+
   it("workspace holds name, executor config and cardápio", () => {
     expect(columnNames(workspace)).toEqual(
       expect.arrayContaining([
