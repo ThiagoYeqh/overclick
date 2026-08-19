@@ -48,6 +48,27 @@ export const DeliveryVerificationSchema = z.enum(["verified", "unverified"]);
 
 export const MissionStatusSchema = z.enum(["ativa", "pausada", "concluida"]);
 
+/**
+ * Shared read controls. Reads default to the compact contract/summary view;
+ * callers opt into the expensive prompt material explicitly.
+ */
+export const ReadViewSchema = z.enum(["contract", "briefing", "full"]);
+
+export const ReadIncludeSchema = z.enum([
+  "briefing",
+  "usage_recipe",
+  "mission",
+  "project",
+  "context",
+]);
+
+export const ReadOptionsSchema = z.object({
+  /** `briefing` and `full` are aliases for all heavy content. */
+  view: ReadViewSchema.optional(),
+  /** Add individual heavy sections without opting into every section. */
+  include: z.array(ReadIncludeSchema).min(1).max(5).optional(),
+}).strict();
+
 export const CliNameSchema = z.enum([
   "overclock",
   "claude-code",
@@ -290,6 +311,13 @@ export const TaskSummarySchema = z.object({
   reports_count: z.number().int().nonnegative().default(0),
 });
 
+/** Queue rows stay metadata-only; the card contract is deliberately absent. */
+export const TaskListItemSchema = TaskSummarySchema.extend({
+  branch: z.string().min(1).nullable(),
+  claimed_by: z.string().min(1).nullable(),
+  cost_usd: z.number().nullable(),
+});
+
 export const TaskSchema = TaskSummarySchema.extend({
   workspace_id: z.string().min(1),
   /**
@@ -388,10 +416,14 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 export type Artifact = z.infer<typeof ArtifactSchema>;
 export type SubtaskCreate = z.infer<typeof SubtaskCreateSchema>;
 export type Mission = z.infer<typeof MissionSchema>;
+export type ReadView = z.infer<typeof ReadViewSchema>;
+export type ReadInclude = z.infer<typeof ReadIncludeSchema>;
+export type ReadOptions = z.infer<typeof ReadOptionsSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 export type ProjectCardCounts = z.infer<typeof ProjectCardCountsSchema>;
 export type Task = z.infer<typeof TaskSchema>;
+export type TaskListItem = z.infer<typeof TaskListItemSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;
 export type Handoff = z.infer<typeof HandoffSchema>;
 export type BranchConvention = z.infer<typeof BranchConventionSchema>;

@@ -155,6 +155,7 @@ describe("projects over MCP", () => {
 
     const got = await invokeTool(world.db, ctx(), "project_get", {
       project_id: "doc",
+      view: "briefing",
     });
     expect(got.ok).toBe(true);
     if (!got.ok) return;
@@ -203,6 +204,7 @@ describe("projects over MCP", () => {
 
     const taskGot = await invokeTool(world.db, ctx(), "task_get", {
       task_id: taskId,
+      view: "briefing",
     });
     if (!taskGot.ok) throw new Error("task_get failed");
     expect(TaskGetOutputSchema.parse(taskGot.value).briefing_markdown).toContain(

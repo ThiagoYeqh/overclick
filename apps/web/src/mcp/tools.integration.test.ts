@@ -602,7 +602,10 @@ describe("MCP tool edge cases against a test db", () => {
     expect(payload.briefing_markdown).toContain("(no command for this CLI yet)");
 
     // task_get keeps handing the same recipe: the card knows who claimed it.
-    const got = await invokeTool(world.db, ctx(), "task_get", { task_id: card.id });
+    const got = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      view: "briefing",
+    });
     expect(got.ok).toBe(true);
     if (!got.ok) return;
     expect(TaskGetOutputSchema.parse(got.value).usage_recipe?.cli).toBe("generic");
@@ -1333,6 +1336,7 @@ describe("MCP tool edge cases against a test db", () => {
 
     const fetched = await invokeTool(world.db, ctx(), "mission_get", {
       mission_id: miss.id,
+      view: "briefing",
     });
     expect(fetched.ok).toBe(true);
     if (!fetched.ok) return;
@@ -1357,6 +1361,7 @@ describe("MCP tool edge cases against a test db", () => {
 
     const got = await invokeTool(world.db, ctx(), "task_get", {
       task_id: taskOut.id,
+      view: "briefing",
     });
     expect(got.ok).toBe(true);
     if (!got.ok) return;
@@ -1851,6 +1856,24 @@ describe("MCP tool edge cases against a test db", () => {
       o_que: "x",
       por_que: "y",
       como_confirmo: [{ step: "a", expected: "b" }],
+  it("keeps reads compact and exposes heavy content only by request", async () => {
+    world = await createTestWorld();
+    const context = "# Mission context\n\n" + "convention ".repeat(300);
+    const updatedProject = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: world.projectId,
+      context,
+      current_version: "2.0.0",
+    });
+    expect(updatedProject.ok).toBe(true);
+
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      mission: world.missionId,
+      project_id: world.projectId,
+      title: "Read this card in layers",
+      type: "feature",
+      o_que: "The contract stays available in the compact task response.",
+      por_que: "A queue read must not spend its context on a briefing.",
+      como_confirmo: [{ step: "call the read", expected: "the requested layer is present" }],
       origem,
     });
     expect(created.ok).toBe(true);
@@ -1872,6 +1895,97 @@ describe("MCP tool edge cases against a test db", () => {
     expect(TaskListOutputSchema.parse(listed.value).tasks).toEqual([
       expect.objectContaining({ id: mine.id, status: "em_execucao" }),
     ]);
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const listed = await invokeTool(world.db, ctx(), "task_list", { limit: 10 });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    const listPayload = TaskListOutputSchema.parse(listed.value);
+    const listRow = listPayload.tasks.find((row) => row.id === card.id);
+    expect(listRow).toMatchObject({
+      short_id: card.short_id,
+      claimed_by: null,
+      branch: null,
+      cost_usd: null,
+    });
+    expect(listRow).not.toHaveProperty("o_que");
+    expect(listRow).not.toHaveProperty("como_confirmo");
+    expect(listRow).not.toHaveProperty("briefing_markdown");
+
+    const compact = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    const briefing = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      view: "briefing",
+    });
+    expect(compact.ok).toBe(true);
+    expect(briefing.ok).toBe(true);
+    if (!compact.ok || !briefing.ok) return;
+    const compactPayload = TaskGetOutputSchema.parse(compact.value);
+    const briefingPayload = TaskGetOutputSchema.parse(briefing.value);
+    expect(compactPayload.task.o_que).toContain("contract stays available");
+    expect(compactPayload).not.toHaveProperty("briefing_markdown");
+    expect(compactPayload).not.toHaveProperty("usage_recipe");
+    expect(compactPayload).not.toHaveProperty("mission");
+    expect(briefingPayload.briefing_markdown).toContain("Mission context");
+    expect(briefingPayload.usage_recipe).toBeDefined();
+    expect(briefingPayload.mission?.id).toBe(world.missionId);
+    expect(JSON.stringify(compactPayload).length).toBeLessThan(
+      JSON.stringify(briefingPayload).length,
+    );
+
+    const missionCompact = await invokeTool(world.db, ctx(), "mission_get", {
+      mission_id: world.missionId,
+    });
+    const missionFull = await invokeTool(world.db, ctx(), "mission_get", {
+      mission_id: world.missionId,
+      view: "briefing",
+    });
+    expect(missionCompact.ok).toBe(true);
+    expect(missionFull.ok).toBe(true);
+    if (!missionCompact.ok || !missionFull.ok) return;
+    expect(MissionGetOutputSchema.parse(missionCompact.value).mission).not.toHaveProperty(
+      "context",
+    );
+    expect(MissionGetOutputSchema.parse(missionFull.value).mission.context).toContain(
+      "Fechar o loop MCP",
+    );
+
+    const projectCompact = await invokeTool(world.db, ctx(), "project_get", {
+      project_id: world.projectId,
+    });
+    const projectFull = await invokeTool(world.db, ctx(), "project_get", {
+      project_id: world.projectId,
+      view: "briefing",
+    });
+    expect(projectCompact.ok).toBe(true);
+    expect(projectFull.ok).toBe(true);
+    if (!projectCompact.ok || !projectFull.ok) return;
+    const compactProject = (projectCompact.value as { project: Record<string, unknown> }).project;
+    const fullProject = (projectFull.value as { project: Record<string, unknown> }).project;
+    expect(compactProject).not.toHaveProperty("context");
+    expect(fullProject.context).toBe(context);
+
+    const missionOnly = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      include: ["mission"],
+    });
+    expect(missionOnly.ok).toBe(true);
+    if (!missionOnly.ok) return;
+    const missionOnlyPayload = TaskGetOutputSchema.parse(missionOnly.value);
+    expect(missionOnlyPayload.mission?.id).toBe(world.missionId);
+    expect(missionOnlyPayload).not.toHaveProperty("briefing_markdown");
+    expect(missionOnlyPayload).not.toHaveProperty("usage_recipe");
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const claimPayload = TaskClaimOutputSchema.parse(claimed.value);
+    expect(claimPayload.briefing_markdown).toContain("Mission context");
+    expect(claimPayload.usage_recipe).toBeDefined();
   });
 
   it("filters task_list by an exact release and returns an empty list for a missing one", async () => {
@@ -2603,6 +2717,7 @@ describe("a card joins or leaves a mission after creation", () => {
     // The briefing the next executor reads now carries the mission context.
     const briefed = await invokeTool(world.db, ctx(), "task_get", {
       task_id: card.id,
+      view: "briefing",
     });
     expect(briefed.ok).toBe(true);
     if (!briefed.ok) return;

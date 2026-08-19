@@ -47,6 +47,7 @@ import {
   type Harness,
   type McpToolName,
   type ProjectMove,
+  type ReadOptions,
   type Result,
   type Reviewer,
   type Task,
@@ -126,6 +127,37 @@ type Tx = McpDatabase;
  * whole in an agent's context, so the default is a page, not a board.
  */
 const DEFAULT_TASK_LIST_LIMIT = 50;
+
+type TaskReadLayers = {
+  briefing: boolean;
+  mission: boolean;
+  usage_recipe: boolean;
+};
+
+const FULL_TASK_READ_LAYERS: TaskReadLayers = {
+  briefing: true,
+  mission: true,
+  usage_recipe: true,
+};
+
+function requestedFullRead(input?: ReadOptions): boolean {
+  return input?.view === "briefing" || input?.view === "full";
+}
+
+function taskReadLayers(input?: ReadOptions, fullByDefault = false): TaskReadLayers {
+  const includes = new Set(input?.include ?? []);
+  const full = fullByDefault || requestedFullRead(input);
+  return {
+    briefing: full || includes.has("briefing"),
+    mission: full || includes.has("mission"),
+    usage_recipe: full || includes.has("usage_recipe"),
+  };
+}
+
+function contextReadRequested(input?: ReadOptions): boolean {
+  const includes = new Set(input?.include ?? []);
+  return requestedFullRead(input) || includes.has("context") || includes.has("project");
+}
 
 /**
  * Ends the active run without erasing its telemetry and links the old and new
@@ -498,7 +530,11 @@ async function projectList(db: McpDatabase, ctx: AuthContext) {
 async function projectGet(
   db: McpDatabase,
   ctx: AuthContext,
-  input: { project_id: string },
+  input: {
+    project_id: string;
+    view?: ReadOptions["view"];
+    include?: ReadOptions["include"];
+  },
 ) {
   const row = await findProject(db, ctx.workspaceId, input.project_id);
   if (!row) {
@@ -507,8 +543,11 @@ async function projectGet(
       `Project ${input.project_id} not found in this workspace. ${PROJECT_HINT}`,
     );
   }
+  const cards = await projectCardCounts(db, row.id);
   return {
-    project: mapProjectDetail(row, await projectCardCounts(db, row.id)),
+    project: contextReadRequested(input)
+      ? mapProjectDetail(row, cards)
+      : mapProject(row, cards),
   };
 }
 
@@ -808,7 +847,11 @@ async function missionList(
 async function missionGet(
   db: McpDatabase,
   ctx: AuthContext,
-  input: { mission_id: string },
+  input: {
+    mission_id: string;
+    view?: ReadOptions["view"];
+    include?: ReadOptions["include"];
+  },
 ) {
   const row = await findMission(db, ctx.workspaceId, input.mission_id);
   if (!row) {
@@ -821,7 +864,10 @@ async function missionGet(
     .select({ n: count() })
     .from(task)
     .where(eq(task.missionId, row.id));
-  return { mission: mapMission(row, Number(counted?.n ?? 0)) };
+  const mapped = mapMission(row, Number(counted?.n ?? 0));
+  if (contextReadRequested(input)) return { mission: mapped };
+  const { objective: _objective, context: _context, ...summary } = mapped;
+  return { mission: summary };
 }
 
 async function missionCreate(
@@ -1035,11 +1081,37 @@ async function taskList(
     .limit(limit + 1);
 
   const truncated = rows.length > limit;
+  const selected = rows.slice(0, limit);
+  const attemptRows =
+    selected.length === 0
+      ? []
+      : await db
+          .select({
+            taskId: executionAttempt.taskId,
+            costUsd: executionAttempt.costUsd,
+          })
+          .from(executionAttempt)
+          .where(
+            inArray(
+              executionAttempt.taskId,
+              selected.map((item) => item.task.id),
+            ),
+          )
+          .orderBy(desc(executionAttempt.startedAt));
+  const latestCostByTask = new Map<string, number | null>();
+  for (const attempt of attemptRows) {
+    if (!latestCostByTask.has(attempt.taskId)) {
+      latestCostByTask.set(
+        attempt.taskId,
+        attempt.costUsd != null ? Number(attempt.costUsd) : null,
+      );
+    }
+  }
 
   return {
     truncated,
     limit,
-    tasks: rows.slice(0, limit).map((row) => {
+    tasks: selected.map((row) => {
       const mapped = mapTask(row.task, row.project);
       return {
         id: mapped.id,
@@ -1056,6 +1128,9 @@ async function taskList(
         delivery_unverified: mapped.delivery_unverified,
         delivery_verification: mapped.delivery_verification,
         delivery_warning: mapped.delivery_warning,
+        branch: mapped.branch,
+        claimed_by: mapped.claimed_by,
+        cost_usd: latestCostByTask.get(mapped.id) ?? null,
       };
     }),
   };
@@ -1064,7 +1139,11 @@ async function taskList(
 async function taskGet(
   db: McpDatabase,
   ctx: AuthContext,
-  input: { task_id: string },
+  input: {
+    task_id: string;
+    view?: ReadOptions["view"];
+    include?: ReadOptions["include"];
+  },
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
   if (!found) {
@@ -1080,6 +1159,8 @@ async function taskGet(
     undefined,
     undefined,
     await countReports(db, found.row),
+    undefined,
+    taskReadLayers(input),
   );
 }
 
@@ -3284,7 +3365,11 @@ async function assembleTaskPayload(
     claimedAt?: Date | string | null;
     reclaimedStale?: boolean;
   },
+  read: TaskReadLayers = FULL_TASK_READ_LAYERS,
 ) {
+  const wantsBriefing = read.briefing;
+  const wantsMission = read.mission || wantsBriefing;
+  const wantsRecipe = read.usage_recipe || wantsBriefing;
   const comment =
     reopenComment !== undefined
       ? reopenComment
@@ -3295,7 +3380,7 @@ async function assembleTaskPayload(
     reportsCount: count,
   });
   let missionPayload = null;
-  if (row.missionId) {
+  if (wantsMission && row.missionId) {
     const miss = await findMission(db, proj.workspaceId, row.missionId);
     if (miss) missionPayload = mapMission(miss);
   }
@@ -3316,59 +3401,59 @@ async function assembleTaskPayload(
     .where(eq(executionAttempt.taskId, row.id))
     .orderBy(desc(executionAttempt.startedAt))
     .limit(1);
-  // Whoever is running the card gets the recipe for their own CLI. On a
-  // task_get without an executor, the card's claimed executor or its planned
-  // harness names the CLI; anything else lands on the generic recipe.
-  const recipes = await loadUsageRecipes(db as RecipesDb, proj.workspaceId);
-  const recipe = bindUsageRecipe(
-    recipeForCli(recipes, cli ?? row.claimedByExecutor ?? row.harness?.cli ?? null),
-    {
-      sessionId: executor?.sessionId ?? latestAttempt?.sessionId,
-      model: executor?.model ?? latestAttempt?.model ?? mapped.harness?.model,
-      claimedAt: executor?.claimedAt ?? latestAttempt?.startedAt,
-    },
-  );
+  let recipe: ReturnType<typeof bindUsageRecipe> = null;
+  if (wantsRecipe) {
+    // Whoever is running the card gets the recipe for their own CLI. On a
+    // task_get without an executor, the card's claimed executor or its planned
+    // harness names the CLI; anything else lands on the generic recipe.
+    const recipes = await loadUsageRecipes(db as RecipesDb, proj.workspaceId);
+    recipe = bindUsageRecipe(
+      recipeForCli(recipes, cli ?? row.claimedByExecutor ?? row.harness?.cli ?? null),
+      {
+        sessionId: executor?.sessionId ?? latestAttempt?.sessionId,
+        model: executor?.model ?? latestAttempt?.model ?? mapped.harness?.model,
+        claimedAt: executor?.claimedAt ?? latestAttempt?.startedAt,
+      },
+    );
+  }
   // The line of succession behind the one model the card prints, so a worker
   // that stalls knows where the work goes next without asking the board.
-  const policy = await loadPolicy(db, proj.workspaceId);
-  const chain = policyChain(lookupCardapioPolicy(policy, row.tipo));
-  const delivered = await db
-    .select({ id: executionAttempt.id })
-    .from(executionAttempt)
-    .where(
-      and(eq(executionAttempt.taskId, row.id), eq(executionAttempt.result, "success")),
-    );
+  let chain: readonly string[] = [];
+  let delivered = 0;
+  if (wantsBriefing) {
+    const policy = await loadPolicy(db, proj.workspaceId);
+    chain = policyChain(lookupCardapioPolicy(policy, row.tipo));
+    const deliveredRows = await db
+      .select({ id: executionAttempt.id })
+      .from(executionAttempt)
+      .where(
+        and(eq(executionAttempt.taskId, row.id), eq(executionAttempt.result, "success")),
+      );
+    delivered = deliveredRows.length;
+  }
+  const briefingMarkdown = wantsBriefing
+    ? renderBriefingMarkdown({
+        task: mapped,
+        mission: missionPayload,
+        project: {
+          name: proj.name,
+          idPrefix: proj.idPrefix,
+          context: proj.context,
+          currentVersion: proj.currentVersion,
+        },
+        branchConvention: convention,
+        recipe,
+        chain,
+        attempt: delivered,
+        claimedAt: latestAttempt?.startedAt
+          ? iso(latestAttempt.startedAt)
+          : null,
+        reclaimedStale: executor?.reclaimedStale,
+      })
+    : undefined;
   return {
     task: mapped,
-    briefing_markdown: renderBriefingMarkdown({
-      task: mapped,
-      mission: missionPayload,
-      project: {
-        name: proj.name,
-        idPrefix: proj.idPrefix,
-        context: proj.context,
-        currentVersion: proj.currentVersion,
-      },
-      branchConvention: convention,
-      recipe,
-      chain,
-      attempt: delivered.length,
-      claimedAt: latestAttempt?.startedAt
-        ? iso(latestAttempt.startedAt)
-        : null,
-      reclaimedStale: executor?.reclaimedStale,
-    }),
-    mission: missionPayload,
     branch_convention: convention,
-    usage_recipe: recipe
-      ? {
-          cli: recipe.cli,
-          label: recipe.label,
-          yields: recipe.yields,
-          instructions: recipe.instructions,
-          command: recipe.command,
-        }
-      : null,
     usage_suspect: latestAttempt?.usageSuspect ?? false,
     usage_suspect_reason: latestAttempt?.usageSuspectReason ?? null,
     cost_usd:
@@ -3376,6 +3461,23 @@ async function assembleTaskPayload(
     cost_source: latestAttempt?.costSource ?? null,
     cost_status: latestAttempt?.costStatus ?? null,
     cost_unpriced_models: latestAttempt?.costUnpricedModels ?? [],
+    ...(briefingMarkdown !== undefined
+      ? { briefing_markdown: briefingMarkdown }
+      : {}),
+    ...(read.mission ? { mission: missionPayload } : {}),
+    ...(read.usage_recipe
+      ? {
+          usage_recipe: recipe
+            ? {
+                cli: recipe.cli,
+                label: recipe.label,
+                yields: recipe.yields,
+                instructions: recipe.instructions,
+                command: recipe.command,
+              }
+            : null,
+        }
+      : {}),
     ...(row.status === "descartado" && row.telemetryIncomplete
       ? {
           usage_warning:

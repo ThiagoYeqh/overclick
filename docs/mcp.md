@@ -39,19 +39,20 @@ context are listed there with a short excerpt and a pointer to `project_get`.
 | Tool | What it does |
 |---|---|
 | `project_list` | the workspace projects: uuid, name, card prefix, repo url, `has_context`, next card number and card counts by status. The markdown stays out of this summary |
-| `project_get` | the complete project, including `context` markdown and `current_version`; read it before changing the project |
+| `project_get` | compact project metadata by default; pass `view: "briefing"`/`"full"` or `include: ["context"]` for `context` markdown and `current_version` |
 | `project_create` | creates a project (`name`, optional `repo_url`, `context`, `current_version`, optional `id_prefix`). Context is limited to 32,000 characters; above that is `INVALID_ARGUMENT`. The prefix is derived from the name when omitted (`Agent Board` → `AB`, `OverClick` → `OC`, `overclick` → `OVE`) and is unique per workspace: a collision comes back as `INVALID_ARGUMENT` naming the project that holds it |
 | `project_update` | reconfigures a project (`name`, `repo_url`, `context`, `current_version`, `id_prefix`). `repo_url`, `context` and `current_version` accept `null` to clear them |
 | | `id_prefix` is only editable while the project has **no cards**. Every card carries the prefix in its short id (`FUN-1`), and those ids also live in branches, commits and PR titles, so rewriting the prefix would either make the board name cards that never existed or break every external reference. Renumbering is not offered: the error names how many cards block the change and points at moving them instead. A prefix another project already holds comes back as a named `INVALID_ARGUMENT`, never a constraint violation |
 | `project_delete` | hard delete, irreversible: `task.project_id` cascades, so the cards go with the project |
 | | only an **empty** project by default; one that holds cards is refused with the count that blocks it and the way out (move the cards, or repeat with force). `force: true` destroys the project with every card in it, and their attempts, handoffs and subtasks, with the count stated in the response (`tasks_deleted`, `attempts_deleted`, `handoffs_deleted`) |
-| `mission_list` / `mission_get` | missions and the context to inject into the prompt |
+| `mission_list` / `mission_get` | mission summaries by default; pass `view: "briefing"`/`"full"` or `include: ["context"]` to read the objective and context to inject into the prompt |
 | `mission_create` | creates a mission (`title`, objective/context markdown, `status`) and returns its id |
 | `mission_update` | partially edits a mission (`title`, objective/context markdown, `status`); omitted fields stay unchanged. Put conventions for one round in mission context and update them here |
 | `mission_delete` | removes an empty mission shell. A mission holding cards is refused with its count; `force: true` detaches those cards (`mission_id: null`) and returns `tasks_detached` before deleting the mission |
 | `task_list` | the queue (project, `mission_id`, exact `resolved_in`, status, priority, `claimed_by: "me"`, `awaiting_review_by`, `limit`) |
+| `task_list` | thin queue rows (ids, title, type, status, priority, mission, claim, branch and frozen cost; no card contract or briefing), filtered by project, `mission_id`, exact `resolved_in`, status, priority, `awaiting_review_by` and `limit` |
 | | `limit` defaults to 50 and caps at 200. The response carries `truncated` and the `limit` it used, so a caller can tell a full queue from a cut one instead of reading a page as the whole board |
-| `task_get` | self-contained md briefing (contract + harness + mission + complete project context + branch), plus the latest attempt's frozen `cost_usd`, `cost_source`, `cost_status` and `cost_unpriced_models` |
+| `task_get` | the card contract, branch and latest attempt's frozen cost/status by default. The heavy briefing, recipe and mission are opt-in with `view: "briefing"`/`"full"` or `include: ["briefing", "usage_recipe", "mission"]` |
 | `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin); `supersedes` atomically discards an in-execution predecessor, and `inherit: true` reuses its contract without copying comments |
 | | `project_id` takes the project uuid **or** its card prefix (`AGB`), so an agent that just called `project_list` never needs the uuid |
 | `task_search` | search the queue by text (`q`) and metadata filters, including exact `resolved_in` |
@@ -84,6 +85,10 @@ context are listed there with a short excerpt and a pointer to `project_get`.
 | `executors_update` | adds or removes CLIs and models in the executor config, in the shape the Settings grid saves. **Needs a manage token** |
 | | one `cli` per call (the board id, or the binary name an agent sends: `claude` resolves to `claude-code`), plus `add_models`, `remove_models`, `enabled`, `label`, or `remove: true` to drop the CLI entirely. Adding models turns the CLI on unless `enabled: false` says otherwise, because an unchecked model is invisible to the policy selects and to card harnesses. When a change orphans a policy line, the response carries `policy_warnings` naming what `harness_set` has to fix |
 
+Read compatibility: `task_get`, `mission_get` and `project_get` now default to their
+compact contract/summary views. Callers that depended on the old full read must pass
+`view: "briefing"` (or `"full"`); `task_claim` remains the complete briefing boundary.
+
 Every tool that takes `task_id` accepts the card uuid **or** the workspace short id
 (`AGB-5`, `OVK-5.4`), and every `project_id` accepts the project uuid **or** its card
 prefix (`AGB`). Resolution is case-insensitive and scoped to the token's workspace.
@@ -99,8 +104,9 @@ edit it in place with `mission_update` instead of repeating it on every card. Em
 mission shells can be removed with `mission_delete`; occupied missions require an
 explicit move/detach or `force: true`.
 
-`task_claim` and `task_get` return the briefing. The executor needs no other source of
-context. `## Project context` comes immediately after the mission and carries the
+`task_claim` always returns the complete briefing; `task_get` is compact unless its
+caller opts into the heavy sections. The executor needs no other source of context
+after claiming. `## Project context` comes immediately after the mission and carries the
 project markdown plus `current_version`. The briefing always ends with two things, in this order: how to measure the run,
 then what to send.
 
