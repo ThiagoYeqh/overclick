@@ -178,6 +178,13 @@ const en = {
      * live behind it (OCL-20).
      */
     accountMenu: "Account and navigation",
+    /** The theme selector inside that menu (OCL-56). */
+    theme: "Theme",
+    /**
+     * Theme names are names, so they do not translate: nebula and xai are
+     * what the design doctrine calls them, and overclock is a product.
+     */
+    themeName: { nebula: "Nebula", xai: "xAI", overclock: "Overclock" },
     running: (n: number) => `${n} in progress`,
     noAgentRunning: "no agent running",
     minAgo: (m: number) => `${m} min ago`,
@@ -709,6 +716,8 @@ const ptBR: Dict = {
     missionDeleting: "Apagando…",
     missionDeleteConfirm: "Apagar esta missão vazia? Não será possível desfazer.",
     accountMenu: "Conta e navegação",
+    theme: "Tema",
+    themeName: { nebula: "Nebula", xai: "xAI", overclock: "Overclock" },
     running: (n: number) => `${n} em execução`,
     noAgentRunning: "nenhum agente rodando",
     minAgo: (m: number) => `há ${m} min`,

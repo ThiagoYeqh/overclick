@@ -1,0 +1,187 @@
+/* ============================================================
+   THEME — xai (the new direction: docs/design-system §1 of ux-v2.md)
+
+   OCL-56. "The x.ai school — near-black, one typeface speaking through
+   weight, one accent, generous air, and not a single decorative color."
+
+   Every value here comes from the token table in docs/design/ux-v2.md §2,
+   column `xai`. Where the doctrine names a value, that value is here
+   verbatim; where it names a rule instead of a value ("no blur", "pills
+   die", "flat 7px dot, no halo"), the rule is expressed as the token that
+   carries it.
+
+   This file redefines values only. It declares no selector and no size that
+   moves a box, so switching to it changes zero layout (checklist item 14).
+   ============================================================ */
+
+[data-theme="xai"] {
+  /* ---------- colour families ----------
+     One accent, and it is white. `--oc-ok` and `--oc-danger` are the
+     doctrine's #4ADE80 / #F87171 taken to 70% of their saturation, which
+     is #60c886 and #e48585 — status still reads, nothing glows. */
+  --oc-black-rgb: 0 0 0;
+  --oc-white-rgb: 255 255 255;
+  --oc-accent-rgb: 255 255 255;
+  --oc-ok-rgb: 96 200 134;
+  --oc-danger-rgb: 228 133 133;
+  --oc-danger-deep-rgb: 84 40 40;
+  /* running is a status, so it speaks with the status colour, not a blue */
+  --oc-info-rgb: var(--oc-ok-rgb);
+  /* amber was a decorative accent on counters and chips: it goes gray */
+  --oc-warn-rgb: var(--oc-white-rgb);
+  --oc-warn-2-rgb: var(--oc-white-rgb);
+  --oc-warn-3-rgb: var(--oc-white-rgb);
+  /* the atmosphere is off in this theme; these stay defined so no token of
+     the contract is missing, and they compose to nothing visible */
+  --oc-mist-rgb: var(--oc-white-rgb);
+  --oc-mist-deep-rgb: var(--oc-white-rgb);
+  --oc-haze-rgb: var(--oc-white-rgb);
+  --oc-scrim-rgb: 10 10 11;
+  --oc-surface-2-rgb: 17 17 19;
+  --oc-surface-3-rgb: 23 23 26;
+  --oc-surface-deep-rgb: 10 10 11;
+  --oc-surface-tile-rgb: 17 17 19;
+  --oc-surface-btn-rgb: 17 17 19;
+
+  /* ---------- canvas and surfaces ----------
+     Depth from lightness. No blur anywhere: glass is an optical tool, not
+     the personality of the product. */
+  --oc-bg: rgb(var(--oc-black-rgb));
+  --oc-surface: #0a0a0b;
+  --oc-surface-2: rgb(var(--oc-surface-2-rgb));
+  --oc-surface-3: rgb(var(--oc-surface-3-rgb));
+  --oc-surface-deep: rgb(var(--oc-surface-deep-rgb));
+  --oc-surface-tile: rgb(var(--oc-surface-tile-rgb));
+  --oc-surface-subtle: rgb(var(--oc-white-rgb) / 0.03);
+  --oc-surface-input: rgb(var(--oc-white-rgb) / 0.04);
+  --oc-surface-hover: rgb(var(--oc-white-rgb) / 0.06);
+  --oc-surface-on: rgb(var(--oc-white-rgb) / 0.1);
+  --oc-panel-bg: rgb(var(--oc-surface-3-rgb));
+  --oc-modal-bg: rgb(var(--oc-surface-2-rgb));
+  --oc-overlay-bg: rgb(var(--oc-black-rgb) / 0.72);
+
+  /* ---------- borders ----------
+     Edges whisper: .08 at rest, .16 open or hovered. No colour. */
+  --oc-border: rgb(var(--oc-white-rgb) / 0.08);
+  --oc-border-hover: rgb(var(--oc-white-rgb) / 0.16);
+  --oc-border-strong: rgb(var(--oc-white-rgb) / 0.16);
+  --oc-border-dashed: rgb(var(--oc-white-rgb) / 0.1);
+  --oc-divider: rgb(var(--oc-white-rgb) / 0.05);
+
+  /* ---------- text ---------- */
+  --oc-text-1: #f7f7f8;
+  --oc-text-2: rgb(var(--oc-white-rgb) / 0.64);
+  --oc-text-3: rgb(var(--oc-white-rgb) / 0.42);
+  --oc-text-glow: transparent;
+  --oc-icon: var(--oc-text-3);
+
+  /* ---------- the gray ladder replaces the nebula palette ----------
+     If two elements need to differ they differ by one step on this ladder
+     or one weight of type, never by hue. */
+  --oc-mist-deep: var(--oc-text-3);
+  --oc-mist: var(--oc-text-2);
+  --oc-mist-light: var(--oc-text-2);
+  --oc-accent: #ffffff;
+  --oc-accent-contrast: #000000;
+  --oc-dust-edge: var(--oc-text-3);
+  --oc-dust-core: var(--oc-text-1);
+  --oc-star: var(--oc-text-2);
+  --oc-star-far: rgb(var(--oc-white-rgb) / 0.28);
+
+  /* ---------- status ---------- */
+  --oc-ok: rgb(var(--oc-ok-rgb));
+  --oc-danger: rgb(var(--oc-danger-rgb));
+  --oc-info: var(--oc-ok);
+  --oc-warn: var(--oc-text-2);
+  --oc-warn-pip: var(--oc-text-2);
+  --oc-warn-deep: var(--oc-border-strong);
+
+  /* ---------- type badges die as colour, survive as words ---------- */
+  --oc-tag-bug-fg: var(--oc-text-2);
+  --oc-tag-bug-border: var(--oc-border);
+  --oc-tag-rfc-fg: var(--oc-text-2);
+  --oc-tag-rfc-border: var(--oc-border);
+  --oc-tag-feature-fg: var(--oc-text-2);
+  --oc-tag-feature-border: var(--oc-border);
+  --oc-badge-fg: var(--oc-text-1);
+  --oc-chip-review-fg: var(--oc-text-2);
+  --oc-chip-review-bg: transparent;
+  --oc-chip-review-border: var(--oc-border);
+
+  /* ---------- typography ----------
+     Inter for the UI, mono demoted to a data voice: ids, counts, money,
+     timestamps, code. */
+  --oc-font-ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --oc-font-data: "SF Mono", ui-monospace, Menlo, monospace;
+  --oc-font-label: var(--oc-font-ui);
+
+  /* ---------- radii ----------
+     Uniform 8 for controls, 12 for panels. Pills die; a status dot is
+     still a dot. */
+  --oc-radius-tick: 4px;
+  --oc-radius-control-sm: 4px;
+  --oc-radius-chip: 8px;
+  --oc-radius-badge: 8px;
+  --oc-radius-control: 8px;
+  --oc-radius-note: 8px;
+  --oc-radius-box: 8px;
+  --oc-radius-card: 12px;
+  --oc-radius-tile: 12px;
+  --oc-radius-panel: 12px;
+  --oc-radius-sheet: 12px;
+  --oc-radius-plan: 12px;
+  --oc-radius-pill: 8px;
+  --oc-radius-circle: 50%;
+
+  /* ---------- depth ----------
+     Flat: no glass, no halo, no glow. A shadow only where a panel really
+     floats over content. */
+  --oc-glass-bg: var(--oc-surface-2);
+  --oc-glass-border: var(--oc-border);
+  --oc-glass-highlight: 0 0 transparent;
+  --oc-glass-blur: 0px;
+  --oc-shadow-panel: 0 8px 24px rgb(var(--oc-black-rgb) / 0.6);
+  --oc-shadow-card-hover: 0 8px 24px rgb(var(--oc-black-rgb) / 0.6);
+  --oc-glow-text: none;
+  --oc-glow-dot-ok: none;
+  --oc-glow-dot-exec: none;
+  --oc-glow-dot-exec-dim: none;
+  --oc-glow-pip: none;
+  --oc-glow-accent: none;
+  --oc-glow-ok: none;
+
+  /* ---------- atmosphere: off ----------
+     Not cyberpunk. No coloured haze behind the instrument panel. */
+  --oc-grain-opacity: 0;
+  --oc-vignette: none;
+  --oc-atmo-mist: none;
+  --oc-atmo-veil: none;
+  --oc-atmo-opacity: 0;
+  --oc-alpha-mist: 0;
+  --oc-alpha-dust: 0;
+  --oc-alpha-star: 0.6;
+
+  /* ---------- corners ---------- */
+  --oc-corner-color: rgb(var(--oc-white-rgb) / 0.16);
+
+  /* ---------- plan card / banner / account button ----------
+     Every trigger is the same control: 1px gray border, no warm gradient,
+     no blur. */
+  --oc-plan-bg: var(--oc-surface-2);
+  --oc-plan-border: var(--oc-border);
+  --oc-plan-glow: none;
+  --oc-banner-bg: var(--oc-surface-2);
+  --oc-banner-border: var(--oc-border);
+  --oc-btn-light-bg: var(--oc-accent);
+  --oc-btn-light-text: var(--oc-accent-contrast);
+  --oc-btn-account-bg: transparent;
+  --oc-btn-account-border: var(--oc-border);
+  --oc-btn-account-blur: 0px;
+
+  /* ---------- focus ----------
+     Doctrine §1: the focus ring keeps its current values. It is the one
+     thing that must not get quieter. */
+  --oc-focus-ring: 0 0 0 2px rgb(209 217 235 / 0.55);
+  --oc-focus-ring-offset: 0 0 0 4px rgb(var(--oc-black-rgb) / 0.55), var(--oc-focus-ring);
+  --oc-focus-ring-inset: inset 0 0 0 2px rgb(209 217 235 / 0.55);
+}

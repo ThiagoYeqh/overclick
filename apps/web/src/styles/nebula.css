@@ -1,136 +1,157 @@
 /* ============================================================
-   NEBULA — Design Tokens
-   Adaptado de overclock-bench/standalone/kimi/tokens.css.
-   Base compartilhada: board (/home) hoje, login/setup depois.
+   NEBULA — the board's component layer.
+
+   The tokens this file draws with no longer live here: they live in
+   styles/themes/<name>.css, one file per theme, each one the same list of
+   `--oc-*` names with different values (OCL-56). This file imports the
+   three the board ships with and then maps them onto the `--nebula-*`
+   names the rules below have always used, so a rule reads the same as it
+   did and a theme change reaches every one of them.
+
+   The order matters: nebula is `:root` as well as `[data-theme="nebula"]`,
+   so a theme nobody recognises falls back to it without a line of code
+   deciding that. The other two are attribute rules that win over `:root`
+   on the same element when the attribute is there.
+
+   Rules below use tokens only — no hex, no rgba literal (doctrine §5,
+   item 1). styles/tokens.test.ts fails the build if one comes back.
+   ============================================================ */
+
+@import "./themes/nebula.css";
+@import "./themes/xai.css";
+@import "./themes/overclock.css";
+
+/* ============================================================
+   The `--nebula-*` contract, now a view over the theme.
+
+   Every name here is a name the rules below (and a handful of inline
+   styles) already used. Keeping them is what made the extraction a
+   no-op on screen: nothing was renamed, only re-sourced.
    ============================================================ */
 
 :root {
   /* ---------- Cor: base ---------- */
-  --nebula-void: #000000;
+  --nebula-void: var(--oc-bg);
 
   /* ---------- Cor: névoa ---------- */
-  --nebula-mist-deep:  #738094;
-  --nebula-mist:       #858FA3;
-  --nebula-mist-light: #8C96AB;
-  --nebula-mist-glow:  #D1D9EB;
+  --nebula-mist-deep:  var(--oc-mist-deep);
+  --nebula-mist:       var(--oc-mist);
+  --nebula-mist-light: var(--oc-mist-light);
+  --nebula-mist-glow:  var(--oc-accent);
 
   /* ---------- Cor: poeira ---------- */
-  --nebula-dust-edge:  #8C99AD;
-  --nebula-dust-core:  #F2F7FF;
+  --nebula-dust-edge:  var(--oc-dust-edge);
+  --nebula-dust-core:  var(--oc-dust-core);
 
   /* ---------- Cor: estrelas ---------- */
-  --nebula-star:       #CCD4E6;
-  --nebula-star-far:   #5C6473;
+  --nebula-star:       var(--oc-star);
+  --nebula-star-far:   var(--oc-star-far);
 
   /* ---------- Cor: texto ---------- */
-  --nebula-text-primary:   #FFFFFF;
-  --nebula-text-secondary: rgba(255, 255, 255, 0.65);
-  --nebula-text-tertiary:  rgba(255, 255, 255, 0.45);
-  --nebula-text-glow:      rgba(255, 255, 255, 0.15);
+  --nebula-text-primary:   var(--oc-text-1);
+  --nebula-text-secondary: var(--oc-text-2);
+  --nebula-text-tertiary:  var(--oc-text-3);
+  --nebula-text-glow:      var(--oc-text-glow);
 
   /* ---------- Tipografia ---------- */
-  --nebula-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --nebula-font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+  --nebula-font-sans: var(--oc-font-ui);
+  --nebula-font-mono: var(--oc-font-data);
+  /* the voice of a control, a section title, a chip: mono in nebula, the
+     UI face in a theme that demotes mono to a data voice */
+  --nebula-font-label: var(--oc-font-label);
 
-  --nebula-text-display: clamp(48px, 9vw, 88px);
-  --nebula-text-caption: clamp(14px, 2.2vw, 18px);
+  --nebula-text-display: var(--oc-text-display);
+  --nebula-text-caption: var(--oc-text-caption);
 
-  --nebula-weight-medium: 500;
-  --nebula-weight-light:  300;
+  --nebula-weight-medium: var(--oc-weight-medium);
+  --nebula-weight-light:  var(--oc-weight-light);
 
-  --nebula-tracking-tight: -0.02em;
-  --nebula-tracking-wide:   0.06em;
+  --nebula-tracking-tight: var(--oc-tracking-tight);
+  --nebula-tracking-wide:  var(--oc-tracking-wide);
 
-  --nebula-leading-none: 1;
+  --nebula-leading-none: var(--oc-leading-none);
 
   /* ---------- Espaçamento ---------- */
-  --nebula-space-1: 4px;
-  --nebula-space-2: 8px;
-  --nebula-space-3: 12px;
-  --nebula-space-4: 16px;
-  --nebula-space-6: 24px;
-  --nebula-space-8: 32px;
-  --nebula-space-caption-gap: 10px;
+  --nebula-space-1: var(--oc-space-1);
+  --nebula-space-2: var(--oc-space-2);
+  --nebula-space-3: var(--oc-space-3);
+  --nebula-space-4: var(--oc-space-4);
+  --nebula-space-6: var(--oc-space-6);
+  --nebula-space-8: var(--oc-space-8);
+  --nebula-space-caption-gap: var(--oc-space-caption-gap);
 
   /* ---------- Efeitos ---------- */
-  --nebula-glow-text: 0 0 40px var(--nebula-text-glow);
-  --nebula-blur-bokeh-near: 2px;
-  --nebula-blur-bokeh-far:  8px;
-  --nebula-grain-opacity: 0.36;
-  --nebula-vignette: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.6) 100%);
+  --nebula-glow-text: var(--oc-glow-text);
+  --nebula-blur-bokeh-near: var(--oc-blur-bokeh-near);
+  --nebula-blur-bokeh-far:  var(--oc-blur-bokeh-far);
+  --nebula-grain-opacity: var(--oc-grain-opacity);
+  --nebula-vignette: var(--oc-vignette);
 
   /* ---------- Glass ---------- */
-  --nebula-glass-bg: rgba(16, 18, 22, 0.72);
-  --nebula-glass-border: rgba(255, 255, 255, 0.08);
-  --nebula-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --nebula-glass-blur: 18px;
-  --nebula-glass-radius: 16px;
-  --nebula-glass-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    var(--nebula-glass-highlight);
+  --nebula-glass-bg: var(--oc-glass-bg);
+  --nebula-glass-border: var(--oc-glass-border);
+  --nebula-glass-highlight: var(--oc-glass-highlight);
+  --nebula-glass-blur: var(--oc-glass-blur);
+  --nebula-glass-radius: var(--oc-radius-panel);
+  --nebula-glass-shadow: var(--oc-shadow-panel);
   /* The same surface with no glass left in it, for a panel that covers what
      it sits on. Glass is depth while there is something worth seeing behind;
      once the panel is the screen, depth is just two texts on top of each
      other. Same colour the glass settles on, at full opacity. */
-  --nebula-panel-solid: rgb(13, 15, 19);
+  --nebula-panel-solid: var(--oc-surface-3);
 
   /* ---------- Cantos ---------- */
-  --nebula-corner-size: 14px;
-  --nebula-corner-width: 2px;
-  --nebula-corner-color: rgba(255, 255, 255, 0.25);
-  --nebula-corner-offset: 10px;
+  --nebula-corner-size: var(--oc-corner-size);
+  --nebula-corner-width: var(--oc-corner-width);
+  --nebula-corner-color: var(--oc-corner-color);
+  --nebula-corner-offset: var(--oc-corner-offset);
 
   /* ---------- Plan card ---------- */
-  --nebula-plan-bg: #0e1013;
-  --nebula-plan-border: rgba(255, 255, 255, 0.09);
-  --nebula-plan-radius: 22px;
-  --nebula-plan-glow: radial-gradient(ellipse 90% 45% at 68% -12%, rgba(140, 150, 171, 0.16), transparent 70%);
-  --nebula-plan-divider: rgba(255, 255, 255, 0.05);
-  --nebula-icon: #aab2bd;
+  --nebula-plan-bg: var(--oc-plan-bg);
+  --nebula-plan-border: var(--oc-plan-border);
+  --nebula-plan-radius: var(--oc-radius-plan);
+  --nebula-plan-glow: var(--oc-plan-glow);
+  --nebula-plan-divider: var(--oc-divider);
+  --nebula-icon: var(--oc-icon);
 
   /* ---------- Promo banner ---------- */
-  --nebula-banner-bg: #0a0c10;
-  --nebula-banner-border: rgba(255, 255, 255, 0.1);
-  --nebula-banner-radius: 18px;
-  --nebula-btn-light-bg: #ffffff;
-  --nebula-btn-light-text: #0a0c10;
+  --nebula-banner-bg: var(--oc-banner-bg);
+  --nebula-banner-border: var(--oc-banner-border);
+  --nebula-banner-radius: var(--oc-radius-sheet);
+  --nebula-btn-light-bg: var(--oc-btn-light-bg);
+  --nebula-btn-light-text: var(--oc-btn-light-text);
 
   /* ---------- Botão de conta ---------- */
-  --nebula-btn-account-bg: rgba(18, 18, 20, 0.55);
-  --nebula-btn-account-border: linear-gradient(
-    115deg,
-    rgba(255, 255, 255, 0.22),
-    rgba(196, 120, 90, 0.55) 45%,
-    rgba(255, 255, 255, 0.12)
-  );
-  --nebula-btn-account-radius: 999px;
-  --nebula-btn-account-blur: 12px;
+  --nebula-btn-account-bg: var(--oc-btn-account-bg);
+  --nebula-btn-account-border: var(--oc-btn-account-border);
+  --nebula-btn-account-radius: var(--oc-btn-account-radius);
+  --nebula-btn-account-blur: var(--oc-btn-account-blur);
 
   /* ---------- Opacidade ---------- */
-  --nebula-alpha-mist:  0.62;
-  --nebula-alpha-dust:  0.15;
-  --nebula-alpha-star:  1;
+  --nebula-alpha-mist:  var(--oc-alpha-mist);
+  --nebula-alpha-dust:  var(--oc-alpha-dust);
+  --nebula-alpha-star:  var(--oc-alpha-star);
 
   /* ---------- Foco ----------
      One ring for the whole system. A border that changes colour is not a
      focus indicator: it moves nothing, it is the same weight as the resting
      state, and on a dark glass surface it is invisible from a metre away.
      The ring sits outside the control so it never resizes what it marks. */
-  --nebula-focus-ring: 0 0 0 2px rgba(209, 217, 235, 0.55);
-  --nebula-focus-ring-offset: 0 0 0 4px rgba(0, 0, 0, 0.55), var(--nebula-focus-ring);
+  --nebula-focus-ring: var(--oc-focus-ring);
+  --nebula-focus-ring-offset: var(--oc-focus-ring-offset);
 
   /* ---------- Alvo de toque ----------
      44px is the floor for anything a thumb has to hit. Density is bought
      from padding and font size, never from the target. */
-  --nebula-tap: 44px;
+  --nebula-tap: var(--oc-tap);
 
   /* ---------- Motion ---------- */
-  --nebula-duration-blink: 1s;
-  --nebula-duration-drift: 12s;
-  --nebula-duration-flow:  26s;
-  --nebula-ease-atmosphere: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --nebula-ease-cursor:     steps(1, end);
-  --nebula-lerp-mouse: 0.08;
+  --nebula-duration-blink: var(--oc-duration-blink);
+  --nebula-duration-drift: var(--oc-duration-drift);
+  --nebula-duration-flow:  var(--oc-duration-flow);
+  --nebula-ease-atmosphere: var(--oc-ease-atmosphere);
+  --nebula-ease-cursor:     var(--oc-ease-cursor);
+  --nebula-lerp-mouse: var(--oc-lerp-mouse);
 }
 
 /* ---------- Utilitários ---------- */
@@ -146,7 +167,7 @@
   text-shadow: var(--nebula-glow-text);
 }
 .nebula-caption {
-  font-family: var(--nebula-font-mono);
+  font-family: var(--nebula-font-label);
   font-size: var(--nebula-text-caption);
   font-weight: var(--nebula-weight-light);
   letter-spacing: var(--nebula-tracking-wide);
@@ -158,7 +179,7 @@
   height: 1.1em;
   margin-left: 2px;
   vertical-align: -0.15em;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgb(var(--oc-white-rgb) / 0.7);
   animation: nebula-blink var(--nebula-duration-blink) var(--nebula-ease-cursor) infinite;
 }
 @keyframes nebula-blink { 50% { opacity: 0; } }
@@ -268,10 +289,10 @@
 /* the search box wears its mark inside the field, so the box reads as search */
 .nb .mf-search-row {
   display: flex; align-items: center; gap: 7px; margin-bottom: 6px; padding: 0 8px;
-  background: rgba(255,255,255,0.04); border: 1px solid var(--nebula-glass-border);
-  border-radius: 8px; color: var(--nebula-text-tertiary);
+  background: var(--oc-surface-input); border: 1px solid var(--nebula-glass-border);
+  border-radius: var(--oc-radius-control); color: var(--nebula-text-tertiary);
 }
-.nb .mf-search-row:focus-within { border-color: rgba(209,217,235,0.4); }
+.nb .mf-search-row:focus-within { border-color: var(--oc-border-strong); }
 .nb .mf-search-row .mf-search {
   margin: 0; padding: 6px 0; background: none; border: 0; border-radius: 0; flex: 1; min-width: 0;
 }
@@ -285,19 +306,20 @@
    ============================================================ */
 .atmo, .atmo canvas, .atmo-overlay { position: fixed; inset: 0; }
 .atmo { z-index: -3; background: var(--nebula-void); }
-.atmo canvas { width: 100%; height: 100%; display: block; }
+/* the 2D layer is drawn in JS with the nebula palette baked in: a theme
+   that has no atmosphere turns it off here, and the fixed layer behind
+   everything moves nothing when it goes */
+.atmo canvas { width: 100%; height: 100%; display: block; opacity: var(--oc-atmo-opacity); }
 .atmo-overlay { pointer-events: none; }
 
 .atmo-mist {
   z-index: -2;
-  background:
-    radial-gradient(ellipse 70% 38% at 62% 18%, rgba(140, 150, 171, 0.10), transparent 70%),
-    radial-gradient(ellipse 55% 30% at 30% 78%, rgba(115, 128, 148, 0.07), transparent 70%);
+  background: var(--oc-atmo-mist);
   animation: nebula-drift-a var(--nebula-duration-drift) var(--nebula-ease-atmosphere) infinite alternate;
 }
 .atmo-veil {
   z-index: -2;
-  background: radial-gradient(ellipse 90% 50% at 50% 110%, rgba(133, 143, 163, 0.06), transparent 65%);
+  background: var(--oc-atmo-veil);
   animation: nebula-drift-b var(--nebula-duration-flow) var(--nebula-ease-atmosphere) infinite alternate;
 }
 @keyframes nebula-drift-a {
@@ -361,7 +383,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   color: inherit;
   text-decoration: none;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--oc-radius-chip);
   /* OCL-37: the wordmark is drawn now, not typed. The anchor is a box around
      an svg, so it stops inheriting the line-height of the bar's text and stops
      leaving a descender's worth of dead space under the mark. */
@@ -382,7 +404,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   box-shadow: var(--nebula-focus-ring-offset);
 }
 .nb .crumb {
-  font-family: var(--nebula-font-mono); font-size: 12px;
+  font-family: var(--nebula-font-label); font-size: 12px;
   color: var(--nebula-text-secondary); letter-spacing: 0.04em;
 }
 .nb .crumb b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); }
@@ -394,12 +416,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .crumb select:focus { outline: none; }
 .nb .filter-chip {
   display: inline-flex; align-items: center;
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-  padding: 3px 10px; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
+  padding: 3px 10px; background: var(--oc-surface-subtle);
 }
 .nb .filter-chip select {
   appearance: none; background: transparent; border: 0; padding: 0;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 11px; letter-spacing: 0.04em; cursor: pointer; max-width: 180px;
 }
 .nb .filter-chip select:focus { outline: none; }
@@ -420,24 +442,24 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .pf-panel {
   position: absolute; z-index: 20; top: calc(100% + 8px); left: 0;
   min-width: 240px; max-width: min(320px, calc(100vw - 32px));
-  padding: 8px; background: rgba(13, 15, 19, 0.96);
+  padding: 8px; background: var(--oc-panel-bg);
 }
 .nb .pf-list { display: flex; flex-direction: column; max-height: 46vh; overflow-y: auto; }
 .nb .pf-opt {
   display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 6px 8px; background: transparent; border: 0; border-radius: 8px;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  padding: 6px 8px; background: transparent; border: 0; border-radius: var(--oc-radius-control);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 11px; letter-spacing: 0.04em; text-align: left; cursor: pointer;
 }
-.nb .pf-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+.nb .pf-opt:hover { background: var(--oc-surface-hover); color: var(--nebula-text-primary); }
 .nb .pf-opt.on { color: var(--nebula-text-primary); }
 .nb .pf-box {
-  flex: none; width: 14px; height: 14px; border-radius: 4px;
+  flex: none; width: 14px; height: 14px; border-radius: var(--oc-radius-control-sm);
   border: 1px solid var(--nebula-glass-border);
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 10px; line-height: 1;
 }
-.nb .pf-opt.on .pf-box { border-color: rgba(209,217,235,0.5); background: rgba(255,255,255,0.10); }
+.nb .pf-opt.on .pf-box { border-color: rgb(var(--oc-accent-rgb) / 0.5); background: var(--oc-surface-on); }
 .nb .pf-opt-name {
   flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -451,12 +473,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mission-filter { position: relative; display: inline-flex; }
 .nb .mf-chip { gap: 6px; }
 .nb .mf-chip.on {
-  border-color: rgba(209,217,235,0.4);
-  background: rgba(255,255,255,0.06);
+  border-color: var(--oc-border-strong);
+  background: var(--oc-surface-hover);
 }
 .nb .mf-trigger, .nb .mf-clear {
   appearance: none; background: transparent; border: 0; padding: 0;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 11px; letter-spacing: 0.04em; cursor: pointer;
 }
 .nb .mf-chip.on .mf-trigger { color: var(--nebula-text-primary); }
@@ -472,24 +494,24 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mf-panel {
   position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
   min-width: 240px; max-width: min(320px, calc(100vw - 32px));
-  padding: 8px; background: rgba(13, 15, 19, 0.96);
+  padding: 8px; background: var(--oc-panel-bg);
 }
 .nb .mf-search {
   width: 100%; margin-bottom: 6px; padding: 6px 8px;
-  background: rgba(255,255,255,0.04); border: 1px solid var(--nebula-glass-border);
-  border-radius: 8px; color: var(--nebula-text-primary);
-  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+  background: var(--oc-surface-input); border: 1px solid var(--nebula-glass-border);
+  border-radius: var(--oc-radius-control); color: var(--nebula-text-primary);
+  font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: 0.04em;
 }
-.nb .mf-search:focus { outline: none; border-color: rgba(209,217,235,0.4); }
+.nb .mf-search:focus { outline: none; border-color: var(--oc-border-strong); }
 .nb .mf-list { display: flex; flex-direction: column; max-height: 46vh; overflow-y: auto; }
 .nb .mf-opt {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 6px 8px; background: transparent; border: 0; border-radius: 8px;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  padding: 6px 8px; background: transparent; border: 0; border-radius: var(--oc-radius-control);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 11px; letter-spacing: 0.04em; text-align: left; cursor: pointer;
 }
-.nb .mf-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
-.nb .mf-opt.on { color: var(--nebula-text-primary); background: rgba(255,255,255,0.08); }
+.nb .mf-opt:hover { background: var(--oc-surface-hover); color: var(--nebula-text-primary); }
+.nb .mf-opt.on { color: var(--nebula-text-primary); background: rgb(var(--oc-white-rgb) / 0.08); }
 .nb .mf-opt-title {
   flex: 1; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -497,13 +519,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mf-opt-count { flex: none; opacity: 0.65; font-variant-numeric: tabular-nums; }
 .nb .mf-empty {
   margin: 0; padding: 8px; color: var(--nebula-text-secondary);
-  font-family: var(--nebula-font-mono); font-size: 11px;
+  font-family: var(--nebula-font-label); font-size: 11px;
 }
 .nb .mf-create-trigger {
   width: 100%; margin-top: 6px; padding: 8px;
   border: 0; border-top: 1px solid var(--nebula-glass-border);
   background: transparent; color: var(--nebula-mist);
-  font-family: var(--nebula-font-mono); font-size: 11px; text-align: left;
+  font-family: var(--nebula-font-label); font-size: 11px; text-align: left;
   cursor: pointer;
 }
 .nb .mf-create-trigger:hover { color: var(--nebula-text-primary); }
@@ -513,7 +535,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mf-create-head b,
 .nb .mf-create label > span,
 .nb .mf-create-preview > span {
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
 }
 .nb .mf-create-head button {
@@ -524,18 +546,18 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mf-create input,
 .nb .mf-create textarea {
   width: 100%; padding: 7px 8px; border: 1px solid var(--nebula-glass-border);
-  border-radius: 8px; background: rgba(255,255,255,0.04);
+  border-radius: var(--oc-radius-control); background: var(--oc-surface-input);
   color: var(--nebula-text-primary); font: inherit; font-size: 12px;
   resize: vertical;
 }
 .nb .mf-create input:focus,
-.nb .mf-create textarea:focus { outline: none; border-color: rgba(209,217,235,0.4); }
+.nb .mf-create textarea:focus { outline: none; border-color: var(--oc-border-strong); }
 .nb .mf-create-preview {
   max-height: 180px; padding: 8px; overflow: auto;
-  border: 1px solid var(--nebula-glass-border); border-radius: 8px;
-  background: rgba(8,10,13,0.5);
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-control);
+  background: rgb(var(--oc-scrim-rgb) / 0.5);
 }
-.nb .mf-create-error { margin: 0; color: #e8a1a1; font-size: 11px; line-height: 1.4; }
+.nb .mf-create-error { margin: 0; color: var(--oc-danger); font-size: 11px; line-height: 1.4; }
 
 /* ---------- type + priority facets (OCL-31) ----------
    The seven choices live in one vertical menu. This keeps the scarce topbar
@@ -543,45 +565,45 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .facet-filters { position: relative; display: inline-flex; min-width: 0; }
 .nb .ff-trigger {
   appearance: none; color: var(--nebula-text-secondary); cursor: pointer;
-  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+  font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: 0.04em;
 }
 .nb .ff-trigger.on {
-  color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.4);
-  background: rgba(255,255,255,0.06);
+  color: var(--nebula-text-primary); border-color: var(--oc-border-strong);
+  background: var(--oc-surface-hover);
 }
 .nb .ff-panel {
   position: absolute; z-index: 20; top: calc(100% + 6px); left: 0;
   width: 240px; max-width: min(320px, calc(100vw - 32px));
-  padding: 8px; background: rgba(13, 15, 19, 0.96);
+  padding: 8px; background: var(--oc-panel-bg);
 }
 .nb .ff-section + .ff-section {
   margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--nebula-glass-border);
 }
 .nb .ff-section h3 {
   margin: 0; padding: 4px 8px;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 9px; font-weight: var(--nebula-weight-medium);
   letter-spacing: 0.08em; text-transform: uppercase;
 }
 .nb .ff-list { display: flex; flex-direction: column; }
 .nb .ff-opt {
   display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 6px 8px; border-radius: 8px; color: var(--nebula-text-secondary);
-  font-family: var(--nebula-font-mono); font-size: 11px;
+  padding: 6px 8px; border-radius: var(--oc-radius-control); color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-label); font-size: 11px;
   letter-spacing: 0.04em; cursor: pointer;
 }
-.nb .ff-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+.nb .ff-opt:hover { background: var(--oc-surface-hover); color: var(--nebula-text-primary); }
 .nb .ff-opt.on { color: var(--nebula-text-primary); }
 .nb .ff-opt input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .nb .ff-opt:has(input:focus-visible) { outline: none; box-shadow: var(--nebula-focus-ring-offset); }
 .nb .ff-box {
-  flex: none; width: 14px; height: 14px; border-radius: 4px;
+  flex: none; width: 14px; height: 14px; border-radius: var(--oc-radius-control-sm);
   border: 1px solid var(--nebula-glass-border);
   display: inline-flex; align-items: center; justify-content: center;
 }
-.nb .ff-opt.on .ff-box { border-color: rgba(209,217,235,0.5); background: rgba(255,255,255,0.10); }
-.nb .ff-radio { border-radius: 50%; }
-.nb .ff-radio-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--nebula-dust-core); }
+.nb .ff-opt.on .ff-box { border-color: rgb(var(--oc-accent-rgb) / 0.5); background: var(--oc-surface-on); }
+.nb .ff-radio { border-radius: var(--oc-radius-circle); }
+.nb .ff-radio-dot { width: 6px; height: 6px; border-radius: var(--oc-radius-circle); background: var(--nebula-dust-core); }
 .nb .ff-opt-count {
   flex: none; color: var(--nebula-text-tertiary); font-variant-numeric: tabular-nums;
 }
@@ -590,13 +612,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   width: 100%; margin-top: 8px; padding: 8px;
   border: 0; border-top: 1px solid var(--nebula-glass-border);
   background: transparent; color: var(--nebula-mist);
-  font-family: var(--nebula-font-mono); font-size: 11px; text-align: left;
+  font-family: var(--nebula-font-label); font-size: 11px; text-align: left;
   cursor: pointer;
 }
 .nb .ff-clear:hover:not(:disabled) { color: var(--nebula-text-primary); }
 .nb .ff-clear:disabled { opacity: 0.4; cursor: default; }
 .nb .filter-result {
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
   white-space: nowrap;
 }
@@ -607,22 +629,22 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb form { display: inline; background: none; border: none; padding: 0; gap: 0; }
 .nb .agent-status {
   display: flex; align-items: center; gap: var(--nebula-space-2);
-  font-family: var(--nebula-font-mono); font-size: 11px;
+  font-family: var(--nebula-font-label); font-size: 11px;
   letter-spacing: 0.05em; color: var(--nebula-text-secondary);
 }
-.nb .agent-status .dot { width: 7px; height: 7px; border-radius: 50%; background: #7dd6a0; box-shadow: 0 0 8px rgba(125,214,160,0.6); }
+.nb .agent-status .dot { width: 7px; height: 7px; border-radius: var(--oc-radius-circle); background: var(--oc-ok); box-shadow: var(--oc-glow-dot-ok); }
 .nb .agent-status .dot.idle { background: var(--nebula-star-far); box-shadow: none; }
 .nb .btn-ghost {
   background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
   border: 1px solid var(--nebula-glass-border);
-  border-radius: 999px; font-size: 12px;
+  border-radius: var(--oc-radius-pill); font-size: 12px;
   padding: 7px 14px; cursor: pointer;
   backdrop-filter: blur(var(--nebula-btn-account-blur));
   -webkit-backdrop-filter: blur(var(--nebula-btn-account-blur));
   transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
 }
-.nb .btn-ghost:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.25); }
-.nb .btn-ghost .badge { color: var(--nebula-dust-core); font-weight: 600; }
+.nb .btn-ghost:hover { color: var(--nebula-text-primary); border-color: var(--oc-border-hover); }
+.nb .btn-ghost .badge { color: var(--oc-badge-fg); font-weight: 600; }
 
 /* ---------- the work-state chips (OCL-20) ----------
    Review and running are not navigation: they are what the board is doing,
@@ -630,15 +652,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    counts, at the smallest width that still reads. */
 .nb .state-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.05em;
+  font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: 0.05em;
   color: var(--nebula-text-secondary); text-decoration: none; cursor: pointer;
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-  padding: 5px 10px; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
+  padding: 5px 10px; background: var(--oc-surface-subtle);
   white-space: nowrap;
   transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
 }
-.nb .state-chip:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.25); }
-.nb .state-chip .badge { color: var(--nebula-dust-core); font-weight: 600; font-variant-numeric: tabular-nums; }
+.nb .state-chip:hover { color: var(--nebula-text-primary); border-color: var(--oc-border-hover); }
+.nb .state-chip .badge { color: var(--oc-badge-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
 /* on the desktop the running chip spells its count out in words */
 .nb .agent-status .badge { display: none; }
 
@@ -649,28 +671,28 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .account-menu { position: relative; display: inline-flex; }
 .nb .am-trigger {
   appearance: none; background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
   padding: 6px 11px; cursor: pointer;
   backdrop-filter: blur(var(--nebula-btn-account-blur));
   -webkit-backdrop-filter: blur(var(--nebula-btn-account-blur));
   transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
 }
-.nb .am-trigger:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,0.25); }
+.nb .am-trigger:hover { color: var(--nebula-text-primary); border-color: var(--oc-border-hover); }
 .nb .am-panel {
   position: absolute; z-index: 40; top: calc(100% + 8px); right: 0;
   min-width: 200px; max-width: min(300px, calc(100vw - 32px));
-  padding: 8px; background: rgba(13, 15, 19, 0.96);
+  padding: 8px; background: var(--oc-panel-bg);
   display: flex; flex-direction: column; gap: 2px;
 }
 .nb .am-panel form { display: block; }
 .nb .am-opt {
   display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 7px 10px; border: 0; border-radius: 8px; background: transparent;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  padding: 7px 10px; border: 0; border-radius: var(--oc-radius-control); background: transparent;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 11.5px; letter-spacing: 0.04em; text-align: left; cursor: pointer;
   text-decoration: none;
 }
-.nb .am-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
+.nb .am-opt:hover { background: var(--oc-surface-hover); color: var(--nebula-text-primary); }
 /* the telemetry line lives in the menu only once the bar gave the stat up
    (the 1100px step below) */
 .nb .am-total { display: none; padding: 4px 10px 8px; border-bottom: 1px solid var(--nebula-glass-border); margin-bottom: 4px; }
@@ -679,6 +701,46 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   text-decoration: none; cursor: pointer; white-space: nowrap;
 }
 .nb .am-total-line .bt-lead { font-size: 15px; }
+
+/* ---------- the theme selector (OCL-56) ----------
+   Three answers, so they sit side by side under one label instead of behind
+   a second menu. The row follows the menu's own anatomy: the option is the
+   same 8px-radius control every trigger on this board is, and the chosen
+   one is marked the way a chosen filter is marked — border and text, never
+   a colour of its own. */
+.nb .am-theme {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 4px; padding: 8px 10px 4px;
+  border-top: 1px solid var(--nebula-glass-border);
+}
+.nb .am-theme-lbl {
+  color: var(--nebula-text-tertiary); font-family: var(--nebula-font-label);
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+/* the options take the width of their own names and wrap rather than
+   truncate: a theme whose name reads "Overc…" is a theme nobody can pick
+   with confidence */
+.nb .am-theme-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+.nb .am-theme-opt {
+  flex: 1 1 auto; min-width: 0; padding: 5px 8px;
+  border: 1px solid var(--nebula-glass-border);
+  border-radius: var(--oc-radius-control);
+  background: transparent; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-label); font-size: 10px;
+  letter-spacing: 0.03em; text-align: center; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: color var(--oc-duration-micro) var(--nebula-ease-atmosphere),
+    border-color var(--oc-duration-micro) var(--nebula-ease-atmosphere);
+}
+.nb .am-theme-opt:hover {
+  color: var(--nebula-text-primary); border-color: var(--oc-border-hover);
+  background: var(--oc-surface-hover);
+}
+.nb .am-theme-opt.on {
+  color: var(--nebula-text-primary); border-color: var(--oc-border-strong);
+  background: var(--oc-surface-hover);
+}
+.nb .am-theme-opt:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); }
 
 /* ---------- the one-line rule on the bar (AGB-71) ----------
    The rule the phone block already stated, now stated where it always
@@ -781,7 +843,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .bt-popover {
   position: absolute; z-index: 40; top: calc(100% + 8px); right: 0;
   min-width: 260px; max-width: min(340px, calc(100vw - 32px));
-  padding: 12px; background: rgba(13, 15, 19, 0.96);
+  padding: 12px; background: var(--oc-panel-bg);
   display: flex; flex-direction: column; gap: 6px;
 }
 .nb .bt-popover .bt-figure { display: flex; align-items: baseline; gap: 7px; }
@@ -796,7 +858,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-variant-numeric: tabular-nums;
 }
 .nb .bt-line {
-  font-family: var(--nebula-font-mono); font-size: 11px;
+  font-family: var(--nebula-font-label); font-size: 11px;
   letter-spacing: 0.04em; color: var(--nebula-text-secondary);
 }
 .nb a.bt-line { text-decoration: none; }
@@ -809,7 +871,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 /* ---------- selected mission ---------- */
 .nb .mission-header {
   position: relative; margin: 0 0 18px; padding: 18px 20px;
-  border-color: rgba(209,217,235,0.14);
+  border-color: rgb(var(--oc-accent-rgb) / 0.14);
 }
 .nb .mission-overview { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 28px; }
 .nb .mission-heading { min-width: 0; }
@@ -817,16 +879,16 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mission-kicker > span:first-child,
 .nb .mission-form-label,
 .nb .mission-editor label > span {
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 9px; letter-spacing: 0.09em; text-transform: uppercase;
 }
 .nb .mission-status {
   padding: 2px 7px; border: 1px solid var(--nebula-glass-border);
-  border-radius: 999px; color: var(--nebula-text-secondary);
-  font-family: var(--nebula-font-mono); font-size: 9px; letter-spacing: 0.04em;
+  border-radius: var(--oc-radius-pill); color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-label); font-size: 9px; letter-spacing: 0.04em;
 }
-.nb .mission-status.ativa { color: #7dd6a0; border-color: rgba(125,214,160,0.3); }
-.nb .mission-status.pausada { color: #ffd9a0; border-color: rgba(255,217,160,0.3); }
+.nb .mission-status.ativa { color: var(--oc-ok); border-color: rgb(var(--oc-ok-rgb) / 0.3); }
+.nb .mission-status.pausada { color: var(--oc-warn); border-color: rgb(var(--oc-warn-rgb) / 0.3); }
 .nb .mission-header h1 {
   margin: 0 0 6px; color: var(--nebula-text-primary); font-size: 21px;
   font-weight: var(--nebula-weight-medium); letter-spacing: var(--nebula-tracking-tight);
@@ -837,30 +899,30 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mission-counts { display: flex; align-items: flex-start; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
 .nb .mission-count {
   display: flex; align-items: baseline; gap: 5px; padding: 5px 8px;
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 9px; white-space: nowrap;
 }
 .nb .mission-count b { color: var(--nebula-text-primary); font-size: 11px; font-weight: 500; }
 .nb .mission-context { grid-column: 1 / -1; border-top: 1px solid var(--nebula-glass-border); padding-top: 10px; }
 .nb .mission-context summary {
   width: max-content; color: var(--nebula-text-secondary);
-  font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: 0.06em;
+  font-family: var(--nebula-font-label); font-size: 10px; letter-spacing: 0.06em;
   cursor: pointer;
 }
 .nb .mission-context[open] summary { margin-bottom: 8px; color: var(--nebula-text-primary); }
 .nb .mission-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .nb .mission-delete-button {
-  padding: 7px 12px; border: 1px solid rgba(232,161,161,0.24); border-radius: 999px;
-  background: transparent; color: #e8a1a1; font-size: 11px; cursor: pointer;
+  padding: 7px 12px; border: 1px solid rgb(var(--oc-danger-rgb) / 0.24); border-radius: var(--oc-radius-pill);
+  background: transparent; color: var(--oc-danger); font-size: 11px; cursor: pointer;
 }
-.nb .mission-delete-button:hover { background: rgba(232,161,161,0.08); }
+.nb .mission-delete-button:hover { background: rgb(var(--oc-danger-rgb) / 0.08); }
 .nb .mission-delete-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .nb .mission-delete-confirm { display: flex; align-items: center; gap: 8px; }
-.nb .mission-delete-confirm > span { color: #e8a1a1; font-size: 11px; }
+.nb .mission-delete-confirm > span { color: var(--oc-danger); font-size: 11px; }
 .nb .mission-error {
-  margin: 10px 0 0; padding: 7px 10px; border-left: 2px solid rgba(232,161,161,0.45);
-  border-radius: 7px; background: rgba(232,161,161,0.06); color: #e8a1a1; font-size: 11px;
+  margin: 10px 0 0; padding: 7px 10px; border-left: 2px solid rgb(var(--oc-danger-rgb) / 0.45);
+  border-radius: var(--oc-radius-badge); background: rgb(var(--oc-danger-rgb) / 0.06); color: var(--oc-danger); font-size: 11px;
 }
 .nb .mission-editor { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr); gap: 14px 18px; }
 .nb .mission-editor-fields { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px; }
@@ -870,15 +932,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mission-editor select,
 .nb .mission-editor textarea {
   width: 100%; padding: 8px 9px; border: 1px solid var(--nebula-glass-border);
-  border-radius: 8px; background: rgba(8,10,13,0.6); color: var(--nebula-text-primary);
+  border-radius: var(--oc-radius-control); background: rgb(var(--oc-scrim-rgb) / 0.6); color: var(--nebula-text-primary);
   font: inherit; font-size: 12px; resize: vertical;
 }
 .nb .mission-editor input:focus,
 .nb .mission-editor select:focus,
-.nb .mission-editor textarea:focus { outline: none; border-color: rgba(209,217,235,0.4); }
+.nb .mission-editor textarea:focus { outline: none; border-color: var(--oc-border-strong); }
 .nb .mission-preview {
   min-width: 0; padding: 10px; border: 1px solid var(--nebula-glass-border);
-  border-radius: 9px; background: rgba(8,10,13,0.46); overflow: auto;
+  border-radius: var(--oc-radius-note); background: rgb(var(--oc-scrim-rgb) / 0.46); overflow: auto;
 }
 .nb .mission-preview > .md { margin-top: 7px; }
 .nb .mission-editor > .mission-error,
@@ -891,13 +953,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .release-header {
   display: grid; grid-template-columns: minmax(180px, 0.75fr) minmax(0, 1.25fr);
   gap: 14px 28px; margin: 0 0 18px; padding: 18px 20px;
-  border-color: rgba(209,217,235,0.14);
+  border-color: rgb(var(--oc-accent-rgb) / 0.14);
 }
 .nb .release-heading { min-width: 0; }
 .nb .release-kicker,
 .nb .release-rel-label {
   display: block; color: var(--nebula-text-secondary);
-  font-family: var(--nebula-font-mono); font-size: 9px;
+  font-family: var(--nebula-font-label); font-size: 9px;
   letter-spacing: 0.09em; text-transform: uppercase;
 }
 .nb .release-header h1 {
@@ -911,8 +973,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .release-count {
   display: inline-flex; align-items: baseline; gap: 5px; padding: 5px 8px;
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 9px; white-space: nowrap;
 }
 .nb .release-count b {
@@ -939,16 +1001,16 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .release-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
 .nb .release-chip {
   appearance: none; padding: 4px 8px; border: 1px solid var(--nebula-glass-border);
-  border-radius: 999px; background: rgba(255,255,255,0.03);
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  border-radius: var(--oc-radius-pill); background: var(--oc-surface-subtle);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
   font-size: 10px; line-height: 1.25; cursor: pointer;
 }
 .nb .release-chip:hover:not(.static) {
-  color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.4);
+  color: var(--nebula-text-primary); border-color: var(--oc-border-strong);
 }
 .nb .release-chip.static { cursor: default; }
 .nb .release-empty {
-  color: var(--nebula-text-tertiary); font-family: var(--nebula-font-mono);
+  color: var(--nebula-text-tertiary); font-family: var(--nebula-font-label);
   font-size: 10px;
 }
 
@@ -966,7 +1028,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .col-head {
   display: flex; align-items: baseline; gap: var(--nebula-space-2);
   padding: 2px 6px 10px;
-  font-family: var(--nebula-font-mono); font-size: 11.5px;
+  font-family: var(--nebula-font-label); font-size: 11.5px;
   letter-spacing: var(--nebula-tracking-wide);
   text-transform: uppercase; color: var(--nebula-text-secondary);
 }
@@ -974,7 +1036,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .col { display: flex; flex-direction: column; gap: var(--nebula-space-3); min-height: 300px; }
 
 .nb .empty-col {
-  border: 1px dashed rgba(255,255,255,0.1); border-radius: var(--nebula-glass-radius);
+  border: 1px dashed var(--oc-border-dashed); border-radius: var(--nebula-glass-radius);
   padding: 22px 16px; font-size: 11.5px; color: var(--nebula-text-tertiary);
   line-height: 1.55; text-align: center;
 }
@@ -990,8 +1052,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), var(--nebula-glass-highlight);
+  border-color: rgb(var(--oc-white-rgb) / 0.16);
+  box-shadow: var(--oc-shadow-card-hover);
 }
 .nb .card .id-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--nebula-space-1) var(--nebula-space-2); margin-bottom: var(--nebula-space-1); }
 .nb .card .cid {
@@ -1004,19 +1066,19 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-weight: var(--nebula-weight-medium);
 }
 .nb .selo {
-  font-family: var(--nebula-font-mono); font-size: 8.5px; letter-spacing: 0.08em;
+  font-family: var(--nebula-font-label); font-size: 8.5px; letter-spacing: 0.08em;
   color: var(--nebula-text-tertiary); border: 1px solid var(--nebula-glass-border);
-  border-radius: 999px; padding: 1px 7px;
+  border-radius: var(--oc-radius-pill); padding: 1px 7px;
 }
 .nb .tag {
-  font-family: var(--nebula-font-mono); font-size: 9.5px;
+  font-family: var(--nebula-font-label); font-size: 9.5px;
   letter-spacing: var(--nebula-tracking-wide); text-transform: uppercase;
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
   padding: 1px 7px; color: var(--nebula-text-secondary);
 }
-.nb .tag.bug { color: #e8a1a1; border-color: rgba(232,161,161,0.25); }
-.nb .tag.rfc { color: var(--nebula-mist-glow); border-color: rgba(209,217,235,0.25); }
-.nb .tag.feature { color: #a9c7e8; border-color: rgba(169,199,232,0.22); }
+.nb .tag.bug { color: var(--oc-tag-bug-fg); border-color: var(--oc-tag-bug-border); }
+.nb .tag.rfc { color: var(--oc-tag-rfc-fg); border-color: var(--oc-tag-rfc-border); }
+.nb .tag.feature { color: var(--oc-tag-feature-fg); border-color: var(--oc-tag-feature-border); }
 /* o título é o herói do card: primeiro no peso, não na ordem */
 .nb .card h4 {
   font-size: 14px; font-weight: var(--nebula-weight-medium);
@@ -1059,7 +1121,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .cli-mark svg { width: 100%; height: 100%; display: block; }
 .nb .cli-name {
-  flex: none; font-family: var(--nebula-font-mono); font-size: 9.5px;
+  flex: none; font-family: var(--nebula-font-label); font-size: 9.5px;
   letter-spacing: 0.03em; color: var(--nebula-mist);
   max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -1070,15 +1132,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 /* pulse dos executores */
 .nb .exec-pulse {
   display: flex; align-items: center; gap: 6px;
-  font-family: var(--nebula-font-mono); font-size: 10.5px; color: #a9c7e8;
+  font-family: var(--nebula-font-label); font-size: 10.5px; color: var(--oc-info);
 }
 .nb .exec-pulse .dot-exec {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: #a9c7e8; box-shadow: 0 0 8px rgba(169,199,232,0.7);
+  width: 6px; height: 6px; border-radius: var(--oc-radius-circle);
+  background: var(--oc-info); box-shadow: var(--oc-glow-dot-exec);
   animation: nebula-exec-pulse 1.6s var(--nebula-ease-atmosphere) infinite;
 }
 @keyframes nebula-exec-pulse {
-  50% { opacity: 0.3; box-shadow: 0 0 2px rgba(169,199,232,0.3); }
+  50% { opacity: 0.3; box-shadow: var(--oc-glow-dot-exec-dim); }
 }
 @media (prefers-reduced-motion: reduce) {
   .nb .exec-pulse .dot-exec { animation: none; }
@@ -1090,13 +1152,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .telemetry b { color: var(--nebula-text-secondary); font-weight: var(--nebula-weight-medium); }
 .nb .review-chip {
-  font-family: var(--nebula-font-mono); font-size: 10px; color: #ffd9a0;
-  background: rgba(255,217,160,0.07);
-  border: 1px solid rgba(255,217,160,0.28); border-radius: 999px; padding: 2px 8px;
+  font-family: var(--nebula-font-label); font-size: 10px; color: var(--oc-chip-review-fg);
+  background: var(--oc-chip-review-bg);
+  border: 1px solid var(--oc-chip-review-border); border-radius: var(--oc-radius-pill); padding: 2px 8px;
 }
 /* em execução: cantos vivos + borda com a cor de execução, bem de leve */
-.nb .card.exec { border-color: rgba(169,199,232,0.16); }
-.nb .card.exec:hover { border-color: rgba(169,199,232,0.34); }
+.nb .card.exec { border-color: rgb(var(--oc-info-rgb) / 0.16); }
+.nb .card.exec:hover { border-color: rgb(var(--oc-info-rgb) / 0.34); }
 /* validado: apaga com calma, volta quase inteiro no hover */
 .nb .card.dim { opacity: 0.6; box-shadow: var(--nebula-glass-highlight); }
 .nb .card.dim:hover { opacity: 0.95; }
@@ -1119,7 +1181,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-btn-ghost:focus-visible,
 .nb .d-check-row:focus-within {
   outline: none;
-  box-shadow: var(--nebula-focus-ring, 0 0 0 2px rgba(209, 217, 235, 0.55));
+  box-shadow: var(--nebula-focus-ring);
 }
 
 /* the board's own motion, for whoever asked for none of it */
@@ -1136,7 +1198,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 /* The modal is the top layer of the board: above the phone's sticky bar (30)
    and the menu it opens (40), because a bar drawn over the panel is the same
    bleed-through the panel exists to end. */
-.nb .ov { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.72);
+.nb .ov { position: fixed; inset: 0; z-index: 50; background: var(--oc-overlay-bg);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 48px 20px;
   animation: nb-ov-in .18s ease-out; }
@@ -1148,33 +1210,33 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    the ring that matters is the one on the controls inside. */
 .nb .detail:focus { outline: none; }
 .nb .detail { width: 700px; max-width: 96vw; padding: 26px 30px 24px; position: relative;
-  background: rgba(13, 15, 19, 0.94);
+  background: var(--oc-modal-bg);
   animation: nb-d-in .22s cubic-bezier(.2,.8,.2,1); }
 @keyframes nb-d-in { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } }
 /* AGB-72: the phone's entrance moves an already opaque surface and touches
    opacity at no frame, because under it there is only the sheet's own floor. */
 @keyframes nb-sheet-in { from { transform: translateY(18px) } to { transform: none } }
 .nb .d-close { position: absolute; top: 16px; right: 18px; background: none; border: 1px solid var(--nebula-glass-border);
-  border-radius: 999px; width: 28px; height: 28px; color: var(--nebula-text-secondary); cursor: pointer; font-size: 13px; }
+  border-radius: var(--oc-radius-pill); width: 28px; height: 28px; color: var(--nebula-text-secondary); cursor: pointer; font-size: 13px; }
 /* AGB-68: the close button owns the top right corner, so the head and the
    title stop where it starts instead of running under it. */
 .nb .d-head { display: flex; align-items: center; flex-wrap: wrap; row-gap: 6px;
   padding-right: 44px; gap: var(--nebula-space-2); margin-bottom: var(--nebula-space-2);
   font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-tertiary); }
-.nb .d-status { font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase;
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px; padding: 2px 9px; color: var(--nebula-text-secondary); }
-.nb .d-status.exec { color: #a9c7e8; border-color: rgba(169,199,232,.3); }
-.nb .d-status.feito { color: #ffd9a0; border-color: rgba(255,217,160,.3); }
-.nb .d-status.ok { color: #7dd6a0; border-color: rgba(125,214,160,.3); }
+.nb .d-status { font-family: var(--nebula-font-label); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase;
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); padding: 2px 9px; color: var(--nebula-text-secondary); }
+.nb .d-status.exec { color: var(--oc-info); border-color: rgb(var(--oc-info-rgb) / .3); }
+.nb .d-status.feito { color: var(--oc-warn); border-color: rgb(var(--oc-warn-rgb) / .3); }
+.nb .d-status.ok { color: var(--oc-ok); border-color: rgb(var(--oc-ok-rgb) / .3); }
 .nb .detail h3 { font-size: 20px; font-weight: var(--nebula-weight-medium); letter-spacing: var(--nebula-tracking-tight);
   padding-right: 44px; margin-bottom: var(--nebula-space-4); line-height: 1.3; }
 /* AGB-68: an empty contract keeps the mono voice the panel uses for facts,
    instead of a dash that reads as a rendering accident. */
-.nb .d-sec p.d-empty { font-family: var(--nebula-font-mono); font-size: 11px;
+.nb .d-sec p.d-empty { font-family: var(--nebula-font-label); font-size: 11px;
   color: var(--nebula-text-tertiary); letter-spacing: 0.03em; }
 .nb .d-sec { border-top: 1px solid var(--nebula-plan-divider); padding: var(--nebula-space-3) 0; }
 /* seção de validação em revisão: divisor esverdeado marca onde a decisão acontece */
-.nb .d-sec-validate { border-top-color: rgba(125,214,160,0.18); }
+.nb .d-sec-validate { border-top-color: rgb(var(--oc-ok-rgb) / 0.18); }
 .nb .d-sec .md-field,
 .nb .md-field {
   margin: 0;
@@ -1200,9 +1262,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .md code {
   font-family: var(--nebula-font-mono);
   color: var(--nebula-dust-core);
-  background: rgba(8, 10, 13, 0.66);
+  background: rgb(var(--oc-scrim-rgb) / 0.66);
   border: 1px solid var(--nebula-glass-border);
-  border-radius: 6px;
+  border-radius: var(--oc-radius-chip);
   padding: 2px 4px;
   font-size: 12px;
 }
@@ -1213,9 +1275,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .md pre {
   margin: 6px 0 8px;
   padding: 10px 12px;
-  background: rgba(8, 10, 13, 0.82);
+  background: rgb(var(--oc-scrim-rgb) / 0.82);
   border: 1px solid var(--nebula-glass-border);
-  border-radius: 9px;
+  border-radius: var(--oc-radius-note);
   overflow: auto;
 }
 .nb .md pre code {
@@ -1234,7 +1296,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   line-height: 1.45;
 }
 .nb .md a {
-  color: #a9c7e8;
+  color: var(--oc-info);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -1243,7 +1305,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .md blockquote {
   margin: 6px 0 8px;
-  border-left: 1px solid rgba(209, 217, 235, 0.4);
+  border-left: 1px solid var(--oc-border-strong);
   padding-left: 10px;
   color: var(--nebula-text-secondary);
 }
@@ -1263,11 +1325,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   line-height: 1.3;
 }
 .nb .d-sec .lbl { display: flex; align-items: baseline; justify-content: space-between; gap: var(--nebula-space-3);
-  font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .08em;
+  font-family: var(--nebula-font-label); font-size: 10px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--nebula-mist); margin-bottom: 7px; }
-.nb .d-progress { font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .04em;
+.nb .d-progress { font-family: var(--nebula-font-label); font-size: 10px; letter-spacing: .04em;
   color: var(--nebula-text-tertiary); text-transform: none; }
-.nb .d-progress.done { color: #7dd6a0; }
+.nb .d-progress.done { color: var(--oc-ok); }
 .nb .d-sec p { font-size: 12.5px; color: var(--nebula-text-secondary); line-height: 1.55; white-space: pre-line; }
 .nb .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 26px; }
 .nb .d-mono { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-mist-light); }
@@ -1287,10 +1349,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-roles { display: flex; gap: var(--nebula-space-2) var(--nebula-space-4); flex-wrap: wrap; min-width: 0; max-width: 100%; }
 .nb .d-roles .rl { font-size: 11.5px; color: var(--nebula-text-tertiary); min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nb .d-roles .rl b { color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium); margin-left: 2px; }
-.nb .d-evid { background: rgba(8,10,13,.6); border: 1px solid var(--nebula-glass-border); border-radius: 10px;
+.nb .d-evid { background: rgb(var(--oc-scrim-rgb) / .6); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-box);
   padding: 10px 13px; font-size: 12px; color: var(--nebula-text-secondary); line-height: 1.55; }
 .nb .d-tel { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-secondary); letter-spacing: .02em; }
-.nb .d-usage-warning { margin: 8px 0 0; padding: 7px 9px; border: 1px solid rgba(232, 161, 161, .32); border-radius: 7px; color: #e8a1a1; background: rgba(120, 45, 45, .12); font-size: 11px; line-height: 1.45; }
+.nb .d-usage-warning { margin: 8px 0 0; padding: 7px 9px; border: 1px solid rgb(var(--oc-danger-rgb) / .32); border-radius: var(--oc-radius-badge); color: var(--oc-danger); background: rgb(var(--oc-danger-deep-rgb) / .12); font-size: 11px; line-height: 1.45; }
 /* the two clocks of a run, each one next to the source that measured it */
 .nb .d-clocks { display: flex; flex-direction: column; gap: 3px; margin-top: 7px; }
 .nb .d-clock { font-family: var(--nebula-font-mono); font-size: 10.5px;
@@ -1304,40 +1366,40 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .d-transcript-path { font-family: var(--nebula-font-mono); font-size: 11px;
   color: var(--nebula-text-secondary); word-break: break-all; margin-top: 4px; }
 .nb .d-copy-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 9px; }
-.nb .d-copy { font-family: var(--nebula-font-mono); font-size: 10.5px; letter-spacing: .02em;
-  background: rgba(8,10,13,.6); border: 1px solid var(--nebula-glass-border); border-radius: 8px;
+.nb .d-copy { font-family: var(--nebula-font-label); font-size: 10.5px; letter-spacing: .02em;
+  background: rgb(var(--oc-scrim-rgb) / .6); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-control);
   padding: 5px 10px; color: var(--nebula-text-secondary); cursor: pointer;
   transition: border-color .15s, color .15s; max-width: 100%; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .nb .d-copy:hover { border-color: var(--nebula-mist-light); color: var(--nebula-text-primary); }
-.nb .d-copy.done { border-color: rgba(125,214,160,.45); color: #7dd6a0; }
+.nb .d-copy.done { border-color: rgb(var(--oc-ok-rgb) / .45); color: var(--oc-ok); }
 .nb .d-transcript-note { font-size: 11px; color: var(--nebula-text-tertiary); margin-top: 8px; }
 
 /* ---------- validation panel (Done · review) ---------- */
 .nb .d-verify { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-  background: rgba(125,214,160,.06); border: 1px solid rgba(125,214,160,.22); border-radius: 10px;
+  background: rgb(var(--oc-ok-rgb) / .06); border: 1px solid rgb(var(--oc-ok-rgb) / .22); border-radius: var(--oc-radius-box);
   padding: 9px 13px; margin-bottom: 10px; }
-.nb .d-verify-lbl { font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .08em;
-  text-transform: uppercase; color: #7dd6a0; white-space: nowrap; }
+.nb .d-verify-lbl { font-family: var(--nebula-font-label); font-size: 9.5px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--oc-ok); white-space: nowrap; }
 .nb .d-verify-value { font-size: 12px; color: var(--nebula-text-primary); word-break: break-all; }
 .nb a.d-verify-value { text-decoration: underline; text-underline-offset: 2px; }
 .nb .d-checklist { display: flex; flex-direction: column; gap: 6px; }
 /* globals.css estiliza <label> como coluna — aqui a linha é explicitamente horizontal */
 .nb .d-check-row { display: flex; flex-direction: row; gap: 10px; align-items: flex-start;
-  background: rgba(8,10,13,.5); border: 1px solid var(--nebula-glass-border); border-radius: 10px;
+  background: rgb(var(--oc-scrim-rgb) / .5); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-box);
   padding: 9px 12px; transition: border-color .15s, background .15s; }
 .nb .d-check-row.interactive { cursor: pointer; }
-.nb .d-check-row.interactive:hover { border-color: rgba(125,214,160,.4); background: rgba(125,214,160,.05); }
-.nb .d-check-row.ticked { border-color: rgba(125,214,160,.3); }
+.nb .d-check-row.interactive:hover { border-color: rgb(var(--oc-ok-rgb) / .4); background: rgb(var(--oc-ok-rgb) / .05); }
+.nb .d-check-row.ticked { border-color: rgb(var(--oc-ok-rgb) / .3); }
 .nb .d-check-row.ticked .d-check-step { color: var(--nebula-text-secondary); }
-.nb .d-check-row input[type="checkbox"] { margin-top: 2px; accent-color: #7dd6a0; cursor: inherit; }
+.nb .d-check-row input[type="checkbox"] { margin-top: 2px; accent-color: var(--oc-ok); cursor: inherit; }
 .nb .d-check-num { font-family: var(--nebula-font-mono); font-size: 10.5px; color: var(--nebula-text-tertiary);
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px; min-width: 18px; height: 18px;
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); min-width: 18px; height: 18px;
   display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
 .nb .d-check-body { display: flex; flex-direction: column; gap: 2px; }
 .nb .d-check-step { font-size: 12.5px; color: var(--nebula-text-primary); line-height: 1.45; }
 .nb .d-check-expected { font-size: 11.5px; color: var(--nebula-text-secondary); line-height: 1.45; }
-.nb .d-check-meta { font-family: var(--nebula-font-mono); font-size: 10px; color: #7dd6a0; letter-spacing: .02em; }
+.nb .d-check-meta { font-family: var(--nebula-font-label); font-size: 10px; color: var(--oc-ok); letter-spacing: .02em; }
 .nb .d-btn-ghost { background: none; border: none; color: var(--nebula-text-tertiary); font-size: 11.5px;
   padding: 8px 6px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; margin-right: auto; }
 .nb .d-btn-ghost:disabled { opacity: .4; cursor: not-allowed; }
@@ -1477,7 +1539,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .steps-ind {
   display: flex; gap: 22px; margin: 0 0 44px; padding: 0; list-style: none;
-  font-family: var(--nebula-font-mono); font-size: 10.5px;
+  font-family: var(--nebula-font-label); font-size: 10.5px;
   letter-spacing: .08em; text-transform: uppercase;
 }
 /* one line each: the step label is a landmark, and a landmark that reflows
@@ -1487,7 +1549,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   color: var(--nebula-text-tertiary); opacity: .4; transition: opacity .3s, color .3s;
 }
 .nb .steps-ind li.cur { color: var(--nebula-mist-glow); opacity: 1; }
-.nb .steps-ind li.done { opacity: .75; color: #7dd6a0; }
+.nb .steps-ind li.done { opacity: .75; color: var(--oc-ok); }
 .nb .wstep { display: none; min-height: 330px; animation: nb-step-in .22s ease-out; }
 .nb .wstep.active { display: block; }
 @keyframes nb-step-in { from { opacity: 0; transform: translateX(24px) } to { opacity: 1; transform: translateX(0) } }
@@ -1504,7 +1566,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
      axis, which centred the caption over its own field */
   display: flex; flex-direction: row; align-items: center; gap: 6px;
   min-height: 14px; margin-bottom: 5px;
-  font-family: var(--nebula-font-mono); font-size: 10px;
+  font-family: var(--nebula-font-label); font-size: 10px;
   letter-spacing: .06em; text-transform: uppercase; color: var(--nebula-text-tertiary);
   white-space: nowrap; overflow: hidden;
 }
@@ -1513,18 +1575,18 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .field label .lbl-text {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.nb .field label .opt { flex: none; color: var(--nebula-text-tertiary); opacity: .7; border: 1px solid var(--nebula-glass-border); border-radius: 999px; padding: 1px 6px; margin-left: 0; font-size: 9px; }
+.nb .field label .opt { flex: none; color: var(--nebula-text-tertiary); opacity: .7; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); padding: 1px 6px; margin-left: 0; font-size: 9px; }
 .nb .input {
-  width: 100%; background: rgba(10,12,16,.6); border: 1px solid var(--nebula-glass-border); border-radius: 10px;
+  width: 100%; background: rgb(var(--oc-surface-deep-rgb) / .6); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-box);
   color: var(--nebula-text-primary); font-size: 13.5px; padding: 10px 12px; font-family: var(--nebula-font-sans); outline: none;
   transition: border-color .15s;
 }
-.nb .input:focus { border-color: rgba(209,217,235,.35); }
+.nb .input:focus { border-color: rgb(var(--oc-accent-rgb) / .35); }
 .nb .input:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring); }
 .nb .input.mono { font-family: var(--nebula-font-mono); font-size: 12.5px; }
 .nb .preview {
-  margin-top: 16px; padding: 13px 16px; border-radius: 12px; background: rgba(133,143,163,.07);
-  border: 1px solid rgba(133,143,163,.14); font-family: var(--nebula-font-mono); font-size: 11.5px;
+  margin-top: 16px; padding: 13px 16px; border-radius: var(--oc-radius-card); background: rgb(var(--oc-mist-rgb) / .07);
+  border: 1px solid rgb(var(--oc-mist-rgb) / .14); font-family: var(--nebula-font-label); font-size: 11.5px;
   color: var(--nebula-mist-light); line-height: 1.6;
 }
 .nb .preview .cap { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--nebula-text-tertiary); display: block; margin-bottom: 3px; }
@@ -1536,64 +1598,64 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .seen-sugg .sec-cap { margin-top: 0; }
 .nb .seen-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .nb .seen-chip { display: inline-flex; align-items: center; gap: 8px;
-  background: rgba(125,214,160,.06); border: 1px solid rgba(125,214,160,.25); border-radius: 999px;
+  background: rgb(var(--oc-ok-rgb) / .06); border: 1px solid rgb(var(--oc-ok-rgb) / .25); border-radius: var(--oc-radius-pill);
   padding: 6px 8px 6px 14px; font-size: 12px; color: var(--nebula-text-primary); }
 .nb .seen-chip b { font-weight: var(--nebula-weight-medium); }
-.nb .seen-chip small { font-family: var(--nebula-font-mono); font-size: 10px; color: var(--nebula-text-tertiary); }
+.nb .seen-chip small { font-family: var(--nebula-font-label); font-size: 10px; color: var(--nebula-text-tertiary); }
 /* A chip button stays dense, but not so dense a mouse has to aim: 30px is
    the floor here, and on a phone the chip itself becomes a full row so the
    button clears 44px without the chip growing into a card. */
-.nb .seen-add { background: #fff; border: none; border-radius: 999px; color: #0a0c10;
+.nb .seen-add { background: var(--oc-btn-light-bg); border: none; border-radius: var(--oc-radius-pill); color: var(--oc-btn-light-text);
   font-size: 11.5px; font-weight: 500; padding: 4px 12px; min-height: 30px; cursor: pointer; white-space: nowrap; }
 .nb .seen-add:disabled { opacity: .4; cursor: not-allowed; }
 .nb .seen-add:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); }
 
 /* preços: um modelo que já rodou aqui e continua sem preço */
-.nb .price-alert { border: 1px solid rgba(240,180,120,.32); border-radius: 12px;
-  background: rgba(240,180,120,.05); padding: 12px 14px; }
-.nb .price-alert .sec-cap { color: rgba(245,196,148,.95); }
+.nb .price-alert { border: 1px solid rgb(var(--oc-warn-3-rgb) / .32); border-radius: var(--oc-radius-card);
+  background: rgb(var(--oc-warn-3-rgb) / .05); padding: 12px 14px; }
+.nb .price-alert .sec-cap { color: rgb(var(--oc-warn-2-rgb) / .95); }
 .nb .policy .act small.price-flag { display: inline-block; margin-top: 4px;
-  font-size: 9.5px; font-family: var(--nebula-font-mono); color: rgba(245,196,148,.9);
-  border: 1px solid rgba(240,180,120,.35); border-radius: 999px; padding: 1px 8px;
+  font-size: 9.5px; font-family: var(--nebula-font-label); color: rgb(var(--oc-warn-2-rgb) / .9);
+  border: 1px solid rgb(var(--oc-warn-3-rgb) / .35); border-radius: var(--oc-radius-pill); padding: 1px 8px;
   letter-spacing: .04em; }
 .nb .seen-note { font-size: 11.5px; color: var(--nebula-text-tertiary); margin-top: 8px; line-height: 1.5; }
 .nb .exec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .nb .exec {
-  background: var(--nebula-plan-bg); border: 1px solid var(--nebula-glass-border); border-radius: 14px; padding: 13px 14px;
+  background: var(--nebula-plan-bg); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-tile); padding: 13px 14px;
   cursor: pointer; transition: border-color .18s, transform .18s;
 }
-.nb .exec:hover { border-color: rgba(255,255,255,.18); }
-.nb .exec.on { border-color: rgba(209,217,235,.45); }
+.nb .exec:hover { border-color: rgb(var(--oc-white-rgb) / .18); }
+.nb .exec.on { border-color: rgb(var(--oc-accent-rgb) / .45); }
 .nb .exec .row { display: flex; align-items: center; gap: 10px; }
 .nb .exec .logo {
-  width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
-  font-family: var(--nebula-font-mono); font-size: 10px; background: rgba(255,255,255,.045);
+  width: 30px; height: 30px; border-radius: var(--oc-radius-note); display: flex; align-items: center; justify-content: center;
+  font-family: var(--nebula-font-mono); font-size: 10px; background: rgb(var(--oc-white-rgb) / .045);
   border: 1px solid var(--nebula-glass-border); color: var(--nebula-mist-glow); flex: none;
 }
 .nb .exec .logo svg { width: 19px; height: 19px; display: block; }
 .nb .exec .name { font-size: 13px; font-weight: 500; line-height: 1.2; flex: 1; min-width: 0; }
-.nb .exec .check { width: 16px; height: 16px; border-radius: 5px; border: 1px solid rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; font-size: 10px; color: transparent; transition: all .18s; }
-.nb .exec.on .check { background: var(--nebula-mist-glow); border-color: var(--nebula-mist-glow); color: #0a0c10; }
+.nb .exec .check { width: 16px; height: 16px; border-radius: var(--oc-radius-tick); border: 1px solid rgb(var(--oc-white-rgb) / .2); display: flex; align-items: center; justify-content: center; font-size: 10px; color: transparent; transition: all .18s; }
+.nb .exec.on .check { background: var(--nebula-mist-glow); border-color: var(--nebula-mist-glow); color: var(--oc-accent-contrast); }
 .nb .exec .models { max-height: 0; overflow: hidden; transition: max-height .2s ease-out, margin .2s; display: flex; gap: 6px; flex-wrap: wrap; }
 .nb .exec.on .models { max-height: 90px; margin-top: 10px; }
-.nb .mchip { font-family: var(--nebula-font-mono); font-size: 10px; border: 1px solid var(--nebula-glass-border); border-radius: 999px; padding: 3px 9px; color: var(--nebula-text-secondary); cursor: pointer; transition: all .15s; }
-.nb .mchip.on { background: rgba(209,217,235,.14); border-color: rgba(209,217,235,.4); color: var(--nebula-mist-glow); }
+.nb .mchip { font-family: var(--nebula-font-label); font-size: 10px; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); padding: 3px 9px; color: var(--nebula-text-secondary); cursor: pointer; transition: all .15s; }
+.nb .mchip.on { background: rgb(var(--oc-accent-rgb) / .14); border-color: var(--oc-border-strong); color: var(--nebula-mist-glow); }
 .nb .mchip .x { margin-left: 6px; opacity: .5; transition: opacity .15s; }
 .nb .mchip .x:hover { opacity: 1; }
-.nb .mchip-add { font-family: var(--nebula-font-mono); font-size: 10px; background: transparent; border: 1px dashed var(--nebula-glass-border); border-radius: 999px; padding: 3px 9px; color: var(--nebula-text-secondary); width: 78px; outline: none; transition: border-color .15s; }
-.nb .mchip-add:focus { border-color: rgba(209,217,235,.4); color: var(--nebula-mist-glow); }
+.nb .mchip-add { font-family: var(--nebula-font-label); font-size: 10px; background: transparent; border: 1px dashed var(--nebula-glass-border); border-radius: var(--oc-radius-pill); padding: 3px 9px; color: var(--nebula-text-secondary); width: 78px; outline: none; transition: border-color .15s; }
+.nb .mchip-add:focus { border-color: var(--oc-border-strong); color: var(--nebula-mist-glow); }
 .nb .mchip-add::placeholder { color: var(--nebula-text-secondary); opacity: .6; }
-.nb .exec-add { border: 1px dashed rgba(255,255,255,.28); background: transparent; }
-.nb .exec-add:hover { border-color: rgba(255,255,255,.45); }
-.nb .exec-add.on { border-color: rgba(209,217,235,.5); }
-.nb .exec-add .logo { border: 1px dashed rgba(255,255,255,.22); background: transparent; color: var(--nebula-text-secondary); font-size: 14px; font-family: var(--nebula-font-sans); }
+.nb .exec-add { border: 1px dashed rgb(var(--oc-white-rgb) / .28); background: transparent; }
+.nb .exec-add:hover { border-color: rgb(var(--oc-white-rgb) / .45); }
+.nb .exec-add.on { border-color: rgb(var(--oc-accent-rgb) / .5); }
+.nb .exec-add .logo { border: 1px dashed rgb(var(--oc-white-rgb) / .22); background: transparent; color: var(--nebula-text-secondary); font-size: 14px; font-family: var(--nebula-font-sans); }
 .nb .exec-add .name { color: var(--nebula-text-secondary); font-weight: 500; }
 .nb .exec-add.on .name { color: var(--nebula-text-primary); }
 .nb .exec-add.on .models { max-height: 120px; }
-.nb .exec-add .models .input { padding: 7px 10px; font-size: 11.5px; border-radius: 8px; }
-.nb .exec-add .note { font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .04em; color: var(--nebula-text-tertiary); line-height: 1.5; width: 100%; }
+.nb .exec-add .models .input { padding: 7px 10px; font-size: 11.5px; border-radius: var(--oc-radius-control); }
+.nb .exec-add .note { font-family: var(--nebula-font-label); font-size: 9.5px; letter-spacing: .04em; color: var(--nebula-text-tertiary); line-height: 1.5; width: 100%; }
 .nb .hint {
-  margin-top: 16px; padding: 11px 14px 11px 16px; border-radius: 10px; background: rgba(16,18,22,.6);
+  margin-top: 16px; padding: 11px 14px 11px 16px; border-radius: var(--oc-radius-box); background: rgb(var(--oc-surface-2-rgb) / .6);
   border: 1px solid var(--nebula-glass-border); border-left: 2px solid var(--nebula-mist);
   font-size: 12px; color: var(--nebula-text-secondary);
 }
@@ -1611,7 +1673,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .tabs button {
   flex: none;
   appearance: none; background: none; border: 0;
-  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: .05em;
+  font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: .05em;
   color: var(--nebula-text-tertiary);
   min-height: 34px; padding: 0 0 5px;
   border-bottom: 1px solid transparent;
@@ -1620,11 +1682,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .tabs button:hover { color: var(--nebula-text-secondary); }
 .nb .tabs button.on { color: var(--nebula-text-primary); border-bottom-color: var(--nebula-mist-glow); }
 .nb .tabs button:focus-visible {
-  outline: none; border-radius: 6px;
-  box-shadow: inset 0 0 0 2px rgba(209, 217, 235, 0.55);
+  outline: none; border-radius: var(--oc-radius-chip);
+  box-shadow: var(--oc-focus-ring-inset);
 }
 .nb .cmd {
-  background: rgba(8,10,13,.85); border: 1px solid var(--nebula-glass-border); border-radius: 12px;
+  background: rgb(var(--oc-scrim-rgb) / .85); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-card);
   font-family: var(--nebula-font-mono); font-size: 11.5px; line-height: 1.7; color: var(--nebula-mist-glow);
   padding: 14px 16px; position: relative; white-space: pre-wrap; word-break: break-all;
 }
@@ -1635,32 +1697,32 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .pair-code {
   font-family: var(--nebula-font-mono); font-size: clamp(24px, 7.5vw, 34px);
   letter-spacing: .35em; font-weight: 600;
-  color: var(--nebula-mist-glow); background: rgba(8,10,13,.85); border: 1px solid var(--nebula-glass-border);
-  border-radius: 12px; padding: 14px 18px 14px 24px; margin: 4px 0 10px;
+  color: var(--nebula-mist-glow); background: rgb(var(--oc-scrim-rgb) / .85); border: 1px solid var(--nebula-glass-border);
+  border-radius: var(--oc-radius-card); padding: 14px 18px 14px 24px; margin: 4px 0 10px;
   width: fit-content; max-width: 100%;
 }
 .nb .copy {
   position: absolute; top: 9px; right: 9px; font-family: var(--nebula-font-mono); font-size: 10px;
-  background: rgba(255,255,255,.06); border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  background: var(--oc-surface-hover); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
   color: var(--nebula-text-secondary); padding: 4px 11px; cursor: pointer; transition: all .15s;
 }
-.nb .copy.ok { color: #7dd6a0; border-color: rgba(125,214,160,.4); }
-.nb .copy:hover { color: var(--nebula-text-primary); border-color: rgba(255,255,255,.2); }
+.nb .copy.ok { color: var(--oc-ok); border-color: rgb(var(--oc-ok-rgb) / .4); }
+.nb .copy:hover { color: var(--nebula-text-primary); border-color: rgb(var(--oc-white-rgb) / .2); }
 .nb .copy:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); }
-.nb .tok-note { font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .05em; color: var(--nebula-text-tertiary); margin-top: 7px; }
+.nb .tok-note { font-family: var(--nebula-font-label); font-size: 9.5px; letter-spacing: .05em; color: var(--nebula-text-tertiary); margin-top: 7px; }
 .nb .reveal { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .nb .conn {
-  margin-top: 16px; min-height: 72px; border-radius: 12px; padding: 13px 16px;
+  margin-top: 16px; min-height: 72px; border-radius: var(--oc-radius-card); padding: 13px 16px;
   background: var(--nebula-glass-bg); border: 1px solid var(--nebula-glass-border); position: relative;
   display: flex; flex-direction: column; justify-content: center; gap: 3px;
   transition: border-color .3s;
 }
-.nb .conn.lit { border-color: rgba(125,214,160,.55); }
+.nb .conn.lit { border-color: rgb(var(--oc-ok-rgb) / .55); }
 .nb .conn .l1 { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 500; }
-.nb .conn .l2 { font-size: 11.5px; color: var(--nebula-text-secondary); margin-left: 21px; font-family: var(--nebula-font-mono); }
-.nb .conn .cap { position: absolute; right: 14px; bottom: 9px; font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .07em; color: var(--nebula-text-tertiary); text-transform: uppercase; }
-.nb .pip { width: 11px; height: 11px; border-radius: 50%; background: #e5c07b; animation: nb-pulse 1.8s ease-in-out infinite; position: relative; }
-.nb .pip.green { background: #7dd6a0; animation: none; }
+.nb .conn .l2 { font-size: 11.5px; color: var(--nebula-text-secondary); margin-left: 21px; font-family: var(--nebula-font-label); }
+.nb .conn .cap { position: absolute; right: 14px; bottom: 9px; font-family: var(--nebula-font-label); font-size: 9.5px; letter-spacing: .07em; color: var(--nebula-text-tertiary); text-transform: uppercase; }
+.nb .pip { width: 11px; height: 11px; border-radius: var(--oc-radius-circle); background: var(--oc-warn-pip); animation: nb-pulse 1.8s ease-in-out infinite; position: relative; }
+.nb .pip.green { background: var(--oc-ok); animation: none; }
 @keyframes nb-pulse { 0%,100% { opacity: .4 } 50% { opacity: 1 } }
 @media (prefers-reduced-motion: reduce) { .nb .pip { animation: none; opacity: .7; } }
 
@@ -1671,7 +1733,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    beside the primary button and the two collided the moment the panel got
    narrow, printing one on top of the other. */
 .nb .wfoot { margin: 34px calc(var(--wiz-pad) * -1) 0; padding: 0; }
-.nb .progress { height: 2px; background: rgba(255,255,255,.07); position: relative; }
+.nb .progress { height: 2px; background: rgb(var(--oc-white-rgb) / .07); position: relative; }
 .nb .progress i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--nebula-mist-glow); transition: width .3s ease-in-out; }
 .nb .wbtns {
   display: flex; justify-content: space-between; align-items: center;
@@ -1683,11 +1745,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   min-height: var(--nebula-tap);
   display: inline-flex; align-items: center; justify-content: center;
 }
-.nb .btn-back { background: none; border: 1px solid var(--nebula-glass-border); border-radius: 999px; color: var(--nebula-text-secondary); font-size: 12.5px; padding: 8px 18px; cursor: pointer; white-space: nowrap; }
+.nb .btn-back { background: none; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); color: var(--nebula-text-secondary); font-size: 12.5px; padding: 8px 18px; cursor: pointer; white-space: nowrap; }
 .nb .btn-back:disabled { opacity: .3; cursor: not-allowed; }
-.nb .btn-next { background: #fff; color: #0a0c10; border: none; border-radius: 999px; font-size: 13px; font-weight: 500; padding: 9px 22px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .2s; }
+.nb .btn-next { background: var(--oc-btn-light-bg); color: var(--oc-btn-light-text); border: none; border-radius: var(--oc-radius-pill); font-size: 13px; font-weight: 500; padding: 9px 22px; cursor: pointer; white-space: nowrap; transition: opacity .15s, transform .2s; }
 .nb .btn-next:disabled { opacity: .4; cursor: not-allowed; }
-.nb .btn-next.go { box-shadow: 0 0 24px rgba(125,214,160,.25); }
+.nb .btn-next.go { box-shadow: var(--oc-glow-ok); }
 .nb .skip {
   appearance: none; background: none; border: 0; padding: 0;
   font-family: inherit; font-size: 11.5px; color: var(--nebula-text-tertiary);
@@ -1696,10 +1758,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .skip:hover { color: var(--nebula-text-secondary); }
 .nb .btn-back:focus-visible, .nb .btn-next:focus-visible, .nb .skip:focus-visible {
-  outline: none; box-shadow: var(--nebula-focus-ring-offset); border-radius: 999px;
+  outline: none; box-shadow: var(--nebula-focus-ring-offset); border-radius: var(--oc-radius-pill);
 }
-.nb .werr { color: #e8a1a1; font-size: 12.5px; margin: 10px 0 0; position: relative; z-index: 2; }
-.nb .wok { color: #7dd6a0; font-size: 12.5px; margin: 10px 0; font-family: var(--nebula-font-mono); }
+.nb .werr { color: var(--oc-danger); font-size: 12.5px; margin: 10px 0 0; position: relative; z-index: 2; }
+.nb .wok { color: var(--oc-ok); font-size: 12.5px; margin: 10px 0; font-family: var(--nebula-font-label); }
 
 /* ---------- settings ---------- */
 .nb .page { position: relative; z-index: 2; max-width: 1020px; margin: 0 auto; }
@@ -1721,7 +1783,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .settabs button {
   flex: none;
   appearance: none; background: none; border: 0;
-  font-family: var(--nebula-font-mono); font-size: 11px;
+  font-family: var(--nebula-font-label); font-size: 11px;
   letter-spacing: .08em; text-transform: uppercase;
   color: var(--nebula-text-tertiary);
   /* the target is the whole tab, not the glyphs: 44px tall on a phone,
@@ -1734,10 +1796,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .settabs button:hover { color: var(--nebula-text-secondary); }
 .nb .settabs button.on { color: var(--nebula-mist-glow); border-bottom-color: var(--nebula-mist-glow); }
 .nb .settabs button:focus-visible {
-  outline: none; border-radius: 6px;
+  outline: none; border-radius: var(--oc-radius-chip);
   /* inset: the strip clips its vertical overflow so the underline can meet
      the divider, and an outset ring would be sliced into an arc */
-  box-shadow: inset 0 0 0 2px rgba(209, 217, 235, 0.55);
+  box-shadow: var(--oc-focus-ring-inset);
 }
 .nb .tabpane { display: none; animation: nb-step-in .2s ease-out; }
 .nb .tabpane.active { display: block; }
@@ -1749,7 +1811,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    never changes the rhythm the eye is following. */
 .nb .set-card {
   background: var(--nebula-plan-bg);
-  border: 1px solid var(--nebula-glass-border); border-radius: 12px;
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-card);
   padding: 14px 16px; margin-bottom: 12px;
 }
 .nb .set-card > .sec-cap:first-child { margin-top: 0; }
@@ -1784,13 +1846,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .policy.prices th:nth-child(4) { width: 15%; }
 .nb .policy.prices th:nth-child(5) { width: 27%; }
 .nb .policy th {
-  font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  font-family: var(--nebula-font-label); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--nebula-text-tertiary); text-align: left; padding: 0 10px 8px 0; font-weight: 400;
 }
 .nb .policy td { padding: 5px 10px 5px 0; border-top: 1px solid var(--nebula-plan-divider); vertical-align: middle; }
 .nb .policy td:last-child { padding-right: 0; }
 .nb .policy .act { font-size: 12.5px; font-weight: 500; line-height: 1.35; }
-.nb .policy .act small { display: block; font-family: var(--nebula-font-mono); font-size: 9.5px; color: var(--nebula-text-tertiary); letter-spacing: .04em; line-height: 1.45; margin-top: 1px; font-weight: 400; }
+.nb .policy .act small { display: block; font-family: var(--nebula-font-label); font-size: 9.5px; color: var(--nebula-text-tertiary); letter-spacing: .04em; line-height: 1.45; margin-top: 1px; font-weight: 400; }
 /* The line of succession reads left to right and never wraps: three links
    sharing one cell, each one giving up width before the row gives up a line. */
 .nb .policy .chain { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
@@ -1800,26 +1862,26 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .policy .chain i { flex: none; font-style: normal; font-size: 10px; color: var(--nebula-text-tertiary); }
 .nb .policy .chain i::before { content: "\2192"; }
 /* Named by the policy, missing from the executor: visible, never silently dropped. */
-.nb .policy .chain .sel.orphan { border-color: var(--nebula-warn, #b8863b); }
+.nb .policy .chain .sel.orphan { border-color: var(--nebula-warn, var(--oc-warn-deep)); }
 /* every control in a table cell is the width of its share, not of its text */
 .nb .policy .sel { width: 100%; min-width: 0; padding: 6px 20px 6px 7px; background-position: right 7px center; text-overflow: ellipsis; }
 .nb .policy td .input { width: 100%; max-width: 140px; padding: 6px 9px; font-size: 12px; }
-.nb .policy .who { font-family: var(--nebula-font-mono); font-size: 10px; line-height: 1.45; color: var(--nebula-mist-light); letter-spacing: .03em; overflow-wrap: anywhere; }
+.nb .policy .who { font-family: var(--nebula-font-label); font-size: 10px; line-height: 1.45; color: var(--nebula-mist-light); letter-spacing: .03em; overflow-wrap: anywhere; }
 .nb .policy .who small { display: block; font-size: 9.5px; color: var(--nebula-text-tertiary); margin-top: 2px; }
 .nb .policy .who .dim { color: var(--nebula-text-tertiary); }
 .nb .policy .who .seen-add { margin-top: 6px; }
 .nb .sel {
   appearance: none; -webkit-appearance: none;
-  background: rgba(10,12,16,.6) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%238C96AB' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
-  border: 1px solid var(--nebula-glass-border); border-radius: 9px; color: var(--nebula-text-primary);
-  font-family: var(--nebula-font-mono); font-size: 11px; padding: 7px 26px 7px 10px; outline: none; cursor: pointer;
+  background: rgb(var(--oc-surface-deep-rgb) / .6) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%238C96AB' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-note); color: var(--nebula-text-primary);
+  font-family: var(--nebula-font-label); font-size: 11px; padding: 7px 26px 7px 10px; outline: none; cursor: pointer;
   min-width: 130px; transition: border-color .15s;
 }
-.nb .sel:hover { border-color: rgba(255,255,255,.2); }
-.nb .sel:focus { border-color: rgba(209,217,235,.35); }
+.nb .sel:hover { border-color: rgb(var(--oc-white-rgb) / .2); }
+.nb .sel:focus { border-color: rgb(var(--oc-accent-rgb) / .35); }
 .nb .sel:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring); }
 .nb .sel.eff { min-width: 96px; }
-.nb .sel option { background: #0e1013; }
+.nb .sel option { background: var(--oc-surface-tile); }
 /* AGB-75: below this width the columns stop being columns. A row becomes a
    block that reads top to bottom, which is the only honest way to keep the
    effort and the last change on a screen this narrow: the alternative was a
@@ -1837,12 +1899,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     gap: 9px 10px; align-items: start;
     padding: 12px 14px; margin-bottom: 10px;
     background: var(--nebula-plan-bg);
-    border: 1px solid var(--nebula-glass-border); border-radius: 12px;
+    border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-card);
   }
   .nb .policy td { display: block; padding: 0; border-top: 0; }
   .nb .policy td::before {
     content: attr(data-label); display: block;
-    font-family: var(--nebula-font-mono); font-size: 9px; letter-spacing: .08em;
+    font-family: var(--nebula-font-label); font-size: 9px; letter-spacing: .08em;
     text-transform: uppercase; color: var(--nebula-text-tertiary); margin-bottom: 5px;
   }
   /* the title of the block, the chain and the signature take the full width */
@@ -1879,7 +1941,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 
 .nb .policy-note {
-  margin-top: 14px; font-family: var(--nebula-font-mono); font-size: 10.5px; letter-spacing: .04em;
+  margin-top: 14px; font-family: var(--nebula-font-label); font-size: 10.5px; letter-spacing: .04em;
   color: var(--nebula-text-tertiary); padding-top: 12px; border-top: 1px solid var(--nebula-plan-divider);
   line-height: 1.6;
 }
@@ -1897,23 +1959,23 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .cover-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .nb .cover-list li {
   display: flex; align-items: baseline; gap: 6px;
-  border: 1px solid rgba(255,255,255,.10); border-radius: 999px;
-  padding: 4px 10px; background: rgba(255,255,255,.03);
+  border: 1px solid rgb(var(--oc-white-rgb) / .10); border-radius: var(--oc-radius-pill);
+  padding: 4px 10px; background: var(--oc-surface-subtle);
 }
 .nb .cover-list .cover-cli { font-size: 12px; }
 .nb .cover-list .cover-state {
-  font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .06em;
+  font-family: var(--nebula-font-label); font-size: 9.5px; letter-spacing: .06em;
   text-transform: uppercase; color: var(--nebula-text-tertiary);
 }
-.nb .cover-list li.has .cover-state { color: #7dd6a0; }
-.nb .cover-list li.missing { border-color: rgba(245,196,148,.35); }
-.nb .cover-list li.missing .cover-state { color: rgba(245,196,148,.95); }
+.nb .cover-list li.has .cover-state { color: var(--oc-ok); }
+.nb .cover-list li.missing { border-color: rgb(var(--oc-warn-2-rgb) / .35); }
+.nb .cover-list li.missing .cover-state { color: rgb(var(--oc-warn-2-rgb) / .95); }
 .nb .rec-cover .sec-cap { text-transform: none; letter-spacing: .02em; font-size: 11px; margin: 12px 0 0; }
 .nb .rec-cover .rec-head .sec-cap { text-transform: uppercase; letter-spacing: .08em; font-size: 10px; margin: 0; }
 .nb .recipe .rec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0 0 10px; }
 .nb .recipe .rec-head .rec-name { font-size: 13px; font-weight: 500; }
 .nb .recipe .lbl {
-  display: block; font-family: var(--nebula-font-mono); font-size: 9.5px; letter-spacing: .08em;
+  display: block; font-family: var(--nebula-font-label); font-size: 9.5px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--nebula-text-tertiary); margin: 12px 0 5px;
 }
 /* Whole lines, always: a textarea sized by `rows` under border-box loses the
@@ -1933,69 +1995,69 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .tok-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .nb .tok {
   display: flex; align-items: center; gap: 14px; padding: 10px 14px;
-  background: var(--nebula-plan-bg); border: 1px solid var(--nebula-glass-border); border-radius: 12px;
+  background: var(--nebula-plan-bg); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-card);
   transition: border-color .2s, opacity .3s;
 }
 .nb .tok .meta { flex: 1; min-width: 0; }
 .nb .tok .label { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
 .nb .tok-cap {
-  display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px;
-  border: 1px solid rgba(209,217,235,.3); background: rgba(209,217,235,.08);
-  font-family: var(--nebula-font-mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+  display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: var(--oc-radius-pill);
+  border: 1px solid rgb(var(--oc-accent-rgb) / .3); background: rgb(var(--oc-accent-rgb) / .08);
+  font-family: var(--nebula-font-label); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--nebula-mist-light); font-weight: 400; vertical-align: middle;
 }
 /* the legacy global `.sub` ends with a 28px paragraph margin, which inside a
    card is 28px of nothing under every token: a row three times the height of
    the two lines it holds */
-.nb .tok .sub { font-family: var(--nebula-font-mono); font-size: 10px; color: var(--nebula-text-tertiary); letter-spacing: .03em; margin-bottom: 0; }
+.nb .tok .sub { font-family: var(--nebula-font-label); font-size: 10px; color: var(--nebula-text-tertiary); letter-spacing: .03em; margin-bottom: 0; }
 .nb .tok .val { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-mist-light); letter-spacing: .03em; }
 .nb .tok.revoked { opacity: .4; }
 .nb .tok.revoked .val { text-decoration: line-through; }
 .nb .btn-rev {
-  background: none; border: 1px solid rgba(232,161,161,.3); border-radius: 999px; color: #e8a1a1;
+  background: none; border: 1px solid rgb(var(--oc-danger-rgb) / .3); border-radius: var(--oc-radius-pill); color: var(--oc-danger);
   font-size: 11px; padding: 5px 13px; cursor: pointer; transition: all .15s; font-family: var(--nebula-font-sans);
 }
-.nb .btn-rev:hover { background: rgba(232,161,161,.1); }
+.nb .btn-rev:hover { background: rgb(var(--oc-danger-rgb) / .1); }
 .nb .btn-rev:disabled { opacity: .4; cursor: default; background: none; }
-.nb .btn-rev:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(232,161,161,.6); }
+.nb .btn-rev:focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(var(--oc-danger-rgb) / .6); }
 .nb .btn-new {
-  background: var(--nebula-btn-light-bg); color: var(--nebula-btn-light-text); border: none; border-radius: 999px;
+  background: var(--nebula-btn-light-bg); color: var(--nebula-btn-light-text); border: none; border-radius: var(--oc-radius-pill);
   font-size: 12.5px; font-weight: 500; padding: 8px 18px; cursor: pointer;
   transition: box-shadow .3s var(--nebula-ease-atmosphere), transform .3s var(--nebula-ease-atmosphere);
 }
-.nb .btn-new:hover { box-shadow: 0 0 24px rgba(209,217,235,.35); transform: translateY(-1px); }
+.nb .btn-new:hover { box-shadow: var(--oc-glow-accent); transform: translateY(-1px); }
 .nb .btn-new:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
 .nb .btn-new:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); }
 @media (prefers-reduced-motion: reduce) { .nb .btn-new:hover { transform: none; } }
-.nb .sec-cap { font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--nebula-text-tertiary); margin: 22px 0 10px; }
+.nb .sec-cap { font-family: var(--nebula-font-label); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--nebula-text-tertiary); margin: 22px 0 10px; }
 .nb .fresh-tok { margin-bottom: 16px; }
-.nb .fresh-tok .lbl { font-family: var(--nebula-font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #7dd6a0; margin-bottom: 8px; }
+.nb .fresh-tok .lbl { font-family: var(--nebula-font-label); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--oc-ok); margin-bottom: 8px; }
 
 /* ---------- ações do detalhe do card ---------- */
 .nb .d-actions { border-top: 1px solid var(--nebula-plan-divider); padding-top: 16px; margin-top: 4px; }
 .nb .d-actions-row { display: flex; gap: 10px; justify-content: flex-end; }
 .nb .d-actions-reopen .d-actions-row { margin-top: 10px; }
-.nb .d-btn-sec { background: none; border: 1px solid var(--nebula-glass-border); border-radius: 999px; color: var(--nebula-text-secondary); font-size: 12.5px; padding: 8px 18px; cursor: pointer; }
+.nb .d-btn-sec { background: none; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); color: var(--nebula-text-secondary); font-size: 12.5px; padding: 8px 18px; cursor: pointer; }
 .nb .d-btn-sec:disabled { opacity: .4; cursor: not-allowed; }
-.nb .d-btn-pri { background: #fff; border: none; border-radius: 999px; color: #0a0c10; font-size: 12.5px; font-weight: 500; padding: 8px 20px; cursor: pointer; }
+.nb .d-btn-pri { background: var(--oc-btn-light-bg); border: none; border-radius: var(--oc-radius-pill); color: var(--oc-btn-light-text); font-size: 12.5px; font-weight: 500; padding: 8px 20px; cursor: pointer; }
 .nb .d-btn-pri:disabled { opacity: .4; cursor: not-allowed; }
 .nb .d-textarea {
-  width: 100%; background: rgba(10,12,16,.6); border: 1px solid var(--nebula-glass-border); border-radius: 10px;
+  width: 100%; background: rgb(var(--oc-surface-deep-rgb) / .6); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-box);
   color: var(--nebula-text-primary); font-size: 12.5px; padding: 10px 12px; font-family: var(--nebula-font-sans);
   outline: none; resize: vertical;
 }
-.nb .d-textarea:focus { border-color: rgba(209,217,235,.35); }
+.nb .d-textarea:focus { border-color: rgb(var(--oc-accent-rgb) / .35); }
 /* AGB-68: an error is a state of the panel, so it gets the shape of one:
    the same left rule and tinted surface the rest of the system uses. */
-.nb .d-err { color: #e8a1a1; font-size: 12px; margin: 0 0 8px; padding: 7px 11px;
-  background: rgba(232, 161, 161, 0.06); border-left: 2px solid rgba(232, 161, 161, 0.45);
-  border-radius: 8px; line-height: 1.5; }
+.nb .d-err { color: var(--oc-danger); font-size: 12px; margin: 0 0 8px; padding: 7px 11px;
+  background: rgb(var(--oc-danger-rgb) / 0.06); border-left: 2px solid rgb(var(--oc-danger-rgb) / 0.45);
+  border-radius: var(--oc-radius-control); line-height: 1.5; }
 
 /* ---- update banner + updates tab (AGB-18) ---- */
-.nb .update-banner { margin: 0 0 18px; padding: 14px 18px; border: 1px solid var(--nebula-plan-divider); border-radius: 10px; }
+.nb .update-banner { margin: 0 0 18px; padding: 14px 18px; border: 1px solid var(--nebula-plan-divider); border-radius: var(--oc-radius-box); }
 .nb .update-banner .ub-head { display: flex; align-items: center; gap: 14px; }
 .nb .update-banner .ub-head a { color: var(--nebula-mist-glow); font-size: 12px; }
-.nb .update-banner .ub-notes { margin: 10px 0 0; padding: 10px 12px; max-height: 140px; overflow: auto; font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-secondary); white-space: pre-wrap; border: 1px solid var(--nebula-plan-divider); border-radius: 8px; }
+.nb .update-banner .ub-notes { margin: 10px 0 0; padding: 10px 12px; max-height: 140px; overflow: auto; font-family: var(--nebula-font-label); font-size: 11px; color: var(--nebula-text-secondary); white-space: pre-wrap; border: 1px solid var(--nebula-plan-divider); border-radius: var(--oc-radius-control); }
 .nb .update-banner .ub-cmd { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--nebula-text-secondary); }
 .nb .update-banner .ub-cmd code { font-family: var(--nebula-font-mono); color: var(--nebula-mist-light); }
 /* row explicitly: the global `label` rule stacks its children in a column. */
@@ -2004,53 +2066,53 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .upd-panel { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--nebula-plan-divider); }
 .nb .upd-version { font-family: var(--nebula-font-mono); font-size: 11.5px; color: var(--nebula-text-tertiary); margin: 0 0 10px; }
 .nb .upd-state { font-size: 12.5px; color: var(--nebula-text-secondary); margin: 10px 0 0; line-height: 1.55; }
-.nb .upd-state.ok { color: #7dd6a0; }
-.nb .upd-state.bad { color: #e8a1a1; }
+.nb .upd-state.ok { color: var(--oc-ok); }
+.nb .upd-state.bad { color: var(--oc-danger); }
 .nb .upd-cmd-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .nb .upd-cmd-row code { font-family: var(--nebula-font-mono); font-size: 11.5px; color: var(--nebula-mist-light);
-  background: rgba(8,10,13,.6); border: 1px solid var(--nebula-glass-border); border-radius: 8px; padding: 6px 10px; }
+  background: rgb(var(--oc-scrim-rgb) / .6); border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-control); padding: 6px 10px; }
 .nb .upd-log { margin: 10px 0 0; padding: 10px 12px; max-height: 140px; overflow: auto;
   font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-secondary);
-  white-space: pre-wrap; border: 1px solid var(--nebula-plan-divider); border-radius: 8px; }
+  white-space: pre-wrap; border: 1px solid var(--nebula-plan-divider); border-radius: var(--oc-radius-control); }
 .nb .upd-mode-note { display: block; font-size: 11.5px; color: var(--nebula-text-tertiary); line-height: 1.5; margin-top: 2px; }
 .nb .upd-toggle { align-items: flex-start; }
 .nb .upd-steps { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .nb .upd-step { font-size: 12.5px; color: var(--nebula-text-secondary); line-height: 1.5;
   border-left: 2px solid var(--nebula-plan-divider); padding-left: 10px; }
-.nb .upd-step.ok { border-left-color: #7dd6a0; }
-.nb .upd-step.failed { border-left-color: #e8a1a1; }
-.nb .upd-step-name { font-family: var(--nebula-font-mono); font-size: 11.5px; color: var(--nebula-mist-light); }
-.nb .upd-step-status { font-family: var(--nebula-font-mono); font-size: 11px; color: var(--nebula-text-tertiary); }
-.nb .upd-step.ok .upd-step-status { color: #7dd6a0; }
-.nb .upd-step.failed .upd-step-status { color: #e8a1a1; }
+.nb .upd-step.ok { border-left-color: var(--oc-ok); }
+.nb .upd-step.failed { border-left-color: var(--oc-danger); }
+.nb .upd-step-name { font-family: var(--nebula-font-label); font-size: 11.5px; color: var(--nebula-mist-light); }
+.nb .upd-step-status { font-family: var(--nebula-font-label); font-size: 11px; color: var(--nebula-text-tertiary); }
+.nb .upd-step.ok .upd-step-status { color: var(--oc-ok); }
+.nb .upd-step.failed .upd-step-status { color: var(--oc-danger); }
 
 /* ---- moving cards between missions (AGB-49) ---- */
 /* the mission of the card, as a control instead of a label */
 .nb .d-mission {
-  appearance: none; background: rgba(10,12,16,.6);
-  border: 1px solid var(--nebula-glass-border); border-radius: 8px;
+  appearance: none; background: rgb(var(--oc-surface-deep-rgb) / .6);
+  border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-control);
   color: var(--nebula-text-secondary); font-family: var(--nebula-font-sans);
   font-size: 12.5px; padding: 6px 10px; width: 100%; max-width: 100%; min-width: 0;
   cursor: pointer; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
 }
-.nb .d-mission:focus { outline: none; border-color: rgba(209,217,235,.35); }
+.nb .d-mission:focus { outline: none; border-color: rgb(var(--oc-accent-rgb) / .35); }
 .nb .d-mission:disabled { opacity: .5; cursor: progress; }
 /* picking mode: the card stops opening and starts answering the checkbox */
 .nb .card.selectable { cursor: pointer; }
-.nb .card.picked { border-color: rgba(209,217,235,0.4); box-shadow: 0 0 0 1px rgba(209,217,235,0.18); }
-.nb .card-pick { flex: 0 0 auto; margin: 0; accent-color: #d1d9eb; cursor: pointer; }
+.nb .card.picked { border-color: var(--oc-border-strong); box-shadow: 0 0 0 1px rgb(var(--oc-accent-rgb) / 0.18); }
+.nb .card-pick { flex: 0 0 auto; margin: 0; accent-color: var(--oc-accent); cursor: pointer; }
 /* the bar only exists while a selection does, so it sits over the board */
 .nb .bulk-bar {
   position: fixed; z-index: 10; left: 50%; bottom: 24px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-  background: rgba(13, 15, 19, 0.94);
+  background: var(--oc-modal-bg);
 }
 .nb .bulk-count {
-  font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+  font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: 0.04em;
   color: var(--nebula-text-secondary);
 }
-.nb .bulk-err { font-size: 12px; color: #e8a1a1; max-width: 320px; }
-.nb .btn-ghost.on { color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.4); }
+.nb .bulk-err { font-size: 12px; color: var(--oc-danger); max-width: 320px; }
+.nb .btn-ghost.on { color: var(--nebula-text-primary); border-color: var(--oc-border-strong); }
 
 /* ============================================================
    PHONE: the board as one list you can read (AGB-58, AGB-62)
@@ -2141,8 +2203,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .filters-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
-    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-    font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+    border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
+    font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: 0.04em;
     padding: 6px 11px; cursor: pointer;
   }
   .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
@@ -2150,7 +2212,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-more.open {
     display: flex; flex-direction: column; align-items: stretch; gap: 8px;
     position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 40;
-    padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: 16px;
+    padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-panel);
     background: var(--nebula-panel-solid);
   }
   .nb .topbar-more .crumb { align-self: stretch; }
@@ -2199,8 +2261,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .filters-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
-    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-    font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
+    border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
+    font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: 0.04em;
     padding: 6px 11px; cursor: pointer;
   }
   .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
@@ -2209,7 +2271,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-more.open {
     display: flex; flex-direction: column; align-items: stretch; gap: 8px;
     position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 40;
-    padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: 16px;
+    padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-panel);
     /* opaque: the list scrolls under the bar, and a bright row title bleeding
        through the panel reads as a bug, not as depth */
     background: var(--nebula-panel-solid);
@@ -2228,7 +2290,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     position: fixed; top: auto; right: 0; bottom: 0; left: 0; z-index: 60;
     width: auto; max-width: none; max-height: min(80vh, 620px); overflow-y: auto;
     padding: 16px 16px max(16px, env(safe-area-inset-bottom));
-    border-radius: 18px 18px 0 0;
+    border-radius: var(--oc-radius-sheet) var(--oc-radius-sheet) 0 0;
   }
   .nb .topbar-more .filter-result { align-self: flex-start; }
   /* the state chips shrink to mark and count; the word returns with width */
@@ -2262,9 +2324,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     gap: var(--nebula-space-2);
     min-width: 0; margin-bottom: var(--nebula-space-3);
     padding: 8px 14px;
-    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-    background: rgba(255,255,255,0.03);
-    font-family: var(--nebula-font-mono); font-size: 12px;
+    border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill);
+    background: var(--oc-surface-subtle);
+    font-family: var(--nebula-font-label); font-size: 12px;
     letter-spacing: var(--nebula-tracking-wide);
     text-transform: uppercase; color: var(--nebula-text-secondary);
   }
@@ -2308,15 +2370,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .board-mobile .col {
     display: block;
     border: 1px solid var(--nebula-glass-border);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--oc-radius-tile);
+    background: rgb(var(--oc-white-rgb) / 0.02);
     overflow: hidden;
   }
   .nb .ml-row {
     display: flex; align-items: center; gap: 7px;
     min-height: 44px; padding: 0 10px;
     /* a hairline instead of a gap: the separation costs one pixel, not twelve */
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgb(var(--oc-white-rgb) / 0.05);
     cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   .nb .ml-row:last-child { border-bottom: 0; }
@@ -2325,23 +2387,23 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
      separation that costs no height at all: the row keeps its 44px and the
      screen keeps the same number of cards. The divider goes up with it,
      because on an OLED phone five percent of white on black is a rumour. */
-  .nb .ml-row { border-bottom-color: rgba(255, 255, 255, 0.08); }
-  .nb .ml-row:nth-child(odd) { background: rgba(255, 255, 255, 0.028); }
-  .nb .ml-row:active { background: rgba(255, 255, 255, 0.07); }
+  .nb .ml-row { border-bottom-color: rgb(var(--oc-white-rgb) / 0.08); }
+  .nb .ml-row:nth-child(odd) { background: rgb(var(--oc-white-rgb) / 0.028); }
+  .nb .ml-row:active { background: rgb(var(--oc-white-rgb) / 0.07); }
   .nb .ml-row.dim { opacity: 0.55; }
   /* running: the pulse becomes an edge, which costs no width at all */
-  .nb .ml-row.exec { box-shadow: inset 2px 0 0 #a9c7e8; }
-  .nb .ml-row.picked { background: rgba(169, 199, 232, 0.10); }
+  .nb .ml-row.exec { box-shadow: inset 2px 0 0 var(--oc-info); }
+  .nb .ml-row.picked { background: rgb(var(--oc-info-rgb) / 0.10); }
   .nb .ml-row .card-pick { flex: none; width: 16px; height: 16px; margin: 0; }
   /* the type in one character, coloured as its chip was */
   .nb .ml-type {
     flex: none; width: 11px; text-align: center;
-    font-family: var(--nebula-font-mono); font-size: 11px;
+    font-family: var(--nebula-font-label); font-size: 11px;
     font-weight: var(--nebula-weight-medium);
     color: var(--nebula-text-tertiary);
   }
-  .nb .ml-type.feature { color: #a9c7e8; }
-  .nb .ml-type.bug { color: #e8a1a1; }
+  .nb .ml-type.feature { color: var(--oc-info); }
+  .nb .ml-type.bug { color: var(--oc-danger); }
   .nb .ml-type.rfc { color: var(--nebula-mist-glow); }
   .nb .ml-row .cid {
     flex: none;
@@ -2365,8 +2427,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .ml-row .cli-name { max-width: 54px; font-size: 9px; }
   /* the review chip, reduced to the dot that still makes a person tap */
   .nb .ml-flag {
-    flex: none; width: 6px; height: 6px; border-radius: 50%;
-    background: #ffd9a0; box-shadow: 0 0 6px rgba(255, 217, 160, 0.5);
+    flex: none; width: 6px; height: 6px; border-radius: var(--oc-radius-circle);
+    background: var(--oc-warn); box-shadow: var(--oc-glow-pip);
   }
   /* the one number, on the edge, never shrinking a digit */
   .nb .ml-num {
@@ -2503,15 +2565,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb-auth .auth-err {
   display: flex; align-items: flex-start; gap: 8px;
   margin: 12px 0 0; padding: 10px 12px;
-  border: 1px solid rgba(232,161,161,.3); border-radius: 10px;
-  background: rgba(232,161,161,.06);
-  color: #e8a1a1; font-size: 12.5px; line-height: 1.45;
+  border: 1px solid rgb(var(--oc-danger-rgb) / .3); border-radius: var(--oc-radius-box);
+  background: rgb(var(--oc-danger-rgb) / .06);
+  color: var(--oc-danger); font-size: 12.5px; line-height: 1.45;
 }
 .nb-auth .auth-err::before {
   content: "!"; flex: none;
   width: 16px; height: 16px; margin-top: 1px;
-  border: 1px solid rgba(232,161,161,.5); border-radius: 50%;
-  font-family: var(--nebula-font-mono); font-size: 10px; line-height: 14px;
+  border: 1px solid rgb(var(--oc-danger-rgb) / .5); border-radius: var(--oc-radius-circle);
+  font-family: var(--nebula-font-label); font-size: 10px; line-height: 14px;
   text-align: center;
 }
 /* The rule a field has to satisfy, said under the field, before the submit
@@ -2519,15 +2581,15 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    an error, until somebody actually contradicts it. */
 .nb-auth .auth-rule {
   margin: 6px 0 0;
-  font-family: var(--nebula-font-mono); font-size: 10px;
+  font-family: var(--nebula-font-label); font-size: 10px;
   letter-spacing: .04em; color: var(--nebula-text-tertiary);
 }
-.nb-auth .auth-rule.ok { color: rgba(125, 214, 160, .8); }
-.nb-auth .auth-rule.bad { color: #e8a1a1; }
+.nb-auth .auth-rule.ok { color: rgb(var(--oc-ok-rgb) / .8); }
+.nb-auth .auth-rule.bad { color: var(--oc-danger); }
 
 .nb-auth .foot {
   margin: 18px 0 0;
-  font-family: var(--nebula-font-mono); font-size: 9.5px;
+  font-family: var(--nebula-font-label); font-size: 9.5px;
   letter-spacing: .03em; line-height: 1.6;
   color: var(--nebula-text-tertiary);
 }
@@ -2562,14 +2624,14 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     gap: 18px; margin-bottom: 18px; padding-right: 30px;
     /* the fade is painted on the strip itself so it travels with the scroll
        container instead of sitting over the pane below */
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
   }
   .nb .settabs button { scroll-snap-align: start; }
   .nb .tabs {
     padding-right: 26px;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
   }
 
   /* the money and policy tables stopped scrolling sideways at 940: below that
@@ -2628,12 +2690,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    target, at every width, and the box itself carries the system's accent. */
 .nb .upd-toggle { min-height: var(--nebula-tap); padding: 4px 0; }
 .nb .upd-toggle input { width: 16px; height: 16px; margin-top: 2px; }
-.nb .upd-toggle input:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); border-radius: 4px; }
+.nb .upd-toggle input:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); border-radius: var(--oc-radius-control-sm); }
 
 /* Every link that reads as an action gets the same ring as the buttons. */
 .nb .btn-ghost:focus-visible,
 .nb .reveal:focus-visible,
-.nb .ins-filter a:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); border-radius: 999px; }
+.nb .ins-filter a:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); border-radius: var(--oc-radius-pill); }
 
 /* The one screen with no chrome to escape by: at 320 the wizard panel gives
    up the last of its side padding rather than the width of its inputs. */
@@ -2696,12 +2758,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   }
   .nb .wiz-body .steps-ind li {
     padding: 9px 0 9px 14px;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 1px solid rgb(var(--oc-white-rgb) / 0.08);
     white-space: normal; overflow: visible;
     transition: opacity .3s, color .3s, border-color .3s;
   }
   .nb .wiz-body .steps-ind li.cur { border-left-color: var(--nebula-mist-glow); }
-  .nb .wiz-body .steps-ind li.done { border-left-color: rgba(125, 214, 160, .55); }
+  .nb .wiz-body .steps-ind li.done { border-left-color: rgb(var(--oc-ok-rgb) / .55); }
   /* A question set at 26px across 700px is a headline nobody reads as one
      line; it is given the measure a headline is read at, and the sentence
      under it the measure a sentence is read at. */
@@ -2799,7 +2861,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb-auth .auth-facts {
   margin: 0; padding: 0; list-style: none;
   display: flex; flex-direction: column; gap: 11px;
-  font-family: var(--nebula-font-mono); font-size: 11px;
+  font-family: var(--nebula-font-label); font-size: 11px;
   letter-spacing: .04em; line-height: 1.5;
   color: var(--nebula-text-tertiary);
 }
@@ -2807,7 +2869,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb-auth .auth-facts li::before {
   content: ""; flex: none;
   /* centred on the first line of its own item, whatever that line wraps to */
-  width: 4px; height: 4px; margin-top: 6px; border-radius: 50%;
+  width: 4px; height: 4px; margin-top: 6px; border-radius: var(--oc-radius-circle);
   background: var(--nebula-mist); opacity: .75;
 }
 
