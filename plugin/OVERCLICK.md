@@ -61,19 +61,36 @@ instance addresses, or organization-specific policies in this package.
 
 ## Hook defaults
 
-`SessionStart` and the post-delivery remote check are enabled by default.
-The stop guard and pre-create harness enforcement are installed but default to
-off. Enable either in the private OverClick config written by the installer:
+`SessionStart`, the post-delivery remote check, and local claim-marker updates
+are enabled by default on clients with hook support. The stop guard, pre-create
+harness enforcement, and claim guard are installed but default to off. Enable
+the blocking guards in the private OverClick config written by the installer:
 
 ```text
 enforce_stop=1
 enforce_harness=1
+enforce_claim=1
 ```
 
 The stop guard blocks exit while this token owns an executing card. The
 pre-create guard blocks a card whose harness does not match the board's live
-recommendation. Neither opt-in changes the card contract or grants permission
-to deploy.
+recommendation. The claim guard lets reads and investigation pass, but requires
+an active claim before `Edit`, `Write`, or a mutating `Bash` command. A successful
+`task_claim` writes the card ID and claim time to `.overclick/claim.json` for a
+fast local check; `task_deliver` and `task_release` remove it. When that marker is
+missing, a pending mutation checks the board before it blocks with
+`claima um card no board antes: task_claim {id}`. Neither opt-in changes the card
+contract or grants permission to deploy.
+
+Codex does not have a supported client-side equivalent for the claim guard, so
+the installer does not add this rule to Codex. Its coverage remains server-side:
+claim leases expire when abandoned, and the delivery verification introduced by
+OCL-23 rejects unverifiable delivery evidence. This limitation is why the guard
+must not be described as universal enforcement.
+
+The motivating incident happened on 2026-08-19: a Kimi worker executed OCL-37
+without claiming it, leaving the card `aberto` while real work was already in
+progress and therefore invisible to the board.
 
 ## Dispatching
 

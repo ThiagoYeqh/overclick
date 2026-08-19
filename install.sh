@@ -95,11 +95,13 @@ cp -R "$source_root/plugin/." "$plugin_target/"
 
 enforce_stop=$(read_private_setting enforce_stop 2>/dev/null || printf '0')
 enforce_harness=$(read_private_setting enforce_harness 2>/dev/null || printf '0')
+enforce_claim=$(read_private_setting enforce_claim 2>/dev/null || printf '0')
 cat >"$private_config" <<EOF
 url=$mcp_url
 token=$token
 enforce_stop=$enforce_stop
 enforce_harness=$enforce_harness
+enforce_claim=$enforce_claim
 EOF
 chmod 600 "$private_config"
 
@@ -177,7 +179,7 @@ if mode == "mcp":
         "url": os.environ["OC_MCP_URL"],
         "headers": {"Authorization": "Bearer " + os.environ["OC_MCP_TOKEN"]},
     }
-elif mode == "hooks":
+elif mode in ("hooks", "hooks-no-claim-guard"):
     source = json.loads(pathlib.Path(os.environ["OC_HOOK_SOURCE"]).read_text())
     target = os.environ["OC_PLUGIN_TARGET"]
     hooks = data.setdefault("hooks", {})
@@ -188,6 +190,8 @@ elif mode == "hooks":
             if not any("overclick" in command.lower() for command in commands):
                 kept.append(rule)
         for rule in rules:
+            if mode == "hooks-no-claim-guard" and any("claim-guard.sh" in hook.get("command", "") for hook in rule.get("hooks", [])):
+                continue
             serialized = json.dumps(rule).replace("${CLAUDE_PLUGIN_ROOT}", target)
             kept.append(json.loads(serialized))
         hooks[event] = kept
@@ -225,7 +229,10 @@ if (process.env.OC_JSON_MODE === "mcp") {
     const kept = (data.hooks[event] ?? []).filter(rule =>
       !(rule.hooks ?? []).some(h => (h.command ?? "").toLowerCase().includes("overclick"))
     );
-    const serialized = JSON.stringify(rules).split("${CLAUDE_PLUGIN_ROOT}").join(process.env.OC_PLUGIN_TARGET);
+    const selected = process.env.OC_JSON_MODE === "hooks-no-claim-guard"
+      ? rules.filter(rule => !(rule.hooks ?? []).some(hook => (hook.command ?? "").includes("claim-guard.sh")))
+      : rules;
+    const serialized = JSON.stringify(selected).split("${CLAUDE_PLUGIN_ROOT}").join(process.env.OC_PLUGIN_TARGET);
     data.hooks[event] = [...kept, ...JSON.parse(serialized)];
   }
 }
@@ -322,7 +329,9 @@ JSON
   quiet_try "Codex marketplace" codex plugin marketplace add "$codex_marketplace"
   quiet_try "Codex plugin" codex plugin add overclick@overclick
   write_codex_mcp
-  merge_json_config hooks "$install_home/.codex/hooks.json" "$plugin_target/hooks/hooks.json"
+  # Codex has no supported client-side claim guard. Keep the existing lifecycle
+  # integrations, while claim enforcement remains on the board for this CLI.
+  merge_json_config hooks-no-claim-guard "$install_home/.codex/hooks.json" "$plugin_target/hooks/hooks.json"
 fi
 
 if has_cli grok; then
