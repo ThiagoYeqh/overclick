@@ -1,6 +1,6 @@
 {
-  "id": "7607a93f-8d05-42f3-aea7-bd1191298533",
-  "prevId": "badb45ec-a2a1-43bf-ba7e-56353723dc0c",
+  "id": "854619fe-4cb1-4b1e-ad42-81d19e07fb98",
+  "prevId": "7607a93f-8d05-42f3-aea7-bd1191298533",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -713,6 +713,465 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mission_attempt": {
+      "name": "mission_attempt",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "mission_id": {
+          "name": "mission_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "executor": {
+          "name": "executor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_source": {
+          "name": "model_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transcript": {
+          "name": "transcript",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "mission_attempt_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'aberto'"
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_activity_at": {
+          "name": "last_activity_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "usage_segments": {
+          "name": "usage_segments",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_in": {
+          "name": "tokens_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_out": {
+          "name": "tokens_out",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_cache": {
+          "name": "tokens_cache",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reported_cost_usd": {
+          "name": "reported_cost_usd",
+          "type": "numeric(12, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cost_usd": {
+          "name": "cost_usd",
+          "type": "numeric(12, 6)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cost_source": {
+          "name": "cost_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cost_status": {
+          "name": "cost_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cost_unpriced_models": {
+          "name": "cost_unpriced_models",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cost_breakdown": {
+          "name": "cost_breakdown",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_ms": {
+          "name": "duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "server_duration_ms": {
+          "name": "server_duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "turns": {
+          "name": "turns",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "usage_estimated": {
+          "name": "usage_estimated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "usage_suspect": {
+          "name": "usage_suspect",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "usage_suspect_reason": {
+          "name": "usage_suspect_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_note": {
+          "name": "result_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_report_sequence": {
+          "name": "last_report_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "mission_attempt_mission_idx": {
+          "name": "mission_attempt_mission_idx",
+          "columns": [
+            {
+              "expression": "mission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mission_attempt_project_idx": {
+          "name": "mission_attempt_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mission_attempt_session_idx": {
+          "name": "mission_attempt_session_idx",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mission_attempt_open_mission_uidx": {
+          "name": "mission_attempt_open_mission_uidx",
+          "columns": [
+            {
+              "expression": "mission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"mission_attempt\".\"status\" = 'aberto'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mission_attempt_mission_id_mission_id_fk": {
+          "name": "mission_attempt_mission_id_mission_id_fk",
+          "tableFrom": "mission_attempt",
+          "tableTo": "mission",
+          "columnsFrom": [
+            "mission_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mission_attempt_project_id_project_id_fk": {
+          "name": "mission_attempt_project_id_project_id_fk",
+          "tableFrom": "mission_attempt",
+          "tableTo": "project",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "mission_attempt_status_finished_ck": {
+          "name": "mission_attempt_status_finished_ck",
+          "value": "(\"mission_attempt\".\"status\" = 'aberto' AND \"mission_attempt\".\"finished_at\" IS NULL) OR (\"mission_attempt\".\"status\" <> 'aberto' AND \"mission_attempt\".\"finished_at\" IS NOT NULL)"
+        },
+        "mission_attempt_suspect_reason_ck": {
+          "name": "mission_attempt_suspect_reason_ck",
+          "value": "\"mission_attempt\".\"usage_suspect\" = false OR \"mission_attempt\".\"usage_suspect_reason\" IS NOT NULL"
+        },
+        "mission_attempt_last_report_sequence_ck": {
+          "name": "mission_attempt_last_report_sequence_ck",
+          "value": "\"mission_attempt\".\"last_report_sequence\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.mission_attempt_report": {
+      "name": "mission_attempt_report",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "mission_attempt_id": {
+          "name": "mission_attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "checkpoint": {
+          "name": "checkpoint",
+          "type": "mission_attempt_checkpoint",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'rodada'"
+        },
+        "usage_segments": {
+          "name": "usage_segments",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_in": {
+          "name": "tokens_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_out": {
+          "name": "tokens_out",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_cache": {
+          "name": "tokens_cache",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_ms": {
+          "name": "duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "turns": {
+          "name": "turns",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estimated": {
+          "name": "estimated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_note": {
+          "name": "result_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "mission_attempt_report_attempt_idx": {
+          "name": "mission_attempt_report_attempt_idx",
+          "columns": [
+            {
+              "expression": "mission_attempt_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mission_attempt_report_mission_attempt_id_mission_attempt_id_fk": {
+          "name": "mission_attempt_report_mission_attempt_id_mission_attempt_id_fk",
+          "tableFrom": "mission_attempt_report",
+          "tableTo": "mission_attempt",
+          "columnsFrom": [
+            "mission_attempt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mission_attempt_report_attempt_sequence_uq": {
+          "name": "mission_attempt_report_attempt_sequence_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "mission_attempt_id",
+            "sequence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "mission_attempt_report_sequence_ck": {
+          "name": "mission_attempt_report_sequence_ck",
+          "value": "\"mission_attempt_report\".\"sequence\" > 0"
+        },
+        "mission_attempt_report_final_result_ck": {
+          "name": "mission_attempt_report_final_result_ck",
+          "value": "\"mission_attempt_report\".\"checkpoint\" = 'final' OR (\"mission_attempt_report\".\"result\" IS NULL AND \"mission_attempt_report\".\"result_note\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.model_price": {
@@ -1713,6 +2172,20 @@
           "primaryKey": false,
           "notNull": true
         },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "session_version": {
+          "name": "session_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
         "board_project_id": {
           "name": "board_project_id",
           "type": "text",
@@ -1870,6 +2343,23 @@
       "values": [
         "solo",
         "team"
+      ]
+    },
+    "public.mission_attempt_checkpoint": {
+      "name": "mission_attempt_checkpoint",
+      "schema": "public",
+      "values": [
+        "rodada",
+        "final"
+      ]
+    },
+    "public.mission_attempt_status": {
+      "name": "mission_attempt_status",
+      "schema": "public",
+      "values": [
+        "aberto",
+        "sucesso",
+        "abandonado"
       ]
     },
     "public.mission_status": {

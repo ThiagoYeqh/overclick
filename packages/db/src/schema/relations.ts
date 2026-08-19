@@ -3,6 +3,8 @@ import { executionAttempt } from "./execution-attempt";
 import { handoff } from "./handoff";
 import { mcpToken } from "./mcp-token";
 import { mission } from "./mission";
+import { missionAttempt } from "./mission-attempt";
+import { missionAttemptReport } from "./mission-attempt-report";
 import { project } from "./project";
 import { taskComment } from "./task-comment";
 import { task } from "./task";
@@ -48,6 +50,7 @@ export const missionRelations = relations(mission, ({ one, many }) => ({
     references: [workspace.id],
   }),
   tasks: many(task),
+  attempts: many(missionAttempt),
 }));
 
 export const projectRelations = relations(project, ({ one, many }) => ({
@@ -56,7 +59,33 @@ export const projectRelations = relations(project, ({ one, many }) => ({
     references: [workspace.id],
   }),
   tasks: many(task),
+  missionAttempts: many(missionAttempt),
 }));
+
+export const missionAttemptRelations = relations(
+  missionAttempt,
+  ({ one, many }) => ({
+    mission: one(mission, {
+      fields: [missionAttempt.missionId],
+      references: [mission.id],
+    }),
+    project: one(project, {
+      fields: [missionAttempt.projectId],
+      references: [project.id],
+    }),
+    reports: many(missionAttemptReport),
+  }),
+);
+
+export const missionAttemptReportRelations = relations(
+  missionAttemptReport,
+  ({ one }) => ({
+    attempt: one(missionAttempt, {
+      fields: [missionAttemptReport.missionAttemptId],
+      references: [missionAttempt.id],
+    }),
+  }),
+);
 
 export const taskRelations = relations(task, ({ one, many }) => ({
   project: one(project, {
