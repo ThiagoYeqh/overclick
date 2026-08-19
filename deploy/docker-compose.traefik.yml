@@ -2,9 +2,8 @@
 # Traefik you run yourself). The instance stays its own compose project with its own
 # volume and network; it just joins the proxy network and asks for a route.
 #
-#   docker compose -p overclick \
-#     -f deploy/docker-compose.cloud.yml \
-#     -f deploy/docker-compose.traefik.yml up -d --build
+# Hosted deploys must run ./deploy/deploy.sh so the overlay is selected through
+# the deploy-only COMPOSE_FILE.
 #
 # Set OVERCLICK_HOST (the domain) and PROXY_NETWORK (the proxy's docker network)
 # in deploy/.env. TLS comes from the resolver the proxy already uses.

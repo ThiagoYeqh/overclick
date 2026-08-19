@@ -1,7 +1,7 @@
 # OverClick cloud instance. Isolated from anything else on the host: own project
 # name (COMPOSE_PROJECT_NAME=overclick), own network, own volume, own port.
-# Bring it up with:
-#   docker compose -p overclick -f deploy/docker-compose.cloud.yml up -d --build
+# Hosted deploys must run ./deploy/deploy.sh so COMPOSE_FILE and the deploy lock
+# are applied consistently. This direct command is for diagnostics only.
 name: overclick
 
 services:

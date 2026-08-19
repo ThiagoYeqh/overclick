@@ -1,5 +1,8 @@
+# LOCAL QUICKSTART ONLY — NEVER use this file for a hosted instance.
+# Hosted deploys must use ./deploy/deploy.sh, which pins COMPOSE_FILE to deploy/.
 # One command: docker compose up --build
 # Data stays in this compose project. Nothing phones home.
+name: overclick-quickstart
 
 services:
   postgres:
