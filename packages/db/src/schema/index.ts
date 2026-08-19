@@ -10,6 +10,7 @@ export { workspace } from "./workspace";
 export { user } from "./user";
 export { mission } from "./mission";
 export { project } from "./project";
+export { projectContextAudit } from "./project-context-audit";
 export { task } from "./task";
 export { taskComment } from "./task-comment";
 export { executionAttempt } from "./execution-attempt";
@@ -25,6 +26,7 @@ export {
   mcpTokenRelations,
   missionRelations,
   projectRelations,
+  projectContextAuditRelations,
   taskCommentRelations,
   taskRelations,
   workspaceRelations,

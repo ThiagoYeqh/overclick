@@ -267,6 +267,37 @@ export const ProjectCardCountsSchema = z.object({
   descartado: z.number().int().nonnegative(),
 });
 
+const GitHubRepoRefSchema = z
+  .string()
+  .trim()
+  .regex(/^[^/\s]+\/[^:/\s]+(?:\.git)?$/, "use owner/repo");
+
+const GitHubContextFileRefSchema = z
+  .string()
+  .trim()
+  .regex(/^[^/\s]+\/[^:/\s]+:[^\s]+$/, "use owner/repo:path/to/context.md");
+
+export const ProjectContextRefreshSchema = z.enum([
+  "on_release",
+  "daily",
+  "manual",
+]);
+
+/** Optional sources that can update a project's managed context. */
+export const ProjectContextSourceSchema = z
+  .object({
+    releases_repo: GitHubRepoRefSchema.optional(),
+    context_file: GitHubContextFileRefSchema.optional(),
+    refresh: ProjectContextRefreshSchema.default("manual"),
+  })
+  .strict()
+  .refine(
+    (value) => Boolean(value.releases_repo || value.context_file),
+    "context_source needs releases_repo or context_file",
+  );
+
+export type ProjectContextSource = z.infer<typeof ProjectContextSourceSchema>;
+
 export const ProjectSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -285,6 +316,9 @@ export const ProjectSchema = z.object({
 export const ProjectDetailSchema = ProjectSchema.extend({
   context: z.string().nullable(),
   current_version: z.string().nullable(),
+  latest_prerelease: z.string().nullable(),
+  context_updated_at: IsoDateTimeSchema.nullable(),
+  context_source: ProjectContextSourceSchema.nullable(),
 });
 
 export const TaskSummarySchema = z.object({

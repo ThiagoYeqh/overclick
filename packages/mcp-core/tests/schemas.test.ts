@@ -33,12 +33,13 @@ describe("model-specific efforts", () => {
 });
 
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 26 tools", () => {
+  it("exports input and output schemas for all 27 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "project_list",
       "project_get",
       "project_create",
       "project_update",
+      "project_context_refresh",
       "project_delete",
       "mission_list",
       "mission_get",

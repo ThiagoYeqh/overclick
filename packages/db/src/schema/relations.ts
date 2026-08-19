@@ -4,6 +4,7 @@ import { handoff } from "./handoff";
 import { mcpToken } from "./mcp-token";
 import { mission } from "./mission";
 import { project } from "./project";
+import { projectContextAudit } from "./project-context-audit";
 import { taskComment } from "./task-comment";
 import { task } from "./task";
 import { user } from "./user";
@@ -50,12 +51,23 @@ export const missionRelations = relations(mission, ({ one, many }) => ({
   tasks: many(task),
 }));
 
+export const projectContextAuditRelations = relations(
+  projectContextAudit,
+  ({ one }) => ({
+    project: one(project, {
+      fields: [projectContextAudit.projectId],
+      references: [project.id],
+    }),
+  }),
+);
+
 export const projectRelations = relations(project, ({ one, many }) => ({
   workspace: one(workspace, {
     fields: [project.workspaceId],
     references: [workspace.id],
   }),
   tasks: many(task),
+  contextAudits: many(projectContextAudit),
 }));
 
 export const taskRelations = relations(task, ({ one, many }) => ({

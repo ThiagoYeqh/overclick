@@ -1,4 +1,5 @@
-import { project, workspace } from "@agent-board/db";
+import { project, projectContextAudit, workspace } from "@agent-board/db";
+import { eq } from "drizzle-orm";
 import {
   ProjectCreateOutputSchema,
   ProjectDeleteOutputSchema,
@@ -219,6 +220,50 @@ describe("projects over MCP", () => {
     if (tooLong.ok) return;
     expect(tooLong.error.code).toBe("INVALID_ARGUMENT");
     expect(tooLong.error.message).toContain("32000");
+  });
+
+  it("round-trips context sources and records manual updates", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "project_create", {
+      name: "Synced project",
+      id_prefix: "SYN",
+      context_source: {
+        releases_repo: "owner/releases",
+        context_file: "owner/releases:context.md",
+        refresh: "daily",
+      },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const projectOut = ProjectCreateOutputSchema.parse(created.value).project;
+    expect(projectOut.context_source).toEqual({
+      releases_repo: "owner/releases",
+      context_file: "owner/releases:context.md",
+      refresh: "daily",
+    });
+    expect(projectOut.latest_prerelease).toBeNull();
+    expect(projectOut.context_updated_at).not.toBeNull();
+
+    const got = await invokeTool(world.db, ctx(), "project_get", {
+      project_id: "SYN",
+      view: "full",
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(ProjectGetOutputSchema.parse(got.value).project.context_source).toEqual(
+      projectOut.context_source,
+    );
+
+    const updated = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: "SYN",
+      context: "# Manual context",
+    });
+    expect(updated.ok).toBe(true);
+    const audits = await world.db
+      .select({ source: projectContextAudit.source })
+      .from(projectContextAudit)
+      .where(eq(projectContextAudit.projectId, projectOut.id));
+    expect(audits.some((row) => row.source === "manual")).toBe(true);
   });
 
   it("takes an explicit prefix and refuses one already in use", async () => {

@@ -7,6 +7,7 @@ import {
   mcpToken,
   mission,
   project,
+  projectContextAudit,
   task,
   taskComment,
   user,
@@ -23,6 +24,7 @@ describe("complete schema from spec §3", () => {
     expect(getTableName(user)).toBe("user");
     expect(getTableName(mission)).toBe("mission");
     expect(getTableName(project)).toBe("project");
+    expect(getTableName(projectContextAudit)).toBe("project_context_audit");
     expect(getTableName(task)).toBe("task");
     expect(getTableName(executionAttempt)).toBe("execution_attempt");
     expect(getTableName(handoff)).toBe("handoff");
@@ -107,10 +109,28 @@ describe("complete schema from spec §3", () => {
         "workspaceId",
         "name",
         "repoUrl",
+        "contextSource",
+        "latestPrerelease",
+        "contextUpdatedAt",
         "idPrefix",
         "nextNumber",
         "createdAt",
         "updatedAt",
+      ]),
+    );
+  });
+
+  it("project context audit keeps source, actor and idempotency reference", () => {
+    expect(columnNames(projectContextAudit)).toEqual(
+      expect.arrayContaining([
+        "projectId",
+        "source",
+        "sourceRef",
+        "version",
+        "prerelease",
+        "summary",
+        "actor",
+        "createdAt",
       ]),
     );
   });

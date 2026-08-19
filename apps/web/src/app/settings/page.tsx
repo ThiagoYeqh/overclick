@@ -74,6 +74,7 @@ export default async function SettingsPage({
       idPrefix: true,
       context: true,
       currentVersion: true,
+      contextSource: true,
     },
   });
   const proj = projects[0];
@@ -218,6 +219,13 @@ export default async function SettingsPage({
           idPrefix: row.idPrefix,
           context: row.context ?? "",
           currentVersion: row.currentVersion ?? "",
+          contextSource: row.contextSource
+            ? {
+                releasesRepo: row.contextSource.releasesRepo,
+                contextFile: row.contextSource.contextFile,
+                refresh: row.contextSource.refresh,
+              }
+            : null,
         }))}
         executors={selection}
         lang={ws.language}

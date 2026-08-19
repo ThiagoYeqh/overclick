@@ -213,6 +213,19 @@ export function mapProjectDetail(
     ...mapProject(row, cards),
     context: row.context,
     current_version: row.currentVersion,
+    latest_prerelease: row.latestPrerelease,
+    context_updated_at: row.contextUpdatedAt ? iso(row.contextUpdatedAt) : null,
+    context_source: row.contextSource
+      ? {
+          ...(row.contextSource.releasesRepo
+            ? { releases_repo: row.contextSource.releasesRepo }
+            : {}),
+          ...(row.contextSource.contextFile
+            ? { context_file: row.contextSource.contextFile }
+            : {}),
+          refresh: row.contextSource.refresh,
+        }
+      : null,
   };
 }
 
