@@ -301,6 +301,40 @@ describe("task_create canonical flow", () => {
     }
   });
 
+  it("supports compact and explicit full-content read modes", () => {
+    const taskGet = toolContracts.task_get.input;
+    expect(taskGet.parse({ task_id: "OCL-52" })).toEqual({
+      task_id: "OCL-52",
+    });
+    expect(
+      taskGet.parse({
+        task_id: "OCL-52",
+        view: "briefing",
+      }).view,
+    ).toBe("briefing");
+    expect(
+      taskGet.parse({
+        task_id: "OCL-52",
+        include: ["briefing", "usage_recipe", "mission"],
+      }).include,
+    ).toEqual(["briefing", "usage_recipe", "mission"]);
+    expect(
+      toolContracts.mission_get.input.parse({
+        mission_id: "mission_1",
+        view: "full",
+      }).view,
+    ).toBe("full");
+    expect(
+      toolContracts.project_get.input.parse({
+        project_id: "OC",
+        include: ["context"],
+      }).include,
+    ).toEqual(["context"]);
+    expect(
+      taskGet.safeParse({ task_id: "OCL-52", briefing: true }).success,
+    ).toBe(false);
+  });
+
   it("requires origem identity from the caller", () => {
     const result = TaskCreateInputSchema.safeParse({
       project_id: "proj_1",

@@ -19,11 +19,12 @@ import {
   PrioritySchema,
   ProjectDetailSchema,
   ProjectSchema,
+  ReadOptionsSchema,
   ReviewerSchema,
   StoredTranscriptRefSchema,
   SubtaskCreateSchema,
   TaskSchema,
-  TaskSummarySchema,
+  TaskListItemSchema,
   TaskTypeSchema,
   TranscriptRefSchema,
   UsageSchema,
@@ -39,10 +40,17 @@ export const MissionListOutputSchema = z.object({
 
 export const MissionGetInputSchema = z.object({
   mission_id: z.string().min(1),
+  ...ReadOptionsSchema.shape,
 }).strict();
 
+const MissionReadSchema = MissionSummarySchema.extend({
+  /** Present only with `view: briefing|full` or `include: [context]`. */
+  objective: z.string().optional(),
+  context: z.string().optional(),
+});
+
 export const MissionGetOutputSchema = z.object({
-  mission: MissionSchema,
+  mission: MissionReadSchema,
 });
 
 /**
@@ -125,10 +133,17 @@ const ProjectVersionSchema = z.string().max(200);
 
 export const ProjectGetInputSchema = z.object({
   project_id: ProjectRefSchema,
+  ...ReadOptionsSchema.shape,
 }).strict();
 
+const ProjectReadSchema = ProjectSchema.extend({
+  /** Present only with `view: briefing|full` or `include: [context]`. */
+  context: z.string().nullable().optional(),
+  current_version: z.string().nullable().optional(),
+});
+
 export const ProjectGetOutputSchema = z.object({
-  project: ProjectDetailSchema,
+  project: ProjectReadSchema,
 });
 
 /**
@@ -245,7 +260,7 @@ export const TaskListInputSchema = z.object({
 }).strict();
 
 export const TaskListOutputSchema = z.object({
-  tasks: z.array(TaskSummarySchema),
+  tasks: z.array(TaskListItemSchema),
   /**
    * True when the board holds more cards than were returned. Say it out
    * loud: a caller that cannot tell a full answer from a cut one will read
@@ -265,6 +280,7 @@ const TaskIdSchema = z
 
 export const TaskGetInputSchema = z.object({
   task_id: TaskIdSchema,
+  ...ReadOptionsSchema.shape,
 }).strict();
 
 /**
@@ -285,8 +301,9 @@ export const UsageRecipeSchema = z.object({
 
 export const TaskGetOutputSchema = z.object({
   task: TaskSchema,
-  briefing_markdown: z.string(),
-  mission: MissionSchema.nullable(),
+  /** Heavy sections are absent unless the caller requests them. */
+  briefing_markdown: z.string().optional(),
+  mission: MissionSchema.nullable().optional(),
   branch_convention: BranchConventionSchema,
   usage_recipe: UsageRecipeSchema.nullable().optional(),
   /** Latest attempt reported usage outside the trustworthy claim window. */

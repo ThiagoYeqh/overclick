@@ -123,7 +123,7 @@ describe("MCP end-to-end against a test db", () => {
       const got = parseTool(
         await client.callTool({
           name: "task_get",
-          arguments: { task_id: created.task.short_id },
+          arguments: { task_id: created.task.short_id, view: "briefing" },
         }),
         TaskGetOutputSchema,
       );
