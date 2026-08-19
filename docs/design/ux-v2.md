@@ -164,19 +164,19 @@ graphic. Minimum 16px gap between the wordmark block and the first control.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ L1  overclick        ⚑ Minha revisão 24   ● 2 rodando   Custo ~US$ 27,10 ⋯  │  48px
+│ L1  overclick                            ● 2 rodando   Custo ~US$ 27,10 ⋯  │  48px
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ L2  [Todos os projetos ▾] [V1 — Zero investiga a fundo e leva o problema…▾] │  44px
 │     [⧩ Filtros ②]  26 cards · [limpar]              [Mover para missão]     │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **L1** never wraps, never truncates: wordmark left; right side is exactly four
-  items — review chip, running chip, cost stat (§4), account menu `⋯`. All follow
+- **L1** never wraps, never truncates: wordmark left; right side is exactly three
+  items — running chip, cost stat (§4), account menu `⋯`. All follow
   the Control anatomy; the stat is text, not a pill.
 - **L2** owns filtering. Mission chip may grow to ~60ch before ellipsis + title
   tooltip. "Mover para missão" appears only with cards selected, right-aligned.
-- <1100px: L1 folds review/running into `⋯`. <768px: L2 collapses to a single
+- <1100px: L1 folds running into `⋯`. <768px: L2 collapses to a single
   `[⧩ Filtros]` control opening a sheet; L1 keeps wordmark + stat + `⋯`.
 - Both levels sit on `--oc-bg` with a single 1px `--oc-border` under L2. No glass.
 

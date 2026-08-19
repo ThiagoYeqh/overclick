@@ -254,10 +254,9 @@
    that only exists while a box is flex is a gap that disappears exactly
    where the layout changed. */
 
-/* A mark leading a label inside a control. The gap is declared and not left
-   to the space between the words: flex drops a whitespace-only text node, so
-   a chip that read "Minha revisão 20" would render "Minha revisão20" the
-   moment the control became flex to hold an icon. */
+/* A mark leading a label inside a control. The gap is declared rather than
+   left to a whitespace-only text node, which flex drops when a control gains
+   an icon. */
 .nb .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
 
 /* the columns: the mark anchors the head, the word still names it */
@@ -660,7 +659,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   letter-spacing: 0.05em; color: var(--nebula-text-secondary);
 }
 /* One dot, wherever the running state is shown: on the chip in level 1 and
-   on the line that chip folds into inside the account menu. Flat, no halo —
+   on its line inside the account menu. Flat, no halo —
    ux-v2 §1 retires the glow, which was the only thing on the bar drawing a
    coloured light around itself. */
 .nb .agent-status .dot, .nb .am-state .dot {
@@ -679,10 +678,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .btn-ghost:hover { color: var(--nebula-text-primary); border-color: var(--oc-border-hover); }
 .nb .btn-ghost .badge { color: var(--oc-badge-fg); font-weight: 600; }
 
-/* ---------- the work-state chips (OCL-20) ----------
-   Review and running are not navigation: they are what the board is doing,
-   so they stay on the bar at every width. Each is a jump to the column it
-   counts, at the smallest width that still reads. */
+/* ---------- the running-state chip (OCL-20) ----------
+   Running is not navigation: it is what the board is doing, so it stays on
+   the bar at every width. It jumps to the column it counts. */
 .nb .state-chip {
   display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: 0.05em;
@@ -693,9 +691,6 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   transition: color 0.3s var(--nebula-ease-atmosphere), border-color 0.3s var(--nebula-ease-atmosphere);
 }
 .nb .state-chip:hover { color: var(--nebula-text-primary); border-color: var(--oc-border-hover); }
-.nb .state-chip .badge { color: var(--oc-badge-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* on the desktop the running chip spells its count out in words */
-.nb .agent-status .badge { display: none; }
 
 /* ---------- the account menu (OCL-20) ----------
    One button on the hard right of the bar for everything that is not a
@@ -726,19 +721,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   text-decoration: none;
 }
 .nb .am-opt:hover { background: var(--oc-surface-hover); color: var(--nebula-text-primary); }
-/* under 1100px the two work-state chips leave level 1 and live here, one
-   line each, beside the navigation entries. They keep the count badge the
-   chip carried on the level, so the same number reads the same in both
-   places, and the group is separated from navigation by the same rule the
-   panel already uses. */
+/* Under 1100px the running state leaves level 1 and lives here beside the
+   navigation entries. The entry remains separated from navigation by the
+   same rule the panel already uses. */
 .nb .am-state { display: none; }
 .nb .am-state .sc-label { flex: 1; min-width: 0; }
-.nb .am-state .badge {
-  flex: none; min-width: 18px; padding: 0 5px; border-radius: 9px;
-  background: var(--nebula-mist-glow); color: var(--nebula-btn-light-text);
-  font-family: var(--nebula-font-mono); font-size: 11px; font-weight: 600;
-  font-variant-numeric: tabular-nums; text-align: center;
-}
 .nb .am-state .dot { flex: none; }
 
 /* ---------- the theme selector (OCL-56) ----------
@@ -901,7 +888,6 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    colour of its own */
 .nb .topbar-l2 .ff-trigger.on,
 .nb .topbar-l2 .mf-chip.on { color: var(--nebula-text-primary); }
-.nb .topbar-l1 .state-chip .badge,
 .nb .topbar-l2 .badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
@@ -909,11 +895,6 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-family: var(--nebula-font-mono); font-size: 11px; font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-/* The running chip spells its count out in words ("2 em execução"), so the
-   badge beside it would be the same number twice. The rule that hid it is
-   two specificity steps below the one above, which is how "● ② 2 em
-   execução" got onto the bar; it is restated here at the level. */
-.nb .topbar-l1 .agent-status .badge { display: none; }
 /* the mission chip is the bordered control; the trigger inside it stays
    bare so the whole chip is the hit area */
 .nb .topbar-l2 .mf-trigger, .nb .topbar-l2 .mf-clear {
@@ -2341,14 +2322,12 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .board-total .bt-sub { display: none; }
 }
 
-/* OCL-35 (ux-v2 §3): under 1100px level 1 folds the two work-state chips
-   into the account menu, which keeps a line for each. The telemetry stat
-   never leaves level 1. */
+/* OCL-35 (ux-v2 §3): under 1100px level 1 folds the running-state chip into
+   the account menu. The telemetry stat never leaves level 1. */
 @media (max-width: 1099px) {
   .nb .topbar-l1 .state-chip { display: none; }
   .nb .am-state { display: flex; }
-  /* work state is one group, navigation is another: the rule between them
-     is what the menu had while it carried the telemetry line */
+  /* The state entry and navigation stay visibly separate. */
   .nb .am-state + :not(.am-state) {
     margin-top: 4px; padding-top: 6px;
     border-top: 1px solid var(--nebula-glass-border);

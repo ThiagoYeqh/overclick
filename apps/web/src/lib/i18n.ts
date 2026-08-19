@@ -62,7 +62,6 @@ const en = {
     openFor: (value: string) => `open for ${value}`,
     /** The same, for the card line, where every word costs a column. */
     openShort: (value: string) => `open ${value}`,
-    myReview: "My review",
     /**
      * The running total of the board: the same numbers Insights reports for
      * the filter in force, on the one line the topbar has for them.
@@ -640,7 +639,6 @@ const ptBR: Dict = {
     assign: "Atribuir",
     assigning: "Atribuindo…",
     cancelSelection: "Cancelar",
-    myReview: "Minha revisão",
     totalLabel: "O que este board consumiu",
     totalCostLabel: "Custo",
     tokensWord: "tokens",

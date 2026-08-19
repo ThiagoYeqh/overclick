@@ -116,17 +116,15 @@ function BulkMissionBar({
 /**
  * The account and navigation menu (OCL-20): one button on the hard right of
  * the bar holding what is not a filter and not work state — Insights,
- * Settings and the way out. Under 1100px it also carries the two work-state
- * lines (review, running), which level 1 folds into it (ux-v2 §3). The
+ * Settings and the way out. Under 1100px it also carries the running
+ * work-state line, which level 1 folds into it (ux-v2 §3). The
  * dropdown closes on the same gesture as every other panel here: click away,
  * Escape.
  */
 function AccountMenu({
-  review,
   running,
   t,
 }: {
-  review: number;
   running: number;
   t: Dict;
 }) {
@@ -164,16 +162,8 @@ function AccountMenu({
       </button>
       {open ? (
         <div className="am-panel nebula-glass" role="menu" aria-label={t.board.accountMenu}>
-          {/* In level 1 at full width; here only when the level folds them
-              (the 1100px step). Same mark, same words, same count badge as
-              the chip they replace — a number that changes shape when it
-              moves reads as a different number. The telemetry stat never
-              leaves level 1. */}
-          <a className="am-opt am-state" role="menuitem" href="#board-col-feito">
-            <Icon name="review" label={null} size={14} />
-            <span className="sc-label">{t.board.myReview}</span>
-            <span className="badge">{review}</span>
-          </a>
+          {/* The running state leaves level 1 only at the 1100px step. The
+              telemetry stat never leaves level 1. */}
           <a className="am-opt am-state" role="menuitem" href="#board-col-em_execucao">
             <span className={`dot${running === 0 ? " idle" : ""}`} />
             <span className="sc-label">
@@ -278,7 +268,6 @@ export function HomeShell({
     [visible],
   );
   const running = visible.filter((card) => card.status === "em_execucao").length;
-  const review = visible.filter((card) => card.status === "feito").length;
   const selectedMission =
     filter.missionId && filter.missionId !== NO_MISSION
       ? missions.find((item) => item.id === filter.missionId) ?? null
@@ -321,24 +310,17 @@ export function HomeShell({
   return (
     <>
       {/* OCL-35 (ux-v2 §3): the bar is two levels now. Level 1 holds
-          identity, work state, telemetry and account, and it never wraps and
+          identity, running state, telemetry and account, and it never wraps and
           never truncates. Level 2 owns filtering, so a selected mission with
           a long title no longer squeezes everything else off the line. */}
       <header className="topbar-wrap">
         <div className="topbar topbar-l1">
           <Wordmark label={t.board.homeLink} current />
           <div className="spacer" />
-          {/* Work state stays visible: it is not navigation, it is what the
-              board is doing. Each chip jumps to the column it counts. Under
-              1100px the two chips fold into the account menu. */}
-          <a className="state-chip" href="#board-col-feito">
-            <Icon name="review" label={null} size={13} />
-            <span className="sc-label">{t.board.myReview}</span>
-            <span className="badge">{review}</span>
-          </a>
+          {/* Running state stays visible: it is not navigation, it is what the
+              board is doing. Under 1100px it folds into the account menu. */}
           <a className="state-chip agent-status" href="#board-col-em_execucao">
             <span className={`dot${running === 0 ? " idle" : ""}`} />
-            {running > 0 ? <span className="badge">{running}</span> : null}
             <span className="sc-label">
               {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
             </span>
@@ -346,7 +328,7 @@ export function HomeShell({
           {/* The figure that justifies the board stays readable at a glance;
               the reading of it moved into the popover it opens. */}
           <BoardTotal totals={totals} filter={filter} t={t} />
-          <AccountMenu review={review} running={running} t={t} />
+          <AccountMenu running={running} t={t} />
         </div>
         <div className="topbar-l2">
           {/* On the desktop the wrapper is transparent to the level, the
