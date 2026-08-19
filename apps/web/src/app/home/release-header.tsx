@@ -3,7 +3,7 @@
 import { boardFilterToQuery, type BoardFilter } from "../../lib/board-filter";
 import type { BoardTotals } from "../../lib/board-totals";
 import type { Dict } from "../../lib/i18n";
-import { fmtCostUsdOrNone, fmtTokens } from "../insights/format";
+import { formatMoneyOrNone, formatTokens } from "../../lib/format";
 import type { BoardCard, BoardMissionOption } from "./board";
 
 const RELEASE_STATUSES = [
@@ -83,19 +83,23 @@ export function ReleaseHeader({
         ))}
       </div>
 
+      {/* Money leads and says what it is; tokens follow with their unit
+          (ux-v2 §4). No figure in this row is a bare number. */}
       <div className="release-usage" aria-label={t.board.releaseUsage}>
         <span>
-          <b>{fmtTokens(totals.tokens)}</b>
-        </span>
-        <span>
+          <span className="bt-label">{t.board.totalCostLabel}</span>{" "}
           <b>
-            {fmtCostUsdOrNone(
+            {formatMoneyOrNone(
               totals.costUsd,
               totals.costUnpriced > 0
                 ? t.board.totalUnpriced(totals.costUnpriced)
                 : t.board.releaseCostUnavailable,
+              t.lang,
             )}
           </b>
+        </span>
+        <span>
+          <b>{formatTokens(totals.tokens)}</b> {t.board.tokensWord}
         </span>
         {notes.length > 0 ? <small>{notes.join(" · ")}</small> : null}
         <a href={insightsHref}>{t.board.totalOpenInsights}</a>

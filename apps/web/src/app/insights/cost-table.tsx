@@ -4,7 +4,12 @@ import { useMemo, useState } from "react";
 import { Icon } from "../../components/icon";
 import type { CardInsight } from "../../lib/insights";
 import { insightsCopy, type InsightsCopy } from "./copy";
-import { fmtCostUsd, fmtDurationMs, fmtElapsedMs, fmtTokens } from "./format";
+import {
+  formatDuration,
+  formatElapsed,
+  formatMoney,
+  formatTokens,
+} from "../../lib/format";
 
 type SortKey = "cost" | "tokens" | "time" | "attempts";
 
@@ -72,7 +77,7 @@ function CardFootnote({
         suspect
           .map(
             (c) =>
-              `${c.shortId} ${t.suspectSeparate(fmtTokens(c.suspectTokens))}`,
+              `${c.shortId} ${t.suspectSeparate(formatTokens(c.suspectTokens))}`,
           )
           .join(" · "),
       ),
@@ -83,7 +88,7 @@ function CardFootnote({
     items.push(
       t.footElapsed(
         elapsed
-          .map((c) => `${c.shortId} ${t.elapsedTag(fmtElapsedMs(c.elapsedMs))}`)
+          .map((c) => `${c.shortId} ${t.elapsedTag(formatElapsed(c.elapsedMs))}`)
           .join(" · "),
       ),
     );
@@ -249,11 +254,11 @@ export function CostTable({
                     <td className="num">
                       {card.costUsd != null ? (
                         <>
-                          <b>{fmtCostUsd(card.costUsd)}</b>
+                          <b>{formatMoney(card.costUsd, t.lang)}</b>
                           {card.unpricedTokens > 0 ? (
                             <span
                               className="ins-mark"
-                              title={t.noPriceTitle(fmtTokens(card.unpricedTokens))}
+                              title={t.noPriceTitle(formatTokens(card.unpricedTokens))}
                             >
                               ⌀
                             </span>
@@ -282,13 +287,13 @@ export function CostTable({
                     </td>
                   ) : null}
                   <td className="num">
-                    {fmtTokens(card.tokens)}
+                    {formatTokens(card.tokens)}
                     {card.estimated || card.missing || card.zeroUsage || card.suspect ? (
                       <span
                         className="ins-mark"
                         title={
                           card.suspect
-                            ? t.suspectSeparate(fmtTokens(card.suspectTokens))
+                            ? t.suspectSeparate(formatTokens(card.suspectTokens))
                             : card.missing
                               ? t.missingCount(1)
                               : card.zeroUsage
@@ -310,10 +315,10 @@ export function CostTable({
                       time it stayed open instead, labeled, never as work. */}
                   <td className="num">
                     {card.durationMs > 0 || card.elapsedMs === 0 ? (
-                      fmtDurationMs(card.durationMs)
+                      formatDuration(card.durationMs)
                     ) : (
                       <span className="ins-dim">
-                        {t.elapsedTag(fmtElapsedMs(card.elapsedMs))}
+                        {t.elapsedTag(formatElapsed(card.elapsedMs))}
                       </span>
                     )}
                   </td>

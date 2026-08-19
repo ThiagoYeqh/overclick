@@ -747,13 +747,18 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   letter-spacing: 0.04em; color: var(--nebula-text-secondary);
   font-variant-numeric: tabular-nums;
 }
-/* How many caveats ride with the figure, not which: the "what" and the
-   "why" are one click into the popover. */
-.nb .bt-warn {
-  font-family: var(--nebula-font-mono); font-size: 9px;
-  color: var(--nebula-text-secondary);
-  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-  padding: 1px 6px;
+/* The break between the figure and what supports it (ux-v2 §4). Size and
+   colour already say which one leads; the dot says where one number ends and
+   the next begins, so "27,10 175.8M" can never be read as one run. */
+.nb .bt-lead + .bt-sub::before { content: "· "; }
+/* The stat's own label ("Custo"): money never leads unnamed (ux-v2 §4).
+   Same quiet voice as the support numbers — the figure is the headline. */
+.nb .bt-label {
+  font-family: var(--nebula-font-mono); font-size: 10px;
+  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+}
+.nb .bt-popover .bt-note {
+  color: var(--nebula-text-primary);
 }
 .nb .board-total .bt-none {
   font-family: var(--nebula-font-mono); font-size: 11px;
@@ -2097,7 +2102,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    threshold is where the bar stops holding every label at its natural width,
    which is above 1440: a crumb reading "Agent Bo…" on the widest screen in
    the house is the same complaint as a crumb on three lines. */
-@media (max-width: 1500px) {
+/* The stat used to spend this width on four bare numbers and a caveat pill,
+   so the support had to go early. Labeled money is shorter than that, and
+   ux-v2 §4 wants the tokens and the time reading behind it: they hold now
+   at the widths that have the room. Measured, not guessed: at 1100 the bar
+   overflows by 40px with them on, so they fold one step before the stat
+   itself moves into the account menu. */
+@media (max-width: 1199px) {
   .nb .board-total .bt-sub { display: none; }
 }
 

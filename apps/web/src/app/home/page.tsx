@@ -23,6 +23,13 @@ import { resolveBoardFilter } from "../../lib/board-filter";
 import { loadBoardTotals } from "../../lib/board-totals-query";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
+import {
+  approx,
+  formatDuration,
+  formatElapsed,
+  formatMoney,
+  formatTokens,
+} from "../../lib/format";
 import { dict, type Dict } from "../../lib/i18n";
 import { loadModelPrices } from "../../lib/prices";
 import {
@@ -44,70 +51,15 @@ import { HomeShell } from "./home-shell";
 
 export const dynamic = "force-dynamic";
 
-function fmtDurationMs(ms: number): string {
-  const m = Math.round(ms / 60000);
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m / 60);
-  return `${h}h${String(m % 60).padStart(2, "0")}`;
-}
-
-/**
- * Elapsed time, rounded to the unit it can honestly claim. A claim that sat
- * open all weekend is not precise to the minute, and "41h03" printed to the
- * minute is exactly what makes waiting read as work.
- */
-function fmtElapsedMs(ms: number): string {
-  const m = Math.round(ms / 60000);
-  if (m < 60) return `${m} min`;
-  const h = Math.round(m / 60);
-  if (h < 72) return `${h}h`;
-  return `${Math.round(h / 24)}d`;
-}
-
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) {
-    const v = (n / 1_000_000).toFixed(1).replace(".0", "");
-    return `${v}M tok`;
-  }
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k tok`;
-  return `${n} tok`;
-}
-
 /*
- * The card line is three lines of card and one of them is this one. Every
- * character it spends on a unit or on a word is a character it does not have
- * for the numbers, so the compact spellings below drop both: "5m" not "5 min",
- * "155k" not "155k tok", "$1.21" not "~US$ 1.21 computed". Nothing is lost,
- * the detail panel still prints the whole thing in words.
+ * Number formatting lives in one place now (lib/format.ts, ux-v2.md §4).
+ * What stays here is only the prose wrapper: the detail panel spells tokens
+ * with their unit word, the card line spends it on numbers instead.
  */
 
-function fmtDurationShort(ms: number): string {
-  const m = Math.round(ms / 60000);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return `${h}h${String(m % 60).padStart(2, "0")}`;
-}
-
-function fmtTokensShort(n: number): string {
-  if (n >= 1_000_000) {
-    const v = (n / 1_000_000).toFixed(1).replace(".0", "");
-    return `${v}M`;
-  }
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
-  return `${n}`;
-}
-
-function fmtCostShort(value: number): string {
-  return `$${value.toFixed(2)}`;
-}
-
-/**
- * The tilde says the number is not exact: an estimate the agent volunteered,
- * or a price the board worked out from a table. One symbol replaces the word
- * "estimated" the line used to carry at the end.
- */
-function approx(text: string, isApprox: boolean): string {
-  return isApprox ? `~${text}` : text;
+/** The detail panel's prose spelling: the number with its unit word. */
+function fmtTokensProse(n: number): string {
+  return `${formatTokens(n)} tok`;
 }
 
 function fmtElapsed(from: Date, t: Dict): string {
@@ -175,8 +127,8 @@ async function loadTasks(projectIds: string[]) {
  */
 function fmtResolvedDuration(duration: ResolvedDuration, tr: Dict): string {
   return duration.source === "reported"
-    ? fmtDurationMs(duration.ms)
-    : tr.board.openFor(fmtElapsedMs(duration.ms));
+    ? formatDuration(duration.ms)
+    : tr.board.openFor(formatElapsed(duration.ms));
 }
 
 /**
@@ -190,8 +142,8 @@ function fmtShortDuration(
   tr: Dict,
 ): string {
   return duration.source === "reported"
-    ? approx(fmtDurationShort(duration.ms), isEstimate)
-    : tr.board.openShort(fmtElapsedMs(duration.ms));
+    ? approx(formatDuration(duration.ms), isEstimate)
+    : tr.board.openShort(formatElapsed(duration.ms));
 }
 
 /** Both clocks for the detail panel, each one only when it was measured. */
@@ -201,13 +153,22 @@ function toDurationView(
   if (!duration) return null;
   return {
     execution:
-      duration.executionMs != null ? fmtDurationMs(duration.executionMs) : null,
+      duration.executionMs != null ? formatDuration(duration.executionMs) : null,
     elapsed:
-      duration.elapsedMs != null ? fmtElapsedMs(duration.elapsedMs) : null,
+      duration.elapsedMs != null ? formatElapsed(duration.elapsedMs) : null,
   };
 }
 
-/** "~US$ 0.42 computed": a dollar figure never travels without its source. */
+/**
+ * "~US$ 0,42 calculado": a dollar figure never travels without its source.
+ * The tilde belongs to the source, not to money in general — a cost the agent
+ * measured and reported is exact, one the board worked out from its price
+ * table or an agent volunteered as an estimate is not.
+ */
+function isApproxCost(source: CostSource | null): boolean {
+  return source === "computed" || source === "estimated";
+}
+
 function fmtCost(value: number, source: CostSource | null, tr: Dict): string {
   const label =
     source === "computed"
@@ -215,7 +176,7 @@ function fmtCost(value: number, source: CostSource | null, tr: Dict): string {
       : source === "estimated"
         ? tr.board.costEstimated
         : tr.board.costReported;
-  return `~US$ ${value.toFixed(2)} ${label}`;
+  return `${approx(formatMoney(value, tr.lang), isApproxCost(source))} ${label}`;
 }
 
 /**
@@ -378,10 +339,10 @@ function toBoardCard(
         });
       }
       if (tokens > 0) {
-        parts.push(fmtTokens(tokens));
+        parts.push(fmtTokensProse(tokens));
         telemetryLine.push({
           kind: "tokens",
-          text: approx(fmtTokensShort(tokens), isEstimate),
+          text: approx(formatTokens(tokens), isEstimate),
         });
       }
       // Money only when the workspace asked for it. When it did, the board
@@ -392,11 +353,15 @@ function toBoardCard(
           latestAttempt.costUsd != null ? Number(latestAttempt.costUsd) : null;
         if (costUsd != null) {
           parts.push(fmtCost(costUsd, latestAttempt.costSource, tr));
-          // A price off a table is approximate whatever fed it, so the tilde
-          // stays; what goes is the word saying where the figure came from.
+          // The card line keeps the tilde and drops the word behind it: the
+          // detail panel still names the source, and the tilde only rides a
+          // figure the board worked out or an agent estimated.
           telemetryLine.push({
             kind: "cost",
-            text: approx(fmtCostShort(costUsd), true),
+            text: approx(
+              formatMoney(costUsd, tr.lang),
+              isApproxCost(latestAttempt.costSource),
+            ),
           });
         }
         const unpriced = latestAttempt.costUnpricedModels ?? [];
@@ -432,28 +397,29 @@ function toBoardCard(
     const isEstimate = u.estimated ?? false;
     // No attempt behind it, so the only clock here is the agent's own.
     if (u.duration_ms != null) {
-      parts.push(fmtDurationMs(u.duration_ms));
-      duration = { execution: fmtDurationMs(u.duration_ms), elapsed: null };
+      parts.push(formatDuration(u.duration_ms));
+      duration = { execution: formatDuration(u.duration_ms), elapsed: null };
       telemetryLine.push({
         kind: "duration",
-        text: approx(fmtDurationShort(u.duration_ms), isEstimate),
+        text: approx(formatDuration(u.duration_ms), isEstimate),
       });
     }
     const tokens = (u.tokens_in ?? 0) + (u.tokens_out ?? 0) + (u.tokens_cache ?? 0);
     if (tokens > 0) {
-      parts.push(fmtTokens(tokens));
+      parts.push(fmtTokensProse(tokens));
       telemetryLine.push({
         kind: "tokens",
-        text: approx(fmtTokensShort(tokens), isEstimate),
+        text: approx(formatTokens(tokens), isEstimate),
       });
     }
     ranModels = segmentModels(normalizeUsageSegments(u, null));
     // No attempt to price: this is the agent's own number, labeled as such.
     if (pricingEnabled && u.cost_usd != null) {
-      parts.push(fmtCost(u.cost_usd, u.estimated ? "estimated" : "reported", tr));
+      const source: CostSource = u.estimated ? "estimated" : "reported";
+      parts.push(fmtCost(u.cost_usd, source, tr));
       telemetryLine.push({
         kind: "cost",
-        text: approx(fmtCostShort(u.cost_usd), true),
+        text: approx(formatMoney(u.cost_usd, tr.lang), isApproxCost(source)),
       });
     }
     telemetry = parts.join(" · ") || null;
