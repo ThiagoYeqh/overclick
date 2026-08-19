@@ -30,6 +30,7 @@ import { MissionHeader } from "./mission-header";
 import { MissionFilter } from "./mission-filter";
 import { ProjectFilter } from "./project-filter";
 import { ReleaseHeader } from "./release-header";
+import { ThemePicker } from "./theme-picker";
 
 export type BoardProjectOption = { id: string; name: string; hasContext: boolean };
 export type { BoardMissionOption };
@@ -174,6 +175,9 @@ function AccountMenu({
             <Icon name="settings" label={null} size={14} />
             {t.board.settings}
           </a>
+          {/* The skin the board wears: under the two places this menu
+              navigates to, above the way out (OCL-56). */}
+          <ThemePicker t={t} />
           <form action={logoutAction}>
             <button className="am-opt" role="menuitem" type="submit">
               <Icon name="logout" label={null} size={14} />

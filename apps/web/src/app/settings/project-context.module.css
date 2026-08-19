@@ -30,7 +30,7 @@
   min-height: 360px;
   border: 1px solid var(--nebula-glass-border);
   border-radius: 10px;
-  background: rgba(10, 12, 16, .55);
+  background: rgb(var(--oc-surface-deep-rgb) / .55);
 }
 
 .editor {
@@ -65,7 +65,7 @@
 }
 
 .counterOver {
-  color: #e8a1a1;
+  color: var(--oc-danger);
 }
 
 .feedback {
