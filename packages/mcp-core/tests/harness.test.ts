@@ -527,3 +527,101 @@ describe("the line of succession", () => {
     );
   });
 });
+
+describe("cross-CLI fallback when a whole chain's executor is disabled (OCL-75)", () => {
+  // A policy pinned to codex alone: disabling codex leaves nothing in the
+  // chain, exactly the shape harness_set produces for an owner who wants one
+  // CLI in charge of an activity type.
+  const codexOnlyPolicy = [
+    {
+      type: "feature",
+      cli: "codex",
+      model: "gpt-5.6-sol",
+      chain: ["gpt-5.6-sol", "gpt-5.6-terra"],
+      effort: "high" as const,
+    },
+  ];
+
+  it("recommends the best same-tier executor still enabled, and marks it as a fallback", () => {
+    const result = recommendHarness({
+      type: "feature",
+      // codex is not configured at all here, standing in for "disabled":
+      // executorsFromWorkspace already filters those out before this ever runs.
+      executors: [
+        { id: "claude-code", cli: "claude-code", models: ["sonnet-5", "haiku-4-5"] },
+      ],
+      policy: codexOnlyPolicy,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // gpt-5.6-sol / gpt-5.6-terra are mid tier, and so is sonnet-5: the
+    // fallback lands on the closest stand-in, not just anything enabled.
+    expect(result.value.available).toBe("fallback");
+    expect(result.value.harness).toEqual({
+      cli: "claude-code",
+      model: "sonnet-5",
+      effort: "high",
+    });
+    expect(result.value.matched_executor).toEqual({
+      id: "claude-code",
+      cli: "claude-code",
+      model: "sonnet-5",
+    });
+    expect(result.value.divergence).toContain("gpt-5.6-sol");
+    expect(result.value.divergence).toContain("fallback");
+  });
+
+  it("climbs to a better tier rather than ever falling to a cheaper one", () => {
+    const result = recommendHarness({
+      type: "feature",
+      // No mid-tier model anywhere, only haiku-4-5 (cheap) and opus-5 (top).
+      // The rule is same tier, else better tier, never a silent downgrade.
+      executors: [{ id: "claude-code", cli: "claude-code", models: ["haiku-4-5", "opus-5"] }],
+      policy: codexOnlyPolicy,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.available).toBe("fallback");
+    expect(result.value.harness.model).toBe("opus-5");
+    expect(result.value.model_tier).toBe("top");
+  });
+
+  it("stays genuinely unavailable when nothing at or above the chain's tier runs", () => {
+    const result = recommendHarness({
+      type: "feature",
+      executors: [{ id: "claude-code", cli: "claude-code", models: ["haiku-4-5"] }],
+      policy: codexOnlyPolicy,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.available).toBe(false);
+    expect(result.value.matched_executor).toBeNull();
+  });
+
+  it("does not fall back when the chain resolved earlier and this retry simply ran out of links", () => {
+    // fable-5 and opus-5 both ran (and were rejected); gpt-5.6-sol is not
+    // configured. This is the ordinary "line ran out" case from the section
+    // above, not a disabled executor: no cross-CLI fallback should fire.
+    const result = recommendHarness({
+      type: "bug",
+      executors: [{ id: "cc", cli: "claude-code", models: ["fable-5", "opus-5"] }],
+      policy: [
+        {
+          type: "bug",
+          cli: "claude-code",
+          model: "fable-5",
+          chain: ["fable-5", "opus-5", "gpt-5.6-sol"],
+          effort: "medium" as const,
+        },
+      ],
+      attempt: 2,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.available).toBe(false);
+    expect(result.value.harness.model).toBe("fable-5");
+    expect(result.value.divergence).toBe(
+      "No model in the chain (fable-5 → opus-5 → gpt-5.6-sol) is among the configured executors.",
+    );
+  });
+});

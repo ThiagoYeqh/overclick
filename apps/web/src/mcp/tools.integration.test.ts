@@ -2320,6 +2320,45 @@ describe("MCP tool edge cases against a test db", () => {
     if (!badCli.ok) expect(badCli.error.code).toBe("INVALID_ARGUMENT");
   });
 
+  it("accepts a harness naming a disabled executor's model, with a warning instead of a block (OCL-75)", async () => {
+    world = await createTestWorld();
+    const off = await invokeTool(world.db, { ...ctx(), canManage: true }, "executors_update", {
+      cli: "claude-code",
+      enabled: false,
+      return: "ack",
+    });
+    expect(off.ok).toBe(true);
+
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Harness num executor desligado",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    // haiku-4-5 exists on claude-code, which is off; the write still applies.
+    const updated = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      harness: { cli: "claude-code", model: "haiku-4-5", effort: "low" },
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const out = TaskUpdateOutputSchema.parse(updated.value);
+    expect(out.task.harness).toEqual({
+      cli: "claude-code",
+      model: "haiku-4-5",
+      effort: "low",
+    });
+    expect(out.harness_warning).toContain("claude-code");
+    expect(out.harness_warning).toContain("disabled");
+  });
+
   it("returns NOT_FOUND when deleting a card that does not exist", async () => {
     world = await createTestWorld();
     const deleted = await invokeTool(world.db, ctx(), "task_delete", {

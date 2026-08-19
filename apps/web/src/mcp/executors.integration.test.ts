@@ -5,6 +5,7 @@ import {
   HarnessRecommendOutputSchema,
   TaskClaimOutputSchema,
   TaskCreateFullOutputSchema as TaskCreateOutputSchema,
+  toolContracts,
 } from "@agent-board/mcp-core";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
@@ -260,12 +261,20 @@ describe("executors_update manages the executor config over MCP", () => {
     expect(out.policy_warnings?.join(" ")).toContain("microcopy");
     expect(out.policy_warnings?.join(" ")).toContain("harness_set");
 
+    // The cheap chain is gone, but claude-code is still on with top-tier
+    // models: harness_recommend crosses to one of those rather than stalling,
+    // and says so with available:"fallback" instead of hiding behind a bare
+    // true or a useless false.
     const rec = await invokeTool(world.db, worker(), "harness_recommend", {
       type: "microcopy",
     });
     expect(rec.ok).toBe(true);
     if (!rec.ok) return;
-    expect(HarnessRecommendOutputSchema.parse(rec.value).available).toBe(false);
+    const recommended = HarnessRecommendOutputSchema.parse(rec.value);
+    expect(recommended.available).toBe("fallback");
+    expect(recommended.harness.model).toBe("fable-5");
+    expect(recommended.matched_executor?.cli).toBe("claude-code");
+    expect(recommended.divergence).toContain("fallback");
   });
 
   it("warns only about what this call broke, not about orphans it inherited", async () => {
@@ -365,5 +374,172 @@ describe("executors_update manages the executor config over MCP", () => {
         (item) => item.id === "claude-code",
       )?.enabled,
     ).toBe(false);
+  });
+
+  it("returns a compact ack that matches its own output schema (OCL-75 regression: removed used to sit inside changed, failing ExecutorsWriteAckSchema)", async () => {
+    world = await createTestWorld();
+    const off = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "claude-code",
+      enabled: false,
+      return: "ack",
+    });
+    expect(off.ok).toBe(true);
+    if (!off.ok) return;
+    // The real bug: this call site validates the tool's own output schema,
+    // the same check the MCP server runs on every response. It used to throw
+    // "invalid response from executors_update: Invalid input" here.
+    const parsed = toolContracts.executors_update.output.parse(off.value);
+    expect(parsed).toMatchObject({ id: "claude-code", removed: false });
+  });
+});
+
+describe("harness_recommend falls back across CLIs when a policy's own executor is off (OCL-75)", () => {
+  let world: TestWorld;
+
+  afterEach(async () => {
+    if (world) await closeTestWorld(world);
+  });
+
+  function worker() {
+    return {
+      tokenId: world.tokenId,
+      workspaceId: world.workspaceId,
+      tokenLabel: "test-agent",
+      canManage: false,
+    };
+  }
+
+  function manager() {
+    return {
+      tokenId: world.manageTokenId,
+      workspaceId: world.workspaceId,
+      tokenLabel: "owner-console",
+      canManage: true,
+    };
+  }
+
+  it("recommends the best available cross-CLI model with divergence, then returns to full policy on re-enable", async () => {
+    world = await createTestWorld();
+
+    // Real-world case (2026-08-19): the owner ran out of GPT limit and wants
+    // Codex off temporarily, without the cardápio turning into a dead end.
+    const addedCodex = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "codex",
+      label: "Codex",
+      add_models: ["gpt-5.6-sol", "gpt-5.6-terra"],
+    });
+    expect(addedCodex.ok).toBe(true);
+
+    const policySet = await invokeTool(world.db, manager(), "harness_set", {
+      type: "feature",
+      cli: "codex",
+      model: "gpt-5.6-sol",
+      chain: ["gpt-5.6-sol", "gpt-5.6-terra"],
+      effort: "high",
+    });
+    expect(policySet.ok).toBe(true);
+
+    const fullPolicy = await invokeTool(world.db, worker(), "harness_recommend", {
+      type: "feature",
+    });
+    expect(fullPolicy.ok).toBe(true);
+    if (!fullPolicy.ok) return;
+    expect(HarnessRecommendOutputSchema.parse(fullPolicy.value)).toMatchObject({
+      available: true,
+      harness: { cli: "codex", model: "gpt-5.6-sol" },
+    });
+
+    // 1. executors_update {cli: codex, enabled: false} -> a valid ack.
+    const disabled = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "codex",
+      enabled: false,
+      return: "ack",
+    });
+    expect(disabled.ok).toBe(true);
+    if (!disabled.ok) return;
+    toolContracts.executors_update.output.parse(disabled.value);
+
+    // 2. harness_recommend(feature) with codex off -> cross-CLI fallback,
+    // never a silent tier below, with a divergence explaining both halves.
+    const withFallback = await invokeTool(world.db, worker(), "harness_recommend", {
+      type: "feature",
+    });
+    expect(withFallback.ok).toBe(true);
+    if (!withFallback.ok) return;
+    const fallback = HarnessRecommendOutputSchema.parse(withFallback.value);
+    expect(fallback.available).toBe("fallback");
+    expect(fallback.harness.cli).toBe("claude-code");
+    expect(fallback.harness.model).toBe("sonnet-5");
+    expect(fallback.matched_executor).toMatchObject({
+      cli: "claude-code",
+      model: "sonnet-5",
+    });
+    expect(fallback.divergence).toContain("gpt-5.6-sol");
+    expect(fallback.divergence).toContain("fallback");
+
+    // 3. executors_update {cli: codex, enabled: true} + recommend -> full
+    // policy is back, no residue from the fallback detour.
+    const reenabled = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "codex",
+      enabled: true,
+      return: "ack",
+    });
+    expect(reenabled.ok).toBe(true);
+    if (!reenabled.ok) return;
+    toolContracts.executors_update.output.parse(reenabled.value);
+
+    const backToPolicy = await invokeTool(world.db, worker(), "harness_recommend", {
+      type: "feature",
+    });
+    expect(backToPolicy.ok).toBe(true);
+    if (!backToPolicy.ok) return;
+    expect(HarnessRecommendOutputSchema.parse(backToPolicy.value)).toMatchObject({
+      available: true,
+      harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+      chain_position: 0,
+    });
+  });
+
+  it("accepts task_create citing a disabled executor's model with a warning instead of blocking it", async () => {
+    world = await createTestWorld();
+    const addedCodex = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "codex",
+      label: "Codex",
+      add_models: ["gpt-5.6-sol"],
+    });
+    expect(addedCodex.ok).toBe(true);
+    const disabled = await invokeTool(world.db, manager(), "executors_update", {
+      cli: "codex",
+      enabled: false,
+    });
+    expect(disabled.ok).toBe(true);
+
+    // 4. task_create with a harness citing a disabled executor is accepted,
+    // not blocked, and says so with an explicit warning.
+    const created = await invokeTool(world.db, worker(), "task_create", {
+      project_id: world.projectId,
+      title: "Card pinned to a disabled executor",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem: { cli: "codex" },
+      harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const out = TaskCreateOutputSchema.parse(created.value);
+    expect(out.task.harness).toMatchObject({ cli: "codex", model: "gpt-5.6-sol" });
+    expect(out.harness_warning).toContain("codex");
+    expect(out.harness_warning).toContain("disabled");
+
+    // task_update citing the same disabled executor is likewise accepted.
+    const updated = await invokeTool(world.db, worker(), "task_update", {
+      task_id: out.task.short_id,
+      harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    expect(updated.value).toHaveProperty("harness_warning");
   });
 });

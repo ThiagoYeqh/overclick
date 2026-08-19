@@ -343,6 +343,26 @@ function rowWriteAck(
   };
 }
 
+/**
+ * Compact acknowledgement for an executor mutation. `removed` sits at the top
+ * level, not inside `changed`: ExecutorsWriteAckSchema requires it there, and
+ * a caller branching on "did this delete the executor" should not have to dig
+ * into a record typed as unknown to find out.
+ */
+function executorsWriteAck(
+  id: string,
+  updatedAt: Date | string,
+  removed: boolean,
+  changed: ChangedFields,
+) {
+  return {
+    id,
+    updated_at: iso(updatedAt),
+    removed,
+    changed,
+  };
+}
+
 function jsonEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
@@ -2288,6 +2308,13 @@ async function taskCreate(
 
   const reviewer = reviewerToColumns(input.devolve_para);
   const harness = harnessToDb(rec.value.harness);
+  // The explicit path never blocks on an unavailable model, only the chain
+  // lookup does: a creator naming a disabled executor by hand still gets the
+  // card, just told why it will not run yet.
+  const harnessWarning =
+    input.harness && rec.value.available === false
+      ? await explicitHarnessWarning(db, ctx.workspaceId, input.harness)
+      : undefined;
 
   return db.transaction(async (tx) => {
     const original = input.supersedes
@@ -2409,6 +2436,7 @@ async function taskCreate(
       return {
         task: mapTask(created, proj),
         subtasks: children.map((child) => mapTask(child, proj)),
+        ...(harnessWarning ? { harness_warning: harnessWarning } : {}),
       };
     }
 
@@ -2422,6 +2450,7 @@ async function taskCreate(
       ...(children.length
         ? { subtasks: children.map((child) => child.shortId) }
         : {}),
+      ...(harnessWarning ? { harness_warning: harnessWarning } : {}),
     };
     return taskWriteAck(created, changed);
   });
@@ -3128,6 +3157,7 @@ async function taskUpdate(
     }
   }
 
+  let harnessWarning: string | undefined;
   if (input.harness) {
     const resolved = await resolveHarnessAgainstExecutors(
       db,
@@ -3135,6 +3165,7 @@ async function taskUpdate(
       input.harness,
     );
     if (!resolved.ok) return resolved;
+    harnessWarning = resolved.value.warning;
     const [updated] = await db
       .update(task)
       .set({ harness: harnessToDb(resolved.value) })
@@ -3268,6 +3299,7 @@ async function taskUpdate(
   if (usageRecorded) changed.usage_recorded = true;
   if (subtasksMoved !== null) changed.subtasks_moved = subtasksMoved;
   if (projectMove) changed.project_move = projectMove;
+  if (harnessWarning) changed.harness_warning = harnessWarning;
 
   if (input.return !== "full") {
     return taskWriteAck(nextRow, changed);
@@ -3283,6 +3315,7 @@ async function taskUpdate(
     ...(usageRecorded ? { usage_recorded: true } : {}),
     ...(subtasksMoved !== null ? { subtasks_moved: subtasksMoved } : {}),
     ...(projectMove ? { project_move: projectMove } : {}),
+    ...(harnessWarning ? { harness_warning: harnessWarning } : {}),
   };
 }
 
@@ -3448,7 +3481,9 @@ async function resolveHarnessAgainstExecutors(
   db: McpDatabase,
   workspaceId: string,
   input: Harness,
-): Promise<Result<{ cli: string | null; model: string; effort: Harness["effort"] }>> {
+): Promise<
+  Result<{ cli: string | null; model: string; effort: Harness["effort"]; warning?: string }>
+> {
   const [ws] = await db
     .select()
     .from(workspace)
@@ -3460,18 +3495,77 @@ async function resolveHarnessAgainstExecutors(
       "The workspace for this token no longer exists. Generate a new token in the board Settings.",
     );
   }
-  return resolveHarnessAgainstConfig(executorsFromWorkspace(ws.executors), input);
+  return resolveHarnessAgainstConfig(executorsFromWorkspace(ws.executors), input, ws.executors);
+}
+
+/** A model that only exists on a switched-off executor, found for the warning path. */
+function findDisabledExecutorMatch(
+  allExecutors: readonly ExecutorConfig[] | undefined,
+  needleCli: string | undefined,
+  needleModel: string,
+): { id: string } | null {
+  if (!allExecutors) return null;
+  const disabled = allExecutors.filter((item) => !item.enabled);
+  const pool = needleCli
+    ? disabled.filter((item) => item.id.trim().toLowerCase() === needleCli)
+    : disabled;
+  for (const item of pool) {
+    if (item.models.some((model) => model.trim().toLowerCase() === needleModel)) {
+      return { id: item.id };
+    }
+  }
+  return null;
+}
+
+function disabledExecutorWarning(model: string, executorId: string): string {
+  return `Model '${model}' is configured on executor '${executorId}', which is currently disabled. The harness was saved as declared; re-enable the executor or call harness_recommend for a working alternative.`;
+}
+
+/**
+ * Explains an unavailable explicit harness on task_create, when the reason is
+ * a disabled executor rather than a model the workspace never configured at
+ * all. Returns undefined for the latter: that case already has its own,
+ * more specific divergence text from recommendHarness.
+ */
+async function explicitHarnessWarning(
+  db: McpDatabase,
+  workspaceId: string,
+  harness: Harness,
+): Promise<string | undefined> {
+  const model = harness.model?.trim();
+  if (!model) return undefined;
+  const [ws] = await db
+    .select()
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+  if (!ws) return undefined;
+  const disabledMatch = findDisabledExecutorMatch(
+    ws.executors,
+    harness.cli?.trim().toLowerCase(),
+    model.toLowerCase(),
+  );
+  return disabledMatch ? disabledExecutorWarning(model, disabledMatch.id) : undefined;
 }
 
 /**
  * The same check without the round trip, for callers walking a chain: reading
  * the workspace once and testing every link against it beats one SELECT per
  * link, and the link count is the point of the feature.
+ *
+ * A model that lives only on a disabled executor does not fail the write: a
+ * card is allowed to name a harness the workspace switched off for now, since
+ * turning an executor off and on is routine and the point of a warning is to
+ * say so, not to block the operator from getting back to work. `allExecutors`
+ * carries the unfiltered config so this distinction is possible; callers that
+ * only ever want the strict "enabled only" check (harness_set walking a
+ * chain) simply omit it and keep today's behaviour.
  */
 function resolveHarnessAgainstConfig(
   executors: ReturnType<typeof executorsFromWorkspace>,
   input: Harness,
-): Result<{ cli: string | null; model: string; effort: Harness["effort"] }> {
+  allExecutors?: readonly ExecutorConfig[],
+): Result<{ cli: string | null; model: string; effort: Harness["effort"]; warning?: string }> {
   const needleModel = input.model.trim().toLowerCase();
   const needleCli = input.cli?.trim().toLowerCase();
 
@@ -3483,6 +3577,15 @@ function resolveHarnessAgainstConfig(
       )
     : executors;
   if (needleCli && candidates.length === 0) {
+    const disabledMatch = findDisabledExecutorMatch(allExecutors, needleCli, needleModel);
+    if (disabledMatch) {
+      return ok({
+        cli: disabledMatch.id,
+        model: input.model,
+        effort: input.effort,
+        warning: disabledExecutorWarning(input.model, disabledMatch.id),
+      });
+    }
     return err(
       "INVALID_ARGUMENT",
       `CLI '${input.cli}' is not among the configured executors. Call harness_list to see them.`,
@@ -3492,6 +3595,15 @@ function resolveHarnessAgainstConfig(
     item.models.some((model) => model.trim().toLowerCase() === needleModel),
   );
   if (!matched) {
+    const disabledMatch = findDisabledExecutorMatch(allExecutors, needleCli, needleModel);
+    if (disabledMatch) {
+      return ok({
+        cli: input.cli ?? disabledMatch.id,
+        model: input.model,
+        effort: input.effort,
+        warning: disabledExecutorWarning(input.model, disabledMatch.id),
+      });
+    }
     return err(
       "INVALID_ARGUMENT",
       needleCli
@@ -4331,7 +4443,7 @@ async function executorsUpdate(
     };
   }
 
-  const changed: ChangedFields = { removed: applied.removed };
+  const changed: ChangedFields = {};
   if (!applied.removed) {
     const target = applied.config.find((item) => item.id === applied.targetId);
     if (input.label !== undefined && target) changed.label = target.label;
@@ -4344,9 +4456,10 @@ async function executorsUpdate(
     }
   }
   if (warnings.length > 0) changed.policy_warnings = warnings;
-  return rowWriteAck(
+  return executorsWriteAck(
     applied.targetId,
     savedWorkspace?.updatedAt ?? new Date(),
+    applied.removed,
     changed,
   );
 }

@@ -134,7 +134,14 @@ export type CardapioPolicyEntry = {
 export type RecommendResult = {
   harness: Harness;
   model_tier: ModelTier;
-  available: boolean;
+  /**
+   * `true` when the declared chain answered on its own; `false` when nothing
+   * runs at all; `"fallback"` when no link in the chain is enabled but the
+   * board found another executor to stand in. A fallback is a real, runnable
+   * harness — never collapse it into `true`, or an orchestrator cannot tell a
+   * board running its own policy from one running on borrowed executors.
+   */
+  available: boolean | "fallback";
   source: "cardapio" | "explicit";
   matched_executor: MatchedExecutor | null;
   /** The declared line of succession, best first, whether or not it was needed. */
@@ -594,9 +601,39 @@ export function recommendHarness(
     const chain = policyChain(entry);
     const retry = Math.min(Math.max(input.attempt ?? 0, 0), Math.max(chain.length - 1, 0));
     const hit = matchPolicyExecutor(input.executors, entry, retry);
+
+    // A retry that walked off the end of the chain is not the same as the
+    // chain being unavailable: fable-5 → opus-5 both ran and were rejected,
+    // gpt-5.6-sol simply is not configured, and the card should hold at its
+    // last position (escalatedHarnessForRetry's job), not cross to another
+    // CLI as if nothing had ever worked. Fallback is for when the chain fails
+    // from its very first link, retry or not.
+    const chainRunsAtAll =
+      retry > 0 && matchPolicyExecutor(input.executors, entry, 0) !== null;
+
+    // Nothing in the declared chain runs, from the head down. Rather than
+    // stall on a technically honest available:false, look for the best
+    // executor the workspace still has switched on: same tier as the chain
+    // first, since that is the closest stand-in, then progressively better
+    // tiers. Never a tier below the chain's own: a silent downgrade would be
+    // worse than admitting nothing ran.
+    let fallback: MatchedExecutor | null = null;
+    if (!hit && entry.model && !chainRunsAtAll) {
+      const chainTier =
+        resolveModelTier(chain[0] ?? entry.model, catalog) ??
+        DEFAULT_CARDAPIO[input.type]?.model_tier ??
+        "mid";
+      const startIndex = MODEL_TIERS.indexOf(chainTier);
+      for (let index = startIndex; index >= 0; index -= 1) {
+        fallback = findByTier(input.executors, MODEL_TIERS[index] as ModelTier, catalog);
+        if (fallback) break;
+      }
+    }
+
     // The harness prints the model that will actually run. When the first
-    // choice is off, that is the one the chain reached, not the one declared.
-    const running = hit?.matched.model ?? entry.model;
+    // choice is off, that is the one the chain reached (or the fallback), not
+    // the one declared.
+    const running = hit?.matched.model ?? fallback?.model ?? entry.model;
     const tier =
       (running ? resolveModelTier(running, catalog) : null) ??
       DEFAULT_CARDAPIO[input.type]?.model_tier ??
@@ -605,14 +642,16 @@ export function recommendHarness(
     // tell them apart: the retry moved on purpose, the fall-through had to.
     const matchedSource = hit
       ? input.executors.find((executor) => executor.id === hit.matched.id)
-      : undefined;
-    const effort = hit && matchedSource
-      ? resolveRecommendedEffort(hit.matched, entry.effort, matchedSource)
+      : fallback
+        ? input.executors.find((executor) => executor.id === fallback?.id)
+        : undefined;
+    const effort = (hit || fallback) && matchedSource
+      ? resolveRecommendedEffort(hit?.matched ?? fallback!, entry.effort, matchedSource)
       : { effort: entry.effort, adjusted: false };
     const effortNote = effort.adjusted
       ? `Policy effort '${entry.effort}' is not supported by '${running}'; using '${effort.effort}'.`
       : undefined;
-    const chainDivergence = !hit
+    const unavailableNote = !hit
       ? entry.model
         ? chain.length > 1
           ? `No model in the chain (${chain.join(" → ")}) is among the configured executors.`
@@ -623,20 +662,25 @@ export function recommendHarness(
         : hit.position > 0
           ? `Try ${retry + 1} for this card, so the chain starts at '${hit.matched.model}' instead of '${chain[0]}'.`
           : undefined;
-    const divergence = [chainDivergence, effortNote].filter(Boolean).join(" ") || undefined;
+    const fallbackNote = fallback
+      ? `Recommending '${fallback.model}' (${fallback.cli}) as a cross-CLI fallback.`
+      : undefined;
+    const divergence =
+      [unavailableNote, fallbackNote, effortNote].filter(Boolean).join(" ") || undefined;
     return ok({
       harness: {
         // A null cli is "no preference", and staying on the first choice does
-        // not overrule it. Falling through does: the declared CLI is the one
-        // that just failed, so the harness names the one actually answering.
-        cli: hit && hit.position > 0 ? hit.matched.cli : entry.cli,
+        // not overrule it. Falling through, or crossing to a fallback, does:
+        // the declared CLI is the one that just failed, so the harness names
+        // the one actually answering.
+        cli: hit && hit.position > 0 ? hit.matched.cli : fallback ? fallback.cli : entry.cli,
         model: running,
         effort: effort.effort,
       },
       model_tier: tier,
-      available: Boolean(entry.model) && hit !== null,
+      available: hit !== null ? Boolean(entry.model) : fallback ? "fallback" : false,
       source: "cardapio",
-      matched_executor: hit?.matched ?? null,
+      matched_executor: hit?.matched ?? fallback ?? null,
       ...(chain.length > 0 ? { chain } : {}),
       ...(hit ? { chain_position: hit.position } : {}),
       ...(divergence ? { divergence } : {}),

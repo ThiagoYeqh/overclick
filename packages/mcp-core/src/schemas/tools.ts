@@ -672,6 +672,12 @@ export const TaskCreateInputSchema = z
 export const TaskCreateFullOutputSchema = z.object({
   task: TaskSchema,
   subtasks: z.array(TaskSchema),
+  /**
+   * Present when the declared harness names a model that exists only on a
+   * disabled executor. The card is still created with that harness: this
+   * says so instead of silently pointing it at something that cannot run.
+   */
+  harness_warning: z.string().optional(),
 });
 
 export const TaskCreateOutputSchema = z.union([
@@ -871,6 +877,12 @@ export const TaskUpdateFullOutputSchema = z.object({
    * project the card is already in, because nothing was restamped.
    */
   project_move: ProjectMoveSchema.optional(),
+  /**
+   * Present when the declared harness names a model that exists only on a
+   * disabled executor. The write still applies: this says so instead of
+   * silently pointing the card at something that cannot run yet.
+   */
+  harness_warning: z.string().optional(),
 });
 
 export const TaskUpdateOutputSchema = z.union([
@@ -976,7 +988,13 @@ export const HarnessRecommendOutputSchema = z.object({
     effort: EffortSchema,
   }),
   model_tier: z.enum(["top", "mid", "cheap"]),
-  available: z.boolean(),
+  /**
+   * `"fallback"` sits between `true` and `false`: the declared chain has
+   * nothing enabled, but the board found another executor to stand in. The
+   * fallback never hides behind a plain `true` — an orchestrator has to be
+   * able to tell full policy from a plan B.
+   */
+  available: z.union([z.boolean(), z.literal("fallback")]),
   source: z.enum(["cardapio", "explicit"]),
   matched_executor: z
     .object({
