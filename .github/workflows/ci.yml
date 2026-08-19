@@ -37,5 +37,13 @@ jobs:
       # commits that unit tests can miss but the release image cannot compile.
       - run: pnpm build
 
+      # The migration folder is only read by db:migrate and the tests, so a
+      # snapshot can rot there unnoticed: an unreadable one stops drizzle-kit
+      # before it does anything, and only the next person to touch the schema
+      # finds out. Running it here also catches a schema change whose migration
+      # was never committed, since that shows up as a diff.
+      - run: pnpm db:generate
+      - run: git diff --exit-code packages/db/drizzle
+
       # No database service: the integration tests boot an in-memory PGlite.
       - run: pnpm test
