@@ -208,6 +208,25 @@ export function learnedExecutorDefs(sel: ExecutorSelection): ExecutorDef[] {
 }
 
 /**
+ * Models the harness policy chain selector may offer for `cli`. A CLI
+ * missing from `sel.enabled` is switched off and offers nothing here
+ * (OCL-77): a disabled executor's models never appear as a normal,
+ * selectable choice, matching the guard task_create/task_update enforce
+ * over MCP for the same case. `null` (no CLI preference) unions every model
+ * of every currently enabled executor.
+ */
+export function modelsForCli(sel: ExecutorSelection, cli: string | null): string[] {
+  if (!cli) {
+    return [...new Set(Object.values(sel.enabled).flat())];
+  }
+  if (cli === CUSTOM_EXECUTOR_ID) return ["generic-mcp"];
+  if (!(cli in sel.enabled)) return [];
+  return sel.enabled[cli]?.length
+    ? sel.enabled[cli]
+    : (sel.models[cli] ?? EXECUTOR_CATALOG.find((d) => d.id === cli)?.models ?? []);
+}
+
+/**
  * Adds a free-text model to one CLI's editable list. Trims the input, ignores
  * empties and duplicates, and checks the model when the CLI is already on.
  */

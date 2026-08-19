@@ -672,12 +672,6 @@ export const TaskCreateInputSchema = z
 export const TaskCreateFullOutputSchema = z.object({
   task: TaskSchema,
   subtasks: z.array(TaskSchema),
-  /**
-   * Present when the declared harness names a model that exists only on a
-   * disabled executor. The card is still created with that harness: this
-   * says so instead of silently pointing it at something that cannot run.
-   */
-  harness_warning: z.string().optional(),
 });
 
 export const TaskCreateOutputSchema = z.union([
@@ -877,12 +871,6 @@ export const TaskUpdateFullOutputSchema = z.object({
    * project the card is already in, because nothing was restamped.
    */
   project_move: ProjectMoveSchema.optional(),
-  /**
-   * Present when the declared harness names a model that exists only on a
-   * disabled executor. The write still applies: this says so instead of
-   * silently pointing the card at something that cannot run yet.
-   */
-  harness_warning: z.string().optional(),
 });
 
 export const TaskUpdateOutputSchema = z.union([
