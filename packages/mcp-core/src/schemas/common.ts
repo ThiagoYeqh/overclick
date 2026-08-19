@@ -84,6 +84,29 @@ export const ReadOptionsSchema = z.object({
 }).strict();
 
 /**
+ * Row-scoped groups for task_list/task_search. The default row answers "what
+ * exists and in what state"; every uuid, delivery flag and the planned
+ * harness ride behind one of these instead of paying for a screenful of ids
+ * nobody reads (every tool already accepts `short_id`).
+ */
+export const ListIncludeSchema = z.enum([
+  /** The planned harness (cli, model, effort) — needed to dispatch a card. */
+  "harness",
+  /** Uuids: the card's own `id`. */
+  "ids",
+  /** commit, delivery_verification, delivery_warning, reports_count, revisado, devolve_para. */
+  "delivery",
+  /** mission_id, project_id, branch, claimed_by. */
+  "refs",
+  /** Every group above, at once. */
+  "all",
+]);
+
+export const ListOptionsSchema = z.object({
+  include: z.array(ListIncludeSchema).min(1).max(5).optional(),
+}).strict();
+
+/**
  * Write responses are compact by default. `full` is the explicit escape hatch
  * for callers that need the complete object after a mutation.
  *
@@ -467,27 +490,38 @@ export const TaskReadSchema = TaskSchema.omit({
 });
 
 /** Queue rows stay metadata-only while carrying the planned harness. */
+/**
+ * The task_list default row: the operational minimum that answers "what
+ * exists and in what state" without a single uuid. Everything else — ids,
+ * refs, delivery flags, the planned harness — rides behind `include`; see
+ * `ListIncludeSchema`. `include: ["all"]` reproduces every field below.
+ */
 export const TaskListItemSchema = TaskReadSchema.pick({
-  id: true,
   short_id: true,
   title: true,
   type: true,
   status: true,
-  revisado: true,
   priority: true,
-  project_id: true,
-  mission_id: true,
-  devolve_para: true,
-  commit: true,
-  delivery_unverified: true,
-  delivery_verification: true,
-  delivery_warning: true,
-  reports_count: true,
-  harness: true,
 }).extend({
+  /** Attention flag: present only when true, never `false`. */
+  delivery_unverified: z.boolean().optional(),
+  cost_usd: z.number().optional(),
+  // include: ["ids"]
+  id: z.string().min(1).optional(),
+  // include: ["refs"]
+  project_id: z.string().min(1).optional(),
+  mission_id: z.string().min(1).optional(),
   branch: z.string().min(1).optional(),
   claimed_by: z.string().min(1).optional(),
-  cost_usd: z.number().optional(),
+  // include: ["delivery"]
+  revisado: z.boolean().optional(),
+  devolve_para: ReviewerSchema.optional(),
+  commit: z.string().min(1).optional(),
+  delivery_verification: DeliveryVerificationSchema.optional(),
+  delivery_warning: z.string().min(1).optional(),
+  reports_count: z.number().int().positive().optional(),
+  // include: ["harness"]
+  harness: HarnessSchema.optional(),
 });
 
 export const ExecutionAttemptSchema = z.object({
@@ -602,6 +636,8 @@ export type Mission = z.infer<typeof MissionSchema>;
 export type ReadView = z.infer<typeof ReadViewSchema>;
 export type ReadInclude = z.infer<typeof ReadIncludeSchema>;
 export type ReadOptions = z.infer<typeof ReadOptionsSchema>;
+export type ListInclude = z.infer<typeof ListIncludeSchema>;
+export type ListOptions = z.infer<typeof ListOptionsSchema>;
 export type WriteReturn = z.infer<typeof WriteReturnSchema>;
 export type WriteAck = z.infer<typeof WriteAckSchema>;
 export type Project = z.infer<typeof ProjectSchema>;

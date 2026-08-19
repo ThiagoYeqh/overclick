@@ -51,14 +51,14 @@ context are listed there with a short excerpt and a pointer to `project_get`.
 | `mission_delete` | removes an empty mission shell. A mission holding cards is refused with its count; `force: true` detaches those cards (`mission_id: null`) and returns `tasks_detached` before deleting the mission |
 | `mission_attempt_start` | opens the mission's orchestration attempt and its measurement window; records mission/project, effective CLI/model/session and transcript reference |
 | `mission_report_usage` | records a cumulative orchestration snapshot for one dispatch round or the final checkpoint; retries are idempotent by attempt and sequence |
-| `task_list` | the queue (project, `mission_id`, exact `resolved_in`, status, priority, `claimed_by: "me"`, `awaiting_review_by`, `limit`) |
-| `task_list` | thin queue rows (ids, title, type, status, priority, mission, planned harness, claim, branch and frozen cost; no card contract or briefing), with unset fields omitted and no `workspace_id`; filtered by project, `mission_id`, exact `resolved_in`, status, priority, `awaiting_review_by` and `limit` |
+| `task_list` | the queue, one lean row per card: `short_id`, `title`, `type`, `status`, `priority`, `cost_usd`, plus `delivery_unverified` only when `true`. No uuid on the row — every tool already accepts `short_id`. Filtered by project, `mission_id`, exact `resolved_in`, status, priority, `claimed_by: "me"`, `awaiting_review_by` and `limit` |
+| | The rest rides behind `include`, in named groups: `["harness"]` (planned CLI/model/effort — needed to dispatch, since the default row no longer carries it), `["ids"]` (the card's own `id`), `["refs"]` (`mission_id`, `project_id`, `branch`, `claimed_by`), `["delivery"]` (`commit`, `delivery_verification`, `delivery_warning`, `reports_count`, `revisado`, `devolve_para`), or `["all"]` for every group at once — `include: ["all"]` reproduces the pre-OCL-96 full row |
 | | `limit` defaults to 50 and caps at 200. The response carries `truncated` and the `limit` it used, so a caller can tell a full queue from a cut one instead of reading a page as the whole board |
 | `task_get` | the card contract, branch and latest attempt's frozen cost/status by default; unset fields and `workspace_id` are omitted. The heavy briefing, recipe, mission and comments are opt-in with `view: "briefing"`/`"full"` or `include: ["briefing", "usage_recipe", "mission", "comments"]` |
 | | `include: ["comments"]` returns every prose comment and delivery report on the card, oldest first, as `{author, kind, body, created_at}` — the same list `task_claim`'s briefing embeds. Typed timeline entries (executor swaps, stale-claim takeovers) are not comments and are left out |
 | `task_create` | creates the card (`mission` is an existing mission id, `mode` solo\|team, origin); by default it returns only the short id, status, `updated_at` and generated `changed` fields. Pass `return: "full"` for the card and subtasks. `supersedes` atomically discards an in-execution predecessor, and `inherit: true` reuses its contract without copying comments |
 | | `project_id` takes the project uuid **or** its card prefix (`AGB`), so an agent that just called `project_list` never needs the uuid |
-| `task_search` | search the queue by text (`q`) and metadata filters, including exact `resolved_in` |
+| `task_search` | search the queue by text (`q`) and metadata filters, including exact `resolved_in`. Hits default to `short_id`, `title`, `type`, `status` and `o_que` (cut at 300 chars), no uuid; same `include` groups as `task_list` — `["ids"]` adds `id`, `["refs"]` adds `resolved_in`, `["delivery"]` adds `comments_count`, `reports_count` and `updated_at`, `["all"]` returns every field |
 | `task_claim` | status → `em_execucao`; a second active claim → `ALREADY_CLAIMED`. A claim whose attempt has had no `task_update` or `task_heartbeat` beyond the workspace timeout (60 minutes by default) is reclaimable without `force`: the old attempt becomes `abandoned` with reason `stale`, its usage is preserved, the timeline records the takeover and the response carries `reclaimed_stale: true` |
 | | A card claimed again after a delivery was reopened comes back one link down its chain, and the briefing says which try this is. Only reviewed deliveries count: an attempt ended with `force` is a restart, not a verdict, and a harness pinned by hand off the chain is never escalated |
 | | when the claiming executor differs from the card harness, the response carries a `harness_divergence` warning and the card timeline automatically records an executor swap entry naming planned vs actual |
@@ -100,6 +100,18 @@ detail.
 Read compatibility: `task_get`, `mission_get` and `project_get` now default to their
 compact contract/summary views. Callers that depended on the old full read must pass
 `view: "briefing"` (or `"full"`); `task_claim` remains the complete briefing boundary.
+
+List compatibility (OCL-96, following the default-lean precedent OCL-52 set for
+`task_list`/`task_search`): the row default dropped further, to the operational
+minimum — `task_list` now sends only `short_id`, `title`, `type`, `status`,
+`priority`, `cost_usd` and `delivery_unverified` (the last only when `true`); no
+uuid, `revisado`, `devolve_para`, delivery flags or harness ride on the default row
+anymore, and `task_search` hits default to `short_id`, `title`, `type`, `status`
+and `o_que`. Callers that dispatched straight off `task_list` (planned CLI/model/
+effort on the row) must add `include: ["harness"]`. Callers that need the rest of
+the old full row — uuids, refs, delivery detail — add `include: ["ids"]`,
+`["refs"]`, `["delivery"]`, or `["all"]` for every group at once, which reproduces
+the pre-OCL-96 row exactly.
 
 Every tool that takes `task_id` accepts the card uuid **or** the workspace short id
 (`AGB-5`, `OVK-5.4`), and every `project_id` accepts the project uuid **or** its card

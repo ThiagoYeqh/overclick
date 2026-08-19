@@ -14,7 +14,10 @@ import {
   TaskListInputSchema,
   TaskListItemSchema,
   TaskReadSchema,
+  TaskSearchInputSchema,
+  TaskSearchHitSchema,
   TaskClaimInputSchema,
+  ListIncludeSchema,
   WriteAckSchema,
   ExecutorsUpdateInputSchema,
   isTelemetryIncomplete,
@@ -193,6 +196,159 @@ describe("task_list", () => {
     expect(TaskListItemSchema.safeParse({ ...row, cost_usd: null }).success).toBe(
       false,
     );
+  });
+
+  it("accepts the operational-minimum row with no id, refs, delivery or harness", () => {
+    const minimal = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "Lean by default",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+    });
+    expect(minimal).toEqual({
+      short_id: "OC-1",
+      title: "Lean by default",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+    });
+    expect(minimal).not.toHaveProperty("id");
+    expect(minimal).not.toHaveProperty("project_id");
+    expect(minimal).not.toHaveProperty("mission_id");
+    expect(minimal).not.toHaveProperty("revisado");
+    expect(minimal).not.toHaveProperty("devolve_para");
+    expect(minimal).not.toHaveProperty("harness");
+    expect(minimal).not.toHaveProperty("delivery_unverified");
+  });
+
+  it("accepts each include group additively on the same row", () => {
+    const withIds = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "t",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+      id: "task-1",
+    });
+    expect(withIds.id).toBe("task-1");
+
+    const withRefs = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "t",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+      project_id: "project-1",
+      mission_id: "mission-1",
+      branch: "ocl-1-x",
+      claimed_by: "token-1",
+    });
+    expect(withRefs).toMatchObject({
+      project_id: "project-1",
+      mission_id: "mission-1",
+      branch: "ocl-1-x",
+      claimed_by: "token-1",
+    });
+
+    const withDelivery = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "t",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+      revisado: true,
+      devolve_para: { kind: "workspace_queue" },
+      commit: "abc123",
+      delivery_verification: "verified",
+      reports_count: 2,
+    });
+    expect(withDelivery).toMatchObject({
+      revisado: true,
+      commit: "abc123",
+      delivery_verification: "verified",
+      reports_count: 2,
+    });
+
+    const withHarness = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "t",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+      harness: { cli: "codex", model: "model-1", effort: "medium" },
+    });
+    expect(withHarness.harness).toEqual({
+      cli: "codex",
+      model: "model-1",
+      effort: "medium",
+    });
+  });
+
+  it("takes include as one of the five named groups", () => {
+    expect(ListIncludeSchema.options).toEqual([
+      "harness",
+      "ids",
+      "delivery",
+      "refs",
+      "all",
+    ]);
+    expect(TaskListInputSchema.parse({ include: ["harness"] }).include).toEqual([
+      "harness",
+    ]);
+    expect(TaskListInputSchema.safeParse({ include: ["nope"] }).success).toBe(false);
+    expect(TaskListInputSchema.safeParse({ include: [] }).success).toBe(false);
+  });
+});
+
+describe("task_search", () => {
+  it("takes the same include groups as task_list", () => {
+    expect(
+      TaskSearchInputSchema.parse({ q: "x", include: ["ids", "refs"] }).include,
+    ).toEqual(["ids", "refs"]);
+    expect(
+      TaskSearchInputSchema.safeParse({ q: "x", include: ["harness"] }).success,
+    ).toBe(true);
+  });
+
+  it("accepts the operational-minimum hit with no id, resolved_in or counts", () => {
+    const minimal = TaskSearchHitSchema.parse({
+      short_id: "OC-1",
+      title: "Lean hit",
+      type: "feature",
+      status: "aberto",
+      o_que: "x",
+    });
+    expect(minimal).toEqual({
+      short_id: "OC-1",
+      title: "Lean hit",
+      type: "feature",
+      status: "aberto",
+      o_que: "x",
+    });
+    expect(minimal).not.toHaveProperty("id");
+    expect(minimal).not.toHaveProperty("resolved_in");
+    expect(minimal).not.toHaveProperty("comments_count");
+    expect(minimal).not.toHaveProperty("reports_count");
+    expect(minimal).not.toHaveProperty("updated_at");
+  });
+
+  it("accepts every field at once, matching the pre-OCL-96 hit", () => {
+    const full = TaskSearchHitSchema.parse({
+      short_id: "OC-1",
+      title: "Full hit",
+      type: "feature",
+      status: "aberto",
+      o_que: "x",
+      id: "task-1",
+      resolved_in: "v1.0.0",
+      comments_count: 3,
+      reports_count: 1,
+      updated_at: "2026-08-19T12:00:00.000Z",
+    });
+    expect(full.id).toBe("task-1");
+    expect(full.resolved_in).toBe("v1.0.0");
+    expect(full.comments_count).toBe(3);
   });
 });
 

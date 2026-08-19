@@ -1912,8 +1912,8 @@ describe("MCP tool edge cases against a test db", () => {
 
     // Oldest first still holds, so a limit takes the head of the queue and
     // not an arbitrary slice of it.
-    expect(cutOut.tasks.map((t) => t.id)).toEqual(
-      wholeOut.tasks.slice(0, 2).map((t) => t.id),
+    expect(cutOut.tasks.map((t) => t.short_id)).toEqual(
+      wholeOut.tasks.slice(0, 2).map((t) => t.short_id),
     );
   });
 
@@ -1945,7 +1945,7 @@ describe("MCP tool edge cases against a test db", () => {
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
     expect(TaskListOutputSchema.parse(listed.value).tasks).toEqual([
-      expect.objectContaining({ id: mine.id, status: "em_execucao" }),
+      expect.objectContaining({ short_id: mine.short_id, status: "em_execucao" }),
     ]);
   });
 
@@ -1977,11 +1977,16 @@ describe("MCP tool edge cases against a test db", () => {
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
     const listPayload = TaskListOutputSchema.parse(listed.value);
-    const listRow = listPayload.tasks.find((row) => row.id === card.id);
-    expect(listRow).toMatchObject({
-      short_id: card.short_id,
-      harness: card.harness,
-    });
+    const listRow = listPayload.tasks.find((row) => row.short_id === card.short_id);
+    // The default row is the operational minimum: no uuid, no harness, no
+    // delivery detail — every tool already accepts short_id.
+    expect(listRow).toMatchObject({ short_id: card.short_id, title: card.title });
+    expect(listRow).not.toHaveProperty("id");
+    expect(listRow).not.toHaveProperty("project_id");
+    expect(listRow).not.toHaveProperty("mission_id");
+    expect(listRow).not.toHaveProperty("revisado");
+    expect(listRow).not.toHaveProperty("devolve_para");
+    expect(listRow).not.toHaveProperty("harness");
     expect(listRow).not.toHaveProperty("claimed_by");
     expect(listRow).not.toHaveProperty("branch");
     expect(listRow).not.toHaveProperty("cost_usd");
@@ -1990,6 +1995,37 @@ describe("MCP tool edge cases against a test db", () => {
     expect(listRow).not.toHaveProperty("o_que");
     expect(listRow).not.toHaveProperty("como_confirmo");
     expect(listRow).not.toHaveProperty("briefing_markdown");
+
+    // include: ["all"] reproduces the pre-OCL-96 full row.
+    const listedAll = await invokeTool(world.db, ctx(), "task_list", {
+      limit: 10,
+      include: ["all"],
+    });
+    expect(listedAll.ok).toBe(true);
+    if (!listedAll.ok) return;
+    const allRow = TaskListOutputSchema.parse(listedAll.value).tasks.find(
+      (row) => row.short_id === card.short_id,
+    );
+    expect(allRow).toMatchObject({
+      id: card.id,
+      short_id: card.short_id,
+      mission_id: world.missionId,
+      harness: card.harness,
+    });
+
+    // include: ["harness"] alone is what dispatch needs from this one call.
+    const listedForDispatch = await invokeTool(world.db, ctx(), "task_list", {
+      limit: 10,
+      include: ["harness"],
+    });
+    expect(listedForDispatch.ok).toBe(true);
+    if (!listedForDispatch.ok) return;
+    const dispatchRow = TaskListOutputSchema.parse(listedForDispatch.value).tasks.find(
+      (row) => row.short_id === card.short_id,
+    );
+    expect(dispatchRow).toMatchObject({ harness: card.harness });
+    expect(dispatchRow).not.toHaveProperty("id");
+    expect(dispatchRow).not.toHaveProperty("mission_id");
 
     const compact = await invokeTool(world.db, ctx(), "task_get", {
       task_id: card.id,
@@ -2101,8 +2137,8 @@ describe("MCP tool edge cases against a test db", () => {
     });
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
-    expect(TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.id)).toEqual([
-      releasedTask.id,
+    expect(TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.short_id)).toEqual([
+      releasedTask.short_id,
     ]);
 
     const missing = await invokeTool(world.db, ctx(), "task_list", {
@@ -2265,6 +2301,7 @@ describe("MCP tool edge cases against a test db", () => {
 
     const listed = await invokeTool(world.db, ctx(), "task_list", {
       mission_id: secondMission.id,
+      include: ["refs"],
     });
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
@@ -2846,8 +2883,8 @@ describe("a card joins or leaves a mission after creation", () => {
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
     expect(
-      TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.id),
-    ).toContain(card.id);
+      TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.short_id),
+    ).toContain(card.short_id);
 
     // The briefing the next executor reads now carries the mission context.
     const briefed = await invokeTool(world.db, ctx(), "task_get", {
@@ -2898,8 +2935,8 @@ describe("a card joins or leaves a mission after creation", () => {
     expect(stillListed.ok).toBe(true);
     if (!stillListed.ok) return;
     expect(
-      TaskListOutputSchema.parse(stillListed.value).tasks.map((row) => row.id),
-    ).not.toContain(card.id);
+      TaskListOutputSchema.parse(stillListed.value).tasks.map((row) => row.short_id),
+    ).not.toContain(card.short_id);
   });
 
   it("moves the subtasks of a team card with their parent", async () => {
