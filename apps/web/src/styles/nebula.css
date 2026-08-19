@@ -2709,6 +2709,93 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .ml-row .card-pick { width: 20px; height: 20px; }
 }
 
+/* ---------- OCL-82: one row of chrome once the bar collapses ----------
+   The two levels of §3 are a desktop idea. Where level 2 has already folded
+   into the Filtros button there is nothing left on it but that button, and
+   the board was spending a whole rung — plus the air around it — on one
+   control while the list below it lost the same height. Three bands for four
+   controls that fit on one is the waste this card was opened for.
+
+   So at the collapsed widths the two levels stop being boxes: both go
+   `display: contents`, their controls become items of the wrap, and the wrap
+   is the single row. Order is stated here because the DOM order is the
+   desktop's — wordmark, then the identity side, then the level that carries
+   Filtros — and on one line the reading is wordmark, Filtros, then the two
+   things that belong to the far edge. The rule under level 2 moves onto the
+   wrap with it: one line of chrome, one line under it.
+
+   The condition is exactly where `.filters-btn` shows, and not one pixel
+   wider: a level 2 still carrying its own filters has more than a row's worth
+   of controls, and merging it would be the squeeze the bar was split to end. */
+@media (max-width: 1050px), (orientation: landscape) and (max-height: 500px) {
+  .nb .topbar-wrap {
+    display: flex; align-items: center; flex-wrap: nowrap;
+    gap: var(--nebula-space-2);
+    padding: var(--nebula-space-1) 0 10px;
+    border-bottom: 1px solid var(--nebula-glass-border);
+  }
+  /* the levels keep their names for the DOM and give up their boxes */
+  .nb .topbar-l1, .nb .topbar.topbar-l1, .nb .topbar-l2 { display: contents; }
+  /* one line means nothing on it may wrap into a second */
+  .nb .topbar-l1 > *, .nb .topbar-l2 > * { flex: none; }
+  /* the level's own rule and bottom air belong to the wrap now */
+  .nb .topbar-l2 { border-bottom: 0; }
+
+  /* wordmark, Filtros, then the far edge. The 8px here plus the row's 8px of
+     gap is the 16px the wordmark owes the first control (checklist 4), and it
+     is never spent, at any width on this ladder. */
+  .nb .topbar-l1 > .logo { order: 1; margin-right: var(--nebula-space-2); }
+  /* the split between the two groups is a margin, not an element: level 1's
+     spacer would still be charged a gap on each side of its zero width, and
+     at 320px that is 8px the row does not have. One auto margin does the same
+     job for free, whatever the right group happens to hold. */
+  .nb .topbar-l1 > .spacer { display: none; }
+  .nb .topbar-l2 > .filters-btn {
+    order: 2; display: inline-flex; margin-right: auto;
+  }
+  .nb .topbar-l1 > .state-chip { order: 3; }
+  .nb .topbar-l1 > .board-total-wrap { order: 4; }
+  .nb .topbar-l1 > .account-menu { order: 5; }
+  /* closed it is display:none; open it is the panel, and it hangs off the
+     wrap now that the level it used to hang off has no box of its own */
+  .nb .topbar-l2 > .topbar-more { order: 6; }
+}
+
+/* The shrink ladder for the merged row, in the order this card sets: the stat
+   gives up its label first, then its figure walks down the type ramp, then
+   the Filtros control drops its word — never its funnel, its count or its
+   accessible name — and the wordmark yields last and only a little. Every
+   reading the row gives up is still one tap away in the stat's popover. The
+   16px between wordmark and first control is never spent (checklist 4). */
+@media (max-width: 640px) {
+  /* "Custo" goes; the labelled reading stays in the popover (§4) */
+  .nb .topbar-wrap .bt-label { display: none; }
+  .nb .topbar-wrap .board-total { padding-left: 10px; }
+}
+@media (max-width: 470px) {
+  /* the figure steps from the display size to the body step of the ramp; it
+     is still the only thing on the row set in the data face at full strength */
+  .nb .topbar-wrap .board-total .bt-lead { font-size: 13px; }
+}
+@media (max-width: 400px) {
+  /* the word goes, the funnel and the count stay: the button is still named
+     for a screen reader by its aria-label, and the badge is the count the
+     card asked to keep beside the wordmark */
+  .nb .topbar-wrap .filters-btn > span:not(.badge) { display: none; }
+  .nb .topbar-wrap .filters-btn { padding-left: 10px; padding-right: 10px; }
+  /* the mark gives up two pixels of height, not its place on the row */
+  .nb .topbar-l1 > .logo svg { height: 14px; }
+}
+@media (max-width: 350px) {
+  /* the last rung, for the 320px screens: the figure takes the data step of
+     the ramp and every control trims its padding. Below this there is nothing
+     left to give that is not a control somebody needs. */
+  .nb .topbar-wrap .board-total .bt-lead { font-size: 11px; }
+  .nb .topbar-wrap .board-total { padding-left: 6px; }
+  .nb .topbar-wrap .filters-btn { padding-left: 6px; padding-right: 6px; gap: 4px; }
+  .nb .topbar-l1 > .logo svg { height: 13px; }
+}
+
 /* ============================================================
    AUTH (login + setup): the first screen an instance ever shows
 
