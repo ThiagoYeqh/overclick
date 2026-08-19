@@ -1,5 +1,7 @@
 export {
   executionModeEnum,
+  missionAttemptCheckpointEnum,
+  missionAttemptStatusEnum,
   missionStatusEnum,
   reviewerKindEnum,
   taskPriorityEnum,
@@ -9,6 +11,8 @@ export {
 export { workspace } from "./workspace";
 export { user } from "./user";
 export { mission } from "./mission";
+export { missionAttempt } from "./mission-attempt";
+export { missionAttemptReport } from "./mission-attempt-report";
 export { project } from "./project";
 export { task } from "./task";
 export { taskComment } from "./task-comment";
@@ -30,5 +34,7 @@ export {
   workspaceRelations,
   cardapioEntryRelations,
   modelPriceRelations,
+  missionAttemptRelations,
+  missionAttemptReportRelations,
   usageRecipeRelations,
 } from "./relations";

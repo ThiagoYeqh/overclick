@@ -30,3 +30,14 @@ export const missionStatusEnum = pgEnum("mission_status", [
   "pausada",
   "concluida",
 ]);
+
+export const missionAttemptStatusEnum = pgEnum("mission_attempt_status", [
+  "aberto",
+  "sucesso",
+  "abandonado",
+]);
+
+export const missionAttemptCheckpointEnum = pgEnum(
+  "mission_attempt_checkpoint",
+  ["rodada", "final"],
+);

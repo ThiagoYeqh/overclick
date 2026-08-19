@@ -6,6 +6,8 @@ import {
   handoff,
   mcpToken,
   mission,
+  missionAttempt,
+  missionAttemptReport,
   project,
   task,
   taskComment,
@@ -22,6 +24,8 @@ describe("complete schema from spec §3", () => {
     expect(getTableName(workspace)).toBe("workspace");
     expect(getTableName(user)).toBe("user");
     expect(getTableName(mission)).toBe("mission");
+    expect(getTableName(missionAttempt)).toBe("mission_attempt");
+    expect(getTableName(missionAttemptReport)).toBe("mission_attempt_report");
     expect(getTableName(project)).toBe("project");
     expect(getTableName(task)).toBe("task");
     expect(getTableName(executionAttempt)).toBe("execution_attempt");
@@ -183,6 +187,65 @@ describe("complete schema from spec §3", () => {
         "deliveryUnverified",
         "deliveryVerification",
         "deliveryWarning",
+        "result",
+        "resultNote",
+      ]),
+    );
+  });
+
+  it("mission_attempt stores the orchestration lifecycle and frozen cost snapshot", () => {
+    expect(columnNames(missionAttempt)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "missionId",
+        "projectId",
+        "executor",
+        "model",
+        "modelSource",
+        "sessionId",
+        "transcript",
+        "status",
+        "startedAt",
+        "lastActivityAt",
+        "finishedAt",
+        "usageSegments",
+        "tokensIn",
+        "tokensOut",
+        "tokensCache",
+        "durationMs",
+        "serverDurationMs",
+        "turns",
+        "usageEstimated",
+        "reportedCostUsd",
+        "costUsd",
+        "costSource",
+        "costStatus",
+        "costUnpricedModels",
+        "costBreakdown",
+        "usageSuspect",
+        "usageSuspectReason",
+        "result",
+        "resultNote",
+        "lastReportSequence",
+      ]),
+    );
+  });
+
+  it("mission_attempt_report stores cumulative checkpoints and derived totals", () => {
+    expect(columnNames(missionAttemptReport)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "missionAttemptId",
+        "sequence",
+        "capturedAt",
+        "checkpoint",
+        "usageSegments",
+        "tokensIn",
+        "tokensOut",
+        "tokensCache",
+        "durationMs",
+        "turns",
+        "estimated",
         "result",
         "resultNote",
       ]),
