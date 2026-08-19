@@ -1,8 +1,8 @@
 import {
   TaskClaimOutputSchema,
-  TaskCreateOutputSchema,
-  TaskHeartbeatOutputSchema,
-  TaskReleaseOutputSchema,
+  TaskCreateFullOutputSchema as TaskCreateOutputSchema,
+  TaskHeartbeatFullOutputSchema as TaskHeartbeatOutputSchema,
+  TaskReleaseFullOutputSchema as TaskReleaseOutputSchema,
 } from "@agent-board/mcp-core";
 import {
   executionAttempt,
@@ -11,7 +11,7 @@ import {
 import { asc, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 const origem = { cli: "overclock", session_id: "claim-lifecycle-test" };
 

@@ -1,16 +1,16 @@
 import { workspace } from "@agent-board/db";
 import {
-  ExecutorsUpdateOutputSchema,
+  ExecutorsUpdateFullOutputSchema as ExecutorsUpdateOutputSchema,
   HarnessListOutputSchema,
   HarnessRecommendOutputSchema,
   TaskClaimOutputSchema,
-  TaskCreateOutputSchema,
+  TaskCreateFullOutputSchema as TaskCreateOutputSchema,
 } from "@agent-board/mcp-core";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { selectionFromConfig } from "../lib/executors";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 describe("executors_update manages the executor config over MCP", () => {
   let world: TestWorld;

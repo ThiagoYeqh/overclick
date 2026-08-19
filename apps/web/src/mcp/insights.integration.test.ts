@@ -16,7 +16,7 @@ import {
 } from "../lib/insights";
 import { loadModelPrices } from "../lib/prices";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 /**
  * The card's How-to-confirm is "the numbers match the Insights page". The page

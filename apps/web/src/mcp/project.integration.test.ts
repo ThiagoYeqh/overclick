@@ -5,16 +5,16 @@ import {
   ProjectDeleteOutputSchema,
   ProjectGetOutputSchema,
   ProjectListOutputSchema,
-  ProjectUpdateOutputSchema,
-  TaskCreateOutputSchema,
+  ProjectUpdateFullOutputSchema as ProjectUpdateOutputSchema,
+  TaskCreateFullOutputSchema as TaskCreateOutputSchema,
   TaskClaimOutputSchema,
   TaskGetOutputSchema,
   TaskListOutputSchema,
-  TaskUpdateOutputSchema,
+  TaskUpdateFullOutputSchema as TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 const origem = { session_id: "sess_fresh", cli: "claude-code" };
 

@@ -1,17 +1,17 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
-  TaskDeliverOutputSchema,
+  TaskDeliverFullOutputSchema as TaskDeliverOutputSchema,
   MCP_TOOL_NAMES,
   TaskClaimOutputSchema,
-  TaskCreateOutputSchema,
+  TaskCreateFullOutputSchema as TaskCreateOutputSchema,
   TaskGetOutputSchema,
   TaskListOutputSchema,
 } from "@agent-board/mcp-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createOverclickMcpServer } from "./server";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 const origem = {
   pane_id: "pane_1",
@@ -106,6 +106,7 @@ describe("MCP end-to-end against a test db", () => {
             mode: "solo",
             origem,
             devolve_para: { kind: "agent", session_id: "sess_torre" },
+            return: "full",
           },
         }),
         TaskCreateOutputSchema,
@@ -173,6 +174,7 @@ describe("MCP end-to-end against a test db", () => {
               duration_ms: 8000,
               turns: 3,
             },
+            return: "full",
           },
         }),
         TaskDeliverOutputSchema,
