@@ -128,7 +128,6 @@ edit it in place with `mission_update` instead of repeating it on every card. Em
 mission shells can be removed with `mission_delete`; occupied missions require an
 explicit move/detach or `force: true`.
 
-<<<<<<< HEAD
 Project and mission markdown is shared live state. A granular operation has the
 shape `{op, heading, text}` (with `line` as the old line for `replace_line`):
 `replace_section`, `append_section`, `delete_section`, `append_line` and
@@ -139,7 +138,7 @@ sections do not overwrite each other. Send `context` or `objective` only for
 an intentional full rewrite; `expected_len` or the SHA-256 `expected_hash`
 turns a stale legacy rewrite into a clear argument error instead of silently
 discarding another agent's edit.
-=======
+
 ## Mission orchestration telemetry
 
 The orchestrator is mission work, not card work. Keep its cost in one
@@ -216,7 +215,6 @@ If the orchestrator also executes a card, declare the shared session and keep
 the scopes non-overlapping. OCL-11 marks overlapping usage `suspect` rather than
 counting the same session twice. The card's deliver reports only card execution;
 planning and dispatch belong to the mission attempt.
->>>>>>> c7e29c1
 
 `task_claim` always returns the complete briefing; `task_get` is compact unless its
 caller opts into the heavy sections. The executor needs no other source of context
