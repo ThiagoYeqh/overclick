@@ -355,7 +355,6 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-size: 15px;
   text-shadow: var(--nebula-glow-text);
 }
-.nb .logo span { color: var(--nebula-mist); }
 /* AGB-79: the wordmark is a link home. Only the anchor takes these, so the
    executor tiles that also carry .logo keep their own cursor and colour. */
 .nb a.logo {
@@ -363,8 +362,21 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   text-decoration: none;
   cursor: pointer;
   border-radius: 6px;
+  /* OCL-37: the wordmark is drawn now, not typed. The anchor is a box around
+     an svg, so it stops inheriting the line-height of the bar's text and stops
+     leaving a descender's worth of dead space under the mark. */
+  display: inline-flex;
+  align-items: center;
+  /* The glow was aimed at the old text; on a stroked mark it only fuzzes the
+     letterforms, and the doctrine took coloured glows out of the system. */
+  text-shadow: none;
 }
-.nb a.logo:hover span { color: var(--nebula-mist-glow); }
+.nb a.logo svg { display: block; }
+/* The two halves differ by alpha alone (OCL-37): hover lifts the trailing half
+   towards the leading one instead of swapping in a second colour, which is what
+   let the old wordmark read differently in every theme. */
+.nb a.logo .wordmark-trail { transition: opacity .18s ease; }
+.nb a.logo:hover .wordmark-trail { opacity: .8; }
 .nb a.logo:focus-visible {
   outline: none;
   box-shadow: var(--nebula-focus-ring-offset);
@@ -2177,7 +2189,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     position: sticky; top: 8px; z-index: 30;
     gap: 8px; padding: 10px 12px; margin-bottom: 14px;
   }
-  .nb .logo { display: none; }
+  /* OCL-37: the rule always meant the wordmark, and `.logo` is also the class
+     on the executor tiles, which live nowhere near this bar and lost their
+     mark with it. Anchored on the wordmark itself now. */
+  .nb a.logo { display: none; }
   .nb .topbar .btn-ghost { padding: 6px 10px; font-size: 11px; }
   /* the one button the bar keeps for the filters that left it; the panel
      hangs off the bar, which being sticky is already its origin */
