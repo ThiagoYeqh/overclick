@@ -74,6 +74,7 @@ import {
   costSourceNote,
   filterAttemptsByPeriod,
   loadInsightAttemptRows,
+  loadMissionAttemptRows,
   loadReopenRows,
   usageHonestyNote,
   type InsightsDb,
@@ -3035,8 +3036,9 @@ async function insightsQuery(
   // cost field comes back null, never a zero pretending to be an answer.
   const pricingEnabled = ws?.pricingEnabled ?? false;
 
-  const [attemptRows, reopenRows, prices] = await Promise.all([
+  const [attemptRows, missionAttemptRows, reopenRows, prices] = await Promise.all([
     loadInsightAttemptRows(db as InsightsDb, ctx.workspaceId),
+    loadMissionAttemptRows(db as InsightsDb, ctx.workspaceId),
     loadReopenRows(db as InsightsDb, ctx.workspaceId),
     pricingEnabled
       ? loadModelPrices(db as PricesDb, ctx.workspaceId)
@@ -3046,6 +3048,7 @@ async function insightsQuery(
     filterAttemptsByPeriod(attemptRows, { since, until }),
     reopenRows,
     prices,
+    filterAttemptsByPeriod(missionAttemptRows, { since, until }),
   );
 
   const totalsFor = (row: (typeof insights)["totals"]) => ({
@@ -3078,6 +3081,37 @@ async function insightsQuery(
       label: row.label,
       ...totalsFor(row),
       ...(row.sharedAttempts ? { shared_attempts: row.sharedAttempts } : {}),
+    }));
+
+  const groupSetFor = (set: {
+    byProject: typeof insights.byProject;
+    byMission: typeof insights.byMission;
+    byModel: typeof insights.byModel;
+  }) => ({
+    by_project: groupsFor(set.byProject),
+    by_mission: groupsFor(set.byMission),
+    by_model: groupsFor(set.byModel),
+  });
+
+  const combinedGroupFor = (rows: typeof insights.combinedGroups.byProject) =>
+    rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      execution: {
+        key: row.execution.key,
+        label: row.execution.label,
+        ...totalsFor(row.execution),
+      },
+      orchestration: {
+        key: row.orchestration.key,
+        label: row.orchestration.label,
+        ...totalsFor(row.orchestration),
+      },
+      total: {
+        key: row.total.key,
+        label: row.total.label,
+        ...totalsFor(row.total),
+      },
     }));
 
   let grouped: Record<string, unknown> = {};
@@ -3129,6 +3163,15 @@ async function insightsQuery(
       by_executor: groupsFor(insights.discarded.byExecutor),
       by_mission: groupsFor(insights.discarded.byMission),
       by_model: groupsFor(insights.discarded.byModel),
+      orchestration: totalsFor(insights.discarded.orchestration),
+    },
+    execution_totals: totalsFor(insights.executionTotals),
+    orchestration_totals: totalsFor(insights.orchestrationTotals),
+    orchestration_groups: groupSetFor(insights.orchestrationGroups),
+    combined_groups: {
+      by_project: combinedGroupFor(insights.combinedGroups.byProject),
+      by_mission: combinedGroupFor(insights.combinedGroups.byMission),
+      by_model: combinedGroupFor(insights.combinedGroups.byModel),
     },
     pricing_enabled: pricingEnabled,
     note: usageHonestyNote(insights.totals),

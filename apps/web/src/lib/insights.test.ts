@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeInsights,
+  type MissionAttemptInsightRow,
   type InsightAttemptRow,
   type ReopenRow,
 } from "./insights";
@@ -46,11 +47,112 @@ function attempt(overrides: Partial<InsightAttemptRow> = {}): InsightAttemptRow 
   };
 }
 
+function missionAttempt(
+  overrides: Partial<MissionAttemptInsightRow> = {},
+): MissionAttemptInsightRow {
+  seq += 1;
+  return {
+    attemptId: `mission-attempt-${seq}`,
+    projectId: "proj-1",
+    projectName: "OverClick",
+    missionId: "mission-1",
+    missionTitle: "Reliability",
+    model: "sonnet-5",
+    executor: "codex",
+    modelSource: null,
+    status: "sucesso",
+    result: null,
+    finishedAt: new Date("2026-08-10T12:00:00Z"),
+    usageSegments: null,
+    tokensIn: 300,
+    tokensOut: 100,
+    tokensCache: 0,
+    costUsd: "0.50",
+    costSource: null,
+    costStatus: null,
+    costUnpricedModels: null,
+    costBreakdown: null,
+    durationMs: 30_000,
+    serverDurationMs: 35_000,
+    turns: 3,
+    usageEstimated: false,
+    usageSuspect: false,
+    ...overrides,
+  };
+}
+
 function reopen(taskId: string, at: string): ReopenRow {
   return { taskId, createdAt: new Date(at) };
 }
 
 describe("computeInsights totals", () => {
+  it("keeps execution and orchestration subtotals and combines them once", () => {
+    const result = computeInsights(
+      [attempt({ costUsd: "1.50", tokensIn: 1000, tokensOut: 500 })],
+      [],
+      [],
+      [missionAttempt({ costUsd: "0.50", tokensIn: 300, tokensOut: 100 })],
+    );
+
+    expect(result.executionTotals).toMatchObject({
+      attempts: 1,
+      tokens: 1500,
+      costUsd: 1.5,
+    });
+    expect(result.orchestrationTotals).toMatchObject({
+      attempts: 1,
+      tokens: 400,
+      costUsd: 0.5,
+    });
+    expect(result.totals).toMatchObject({
+      attempts: 2,
+      tokens: 1900,
+      costUsd: 2,
+    });
+
+    const project = result.combinedGroups.byProject.find(
+      (row) => row.label === "OverClick",
+    );
+    expect(project?.execution.attempts).toBe(1);
+    expect(project?.orchestration.attempts).toBe(1);
+    expect(project?.total.tokens).toBe(1900);
+  });
+
+  it("keeps open, abandoned and suspect mission attempts outside the trusted subtotal", () => {
+    const result = computeInsights(
+      [],
+      [],
+      [],
+      [
+        missionAttempt({ finishedAt: null }),
+        missionAttempt({ status: "abandonado", result: "abandoned" }),
+        missionAttempt({ usageSuspect: true, costUsd: "9.00" }),
+      ],
+    );
+
+    expect(result.orchestrationTotals.attempts).toBe(1);
+    expect(result.orchestrationTotals.suspect).toBe(1);
+    expect(result.orchestrationTotals.tokens).toBe(0);
+    expect(result.discarded.orchestration.attempts).toBe(1);
+    expect(result.discarded.orchestration.tokens).toBe(400);
+  });
+
+  it("keeps a cross-project orchestration line instead of allocating it", () => {
+    const result = computeInsights(
+      [],
+      [],
+      [],
+      [missionAttempt({ projectId: null, projectName: null })],
+    );
+
+    const project = result.orchestrationGroups.byProject[0];
+    expect(project).toMatchObject({
+      key: "__cross_project__",
+      label: "cross-project",
+      attempts: 1,
+    });
+  });
+
   it("keeps abandoned discarded cost outside successful totals", () => {
     const result = computeInsights(
       [

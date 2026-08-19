@@ -4,7 +4,7 @@ import {
   type ModelPrice,
   type UsageSegment,
 } from "@agent-board/db";
-import type { InsightAttemptRow } from "../../lib/insights";
+import type { InsightUsageRow } from "../../lib/insights";
 
 /**
  * Presentation-only bucketing for the spend-over-time chart. Nothing here
@@ -53,7 +53,7 @@ function dayLabel(d: Date, lang: string): string {
 
 /** Mirrors the data layer's fallback: stored segments win, flat counters fold
     into one segment for the model recorded at claim time. */
-function segmentsOf(a: InsightAttemptRow): UsageSegment[] {
+function segmentsOf(a: InsightUsageRow): UsageSegment[] {
   if (a.usageSegments?.length) return a.usageSegments;
   return normalizeUsageSegments(
     {
@@ -73,7 +73,7 @@ export function trendValue(
 }
 
 export function buildDailyTrend(
-  rows: InsightAttemptRow[],
+  rows: Array<InsightUsageRow & { taskIsExample?: boolean }>,
   opts: {
     prices: readonly ModelPrice[];
     pricingEnabled: boolean;

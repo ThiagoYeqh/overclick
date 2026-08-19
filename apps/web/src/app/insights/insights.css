@@ -43,6 +43,19 @@
   gap: var(--ins-rhythm, var(--nebula-space-4));
   margin-bottom: var(--ins-rhythm, var(--nebula-space-4));
 }
+.nb .ins-subtotals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: calc(var(--ins-rhythm, var(--nebula-space-4)) * -0.55) 0 var(--ins-rhythm, var(--nebula-space-4));
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-family: var(--nebula-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--nebula-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
 .nb .ins-tile {
   display: flex; flex-direction: column;
   padding: 16px 18px; border-radius: 12px;
@@ -307,6 +320,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: var(--nebula-weight-medium);
+}
+.nb .ins-group-line {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nebula-text-tertiary);
 }
 .nb .ins-mono {
   font-family: var(--nebula-font-mono);

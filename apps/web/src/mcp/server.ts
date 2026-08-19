@@ -97,7 +97,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   harness_list:
     "The whole workspace policy (every activity type to cli, model, effort) and configured executors, including the supported effort values and source URL keyed by model.",
   insights_query:
-    "Cost, tokens and time over the workspace, grouped by project, mission, release, model, executor or card, with an optional period, plus the reopened rate per model. Release groups use resolved_in and a null label for cards without one. Same numbers the Insights page shows: estimated, unreported and unverified deliveries come back counted, never silently summed.",
+    "Cost, tokens and time over the workspace, with execution and orchestration subtotals plus a combined total, grouped by project, mission, release, model, executor or card, with an optional period, plus the reopened rate per model. Release groups use resolved_in and a null label for cards without one. Same numbers the Insights page shows: estimated, unreported and unverified work comes back counted, never silently summed.",
   executors_update:
     "Adds or removes CLIs and models in the workspace executor config, and can override the effort list keyed by model. Adding models turns the CLI on unless enabled:false says otherwise; remove:true drops the whole CLI. Needs a token with the manage flag.",
   harness_set:
