@@ -108,7 +108,7 @@ async function loadTasks(projectIds: string[]) {
     orderBy: asc(task.createdAt),
     with: {
       mission: { columns: { id: true, title: true } },
-      project: { columns: { repoUrl: true } },
+      project: { columns: { name: true, repoUrl: true } },
       createdBy: { columns: { email: true } },
       reviewer: { columns: { email: true } },
       attempts: true,
@@ -530,6 +530,7 @@ function toBoardCard(
     handoff: latestHandoff?.summary ?? null,
     howToVerify: latestHandoff?.howToVerify ?? null,
     projectId: t.projectId,
+    projectName: t.project?.name ?? t.projectId,
     missionId: t.missionId,
   };
 }

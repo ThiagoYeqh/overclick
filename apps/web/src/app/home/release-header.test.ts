@@ -23,6 +23,7 @@ function card(overrides: Partial<BoardCard>): BoardCard {
     validationTicks: [],
     howToVerify: null,
     projectId: "project-1",
+    projectName: "OverClick",
     missionId: "mission-1",
     mission: "Reliability",
     harness: null,

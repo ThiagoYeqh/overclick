@@ -454,6 +454,7 @@ export function HomeShell({
         selectable={picking}
         selectedIds={selected}
         onToggleSelect={toggleSelect}
+        onMissionSelect={(missionId) => apply({ ...filter, missionId })}
       />
 
       {picking ? (
