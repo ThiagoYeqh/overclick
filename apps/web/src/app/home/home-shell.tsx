@@ -16,6 +16,7 @@ import {
   missionFilterOptions,
   projectFilterOptions,
   releaseFilterOptions,
+  searchBoardCards,
   toggleProject,
   type BoardFilter,
 } from "../../lib/board-filter";
@@ -217,11 +218,16 @@ export function HomeShell({
   const [totals, setTotals] = useState<BoardTotals>(initialTotals);
   const [picking, setPicking] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   // Phone only: the filters leave the compact bar for the panel behind this
   // one button. On the desktop the panel never opens because the button is
   // hidden and the wrapper is transparent to the bar.
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const visible = useMemo(() => filterBoardCards(cards, filter), [cards, filter]);
+  const visible = useMemo(
+    () => searchBoardCards(filterBoardCards(cards, filter), debouncedSearchQuery),
+    [cards, filter, debouncedSearchQuery],
+  );
   // What the mission filter may offer: the scope is the projects on screen, so
   // the options and their counts follow the selection, not the mission.
   const scope = useMemo(
@@ -279,7 +285,15 @@ export function HomeShell({
     filter.missionId !== null ||
     filter.types.length > 0 ||
     filter.priorities.length > 0 ||
-    filter.resolvedIn !== undefined;
+    filter.resolvedIn !== undefined ||
+    searchQuery.trim().length > 0;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   // MCP writes happen outside this React tree. Refreshing the dynamic route
   // pulls projects, cards and their latest attempts together, so every part
@@ -305,6 +319,17 @@ export function HomeShell({
   function stopPicking() {
     setPicking(false);
     setSelected([]);
+  }
+
+  function clearBoardFilters() {
+    setSearchQuery("");
+    setDebouncedSearchQuery("");
+    apply({
+      projectIds: defaultProject ? [defaultProject] : [],
+      missionId: null,
+      types: [],
+      priorities: [],
+    });
   }
 
   return (
@@ -372,8 +397,13 @@ export function HomeShell({
               onReleaseChange={(resolvedIn) =>
                 apply({ ...filter, resolvedIn })
               }
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onOpen={() => setFiltersOpen(true)}
               onClear={() => {
                 const { resolvedIn: _release, ...rest } = filter;
+                setSearchQuery("");
+                setDebouncedSearchQuery("");
                 apply({ ...rest, types: [], priorities: [] });
               }}
               t={t}
@@ -383,14 +413,7 @@ export function HomeShell({
               <button
                 className="btn-ghost clear-board-filters"
                 type="button"
-                onClick={() =>
-                  apply({
-                    projectIds: defaultProject ? [defaultProject] : [],
-                    missionId: null,
-                    types: [],
-                    priorities: [],
-                  })
-                }
+                onClick={clearBoardFilters}
               >
                 {t.board.clearFilters}
               </button>
@@ -417,6 +440,14 @@ export function HomeShell({
             <Icon name="filter" label={null} size={14} />
             <span>{t.board.filters}</span>
             <span className="badge">{visible.length}</span>
+            {searchQuery.trim() ? (
+              <span
+                className="badge ff-query-badge"
+                title={searchQuery.trim()}
+              >
+                {searchQuery.trim()}
+              </span>
+            ) : null}
           </button>
         </div>
       </header>

@@ -33,6 +33,8 @@ describe("facet filter menu", () => {
         onPrioritiesChange: vi.fn(),
         onReleaseChange: vi.fn(),
         onClear: vi.fn(),
+        query: "",
+        onQueryChange: vi.fn(),
         defaultOpen: true,
         t: dict("en"),
       }),
@@ -48,5 +50,29 @@ describe("facet filter menu", () => {
     expect(html.match(/type="checkbox"/g)).toHaveLength(7);
     expect(html.match(/type="radio"/g)).toHaveLength(3);
     expect(html).not.toContain("facet-chip");
+  });
+
+  it("keeps the board search inside Filters and exposes the active term", () => {
+    const html = renderToStaticMarkup(
+      createElement(FacetFilters, {
+        types: [],
+        priorities: [],
+        releases: [],
+        resolvedIn: undefined,
+        onTypesChange: vi.fn(),
+        onPrioritiesChange: vi.fn(),
+        onReleaseChange: vi.fn(),
+        onClear: vi.fn(),
+        query: "OCL-72",
+        onQueryChange: vi.fn(),
+        defaultOpen: true,
+        t: dict("en"),
+      }),
+    );
+
+    expect(html).toContain('type="search"');
+    expect(html).toContain('value="OCL-72"');
+    expect(html).toContain('class="badge ff-query-badge"');
+    expect(html).toContain("Clear board search");
   });
 });

@@ -112,6 +112,8 @@ const en = {
     clearMission: "Clear mission filter",
     searchMissions: "Search missions",
     noMissionMatch: "No mission matches.",
+    searchCards: "Search cards",
+    clearSearch: "Clear board search",
     /** Bulk move: the board's way out of an instance where every card is loose. */
     moveToMission: "Move to mission",
     pickCardsHint: "Pick the cards to move.",
@@ -666,6 +668,8 @@ const ptBR: Dict = {
     clearMission: "Limpar filtro de missão",
     searchMissions: "Buscar missões",
     noMissionMatch: "Nenhuma missão corresponde.",
+    searchCards: "Pesquisar cards",
+    clearSearch: "Limpar pesquisa do board",
     settings: "Configurações",
     logout: "Sair",
     filters: "Filtros",
