@@ -18,10 +18,14 @@ test -x "$REPO_ROOT/plugin/hooks/claim-guard.sh"
 test "$(find "$REPO_ROOT/plugin/commands" -name '*.md' | wc -l | tr -d ' ')" -eq 5
 test "$(find "$REPO_ROOT/plugin" "$REPO_ROOT/skills" -name SKILL.md | wc -l | tr -d ' ')" -eq 1
 
-mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/home/.codex" "$TEST_ROOT/project"
+mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/home/.codex" "$TEST_ROOT/project" "$TEST_ROOT/claude-cache"
+touch "$TEST_ROOT/claude-cache/OVERCLICK.md"
 cat >"$TEST_ROOT/bin/agent-stub" <<'SH'
 #!/bin/sh
 printf '%s:%s:%s\n' "$(basename -- "$0")" "${1:-}" "${2:-}" >>"$OC_TEST_NATIVE_LOG"
+if [ "$(basename -- "$0")" = "claude" ] && [ "${1:-}" = "plugin" ] && [ "${2:-}" = "list" ]; then
+  printf '[{"id":"overclick@overclick","enabled":true,"installPath":"%s"}]' "$OC_TEST_CLAUDE_CACHE"
+fi
 exit 0
 SH
 chmod +x "$TEST_ROOT/bin/agent-stub"
@@ -45,6 +49,7 @@ JSON
 run_installer() {
   PATH="$TEST_ROOT/bin:$PATH" \
   OC_TEST_NATIVE_LOG="$TEST_ROOT/native.log" \
+  OC_TEST_CLAUDE_CACHE="$TEST_ROOT/claude-cache" \
   OVERCLICK_INSTALL_HOME="$TEST_ROOT/home" \
   OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
   OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
@@ -72,6 +77,69 @@ test "$(stat -f '%Lp' "$TEST_ROOT/home/.config/overclick/config" 2>/dev/null || 
 sed -i.bak 's/enforce_claim=0/enforce_claim=1/' "$TEST_ROOT/home/.config/overclick/config"
 run_installer
 test "$(grep -c '^enforce_claim=1$' "$TEST_ROOT/home/.config/overclick/config")" -eq 1
+
+# "Successfully installed" is not proof of anything: a marketplace entry that
+# never fetched its package still exits 0. The installer must ask the CLI
+# what it actually has on disk and fail loudly when that comes up empty.
+mkdir -p "$TEST_ROOT/claude-cache-empty"
+if PATH="$TEST_ROOT/bin:$PATH" \
+  OC_TEST_NATIVE_LOG="$TEST_ROOT/native-unverified.log" \
+  OC_TEST_CLAUDE_CACHE="$TEST_ROOT/claude-cache-empty" \
+  OVERCLICK_INSTALL_HOME="$TEST_ROOT/home-unverified" \
+  OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
+  OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
+  OVERCLICK_TOKEN="fixture" \
+  OVERCLICK_CLIS="claude" \
+    "$REPO_ROOT/install.sh" >"$TEST_ROOT/unverified.out" 2>"$TEST_ROOT/unverified.err"; then
+  echo "installer should fail loudly when the Claude plugin never materializes" >&2
+  exit 1
+fi
+grep -Fq 'did not materialize' "$TEST_ROOT/unverified.err"
+
+# The github-source bug this fixes never gives install.sh a local checkout to
+# reuse. Exercise that path directly: a bare install.sh copy, no plugin/ next
+# to it, sourcing a local git remote instead of network github.
+mkdir -p "$TEST_ROOT/plugin-remote/plugin/.codex-plugin" \
+  "$TEST_ROOT/plugin-remote/.claude-plugin" "$TEST_ROOT/plugin-remote/.grok-plugin"
+git init -q "$TEST_ROOT/plugin-remote"
+git -C "$TEST_ROOT/plugin-remote" config user.name fixture
+git -C "$TEST_ROOT/plugin-remote" config user.email fixture@invalid
+printf 'package v1\n' >"$TEST_ROOT/plugin-remote/plugin/OVERCLICK.md"
+printf '{}' >"$TEST_ROOT/plugin-remote/plugin/.codex-plugin/plugin.json"
+printf '{}' >"$TEST_ROOT/plugin-remote/.claude-plugin/marketplace.json"
+printf '{}' >"$TEST_ROOT/plugin-remote/.grok-plugin/marketplace.json"
+git -C "$TEST_ROOT/plugin-remote" add -A
+git -C "$TEST_ROOT/plugin-remote" commit -q -m v1
+
+mkdir -p "$TEST_ROOT/isolated-installer" "$TEST_ROOT/clone-cache"
+cp "$REPO_ROOT/install.sh" "$TEST_ROOT/isolated-installer/install.sh"
+chmod +x "$TEST_ROOT/isolated-installer/install.sh"
+touch "$TEST_ROOT/clone-cache/OVERCLICK.md"
+
+run_clone_installer() {
+  PATH="$TEST_ROOT/bin:$PATH" \
+  OC_TEST_NATIVE_LOG="$TEST_ROOT/clone-native.log" \
+  OC_TEST_CLAUDE_CACHE="$TEST_ROOT/clone-cache" \
+  OVERCLICK_INSTALL_HOME="$TEST_ROOT/clone-home" \
+  OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
+  OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
+  OVERCLICK_TOKEN="fixture" \
+  OVERCLICK_CLIS="claude" \
+  OVERCLICK_PLUGIN_SOURCE="file://$TEST_ROOT/plugin-remote" \
+    "$TEST_ROOT/isolated-installer/install.sh" >"$TEST_ROOT/clone.out" 2>"$TEST_ROOT/clone.err"
+}
+
+run_clone_installer
+plugin_src="$TEST_ROOT/clone-home/.config/overclick/plugin-src"
+test -d "$plugin_src/.git"
+grep -Fq 'package v1' "$plugin_src/plugin/OVERCLICK.md"
+
+printf 'package v2\n' >"$TEST_ROOT/plugin-remote/plugin/OVERCLICK.md"
+git -C "$TEST_ROOT/plugin-remote" add -A
+git -C "$TEST_ROOT/plugin-remote" commit -q -m v2
+
+run_clone_installer
+grep -Fq 'package v2' "$plugin_src/plugin/OVERCLICK.md"
 
 OVERCLICK_INSTALL_HOME="$TEST_ROOT/home-fallback" \
 OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
