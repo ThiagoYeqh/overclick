@@ -66,6 +66,8 @@ describe("complete schema from spec §3", () => {
         "id",
         "email",
         "passwordHash",
+        "active",
+        "sessionVersion",
         "boardProjectId",
         "boardMissionId",
         "boardResolvedIn",
