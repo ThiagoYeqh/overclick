@@ -603,6 +603,31 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   width: 240px; max-width: min(320px, calc(100vw - 32px));
   padding: 8px; background: var(--oc-panel-bg);
 }
+.nb .ff-search-row {
+  display: flex; align-items: center; gap: 8px; min-height: 32px;
+  padding: 0 8px; border: 1px solid var(--nebula-glass-border);
+  border-radius: var(--oc-radius-control); background: var(--oc-surface-input);
+  color: var(--nebula-text-secondary);
+}
+.nb .ff-search-row:focus-within {
+  border-color: var(--oc-border-strong); box-shadow: var(--nebula-focus-ring-offset);
+}
+.nb .ff-search {
+  flex: 1; min-width: 0; min-height: 30px; padding: 0;
+  border: 0; outline: none; background: transparent;
+  color: var(--nebula-text-primary); font-family: var(--nebula-font-label);
+  font-size: 11px; letter-spacing: 0.04em;
+}
+.nb .ff-search::placeholder { color: var(--nebula-text-tertiary); }
+.nb .ff-search-clear {
+  display: inline-flex; flex: none; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0; border: 0;
+  background: transparent; color: var(--nebula-text-secondary); cursor: pointer;
+}
+.nb .ff-search-clear:hover { color: var(--nebula-text-primary); }
+.nb .ff-search-clear:focus-visible {
+  outline: none; box-shadow: var(--nebula-focus-ring-inset);
+}
 .nb .ff-section + .ff-section {
   margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--nebula-glass-border);
 }
@@ -895,6 +920,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   background: var(--nebula-mist-glow); color: var(--nebula-btn-light-text);
   font-family: var(--nebula-font-mono); font-size: 11px; font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+.nb .topbar-l2 .ff-query-badge {
+  max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* the mission chip is the bordered control; the trigger inside it stays
    bare so the whole chip is the hit area */
@@ -2454,6 +2482,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     padding: 16px 16px max(16px, env(safe-area-inset-bottom));
     border-radius: var(--oc-radius-sheet) var(--oc-radius-sheet) 0 0;
   }
+  .nb .ff-search-row { min-height: var(--nebula-tap); }
+  .nb .ff-search { min-height: calc(var(--nebula-tap) - 2px); }
+  .nb .ff-search-clear { width: var(--nebula-tap); height: var(--nebula-tap); }
   .nb .topbar-more .filter-result { align-self: flex-start; }
   /* the state chips are gone at this width — they folded into the account
      menu at 1100px — so there is nothing left here to shrink */

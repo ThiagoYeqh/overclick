@@ -50,6 +50,14 @@ type FilterableCard = {
   resolvedIn: string | null;
 };
 
+export type SearchableBoardCard = FilterableCard & {
+  shortId: string;
+  title: string;
+  oQue: string;
+  porQue: string;
+  comoConfirmo: readonly { step: string; expected: string }[];
+};
+
 export function defaultProjectId(projects: { id: string }[]): string | null {
   return projects[0]?.id ?? null;
 }
@@ -256,6 +264,30 @@ export function filterBoardCards<T extends FilterableCard>(
     if (!matchesFacets(card, filter)) return false;
     if (!matchesRelease(card, filter)) return false;
     return matchesMission(card, filter);
+  });
+}
+
+/**
+ * Free-text board search stays separate from facet resolution so it can be
+ * composed with every active project, mission, type, priority and release
+ * filter. Each word is required, which makes a query such as "OCL-72 board"
+ * useful without requiring the words to appear next to each other.
+ */
+export function searchBoardCards<T extends SearchableBoardCard>(
+  cards: T[],
+  query: string,
+): T[] {
+  const needles = normalize(query).split(/\s+/).filter(Boolean);
+  if (needles.length === 0) return cards;
+
+  return cards.filter((card) => {
+    const contract = card.comoConfirmo
+      .flatMap((step) => [step.step, step.expected])
+      .join(" ");
+    const haystack = normalize(
+      [card.shortId, card.title, card.oQue, card.porQue, contract].join(" "),
+    );
+    return needles.every((needle) => haystack.includes(needle));
   });
 }
 

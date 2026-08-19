@@ -15,6 +15,7 @@ import {
   resolveBoardFilter,
   resolveReleaseSelection,
   resolveProjectSelection,
+  searchBoardCards,
   searchMissions,
   shouldSearchMissions,
   toggleProject,
@@ -37,6 +38,28 @@ const cards = [
   { id: "a", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const, resolvedIn: "v1.2.0" },
   { id: "b", projectId: "p1", missionId: null, tipo: "bug" as const, priority: "alta" as const, resolvedIn: null },
   { id: "c", projectId: "p2", missionId: "m2", tipo: "bug" as const, priority: "media" as const, resolvedIn: "v1.1.0" },
+];
+const searchableCards = [
+  {
+    ...cards[0],
+    shortId: "OCL-72",
+    title: "Pesquisar no board",
+    oQue: "Campo de busca dentro de Filtros",
+    porQue: "Achar cards sem rolagem cega",
+    comoConfirmo: [
+      { step: "Digitar um trecho", expected: "Board filtra em tempo real" },
+    ],
+  },
+  {
+    ...cards[1],
+    shortId: "OCL-11",
+    title: "Revisão do cabeçalho",
+    oQue: "Ajustar o topbar",
+    porQue: "Dar mais espaço",
+    comoConfirmo: [
+      { step: "Abrir o board", expected: "Cabeçalho em uma linha" },
+    ],
+  },
 ];
 const ALL: string[] = [];
 
@@ -92,6 +115,19 @@ describe("board filters", () => {
       boardFilter({ projectIds: ["p1"], missionId: "m1" }),
     );
     expect(both.map((card) => card.id)).toEqual(["a"]);
+  });
+
+  it("searches card ids, titles and contract text without losing facet results", () => {
+    expect(searchBoardCards(searchableCards, "ocl-72").map((card) => card.shortId)).toEqual([
+      "OCL-72",
+    ]);
+    expect(searchBoardCards(searchableCards, "rolagem cega").map((card) => card.shortId)).toEqual([
+      "OCL-72",
+    ]);
+    expect(searchBoardCards(searchableCards, "CAMPO filtros").map((card) => card.shortId)).toEqual([
+      "OCL-72",
+    ]);
+    expect(searchBoardCards(searchableCards, "  ")).toEqual(searchableCards);
   });
 
   it("keeps a no-mission bucket instead of hiding the loose cards", () => {

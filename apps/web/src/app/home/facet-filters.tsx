@@ -10,6 +10,15 @@ import {
 } from "../../lib/board-filter";
 import type { Dict } from "../../lib/i18n";
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  return Boolean(
+    element &&
+      (element.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName)),
+  );
+}
+
 export function toggleFacet<T extends string>(
   current: T[],
   value: T,
@@ -31,6 +40,9 @@ export function FacetFilters({
   onPrioritiesChange,
   onReleaseChange,
   onClear,
+  query,
+  onQueryChange,
+  onOpen,
   defaultOpen = false,
   t,
 }: {
@@ -42,14 +54,26 @@ export function FacetFilters({
   onPrioritiesChange: (priorities: TaskPriority[]) => void;
   onReleaseChange: (release: string | null | undefined) => void;
   onClear: () => void;
+  query: string;
+  onQueryChange: (query: string) => void;
+  /** Opens the level-2 sheet as well when a keyboard shortcut is used. */
+  onOpen?: () => void;
   /** Lets server-rendered UI tests inspect the panel without a browser. */
   defaultOpen?: boolean;
   t: Dict;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const root = useRef<HTMLDivElement | null>(null);
+  const search = useRef<HTMLInputElement | null>(null);
   const activeCount =
     types.length + priorities.length + (resolvedIn !== undefined ? 1 : 0);
+  const hasSearch = query.trim().length > 0;
+  const hasActiveFilters = activeCount > 0 || hasSearch;
+
+  function openPanel() {
+    setOpen(true);
+    onOpen?.();
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -65,6 +89,25 @@ export function FacetFilters({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
+  }, [open]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const key = event.key.toLowerCase();
+      const slash = event.key === "/" && !isEditableTarget(event.target);
+      const commandK = (event.metaKey || event.ctrlKey) && key === "k";
+      if (!slash && !commandK) return;
+      event.preventDefault();
+      openPanel();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onOpen]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => search.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
   }, [open]);
 
   const typeLabels: Record<TaskType, string> = {
@@ -124,16 +167,24 @@ export function FacetFilters({
     <div className="facet-filters" ref={root}>
       <button
         type="button"
-        className={`filter-chip ff-trigger${activeCount > 0 ? " on" : ""}`}
+        className={`filter-chip ff-trigger${hasActiveFilters ? " on" : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (open) setOpen(false);
+          else openPanel();
+        }}
       >
         {/* ux-v2 §3: the funnel is the Lucide filter mark at 14px, and an
             active filter set reads as a count badge, not as "· N" text. */}
         <Icon name="filter" label={null} size={14} />
         <span>{t.board.filters}</span>
         {activeCount > 0 ? <span className="badge">{activeCount}</span> : null}
+        {hasSearch ? (
+          <span className="badge ff-query-badge" title={query.trim()}>
+            {query.trim()}
+          </span>
+        ) : null}
       </button>
 
       {open ? (
@@ -142,6 +193,29 @@ export function FacetFilters({
           role="dialog"
           aria-label={t.board.filters}
         >
+          <div className="ff-search-row">
+            <Icon name="search" label={null} size={14} />
+            <input
+              ref={search}
+              className="ff-search"
+              type="search"
+              value={query}
+              placeholder={t.board.searchCards}
+              aria-label={t.board.searchCards}
+              onChange={(event) => onQueryChange(event.target.value)}
+            />
+            {hasSearch ? (
+              <button
+                className="ff-search-clear"
+                type="button"
+                aria-label={t.board.clearSearch}
+                title={t.board.clearSearch}
+                onClick={() => onQueryChange("")}
+              >
+                <Icon name="clear" label={null} size={13} />
+              </button>
+            ) : null}
+          </div>
           <section className="ff-section" aria-labelledby="ff-types-label">
             <h3 id="ff-types-label">{t.board.typeFilter}</h3>
             <div className="ff-list">
@@ -185,7 +259,7 @@ export function FacetFilters({
           <button
             className="ff-clear"
             type="button"
-            disabled={activeCount === 0}
+            disabled={!hasActiveFilters}
             onClick={onClear}
           >
             {t.board.clearFilters}
