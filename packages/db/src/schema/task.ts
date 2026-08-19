@@ -8,7 +8,12 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { Harness, TaskOrigin, ValidationTick } from "../types";
+import type {
+  DeliveryVerification,
+  Harness,
+  TaskOrigin,
+  ValidationTick,
+} from "../types";
 import {
   executionModeEnum,
   reviewerKindEnum,
@@ -72,6 +77,12 @@ export const task = pgTable(
   harness: jsonb("harness").$type<Harness>(),
   branch: text("branch"),
   prUrl: text("pr_url"),
+  /** Commit hash reported by the executor at delivery time. */
+  commitHash: text("commit_hash"),
+  /** True when the commit/branch could not be verified on the project remote. */
+  deliveryUnverified: boolean("delivery_unverified").notNull().default(false),
+  deliveryVerification: text("delivery_verification").$type<DeliveryVerification>(),
+  deliveryWarning: text("delivery_warning"),
   /**
    * Version, tag or release in which this card was resolved, as free text
    * ("1.4.0", "v2026.08", a release name). Null until someone says so:

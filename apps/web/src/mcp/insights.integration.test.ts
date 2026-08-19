@@ -192,6 +192,7 @@ describe("insights_query answers what the Insights page answers", () => {
       suspect_tokens: page.totals.suspectTokens,
       suspect_duration_ms: page.totals.suspectDurationMs,
       suspect_cost_usd: page.totals.suspectCostUsd,
+      delivery_unverified: page.totals.deliveryUnverified,
     });
     // Three finished attempts on real cards; the example card's $99 is out.
     expect(out.totals.attempts).toBe(3);
@@ -218,6 +219,7 @@ describe("insights_query answers what the Insights page answers", () => {
       ["mission", page.byMission],
       ["project", page.byProject],
       ["model", page.byModel],
+      ["executor", page.byExecutor],
     ] as const) {
       const queried = await invokeTool(world.db, ctx(), "insights_query", {
         group_by: groupBy,
@@ -246,6 +248,7 @@ describe("insights_query answers what the Insights page answers", () => {
           suspect_tokens: row.suspectTokens,
           suspect_duration_ms: row.suspectDurationMs,
           suspect_cost_usd: row.suspectCostUsd,
+          delivery_unverified: row.deliveryUnverified,
         })),
       );
     }

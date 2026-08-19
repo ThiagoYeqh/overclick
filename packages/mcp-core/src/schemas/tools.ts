@@ -5,6 +5,7 @@ import {
   CardapioTaskTypeSchema,
   CardStatusSchema,
   ConfirmationStepSchema,
+  DeliveryVerificationSchema,
   EffortSchema,
   EvidenceSchema,
   ExecutionAttemptSchema,
@@ -602,6 +603,8 @@ export const TaskDeliverInputSchema = z.object({
   evidence: z.array(EvidenceSchema).default([]),
   artifacts: z.array(ArtifactSchema).default([]),
   branch: z.string().min(1).optional(),
+  /** Commit hash that was pushed before this delivery. */
+  commit: z.string().min(1).optional(),
   pull_request_url: z.string().url().optional(),
   /**
    * Version, tag or release this delivery lands in, when the agent knows it
@@ -629,6 +632,9 @@ export const TaskDeliverInputSchema = z.object({
 export const TaskDeliverOutputSchema = z.object({
   task: TaskSchema,
   handoff: HandoffSchema,
+  delivery_unverified: z.boolean(),
+  delivery_verification: DeliveryVerificationSchema.nullable(),
+  delivery_warning: z.string().nullable(),
   telemetry_incomplete: z.boolean(),
   usage_suspect: z.boolean(),
   usage_suspect_reason: z.string().nullable(),
@@ -890,6 +896,8 @@ export const UsageTotalsSchema = z.object({
   zero_usage: z.number().int().nonnegative(),
   /** Attempts excluded from trusted sums by the claim-window/session guard. */
   suspect: z.number().int().nonnegative(),
+  /** Deliveries accepted without a verified commit on the project remote. */
+  delivery_unverified: z.number().int().nonnegative(),
   /** Reported tokens on suspect attempts, counted apart from `tokens`. */
   suspect_tokens: z.number().int().nonnegative(),
   /** Reported execution time on suspect attempts, outside `duration_ms`. */
@@ -946,6 +954,7 @@ export const InsightCardSchema = z.object({
   suspect_tokens: z.number().int().nonnegative(),
   suspect_duration_ms: z.number().int().nonnegative(),
   suspect_cost_usd: z.number().nullable(),
+  delivery_unverified: z.boolean(),
 });
 
 export const ModelReopenSchema = z.object({
@@ -964,7 +973,7 @@ export const ModelReopenSchema = z.object({
  */
 export const InsightsQueryInputSchema = z.object({
   group_by: z
-    .enum(["project", "mission", "model", "release", "card"])
+    .enum(["project", "mission", "model", "executor", "release", "card"])
     .optional()
     .describe("Omit for totals and the reopen rate only."),
   since: z
@@ -1002,7 +1011,7 @@ export const InsightsQueryOutputSchema = z.object({
   note: z.string().min(1),
   /** Where the dollars came from: "3 computed · 1 agent reported". */
   cost_note: z.string().min(1),
-  /** Present when group_by is project, mission, model or release. Cost descending. */
+  /** Present when group_by is project, mission, model, executor or release. Cost descending. */
   groups: z.array(InsightGroupSchema).optional(),
   /** Present when group_by is card. */
   cards: z.array(InsightCardSchema).optional(),

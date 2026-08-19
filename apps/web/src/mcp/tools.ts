@@ -83,6 +83,10 @@ import {
   recipeForCli,
   type RecipesDb,
 } from "../lib/recipes";
+import {
+  verifyDelivery,
+  type DeliveryVerificationResult,
+} from "../lib/delivery-verification";
 import { renderBriefingMarkdown } from "./briefing";
 import {
   isExecutorPairConfigured,
@@ -254,6 +258,9 @@ function mapExecutionAttempt(row: typeof executionAttempt.$inferSelect) {
     usage,
     usage_suspect: row.usageSuspect,
     usage_suspect_reason: row.usageSuspectReason,
+    delivery_unverified: row.deliveryUnverified,
+    delivery_verification: row.deliveryVerification ?? null,
+    delivery_warning: row.deliveryWarning ?? null,
     result: row.result as "success" | "failure" | "abandoned" | null,
     result_note: row.resultNote,
     transcript: transcriptToWire(row.transcript),
@@ -1039,6 +1046,10 @@ async function taskList(
         project_id: mapped.project_id,
         mission_id: mapped.mission_id,
         devolve_para: mapped.devolve_para,
+        commit: mapped.commit,
+        delivery_unverified: mapped.delivery_unverified,
+        delivery_verification: mapped.delivery_verification,
+        delivery_warning: mapped.delivery_warning,
       };
     }),
   };
@@ -2362,12 +2373,34 @@ async function taskDeliver(
     evidence: Array<{ text?: string; url?: string }>;
     artifacts: unknown[];
     branch?: string;
+    commit?: string;
     pull_request_url?: string;
     resolved_in?: string;
     usage?: Usage;
     transcript?: TranscriptRefWire;
   },
 ) {
+  // Check the project remote before opening the database transaction. The
+  // verifier is advisory by design: a missing commit or a network outage is
+  // recorded on the delivery, never turned into a silent rejection.
+  const preview = await findTask(db, ctx.workspaceId, input.task_id);
+  if (!preview) {
+    return err(
+      "NOT_FOUND",
+      `Task ${input.task_id} not found in this workspace. Call task_list to see the available cards.`,
+    );
+  }
+  // A delivery must identify its own pushed commit. Do not silently reuse an
+  // older delivery's hash: on a project remote, omitting commit is precisely
+  // the advisory unverified case the board needs to surface.
+  const deliveryCommit = input.commit?.trim() || null;
+  const deliveryBranch = input.branch?.trim() || preview.row.branch || null;
+  const deliveryVerification: DeliveryVerificationResult = await verifyDelivery({
+    repoUrl: preview.proj.repoUrl,
+    commit: deliveryCommit,
+    branch: deliveryBranch,
+  });
+
   const persisted = await db.transaction(async (tx) => {
     const found = await findTask(tx, ctx.workspaceId, input.task_id, true);
     if (!found) {
@@ -2499,6 +2532,9 @@ async function taskDeliver(
           sessionId,
           usageSuspect: usageGuard.suspect,
           usageSuspectReason: usageGuard.reason,
+          deliveryUnverified: deliveryVerification.unverified,
+          deliveryVerification: deliveryVerification.status ?? null,
+          deliveryWarning: deliveryVerification.warning,
           transcript,
         })
         .where(eq(executionAttempt.id, openAttempt.id));
@@ -2521,8 +2557,12 @@ async function taskDeliver(
         howToVerify: input.how_to_verify ?? null,
         evidences: input.evidence as never,
         artifacts: input.artifacts as never,
-        branch: input.branch ?? found.row.branch,
+        branch: deliveryBranch,
         prUrl: input.pull_request_url ?? found.row.prUrl,
+        commitHash: deliveryCommit,
+        deliveryUnverified: deliveryVerification.unverified,
+        deliveryVerification: deliveryVerification.status ?? null,
+        deliveryWarning: deliveryVerification.warning,
         usage: storedUsage ?? null,
       })
       .returning();
@@ -2533,8 +2573,12 @@ async function taskDeliver(
       .set({
         status: transition.value.status,
         revisado: transition.value.revisado,
-        branch: input.branch ?? found.row.branch,
+        branch: deliveryBranch,
         prUrl: input.pull_request_url ?? found.row.prUrl,
+        commitHash: deliveryCommit,
+        deliveryUnverified: deliveryVerification.unverified,
+        deliveryVerification: deliveryVerification.status ?? null,
+        deliveryWarning: deliveryVerification.warning,
         resolvedIn: input.resolved_in ?? found.row.resolvedIn,
         telemetryIncomplete: incomplete,
         // A fresh delivery restarts lay validation from zero.
@@ -2560,6 +2604,7 @@ async function taskDeliver(
         : null,
       transcript,
       usageGuard,
+      deliveryVerification,
     });
   });
 
@@ -2584,6 +2629,10 @@ async function taskDeliver(
         persisted.value.saved.prUrl && /^https?:\/\//.test(persisted.value.saved.prUrl)
           ? persisted.value.saved.prUrl
           : null,
+      commit: persisted.value.saved.commitHash ?? null,
+      delivery_unverified: persisted.value.saved.deliveryUnverified,
+      delivery_verification: persisted.value.saved.deliveryVerification ?? null,
+      delivery_warning: persisted.value.saved.deliveryWarning ?? null,
       // What the board stored, segments included, not what arrived: a flat
       // block comes back as the single segment it became.
       usage: persisted.value.usage ?? null,
@@ -2593,6 +2642,9 @@ async function taskDeliver(
     telemetry_incomplete: persisted.value.incomplete,
     usage_suspect: persisted.value.usageGuard.suspect,
     usage_suspect_reason: persisted.value.usageGuard.reason,
+    delivery_unverified: persisted.value.saved.deliveryUnverified,
+    delivery_verification: persisted.value.saved.deliveryVerification ?? null,
+    delivery_warning: persisted.value.saved.deliveryWarning ?? null,
     transcript: transcriptToWire(persisted.value.transcript),
     ...(input.usage
       ? {}
@@ -2835,7 +2887,7 @@ async function insightsQuery(
   db: McpDatabase,
   ctx: AuthContext,
   input: {
-    group_by?: "project" | "mission" | "model" | "release" | "card";
+    group_by?: "project" | "mission" | "model" | "executor" | "release" | "card";
     since?: string;
     until?: string;
   },
@@ -2891,6 +2943,7 @@ async function insightsQuery(
     suspect_tokens: row.suspectTokens,
     suspect_duration_ms: row.suspectDurationMs,
     suspect_cost_usd: pricingEnabled ? row.suspectCostUsd : null,
+    delivery_unverified: row.deliveryUnverified,
   });
   const totals = totalsFor(insights.totals);
 
@@ -2906,6 +2959,7 @@ async function insightsQuery(
   if (input.group_by === "project") grouped = { groups: groupsFor(insights.byProject) };
   if (input.group_by === "mission") grouped = { groups: groupsFor(insights.byMission) };
   if (input.group_by === "model") grouped = { groups: groupsFor(insights.byModel) };
+  if (input.group_by === "executor") grouped = { groups: groupsFor(insights.byExecutor) };
   if (input.group_by === "release") grouped = { groups: groupsFor(insights.byRelease) };
   if (input.group_by === "card") {
     grouped = {
@@ -2934,6 +2988,7 @@ async function insightsQuery(
         suspect_tokens: card.suspectTokens,
         suspect_duration_ms: card.suspectDurationMs,
         suspect_cost_usd: pricingEnabled ? card.suspectCostUsd : null,
+        delivery_unverified: card.deliveryUnverified,
       })),
     };
   }

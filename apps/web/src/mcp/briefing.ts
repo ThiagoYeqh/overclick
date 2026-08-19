@@ -155,7 +155,7 @@ export function renderBriefingMarkdown(input: {
     ...(recipe ? renderRecipe(recipe) : []),
     "## Executor contract",
     "",
-    "When done, call `task_deliver` with summary, evidence, branch and " +
+    "Before `task_deliver`, create the commit and push it to the remote. A modified working tree is not a delivery. Then call `task_deliver` with summary, evidence, commit, branch and " +
       "usage. Send usage as `segments`, one per model that ran: " +
       "`{segments: [{model, input, output, cache_read, cache_write}], " +
       "duration_ms, turns}` — the command above prints that shape. " +

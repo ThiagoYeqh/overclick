@@ -4,7 +4,7 @@
  */
 const en = {
   title: "Insights",
-  sub: "What execution takes on this board: tokens and time per project, per mission, per release, per model, per card.",
+  sub: "What execution takes on this board: tokens and time per project, per mission, per release, per executor, per model, per card.",
   backToBoard: "Board",
   totalCost: "Total cost",
   totalTokens: "Total tokens",
@@ -18,11 +18,13 @@ const en = {
   missingCount: (n: number) => `${n} usage not reported`,
   zeroUsageCount: (n: number) => `${n} reported zero usage`,
   suspectCount: (n: number) => `${n} suspect`,
+  unverifiedCount: (n: number) => `${n} commit${n === 1 ? "" : "s"} unverified`,
   suspectSeparate: (tokens: string) =>
     `${tokens} above the possible claim window, kept outside totals`,
   allReported: "all usage reported",
   byProject: "By project",
   byMission: "By mission",
+  byExecutor: "By executor",
   byModel: "By model",
   sharedModelsNote: (n: number) =>
     `${n} run${n === 1 ? "" : "s"} switched model. Tokens are split per model; the duration is not, so the times below overlap.`,
@@ -38,6 +40,7 @@ const en = {
   colTokens: "tokens",
   colTime: "execution",
   colAttempts: "attempts",
+  colUnverified: "unverified",
   colDeliveries: "deliveries",
   colReopened: "reopened",
   colRate: "rate",
@@ -82,6 +85,7 @@ const en = {
   footSuspect: (items: string) => `! suspect usage, kept separate: ${items}`,
   footElapsed: (items: string) => `+ elapsed, never added: ${items}`,
   footUnpriced: (items: string) => `no price: ${items}`,
+  footUnverified: (items: string) => `commit not found on remote: ${items}`,
   emptyTitle: "Nothing measured yet.",
   empty:
     "No delivered work yet. When an agent claims and delivers a card, its tokens and time land here.",
@@ -115,7 +119,7 @@ export type InsightsCopy = typeof en;
 
 const ptBR: InsightsCopy = {
   title: "Insights",
-  sub: "O que a execução consome neste board: tokens e tempo por projeto, por missão, por release, por modelo, por card.",
+  sub: "O que a execução consome neste board: tokens e tempo por projeto, por missão, por release, por executor, por modelo, por card.",
   backToBoard: "Board",
   totalCost: "Custo total",
   totalTokens: "Tokens totais",
@@ -128,11 +132,13 @@ const ptBR: InsightsCopy = {
   missingCount: (n: number) => `${n} sem uso reportado`,
   zeroUsageCount: (n: number) => `${n} com uso reportado como zero`,
   suspectCount: (n: number) => `${n} suspeito${n === 1 ? "" : "s"}`,
+  unverifiedCount: (n: number) => `${n} commit${n === 1 ? "" : "s"} não verificado${n === 1 ? "" : "s"}`,
   suspectSeparate: (tokens: string) =>
     `${tokens} acima do possível na janela do claim, fora dos totais`,
   allReported: "todo uso reportado",
   byProject: "Por projeto",
   byMission: "Por missão",
+  byExecutor: "Por executor",
   byModel: "Por modelo",
   sharedModelsNote: (n: number) =>
     `${n} execuç${n === 1 ? "ão trocou" : "ões trocaram"} de modelo. Os tokens são separados por modelo; a duração não, então os tempos abaixo se sobrepõem.`,
@@ -148,6 +154,7 @@ const ptBR: InsightsCopy = {
   colTokens: "tokens",
   colTime: "execução",
   colAttempts: "execuções",
+  colUnverified: "não verificados",
   colDeliveries: "entregas",
   colReopened: "reabertos",
   colRate: "taxa",
@@ -190,6 +197,7 @@ const ptBR: InsightsCopy = {
   footSuspect: (items: string) => `! uso suspeito, contado à parte: ${items}`,
   footElapsed: (items: string) => `+ decorrido, não somado: ${items}`,
   footUnpriced: (items: string) => `sem preço: ${items}`,
+  footUnverified: (items: string) => `commit não encontrado no remoto: ${items}`,
   emptyTitle: "Nada medido ainda.",
   empty:
     "Nenhuma entrega ainda. Quando um agente pegar e entregar um card, os tokens e o tempo aparecem aqui.",

@@ -78,7 +78,12 @@ next two minutes: the board records work, it is not a diary.
 
 `task_deliver` carries the result: a summary of what changed, evidence a
 reviewer can check, branch and PR when there is one, `how_to_verify` (the URL or
-command a reviewer opens first), and `usage`.
+command a reviewer opens first), commit and `usage`.
+
+Before `task_deliver`, create and push the commit. Send both the commit hash and
+branch. A modified working tree is not a delivery; the board may accept a
+delivery whose commit cannot be checked remotely, but marks it
+`delivery_unverified` with the warning “commit não encontrado no remoto”.
 
 **Usage is not optional.** Run the recipe the briefing gave you: it reads your
 own session transcript and prints tokens grouped by model, in the shape the tool

@@ -13,6 +13,10 @@ const task: Task = {
   priority: "alta",
   project_id: "proj_1",
   mission_id: "miss_1",
+  commit: null,
+  delivery_unverified: false,
+  delivery_verification: null,
+  delivery_warning: null,
   workspace_id: "ws_1",
   previous_short_ids: [],
   parent_id: null,
@@ -71,8 +75,9 @@ describe("self-contained briefing markdown", () => {
     const contractAt = md.indexOf("## Executor contract");
     expect(contractAt).toBeGreaterThan(-1);
     expect(md.slice(contractAt)).toContain(
-      "When done, call `task_deliver` with summary, evidence, branch and usage",
+      "Before `task_deliver`, create the commit and push it to the remote",
     );
+    expect(md.slice(contractAt)).toContain("summary, evidence, commit, branch and usage");
     expect(md.slice(contractAt)).toContain("segments");
     expect(md.slice(contractAt)).toContain("estimated: true");
     expect(md.slice(contractAt)).toContain("never replace a missing model");

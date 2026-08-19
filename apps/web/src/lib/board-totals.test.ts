@@ -21,6 +21,7 @@ const totals: UsageTotals = {
   suspectTokens: 5_000_000,
   suspectDurationMs: 60_000,
   suspectCostUsd: 99,
+  deliveryUnverified: 0,
 };
 
 describe("the total the topbar carries", () => {

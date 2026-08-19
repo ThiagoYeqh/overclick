@@ -78,6 +78,9 @@ function honestyNote(totals: UsageTotals, t: InsightsCopy): string {
   if (totals.missing > 0) parts.push(t.missingCount(totals.missing));
   if (totals.zeroUsage > 0) parts.push(t.zeroUsageCount(totals.zeroUsage));
   if (totals.suspect > 0) parts.push(t.suspectCount(totals.suspect));
+  if (totals.deliveryUnverified > 0) {
+    parts.push(t.unverifiedCount(totals.deliveryUnverified));
+  }
   return parts.length > 0 ? parts.join(" · ") : t.allReported;
 }
 
@@ -101,6 +104,7 @@ function GroupFootnote({
   fallbackLabel,
   pricingEnabled,
   showUnpriced,
+  showUnverified,
   t,
 }: {
   rows: GroupInsight[];
@@ -108,6 +112,8 @@ function GroupFootnote({
   pricingEnabled: boolean;
   /** Only the by-model table names the models without a price row. */
   showUnpriced: boolean;
+  /** Executor/model tables surface deliveries without a verified commit. */
+  showUnverified: boolean;
   t: InsightsCopy;
 }) {
   const name = (r: GroupInsight) => r.label ?? fallbackLabel;
@@ -160,6 +166,18 @@ function GroupFootnote({
       items.push(t.footUnpriced(unpriced.map(name).join(", ")));
     }
   }
+  if (showUnverified) {
+    const unverified = rows.filter((r) => r.deliveryUnverified > 0);
+    if (unverified.length > 0) {
+      items.push(
+        t.footUnverified(
+          unverified
+            .map((r) => `${name(r)} ×${r.deliveryUnverified}`)
+            .join(" · "),
+        ),
+      );
+    }
+  }
   if (items.length === 0) return null;
   return (
     <p className="ins-foot">
@@ -178,6 +196,7 @@ function GroupTable({
   t,
   pricingEnabled,
   showUnpriced = false,
+  showUnverified = false,
 }: {
   rows: GroupInsight[];
   fallbackLabel: string;
@@ -185,6 +204,7 @@ function GroupTable({
   /** Money is opt-in: with it off the cost column is not there at all. */
   pricingEnabled: boolean;
   showUnpriced?: boolean;
+  showUnverified?: boolean;
 }) {
   return (
     <>
@@ -196,6 +216,7 @@ function GroupTable({
             <col className="ins-col-tokens" />
             <col className="ins-col-time" />
             <col className="ins-col-attempts" />
+            {showUnverified ? <col className="ins-col-attempts" /> : null}
           </colgroup>
           <thead>
             <tr>
@@ -204,6 +225,7 @@ function GroupTable({
               <th className="num">{t.colTokens}</th>
               <th className="num">{t.colTime}</th>
               <th className="num">{t.colAttempts}</th>
+              {showUnverified ? <th className="num">{t.colUnverified}</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -295,6 +317,17 @@ function GroupTable({
                     ) : null}
                   </td>
                   <td className="num">{row.attempts}</td>
+                  {showUnverified ? (
+                    <td className="num">
+                      {row.deliveryUnverified > 0 ? (
+                        <span className="ins-mark" title={t.footUnverified(`${name} ×${row.deliveryUnverified}`)}>
+                          {row.deliveryUnverified}
+                        </span>
+                      ) : (
+                        "0"
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
@@ -306,6 +339,7 @@ function GroupTable({
         fallbackLabel={fallbackLabel}
         pricingEnabled={pricingEnabled}
         showUnpriced={showUnpriced}
+        showUnverified={showUnverified}
         t={t}
       />
     </>
@@ -601,6 +635,18 @@ export default async function InsightsPage({
               </section>
               <section className="ins-panel nebula-glass">
                 <div className="ins-cap">
+                  <span>{t.byExecutor}</span>
+                </div>
+                <GroupTable
+                  rows={insights.byExecutor}
+                  fallbackLabel="—"
+                  t={t}
+                  pricingEnabled={pricingEnabled}
+                  showUnverified
+                />
+              </section>
+              <section className="ins-panel nebula-glass">
+                <div className="ins-cap">
                   <span>{t.byModel}</span>
                 </div>
                 <GroupTable
@@ -609,6 +655,7 @@ export default async function InsightsPage({
                   t={t}
                   pricingEnabled={pricingEnabled}
                   showUnpriced
+                  showUnverified
                 />
               </section>
               <section className="ins-panel nebula-glass">

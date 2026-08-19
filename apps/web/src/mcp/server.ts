@@ -14,7 +14,7 @@ import type { AuthContext, McpDatabase } from "./types";
 export const SERVER_INSTRUCTIONS = [
   "OverClick is the task board where agents claim and deliver cards (not Overclock the IDE); registering activities means task_create here.",
   "",
-  "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, exact session model from --model, session_id) and returns the briefing, and when the work is done you call task_deliver with summary, evidence, branch and usage. Without exact usage numbers, estimate and set estimated: true.",
+  "Typical flow: task_list shows the queue, task_claim takes a card (send your executor: cli, exact session model from --model, session_id) and returns the briefing, then create and push a commit before task_deliver. A modified working tree is not a delivery; send the commit hash and branch with summary, evidence and usage. Without exact usage numbers, estimate and set estimated: true.",
   "If an executor must stop, task_release returns its card to the queue without deleting the attempt. Long runs may call task_heartbeat; an inactive claim expires at the workspace timeout and the next task_claim reports reclaimed_stale: true.",
   "Missions group cards: mission_create returns the id that task_create accepts. Every task_id argument accepts the card uuid or the workspace short id (for example AGB-5).",
   "Round-wide conventions belong in mission context: edit them with mission_update. Remove empty mission shells with mission_delete.",
@@ -88,7 +88,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   task_update:
     "Records progress, leaves a comment, marks revisado, reclassifies the harness, or reports and corrects the card usage, including on a discarded card. project_id moves the card between projects. status descartado together with superseded_by ends the attempt as abandoned and links the card that continues it; that one needs can_manage.",
   task_deliver:
-    "Delivers the result: summary, evidence, artifacts, usage. usage is MANDATORY: without exact numbers, ESTIMATE tokens, turns and cost and set estimated: true, and the card labels them as an estimate. Duration is measured by the server, from the claim to the deliver. how_to_verify (a URL or a command) opens the plain-language validation panel. Status becomes feito.",
+    "Delivers the result: summary, evidence, artifacts, commit, branch and usage. Create and push the commit before calling this tool; a modified working tree is not a delivery. The board verifies the commit against the project remote when possible and accepts failures with a delivery_unverified warning. usage is MANDATORY: without exact numbers, ESTIMATE tokens, turns and cost and set estimated: true, and the card labels them as an estimate. Duration is measured by the server, from the claim to the deliver. how_to_verify (a URL or a command) opens the plain-language validation panel. Status becomes feito.",
   task_delete:
     "Hard delete: removes the card, cascading to its attempts, handoffs and subtasks. Irreversible.",
   branch_register: "Records on the card the branch that was created for it.",
@@ -97,7 +97,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   harness_list:
     "The whole workspace policy (every activity type to cli, model, effort) and the configured executors.",
   insights_query:
-    "Cost, tokens and time over the workspace, grouped by project, mission, release, model or card, with an optional period, plus the reopened rate per model. Release groups use resolved_in and a null label for cards without one. Same numbers the Insights page shows: estimated and unreported usage come back counted, never silently summed.",
+    "Cost, tokens and time over the workspace, grouped by project, mission, release, model, executor or card, with an optional period, plus the reopened rate per model. Release groups use resolved_in and a null label for cards without one. Same numbers the Insights page shows: estimated, unreported and unverified deliveries come back counted, never silently summed.",
   executors_update:
     "Adds or removes CLIs and models in the workspace executor config, in the same shape the Settings grid saves. Adding models turns the CLI on unless enabled:false says otherwise; remove:true drops the whole CLI. Needs a token with the manage flag.",
   harness_set:
