@@ -3,58 +3,72 @@
 import { useEffect, useRef, useState } from "react";
 import { boardFilterToQuery, type BoardFilter } from "../../lib/board-filter";
 import type { BoardTotals } from "../../lib/board-totals";
+import {
+  approx,
+  formatDuration,
+  formatElapsed,
+  formatMoney,
+  formatTokens,
+} from "../../lib/format";
 import type { Dict } from "../../lib/i18n";
 
 /*
- * The topbar has one line for this, so the numbers are spelled the way the
- * card line spells them: no unit words, a tilde on whatever is not exact.
+ * The stat reads as money now (ux-v2.md §4): a label, the currency-explicit
+ * figure leading, tokens and time secondary. The tilde on the figure is not
+ * decoration — the popover says how many cards ride behind it.
  */
-
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".0", "")}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
-  return `${n}`;
-}
-
-function fmtDuration(ms: number): string {
-  const m = Math.round(ms / 60000);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return `${h}h${String(m % 60).padStart(2, "0")}`;
-}
-
-function fmtElapsed(ms: number): string {
-  const m = Math.round(ms / 60000);
-  if (m < 60) return `${m} min`;
-  const h = Math.round(m / 60);
-  if (h < 72) return `${h}h`;
-  return `${Math.round(h / 24)}d`;
-}
-
-function approx(text: string, isApprox: boolean): string {
-  return isApprox ? `~${text}` : text;
-}
 
 /** A caveat the total carries, with where to go to do something about it. */
 type Warn = { text: string; href: string };
 
 /**
  * Everything the bar shows about the total, computed once for the stat, the
- * popover and the menu line: the lead figure, the support numbers, the hover
- * reading and the caveats. A run that reported an estimate, a run that
- * reported nothing, and a model with no price in the table are each named,
- * because a total that swallows them is worth less than no total.
+ * popover and the menu line: the label, the lead figure, the support numbers,
+ * the hover reading and the caveats. A run that reported an estimate, a run
+ * that reported nothing, and a model with no price in the table are each
+ * named, because a total that swallows them is worth less than no total.
  */
-function totalParts(totals: BoardTotals, filter: BoardFilter, t: Dict) {
+export function totalParts(totals: BoardTotals, filter: BoardFilter, t: Dict) {
   const href = `/insights?${boardFilterToQuery(filter)}`;
   const estimated = totals.estimated > 0;
-  const tokens = approx(fmtTokens(totals.tokens), estimated);
-  const time = approx(fmtDuration(totals.durationMs), estimated);
-  // With money on, the dollars lead and the rest supports them. With money
-  // off, or with nothing this selection could price, tokens lead instead: a
-  // figure the board cannot establish is never printed as a zero.
-  const lead = totals.costUsd != null ? `~$${totals.costUsd.toFixed(2)}` : tokens;
-  const support = totals.costUsd != null ? `${tokens} · ${time}` : time;
+  const tokensText = `${formatTokens(totals.tokens)} ${t.board.tokensWord}`;
+  const time = formatDuration(totals.durationMs);
+  // With money on, the dollars lead — labeled, in the workspace's locale —
+  // and the rest supports them. With money off, or with nothing this
+  // selection could price, tokens lead instead: a figure the board cannot
+  // establish is never printed as a zero.
+  const costUsd = totals.costUsd;
+  const label = costUsd != null ? t.board.totalCostLabel : null;
+  // The tilde is a claim about the figure, so it only shows up when the board
+  // can name why: usage an agent estimated rather than measured, tokens no
+  // price covers, money worked out from the price table instead of reported.
+  // With every attempt reporting its own measured cost, the figure is exact
+  // and the tilde goes — a "~" nobody can explain is worse than no "~".
+  const counted = (
+    costUsd != null
+      ? [
+          totals.estimated > 0 ? t.board.approxEstimated(totals.estimated) : null,
+          totals.costUnpriced > 0
+            ? t.board.approxUnpriced(totals.costUnpriced)
+            : null,
+        ]
+      : [estimated ? t.board.approxEstimated(totals.estimated) : null]
+  ).filter(Boolean) as string[];
+  // Money the board priced itself is approximate too, but the source lines
+  // below already count it, so it only speaks up when it is the whole reason
+  // — otherwise the reading would say the same thing twice.
+  const pricedFromTable = costUsd != null && totals.costComputed > 0;
+  const isApprox = counted.length > 0 || pricedFromTable;
+  const approxNote = counted.length
+    ? t.board.totalApproxNote(counted.join(" · "))
+    : pricedFromTable
+      ? t.board.totalApproxComputed
+      : null;
+  const lead =
+    costUsd != null
+      ? approx(formatMoney(costUsd, t.lang), isApprox)
+      : approx(tokensText, isApprox);
+  const support = costUsd != null ? `${tokensText} · ${time}` : time;
 
   const warns: Warn[] = [];
   if (totals.costUnpriced > 0) {
@@ -73,7 +87,10 @@ function totalParts(totals: BoardTotals, filter: BoardFilter, t: Dict) {
   }
   if (totals.suspect > 0) {
     warns.push({
-      text: t.board.totalSuspect(totals.suspect, fmtTokens(totals.suspectTokens)),
+      text: t.board.totalSuspect(
+        totals.suspect,
+        formatTokens(totals.suspectTokens),
+      ),
       href,
     });
   }
@@ -88,23 +105,39 @@ function totalParts(totals: BoardTotals, filter: BoardFilter, t: Dict) {
     totals.costEstimated > 0
       ? `${totals.costEstimated} ${t.board.costEstimated}`
       : null,
-    totals.elapsedOnly > 0 ? t.board.openFor(fmtElapsed(totals.elapsedMs)) : null,
+    totals.elapsedOnly > 0
+      ? t.board.openFor(formatElapsed(totals.elapsedMs))
+      : null,
   ].filter(Boolean) as string[];
 
+  // The hover reading, for the pointer that never clicks: the label, then the
+  // sources and the caveats. The tilde's own note stays in the popover, where
+  // it has a line to itself instead of a clause inside a run-on sentence.
   const title = [t.board.totalLabel, ...detail, ...warns.map((w) => w.text)]
     .filter(Boolean)
     .join(" · ");
 
-  return { href, lead, support, tokens, time, warns, detail, title };
+  return {
+    href,
+    label,
+    lead,
+    support,
+    tokensText,
+    time,
+    approxNote,
+    warns,
+    detail,
+    title,
+  };
 }
 
 /**
  * The running total of what the work on screen consumed: a compact stat in
  * the bar that opens a popover with the full reading. The bar shows the
- * figure and, when there is anything the figure does not include, a discreet
- * count of how many caveats ride with it — the caveats themselves live in
- * the popover, each linked to where it is resolved: unpriced models to
- * Settings › Prices, the rest to the cards in Insights under this filter.
+ * labeled figure and nothing else — what used to be a bare count of caveats
+ * in parentheses is now said in words inside the popover, each linked to
+ * where it is resolved: unpriced models to Settings › Prices, the rest to
+ * the cards in Insights under this filter.
  *
  * The numbers come from the aggregation the Insights page runs, narrowed by
  * the same filter, so the two pages show the same selection.
@@ -157,20 +190,21 @@ export function BoardTotal({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
+        {parts.label ? <span className="bt-label">{parts.label}</span> : null}
         <b className="bt-lead">{parts.lead}</b>
         <span className="bt-sub">{parts.support}</span>
-        {parts.warns.length > 0 ? (
-          <span className="bt-warn">{parts.warns.length}</span>
-        ) : null}
       </button>
       {open ? (
         <div className="bt-popover nebula-glass" role="dialog" aria-label={t.board.totalLabel}>
           <div className="bt-figure">
             <b className="bt-lead">{parts.lead}</b>
             <span className="bt-sub">
-              {parts.tokens} · {parts.time}
+              {parts.tokensText} · {parts.time}
             </span>
           </div>
+          {parts.approxNote ? (
+            <span className="bt-line bt-note">{parts.approxNote}</span>
+          ) : null}
           {parts.detail.map((line) => (
             <span key={line} className="bt-line">
               {line}
@@ -215,11 +249,9 @@ export function BoardTotalLink({
   }
   return (
     <a className="am-total-line" href={parts.href} title={parts.title}>
+      {parts.label ? <span className="bt-label">{parts.label}</span> : null}
       <b className="bt-lead">{parts.lead}</b>
       <span className="bt-sub">{parts.support}</span>
-      {parts.warns.length > 0 ? (
-        <span className="bt-warn">{parts.warns.length}</span>
-      ) : null}
     </a>
   );
 }

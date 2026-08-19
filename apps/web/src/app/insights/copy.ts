@@ -2,7 +2,11 @@
  * Insights copy lives with the page so this card ships without touching the
  * shared dictionary. Same product voice: direct, no enthusiasm, no em dash.
  */
+import type { Lang } from "../../lib/i18n";
+
 const en = {
+  /** The locale the money formatter reads off any copy object in hand. */
+  lang: "en" as Lang,
   title: "Insights",
   sub: "What execution takes on this board: tokens and time per project, per mission, per release, per model, per card.",
   backToBoard: "Board",
@@ -114,6 +118,7 @@ const en = {
 export type InsightsCopy = typeof en;
 
 const ptBR: InsightsCopy = {
+  lang: "pt-BR" as Lang,
   title: "Insights",
   sub: "O que a execução consome neste board: tokens e tempo por projeto, por missão, por release, por modelo, por card.",
   backToBoard: "Board",

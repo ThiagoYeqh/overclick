@@ -112,8 +112,12 @@ describe("release header", () => {
     );
 
     expect(html).toContain("v1.2.0");
-    expect(html).toContain("13k tok");
-    expect(html).toContain("US$ 1.25");
+    // Every figure in the usage row is named: money carries its label and its
+    // currency, tokens carry their unit (ux-v2 §4).
+    expect(html).toContain("Cost");
+    expect(html).toContain("$1.25");
+    expect(html).toContain("13k");
+    expect(html).toContain("tokens");
     expect(html).toContain("1 estimated");
     expect(html).toContain("Reliability");
     expect(html).toContain("codex");

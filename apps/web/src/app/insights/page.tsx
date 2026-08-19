@@ -25,13 +25,13 @@ import { ShareBars, TrendChart } from "./charts";
 import { insightsCopy, type InsightsCopy } from "./copy";
 import { CostTable } from "./cost-table";
 import {
-  fmtCostUsd,
-  fmtCostUsdOrNone,
-  fmtDurationMs,
-  fmtElapsedMs,
-  fmtRate,
-  fmtTokens,
-} from "./format";
+  formatDuration,
+  formatElapsed,
+  formatMoney,
+  formatMoneyOrNone,
+  formatRate,
+  formatTokens,
+} from "../../lib/format";
 import { buildDailyTrend } from "./trend";
 
 export const dynamic = "force-dynamic";
@@ -139,7 +139,7 @@ function GroupFootnote({
     items.push(
       t.footSuspect(
         suspect
-          .map((r) => `${name(r)} ${t.suspectSeparate(fmtTokens(r.suspectTokens))}`)
+          .map((r) => `${name(r)} ${t.suspectSeparate(formatTokens(r.suspectTokens))}`)
           .join(" · "),
       ),
     );
@@ -149,7 +149,7 @@ function GroupFootnote({
     items.push(
       t.footElapsed(
         elapsed
-          .map((r) => `${name(r)} ${t.elapsedTag(fmtElapsedMs(r.elapsedMs))}`)
+          .map((r) => `${name(r)} ${t.elapsedTag(formatElapsed(r.elapsedMs))}`)
           .join(" · "),
       ),
     );
@@ -226,11 +226,11 @@ function GroupTable({
                     <td className="num">
                       {row.costUsd != null ? (
                         <>
-                          <b>{fmtCostUsd(row.costUsd)}</b>
+                          <b>{formatMoney(row.costUsd, t.lang)}</b>
                           {row.unpricedTokens > 0 ? (
                             <span
                               className="ins-mark"
-                              title={t.noPriceTitle(fmtTokens(row.unpricedTokens))}
+                              title={t.noPriceTitle(formatTokens(row.unpricedTokens))}
                             >
                               ⌀
                             </span>
@@ -241,7 +241,7 @@ function GroupTable({
                           className="ins-dim"
                           title={
                             row.unpricedTokens > 0
-                              ? t.noPriceTitle(fmtTokens(row.unpricedTokens))
+                              ? t.noPriceTitle(formatTokens(row.unpricedTokens))
                               : undefined
                           }
                         >
@@ -256,7 +256,7 @@ function GroupTable({
                     </td>
                   ) : null}
                   <td className="num">
-                    {fmtTokens(row.tokens)}
+                    {formatTokens(row.tokens)}
                     {row.estimated > 0 ||
                     row.missing > 0 ||
                     row.zeroUsage > 0 ||
@@ -265,7 +265,7 @@ function GroupTable({
                         className="ins-mark"
                         title={
                           row.suspect > 0
-                            ? t.suspectSeparate(fmtTokens(row.suspectTokens))
+                            ? t.suspectSeparate(formatTokens(row.suspectTokens))
                             : row.zeroUsage > 0
                               ? t.zeroUsageCount(row.zeroUsage)
                               : honestyNote(row, t)
@@ -284,11 +284,11 @@ function GroupTable({
                   {/* Execution time; the elapsed clock a row also carries is a
                       marker here and a footnote below, never added in. */}
                   <td className="num">
-                    {fmtDurationMs(row.durationMs)}
+                    {formatDuration(row.durationMs)}
                     {row.elapsedOnly > 0 ? (
                       <span
                         className="ins-mark"
-                        title={t.elapsedTag(fmtElapsedMs(row.elapsedMs))}
+                        title={t.elapsedTag(formatElapsed(row.elapsedMs))}
                       >
                         +
                       </span>
@@ -355,7 +355,7 @@ function ReopenTable({
                 <td className="num">{row.deliveries}</td>
                 <td className="num">{row.reopened}</td>
                 <td className="num">
-                  <b>{fmtRate(row.rate)}</b>
+                  <b>{formatRate(row.rate)}</b>
                 </td>
               </tr>
             );
@@ -426,7 +426,10 @@ export default async function InsightsPage({
     pricingEnabled,
     lang: ws.language ?? "en",
   });
-  const trendFmt = trend.metric === "cost" ? fmtCostUsd : fmtTokens;
+  const trendFmt =
+    trend.metric === "cost"
+      ? (v: number) => formatMoney(v, t.lang)
+      : formatTokens;
   const unpricedModels = insights.byModel.filter((r) => r.costUnpriced > 0);
 
   return (
@@ -484,18 +487,18 @@ export default async function InsightsPage({
                   a layer this workspace switched on, or it is simply absent. */}
               <div className="ins-tile nebula-glass">
                 <div className="ins-lbl">{t.totalTokens}</div>
-                <div className="ins-num">{fmtTokens(totals.tokens)}</div>
+                <div className="ins-num">{formatTokens(totals.tokens)}</div>
                 <div className="ins-note">{honestyNote(totals, t)}</div>
               </div>
               <div className="ins-tile nebula-glass">
                 <div className="ins-lbl">{t.totalTime}</div>
-                <div className="ins-num">{fmtDurationMs(totals.durationMs)}</div>
+                <div className="ins-num">{formatDuration(totals.durationMs)}</div>
                 {/* Time the cards sat claimed is not time anyone worked, so it
                     is named apart instead of swelling the number above. */}
                 {totals.elapsedOnly > 0 ? (
                   <div className="ins-note">
                     {t.elapsedNote(
-                      fmtElapsedMs(totals.elapsedMs),
+                      formatElapsed(totals.elapsedMs),
                       totals.elapsedOnly,
                     )}
                   </div>
@@ -506,11 +509,12 @@ export default async function InsightsPage({
                   <div className="ins-lbl">{t.totalCost}</div>
                   {/* Nothing priced means no figure, not a figure of zero. */}
                   <div className="ins-num">
-                    {fmtCostUsdOrNone(
+                    {formatMoneyOrNone(
                       totals.costUsd,
                       totals.unpricedTokens > 0
                         ? t.costNoPrice
                         : t.costNotReported,
+                      t.lang,
                     )}
                   </div>
                   <div className="ins-note">{sourceNote(totals, t)}</div>
@@ -518,7 +522,7 @@ export default async function InsightsPage({
                       said in: tokens the price table cannot turn into money. */}
                   {totals.unpricedTokens > 0 ? (
                     <div className="ins-note">
-                      {t.unpricedTokensNote(fmtTokens(totals.unpricedTokens))}
+                      {t.unpricedTokensNote(formatTokens(totals.unpricedTokens))}
                     </div>
                   ) : null}
                 </div>

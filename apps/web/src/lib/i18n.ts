@@ -12,6 +12,8 @@ export const LANGUAGES: { value: Lang; label: string }[] = [
 ];
 
 const en = {
+  /** The locale the formatters (lib/format.ts) read off any dict in hand. */
+  lang: "en" as Lang,
   board: {
     /**
      * The wordmark is a link home now, and its accessible name has to say so:
@@ -66,6 +68,20 @@ const en = {
      * the filter in force, on the one line the topbar has for them.
      */
     totalLabel: "What this board consumed",
+    /** The stat's own label: money leads the bar and says what it is. */
+    totalCostLabel: "Cost",
+    /** The unit word the stat spends on tokens: "175M tokens". */
+    tokensWord: "tokens",
+    /**
+     * What the tilde on the figure means. The reasons are composed from the
+     * ones actually in play, so the note never claims a count of zero and the
+     * tilde never appears without one of them behind it.
+     */
+    totalApproxNote: (why: string) => `~ = estimate: ${why}`,
+    approxEstimated: (n: number) => `${n} without measured usage`,
+    approxUnpriced: (n: number) => `${n} without a price`,
+    /** The tilde when nothing is missing: the board priced this itself. */
+    totalApproxComputed: "~ = worked out from the price table",
     totalNone: "no usage yet",
     totalEstimated: (n: number) => `${n} estimated`,
     totalMissing: (n: number) => `${n} usage not reported`,
@@ -567,6 +583,7 @@ const en = {
 export type Dict = typeof en;
 
 const ptBR: Dict = {
+  lang: "pt-BR" as Lang,
   board: {
     homeLink: "overclick, ir para o board",
     colOpen: "Aberto",
@@ -615,6 +632,12 @@ const ptBR: Dict = {
     cancelSelection: "Cancelar",
     myReview: "Minha revisão",
     totalLabel: "O que este board consumiu",
+    totalCostLabel: "Custo",
+    tokensWord: "tokens",
+    totalApproxNote: (why: string) => `~ = estimado: ${why}`,
+    approxEstimated: (n: number) => `${n} sem uso medido`,
+    approxUnpriced: (n: number) => `${n} sem preço`,
+    totalApproxComputed: "~ = calculado pela tabela de preços",
     totalNone: "sem uso ainda",
     totalEstimated: (n: number) => `${n} estimados`,
     totalMissing: (n: number) => `${n} sem uso reportado`,
