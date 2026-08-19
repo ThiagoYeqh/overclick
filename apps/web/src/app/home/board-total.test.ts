@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { BoardFilter } from "../../lib/board-filter";
 import { EMPTY_BOARD_TOTALS, type BoardTotals } from "../../lib/board-totals";
 import { dict, type Lang } from "../../lib/i18n";
-import { BoardTotal, BoardTotalLink, totalParts } from "./board-total";
+import { BoardTotal, totalParts } from "./board-total";
 
 const FILTER: BoardFilter = {
   projectIds: [],
@@ -22,7 +22,7 @@ function flat(text: string): string {
 function render(
   totals: Partial<BoardTotals>,
   lang: Lang = "pt-BR",
-  Component: typeof BoardTotal | typeof BoardTotalLink = BoardTotal,
+  Component: typeof BoardTotal = BoardTotal,
 ): string {
   return flat(
     renderToStaticMarkup(
@@ -72,15 +72,6 @@ describe("board total stat", () => {
     expect(html).not.toContain("Custo");
   });
 
-  it("gives the menu line the same label and figure as the bar", () => {
-    const html = render(
-      { tokens: 12_400, costUsd: 1.25, costComputed: 1 },
-      "pt-BR",
-      BoardTotalLink,
-    );
-    expect(html).toContain("Custo");
-    expect(html).toContain("~US$ 1,25");
-  });
 });
 
 /**

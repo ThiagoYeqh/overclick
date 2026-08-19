@@ -834,7 +834,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    OCL-34's file to write, and a card that reaches into another card's scope
    to save itself one line is how a parallel round produces a conflict. When
    34 lands, this is one alias to retire. */
-.nb .topbar-l1, .nb .topbar-l2 { --control-hover-bg: rgba(255,255,255,0.06); }
+.nb .topbar-l1, .nb .topbar-l2 { --control-hover-bg: var(--oc-surface-hover); }
 .nb .topbar-l1 .state-chip,
 .nb .topbar-l1 .am-trigger,
 .nb .topbar-l2 .pf-trigger,
