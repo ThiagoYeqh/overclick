@@ -52,6 +52,7 @@ import {
   type ContextOp,
   type EffortLevel,
   type Harness,
+  type ListInclude,
   type McpToolName,
   type ProjectMove,
   type ReadOptions,
@@ -173,6 +174,29 @@ function taskReadLayers(input?: ReadOptions, fullByDefault = false): TaskReadLay
 function contextReadRequested(input?: ReadOptions): boolean {
   const includes = new Set(input?.include ?? []);
   return requestedFullRead(input) || includes.has("context") || includes.has("project");
+}
+
+type ListLayers = {
+  ids: boolean;
+  refs: boolean;
+  delivery: boolean;
+  harness: boolean;
+};
+
+/**
+ * task_list/task_search row groups. The default row is the operational
+ * minimum (short_id, title, type, status, ...); every uuid, delivery flag
+ * and the planned harness ride behind one of these groups instead.
+ */
+function listLayers(include?: ListInclude[]): ListLayers {
+  const includes = new Set(include ?? []);
+  const all = includes.has("all");
+  return {
+    ids: all || includes.has("ids"),
+    refs: all || includes.has("refs"),
+    delivery: all || includes.has("delivery"),
+    harness: all || includes.has("harness"),
+  };
 }
 
 /**
@@ -1977,9 +2001,11 @@ async function taskList(
     claimed_by?: "me";
     awaiting_review_by?: "me" | string;
     limit?: number;
+    include?: ListInclude[];
   },
 ) {
   const limit = input.limit ?? DEFAULT_TASK_LIST_LIMIT;
+  const layers = listLayers(input.include);
   const filters = [eq(project.workspaceId, ctx.workspaceId)];
   if (input.project_id) {
     const proj = await findProject(db, ctx.workspaceId, input.project_id);
@@ -2073,29 +2099,40 @@ async function taskList(
       const mapped = mapTaskForRead(mapTask(row.task, row.project));
       const costUsd = latestCostByTask.get(mapped.id);
       return {
-        id: mapped.id,
         short_id: mapped.short_id,
         title: mapped.title,
         type: mapped.type,
         status: mapped.status,
-        revisado: mapped.revisado,
         priority: mapped.priority,
-        project_id: mapped.project_id,
-        devolve_para: mapped.devolve_para,
-        delivery_unverified: mapped.delivery_unverified,
-        ...(mapped.mission_id ? { mission_id: mapped.mission_id } : {}),
-        ...(mapped.commit ? { commit: mapped.commit } : {}),
-        ...(mapped.delivery_verification
-          ? { delivery_verification: mapped.delivery_verification }
-          : {}),
-        ...(mapped.delivery_warning
-          ? { delivery_warning: mapped.delivery_warning }
-          : {}),
-        ...(mapped.reports_count ? { reports_count: mapped.reports_count } : {}),
-        ...(mapped.harness ? { harness: mapped.harness } : {}),
-        ...(mapped.branch ? { branch: mapped.branch } : {}),
-        ...(mapped.claimed_by ? { claimed_by: mapped.claimed_by } : {}),
+        // Attention flag: present only when true, never as a `false` line.
+        ...(mapped.delivery_unverified ? { delivery_unverified: true } : {}),
         ...(costUsd != null ? { cost_usd: costUsd } : {}),
+        ...(layers.ids ? { id: mapped.id } : {}),
+        ...(layers.refs
+          ? {
+              project_id: mapped.project_id,
+              ...(mapped.mission_id ? { mission_id: mapped.mission_id } : {}),
+              ...(mapped.branch ? { branch: mapped.branch } : {}),
+              ...(mapped.claimed_by ? { claimed_by: mapped.claimed_by } : {}),
+            }
+          : {}),
+        ...(layers.delivery
+          ? {
+              revisado: mapped.revisado,
+              devolve_para: mapped.devolve_para,
+              ...(mapped.commit ? { commit: mapped.commit } : {}),
+              ...(mapped.delivery_verification
+                ? { delivery_verification: mapped.delivery_verification }
+                : {}),
+              ...(mapped.delivery_warning
+                ? { delivery_warning: mapped.delivery_warning }
+                : {}),
+              ...(mapped.reports_count
+                ? { reports_count: mapped.reports_count }
+                : {}),
+            }
+          : {}),
+        ...(layers.harness && mapped.harness ? { harness: mapped.harness } : {}),
       };
     }),
   };
@@ -2149,12 +2186,14 @@ async function taskSearch(
     type?: Task["type"];
     status?: CardStatus | CardStatus[];
     limit?: number;
+    include?: ListInclude[];
   },
 ) {
   const q = input.q.trim();
   if (!q) return err("INVALID_ARGUMENT", "Search query cannot be empty.");
 
   const limit = input.limit ?? 5;
+  const layers = listLayers(input.include);
   const filters = [eq(project.workspaceId, ctx.workspaceId)];
   if (input.project_id) {
     const proj = await findProject(db, ctx.workspaceId, input.project_id);
@@ -2224,16 +2263,24 @@ async function taskSearch(
 
   return {
     tasks: rows.map((row) => ({
-      id: row.task.id,
       short_id: row.task.shortId,
       title: row.task.title,
       type: row.task.tipo,
       status: row.task.status,
-      resolved_in: row.task.resolvedIn ?? null,
       o_que: row.task.oQue.slice(0, 300),
-      comments_count: Number(row.commentsCount ?? 0),
-      reports_count: Number(row.reportsCount ?? 0),
-      updated_at: iso(row.task.updatedAt),
+      ...(layers.ids ? { id: row.task.id } : {}),
+      ...(layers.refs && row.task.resolvedIn
+        ? { resolved_in: row.task.resolvedIn }
+        : {}),
+      ...(layers.delivery
+        ? {
+            comments_count: Number(row.commentsCount ?? 0),
+            ...(Number(row.reportsCount ?? 0) > 0
+              ? { reports_count: Number(row.reportsCount ?? 0) }
+              : {}),
+            updated_at: iso(row.task.updatedAt),
+          }
+        : {}),
     })),
   };
 }

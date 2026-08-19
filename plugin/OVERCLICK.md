@@ -154,9 +154,16 @@ progress and therefore invisible to the board.
 
 ## Dispatching
 
-`task_list` is enough to dispatch: each queue row carries the planned CLI,
-model, and effort. Do not call `task_get` just to choose an executor; the
-executor receives the full contract when it claims the card.
+Listing to scan the queue is the default: `task_list` rows carry only the
+operational minimum (short_id, title, type, status, priority, cost). To
+dispatch, add `include: ["harness"]` to the same call to get the planned CLI,
+model, and effort with the row — that one call is still enough to dispatch.
+Do not call `task_get` just to choose an executor; the executor receives the
+full contract when it claims the card. Other groups exist for less common
+needs: `include: ["ids"]` for uuids, `["refs"]` for mission_id/project_id/
+branch/claimed_by, `["delivery"]` for commit/delivery flags/revisado/
+devolve_para, or `["all"]` for every group at once. Same `include` semantics
+apply to `task_search`.
 
 When another executor receives a card, send only:
 

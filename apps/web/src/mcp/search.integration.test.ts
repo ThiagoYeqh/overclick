@@ -70,16 +70,35 @@ describe("task_search", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const out = TaskSearchOutputSchema.parse(res.value);
-    const ids = out.tasks.map((t) => t.id);
-    expect(ids).toContain(byTitle.id);
-    expect(ids).toContain(byBody.id);
-    expect(ids).toContain(byWhy.id);
-    expect(ids).toContain(byComment.id);
-    expect(out.tasks[0]?.id).toBe(byTitle.id);
-    const hit = out.tasks.find((t) => t.id === byComment.id);
+    // The default hit is the operational minimum: no uuid, no counts, no
+    // resolved_in — every tool already accepts short_id.
+    const shortIds = out.tasks.map((t) => t.short_id);
+    expect(shortIds).toContain(byTitle.short_id);
+    expect(shortIds).toContain(byBody.short_id);
+    expect(shortIds).toContain(byWhy.short_id);
+    expect(shortIds).toContain(byComment.short_id);
+    expect(out.tasks[0]?.short_id).toBe(byTitle.short_id);
+    const defaultHit = out.tasks.find((t) => t.short_id === byComment.short_id);
+    expect(defaultHit?.o_que).toBe("x");
+    expect(defaultHit).not.toHaveProperty("id");
+    expect(defaultHit).not.toHaveProperty("resolved_in");
+    expect(defaultHit).not.toHaveProperty("comments_count");
+    expect(defaultHit).not.toHaveProperty("reports_count");
+    expect(defaultHit).not.toHaveProperty("updated_at");
+
+    // include: ["all"] reproduces the pre-OCL-96 full hit.
+    const full = await invokeTool(world.db, ctx(), "task_search", {
+      q: "black panes",
+      include: ["all"],
+    });
+    expect(full.ok).toBe(true);
+    if (!full.ok) return;
+    const fullOut = TaskSearchOutputSchema.parse(full.value);
+    const hit = fullOut.tasks.find((t) => t.id === byComment.id);
     expect(hit?.reports_count).toBe(1);
     expect(hit?.comments_count).toBe(1);
-    expect(hit?.resolved_in).toBeNull();
+    // Unset resolved_in is omitted, not sent as null.
+    expect(hit).not.toHaveProperty("resolved_in");
     expect(hit?.o_que).toBe("x");
   });
 
@@ -134,8 +153,8 @@ describe("task_search", () => {
     expect(byPrefix.ok).toBe(true);
     if (!byPrefix.ok) return;
     expect(
-      TaskSearchOutputSchema.parse(byPrefix.value).tasks.map((t) => t.id),
-    ).toEqual([inOther.id]);
+      TaskSearchOutputSchema.parse(byPrefix.value).tasks.map((t) => t.short_id),
+    ).toEqual([inOther.short_id]);
 
     const byType = await invokeTool(world.db, ctx(), "task_search", {
       q: "search scope",
@@ -144,8 +163,8 @@ describe("task_search", () => {
     expect(byType.ok).toBe(true);
     if (!byType.ok) return;
     expect(
-      TaskSearchOutputSchema.parse(byType.value).tasks.map((t) => t.id),
-    ).toEqual([feature.id]);
+      TaskSearchOutputSchema.parse(byType.value).tasks.map((t) => t.short_id),
+    ).toEqual([feature.short_id]);
 
     const byRelease = await invokeTool(world.db, ctx(), "task_search", {
       q: "search scope",
@@ -154,8 +173,8 @@ describe("task_search", () => {
     expect(byRelease.ok).toBe(true);
     if (!byRelease.ok) return;
     expect(
-      TaskSearchOutputSchema.parse(byRelease.value).tasks.map((t) => t.id),
-    ).toEqual([inMain.id]);
+      TaskSearchOutputSchema.parse(byRelease.value).tasks.map((t) => t.short_id),
+    ).toEqual([inMain.short_id]);
 
     const missingRelease = await invokeTool(world.db, ctx(), "task_search", {
       q: "search scope",
@@ -176,8 +195,8 @@ describe("task_search", () => {
     expect(byStatus.ok).toBe(true);
     if (!byStatus.ok) return;
     expect(
-      TaskSearchOutputSchema.parse(byStatus.value).tasks.map((t) => t.id),
-    ).toEqual([inMain.id]);
+      TaskSearchOutputSchema.parse(byStatus.value).tasks.map((t) => t.short_id),
+    ).toEqual([inMain.short_id]);
 
     for (let i = 0; i < 25; i++) await card(`Search scope bulk ${i}`);
     const capped = await invokeTool(world.db, ctx(), "task_search", {
@@ -237,7 +256,7 @@ describe("task_search", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(
-      TaskSearchOutputSchema.parse(res.value).tasks.map((t) => t.id),
-    ).toEqual([c.id]);
+      TaskSearchOutputSchema.parse(res.value).tasks.map((t) => t.short_id),
+    ).toEqual([c.short_id]);
   });
 });

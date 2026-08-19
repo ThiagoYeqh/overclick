@@ -13,6 +13,7 @@ import {
   HandoffSchema,
   HarnessSchema,
   IsoDateTimeSchema,
+  ListOptionsSchema,
   MissionAttemptCheckpointSchema,
   MissionAttemptResultSchema,
   MissionAttemptSchema,
@@ -500,6 +501,7 @@ export const TaskListInputSchema = z.object({
    * cards nobody asked about.
    */
   limit: z.number().int().min(1).max(200).optional(),
+  ...ListOptionsSchema.shape,
 }).strict();
 
 export const TaskListOutputSchema = z.object({
@@ -587,21 +589,30 @@ export const TaskSearchInputSchema = z.object({
   status: z.union([CardStatusSchema, z.array(CardStatusSchema)]).optional(),
   /** Hits to return, best match first. Default 5, at most 20. */
   limit: z.number().int().min(1).max(20).optional(),
+  ...ListOptionsSchema.shape,
 }).strict();
 
-/** One search hit: enough to decide "same thing or not" without a task_get. */
+/**
+ * One search hit: the operational minimum to decide "same thing or not"
+ * without a task_get. Same `include` groups as task_list; `ids` adds `id`,
+ * `refs` adds `resolved_in`, `delivery` adds `comments_count`,
+ * `reports_count` and `updated_at`. `all` reproduces every field below.
+ */
 export const TaskSearchHitSchema = z.object({
-  id: z.string().min(1),
   short_id: z.string().min(1),
   title: z.string().min(1),
   type: TaskTypeSchema,
   status: CardStatusSchema,
-  resolved_in: z.string().nullable(),
   /** The card's "what", cut at 300 characters. */
   o_que: z.string(),
-  comments_count: z.number().int().nonnegative(),
-  reports_count: z.number().int().nonnegative(),
-  updated_at: IsoDateTimeSchema,
+  // include: ["ids"]
+  id: z.string().min(1).optional(),
+  // include: ["refs"]
+  resolved_in: z.string().min(1).optional(),
+  // include: ["delivery"]
+  comments_count: z.number().int().nonnegative().optional(),
+  reports_count: z.number().int().positive().optional(),
+  updated_at: IsoDateTimeSchema.optional(),
 });
 
 export const TaskSearchOutputSchema = z.object({
