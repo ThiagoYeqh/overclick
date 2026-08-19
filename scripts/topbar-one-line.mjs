@@ -135,7 +135,9 @@ function connect(wsUrl) {
  * Kept as one string because it crosses into the browser as source.
  */
 const MEASURE = `(() => {
-  const bar = document.querySelector(".topbar");
+  // OCL-35: the board bar is two levels inside .topbar-wrap; the other
+  // screens keep a bare .topbar. Measure whichever this page has.
+  const bar = document.querySelector(".topbar-wrap") || document.querySelector(".topbar");
   if (!bar) return { error: "no .topbar on this page" };
 
   const where = (el) => {
@@ -144,16 +146,19 @@ const MEASURE = `(() => {
       const cls = (node.className || "").toString().trim().split(/\\s+/)[0];
       parts.unshift(cls ? node.tagName.toLowerCase() + "." + cls : node.tagName.toLowerCase());
     }
-    return ".topbar" + (parts.length ? " " + parts.join(" ") : "");
+    return "." + bar.className.split(/\\s+/)[0] + (parts.length ? " " + parts.join(" ") : "");
   };
 
-  // The controls the bar lays out. .topbar-more is display:contents on the
-  // desktop and a stacked panel on the phone; either way its children are the
-  // controls, and the wrapper itself is never one line by design.
+  // The controls each level lays out. .topbar-more is display:contents on
+  // the desktop and a stacked panel on the phone; either way its children
+  // are the controls, and the wrapper itself is never one line by design.
+  const levels = bar.classList.contains("topbar-wrap") ? Array.from(bar.children) : [bar];
   const controls = [];
-  for (const child of bar.children) {
-    if (child.classList.contains("topbar-more")) controls.push(...child.children);
-    else controls.push(child);
+  for (const level of levels) {
+    for (const child of level.children) {
+      if (child.classList.contains("topbar-more")) controls.push(...child.children);
+      else controls.push(child);
+    }
   }
 
   const offenders = [];
@@ -226,14 +231,14 @@ const MEASURE = `(() => {
 })()`;
 
 const OPEN_MENU = `(() => {
-  const btn = document.querySelector(".topbar .filters-btn");
+  const btn = document.querySelector(".filters-btn");
   if (!btn || getComputedStyle(btn).display === "none") return false;
   if (btn.getAttribute("aria-expanded") !== "true") btn.click();
   return true;
 })()`;
 
 const CLOSE_MENU = `(() => {
-  const btn = document.querySelector(".topbar .filters-btn");
+  const btn = document.querySelector(".filters-btn");
   if (btn && btn.getAttribute("aria-expanded") === "true") btn.click();
   return true;
 })()`;

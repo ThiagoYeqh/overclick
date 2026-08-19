@@ -223,35 +223,3 @@ export function BoardTotal({
     </div>
   );
 }
-
-/**
- * The same stat as one plain link, for the account menu when the bar no
- * longer has room for the stat itself (under 1100px the menu swallows the
- * telemetry). No popover here: the menu is already a panel, and a panel
- * opening a panel is how controls disappear.
- */
-export function BoardTotalLink({
-  totals,
-  filter,
-  t,
-}: {
-  totals: BoardTotals;
-  filter: BoardFilter;
-  t: Dict;
-}) {
-  const parts = totalParts(totals, filter, t);
-  if (totals.attempts === 0) {
-    return (
-      <a className="am-total-line" href={parts.href} title={parts.title}>
-        <span className="bt-none">{t.board.totalNone}</span>
-      </a>
-    );
-  }
-  return (
-    <a className="am-total-line" href={parts.href} title={parts.title}>
-      {parts.label ? <span className="bt-label">{parts.label}</span> : null}
-      <b className="bt-lead">{parts.lead}</b>
-      <span className="bt-sub">{parts.support}</span>
-    </a>
-  );
-}
