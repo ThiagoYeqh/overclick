@@ -20,6 +20,17 @@ describe("update version comparison", () => {
     expect(isNewer("v0.0.9", "0.1.1")).toBe(false);
   });
 
+  it("does not flag an instance already running the tagged release (OCL-73)", () => {
+    // The 2026-08-19 incident: a tag was pushed without bumping every
+    // package.json in the same commit, so a deployed instance running that
+    // exact tag's content still read an older APP_VERSION and got told to
+    // update itself. The fix is release discipline (scripts/verify-release-
+    // version.sh), not a code branch here — this test locks in the half the
+    // comparator is responsible for: once the version truly matches the tag,
+    // isNewer must say no.
+    expect(isNewer("v0.2.0", "0.2.0")).toBe(false);
+  });
+
   it("rejects garbage tags instead of updating", () => {
     expect(isNewer("latest", "0.1.1")).toBe(false);
     expect(isNewer("", "0.1.1")).toBe(false);
