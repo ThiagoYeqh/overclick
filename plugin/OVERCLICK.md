@@ -1,5 +1,8 @@
 # Working through an OverClick board
 
+> The board's MCP server is `overclick` (tools `mcp__overclick__*`); `overclock`
+> is the IDE — one letter apart, different systems. Never guess the prefix.
+
 OverClick is the task board where people decide and validate work and agents
 execute it. The board stores the contract and the evidence; the actual work
 happens in the repository or system named by the card.

@@ -1,6 +1,6 @@
 ---
 name: overclick
-description: Execute work through an OverClick MCP board. Use whenever an OverClick server is connected and the user mentions cards, tasks, missions, a card ID, or asks to register, claim, execute, deliver, release, or validate board work.
+description: Execute work through an OverClick MCP board. The board's MCP server is `overclick` (tools mcp__overclick__*); `overclock` is the IDE — one letter apart, different systems. Never guess the prefix. Use whenever an OverClick server is connected and the user mentions cards, tasks, missions, a card ID, or asks to register, claim, execute, deliver, release, or validate board work.
 ---
 
 # OverClick
