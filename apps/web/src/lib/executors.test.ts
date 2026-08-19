@@ -7,6 +7,7 @@ import {
   cardapioLabel,
   isPairInConfig,
   learnedExecutorDefs,
+  modelsForCli,
   removeModelFromSelection,
   resolveCatalogCli,
   selectionFromConfig,
@@ -120,6 +121,36 @@ describe("editable model catalog", () => {
     const removed = removeModelFromSelection(base, "grok", "grok-4.6");
     expect(removed.models.grok).not.toContain("grok-4.6");
     expect(removed.enabled.grok).toEqual(["grok-4.5"]);
+  });
+});
+
+describe("modelsForCli (OCL-77)", () => {
+  it("offers nothing for a CLI that is switched off", () => {
+    const sel = selectionFromConfig([
+      { id: "claude-code", label: "Claude Code", enabled: true, models: ["sonnet-5"] },
+      { id: "codex", label: "Codex", enabled: false, models: ["gpt-5.6-sol"] },
+    ]);
+    expect(modelsForCli(sel, "codex")).toEqual([]);
+  });
+
+  it("still offers an enabled CLI's checked models", () => {
+    const sel = selectionFromConfig([
+      { id: "codex", label: "Codex", enabled: true, models: ["gpt-5.6-sol"] },
+    ]);
+    expect(modelsForCli(sel, "codex")).toEqual(["gpt-5.6-sol"]);
+  });
+
+  it("excludes a disabled CLI's models from the no-preference union", () => {
+    const sel = selectionFromConfig([
+      { id: "claude-code", label: "Claude Code", enabled: true, models: ["sonnet-5"] },
+      { id: "codex", label: "Codex", enabled: false, models: ["gpt-5.6-sol"] },
+    ]);
+    expect(modelsForCli(sel, null)).toEqual(["sonnet-5"]);
+  });
+
+  it("keeps the custom executor's fixed model regardless of enabled state", () => {
+    const sel = selectionFromConfig([]);
+    expect(modelsForCli(sel, CUSTOM_EXECUTOR_ID)).toEqual(["generic-mcp"]);
   });
 });
 
