@@ -36,5 +36,9 @@ jobs:
       # be compiled before its consumers are tested.
       - run: pnpm --filter @agent-board/mcp-core build
 
+      # vitest transpiles with esbuild, which strips types without checking them,
+      # so a type error reaches main unless tsc is asked separately.
+      - run: pnpm -r --if-present typecheck
+
       # No database service: the integration tests boot an in-memory PGlite.
       - run: pnpm test
