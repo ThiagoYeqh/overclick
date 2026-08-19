@@ -69,6 +69,7 @@ export {
   type EffortCatalogSpec,
 } from "./harness/efforts.js";
 export { effortOptionsForExecutor } from "./harness/recommend.js";
+export { applyContextOps, type ContextOp } from "./context.js";
 
 export {
   ArtifactSchema,
@@ -144,6 +145,8 @@ export {
   BranchRegisterOutputSchema,
   CardapioPolicyEntrySchema,
   ConfiguredExecutorSchema,
+  ContextOpSchema,
+  ContextOpsSchema,
   ExecutorsUpdateInputSchema,
   ExecutorsUpdateOutputSchema,
   TaskDeliverInputSchema,

@@ -53,6 +53,56 @@ export const MissionGetOutputSchema = z.object({
   mission: MissionReadSchema,
 });
 
+const ContextHeadingSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .describe("Markdown heading text, without the ## prefix.");
+const ContextTextSchema = z.string().max(32_000);
+
+/** A small markdown delta for editing a shared context without resending it. */
+export const ContextOpSchema = z.discriminatedUnion("op", [
+  z
+    .object({
+      op: z.literal("replace_section"),
+      heading: ContextHeadingSchema,
+      text: ContextTextSchema,
+    })
+    .strict(),
+  z
+    .object({
+      op: z.literal("append_section"),
+      heading: ContextHeadingSchema,
+      text: ContextTextSchema.min(1),
+    })
+    .strict(),
+  z
+    .object({
+      op: z.literal("delete_section"),
+      heading: ContextHeadingSchema,
+    })
+    .strict(),
+  z
+    .object({
+      op: z.literal("append_line"),
+      heading: ContextHeadingSchema,
+      text: z.string().min(1).max(32_000),
+    })
+    .strict(),
+  z
+    .object({
+      op: z.literal("replace_line"),
+      heading: ContextHeadingSchema,
+      line: z.string().min(1).max(32_000),
+      text: ContextTextSchema,
+    })
+    .strict(),
+]);
+
+export const ContextOpsSchema = z.array(ContextOpSchema).min(1).max(100);
+export type ContextOp = z.infer<typeof ContextOpSchema>;
+
 /**
  * Canonical mission_create input.
  * Workspace is resolved from the MCP bearer token — never sent in the body.
@@ -71,16 +121,36 @@ export const MissionCreateOutputSchema = z.object({
 
 /**
  * Partial mission edits. Omitted fields stay untouched; markdown fields may
- * intentionally be cleared with an empty string. The title is trimmed before
- * validation so whitespace cannot become a mission name.
+ * intentionally be cleared with an empty string. Use `context_ops` or
+ * `objective_ops` for a small markdown change; the full blob fields are for
+ * intentional rewrites. The title is trimmed before validation so whitespace
+ * cannot become a mission name.
  */
 export const MissionUpdateInputSchema = z.object({
   mission_id: z.string().min(1),
   title: z.string().trim().min(1).max(200).optional(),
   objective: z.string().optional(),
+  objective_ops: ContextOpsSchema.describe(
+    "Granular markdown operations applied to the current mission objective.",
+  ).optional(),
   context: z.string().optional(),
+  context_ops: ContextOpsSchema.describe(
+    "Granular markdown operations applied to the current mission context.",
+  ).optional(),
+  /** Optional optimistic guard for the one blob being changed. */
+  expected_len: z.number().int().nonnegative().optional(),
+  /** SHA-256 of the blob as last read by the caller. */
+  expected_hash: z.string().trim().min(1).max(128).optional(),
   status: MissionStatusSchema.optional(),
-}).strict();
+}).strict()
+  .refine(
+    (value) => value.context === undefined || value.context_ops === undefined,
+    { message: "send context or context_ops, not both", path: ["context_ops"] },
+  )
+  .refine(
+    (value) => value.objective === undefined || value.objective_ops === undefined,
+    { message: "send objective or objective_ops, not both", path: ["objective_ops"] },
+  );
 
 export const MissionUpdateOutputSchema = z.object({
   mission: MissionSchema,
@@ -175,6 +245,12 @@ export const ProjectCreateOutputSchema = z.object({
  * Send at least one mutable field. `repo_url`, `context` and
  * `current_version` accept null to clear them.
  *
+ * `context_ops` edits the stored markdown against its current server value:
+ * use it for a section or list-line change instead of resending the whole
+ * context blob. `context` remains the legacy full replacement mode. The
+ * optional `expected_len` and `expected_hash` guard that legacy mode against
+ * overwriting a context that changed after it was read.
+ *
  * `id_prefix` is only editable while the project has no cards. Every card
  * already carries the prefix in its short id (`FUN-1`), so changing it later
  * would leave the board pointing at ids that never existed. Reorganizing a
@@ -188,6 +264,13 @@ export const ProjectUpdateInputSchema = z
     name: z.string().min(1).max(200).optional(),
     repo_url: z.string().url().nullable().optional(),
     context: ProjectContextSchema.nullable().optional(),
+    context_ops: ContextOpsSchema.describe(
+      "Granular markdown operations applied to the current project context.",
+    ).optional(),
+    /** Optional optimistic guard for the context blob being changed. */
+    expected_len: z.number().int().nonnegative().optional(),
+    /** SHA-256 of the context as last read by the caller. */
+    expected_hash: z.string().trim().min(1).max(128).optional(),
     current_version: ProjectVersionSchema.nullable().optional(),
     id_prefix: z
       .string()
@@ -202,12 +285,17 @@ export const ProjectUpdateInputSchema = z
       value.name !== undefined ||
       value.repo_url !== undefined ||
       value.context !== undefined ||
+      value.context_ops !== undefined ||
       value.current_version !== undefined ||
       value.id_prefix !== undefined,
     {
       message:
         "provide name, repo_url, context, current_version or id_prefix",
     },
+  )
+  .refine(
+    (value) => value.context === undefined || value.context_ops === undefined,
+    { message: "send context or context_ops, not both", path: ["context_ops"] },
   );
 
 export const ProjectUpdateOutputSchema = z.object({

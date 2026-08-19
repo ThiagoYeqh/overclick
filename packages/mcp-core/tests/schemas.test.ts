@@ -8,6 +8,7 @@ import {
   MissionUpdateInputSchema,
   PROJECT_CONTEXT_MAX_CHARS,
   ProjectCreateInputSchema,
+  ProjectUpdateInputSchema,
   TaskCreateInputSchema,
   TaskClaimInputSchema,
   ExecutorsUpdateInputSchema,
@@ -139,6 +140,32 @@ describe("mission_update and mission_delete", () => {
       title: "New north",
       status: "pausada",
     });
+  });
+
+  it("accepts granular context edits and rejects a blob plus its delta", () => {
+    const mission = MissionUpdateInputSchema.parse({
+      mission_id: "mission-1",
+      context_ops: [
+        { op: "replace_section", heading: "Rules", text: "new rules" },
+      ],
+      expected_hash: "a".repeat(64),
+    });
+    expect(mission.context_ops?.[0]?.op).toBe("replace_section");
+
+    expect(
+      MissionUpdateInputSchema.safeParse({
+        mission_id: "mission-1",
+        context: "whole blob",
+        context_ops: [{ op: "append_line", heading: "Rules", text: "- one" }],
+      }).success,
+    ).toBe(false);
+
+    const project = ProjectUpdateInputSchema.parse({
+      project_id: "OC",
+      context_ops: [{ op: "append_section", heading: "Rules", text: "- one" }],
+      expected_len: 12,
+    });
+    expect(project.expected_len).toBe(12);
   });
 
   it("rejects blank or oversized titles and invalid statuses", () => {

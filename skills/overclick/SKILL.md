@@ -135,6 +135,13 @@ mission context — then dispatch with the one line above.
 - Conventions for one round belong in mission context. Edit them with
   `mission_update`, and remove empty mission shells with `mission_delete`.
 
+Shared markdown is a live, multi-agent document. When changing one section or
+list line, call `project_update`/`mission_update` with `context_ops` (or
+`objective_ops` for a mission objective); never resend the whole blob for a
+one-line change. The board applies granular operations to the current value,
+preserving concurrent edits. Send `context`/`objective` only for an intentional
+full rewrite, optionally guarded with `expected_len` or `expected_hash`.
+
 ## Honesty rules that make the board worth having
 
 - Report what happened, including what failed. A delivery that hides a broken

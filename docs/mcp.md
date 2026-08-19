@@ -41,13 +41,13 @@ context are listed there with a short excerpt and a pointer to `project_get`.
 | `project_list` | the workspace projects: uuid, name, card prefix, repo url, `has_context`, next card number and card counts by status. The markdown stays out of this summary |
 | `project_get` | compact project metadata by default; pass `view: "briefing"`/`"full"` or `include: ["context"]` for `context` markdown and `current_version` |
 | `project_create` | creates a project (`name`, optional `repo_url`, `context`, `current_version`, optional `id_prefix`). Context is limited to 32,000 characters; above that is `INVALID_ARGUMENT`. The prefix is derived from the name when omitted (`Agent Board` → `AB`, `OverClick` → `OC`, `overclick` → `OVE`) and is unique per workspace: a collision comes back as `INVALID_ARGUMENT` naming the project that holds it |
-| `project_update` | reconfigures a project (`name`, `repo_url`, `context`, `current_version`, `id_prefix`). `repo_url`, `context` and `current_version` accept `null` to clear them |
+| `project_update` | partially reconfigures a project (`name`, `repo_url`, `context`, `context_ops`, `current_version`, `id_prefix`). Use `context_ops` for a section/list-line delta against the current server blob; `context` remains the intentional full-rewrite mode. `repo_url`, `context` and `current_version` accept `null` to clear them. `expected_len`/`expected_hash` can reject a stale legacy blob rewrite |
 | | `id_prefix` is only editable while the project has **no cards**. Every card carries the prefix in its short id (`FUN-1`), and those ids also live in branches, commits and PR titles, so rewriting the prefix would either make the board name cards that never existed or break every external reference. Renumbering is not offered: the error names how many cards block the change and points at moving them instead. A prefix another project already holds comes back as a named `INVALID_ARGUMENT`, never a constraint violation |
 | `project_delete` | hard delete, irreversible: `task.project_id` cascades, so the cards go with the project |
 | | only an **empty** project by default; one that holds cards is refused with the count that blocks it and the way out (move the cards, or repeat with force). `force: true` destroys the project with every card in it, and their attempts, handoffs and subtasks, with the count stated in the response (`tasks_deleted`, `attempts_deleted`, `handoffs_deleted`) |
 | `mission_list` / `mission_get` | mission summaries by default; pass `view: "briefing"`/`"full"` or `include: ["context"]` to read the objective and context to inject into the prompt |
 | `mission_create` | creates a mission (`title`, objective/context markdown, `status`) and returns its id |
-| `mission_update` | partially edits a mission (`title`, objective/context markdown, `status`); omitted fields stay unchanged. Put conventions for one round in mission context and update them here |
+| `mission_update` | partially edits a mission (`title`, objective/context markdown, `context_ops`, `objective_ops`, `status`); omitted fields stay unchanged. Use granular ops for one section or list line and reserve objective/context for full rewrites. Put conventions for one round in mission context and update them here |
 | `mission_delete` | removes an empty mission shell. A mission holding cards is refused with its count; `force: true` detaches those cards (`mission_id: null`) and returns `tasks_detached` before deleting the mission |
 | `task_list` | thin queue rows (ids, title, type, status, priority, mission, claim, branch and frozen cost; no card contract or briefing), filtered by project, `mission_id`, exact `resolved_in`, status, priority, `awaiting_review_by` and `limit` |
 | | `limit` defaults to 50 and caps at 200. The response carries `truncated` and the `limit` it used, so a caller can tell a full queue from a cut one instead of reading a page as the whole board |
@@ -101,6 +101,17 @@ Mission context is the shared place for conventions that apply to one round of w
 edit it in place with `mission_update` instead of repeating it on every card. Empty
 mission shells can be removed with `mission_delete`; occupied missions require an
 explicit move/detach or `force: true`.
+
+Project and mission markdown is shared live state. A granular operation has the
+shape `{op, heading, text}` (with `line` as the old line for `replace_line`):
+`replace_section`, `append_section`, `delete_section`, `append_line` and
+`replace_line` operate on `## heading` sections. `append_section` and
+`append_line` create a missing section. These operations are applied to the
+current server value inside a row lock, so two agents editing different
+sections do not overwrite each other. Send `context` or `objective` only for
+an intentional full rewrite; `expected_len` or the SHA-256 `expected_hash`
+turns a stale legacy rewrite into a clear argument error instead of silently
+discarding another agent's edit.
 
 `task_claim` always returns the complete briefing; `task_get` is compact unless its
 caller opts into the heavy sections. The executor needs no other source of context

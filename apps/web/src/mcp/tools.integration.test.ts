@@ -1284,6 +1284,31 @@ describe("MCP tool edge cases against a test db", () => {
     expect(miss.objective).toBe("Fechar o loop MCP do MVP.");
     expect(miss.status).toBe("pausada");
 
+    const granular = await invokeTool(world.db, ctx(), "mission_update", {
+      mission_id: world.missionId,
+      context_ops: [
+        {
+          op: "replace_section",
+          heading: "Convention",
+          text: "Two rounds only.",
+        },
+      ],
+      objective_ops: [
+        {
+          op: "append_section",
+          heading: "Success",
+          text: "The board stays consistent.",
+        },
+      ],
+    });
+    expect(granular.ok).toBe(true);
+    if (!granular.ok) return;
+    const granularMission = MissionUpdateOutputSchema.parse(granular.value).mission;
+    expect(granularMission.context).toContain("Two rounds only.");
+    expect(granularMission.objective).toContain(
+      "## Success\n\nThe board stays consistent.",
+    );
+
     const invalid = await invokeTool(world.db, ctx(), "mission_update", {
       mission_id: world.missionId,
       status: "archived",
