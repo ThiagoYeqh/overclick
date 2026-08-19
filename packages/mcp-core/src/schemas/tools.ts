@@ -13,6 +13,9 @@ import {
   HandoffSchema,
   HarnessSchema,
   IsoDateTimeSchema,
+  MissionAttemptCheckpointSchema,
+  MissionAttemptResultSchema,
+  MissionAttemptSchema,
   MissionSchema,
   MissionStatusSchema,
   MissionSummarySchema,
@@ -178,6 +181,90 @@ export const MissionDeleteOutputSchema = z.object({
   mission_id: z.string().min(1),
   title: z.string().min(1),
   tasks_detached: z.number().int().min(0),
+});
+
+/**
+ * Opens the one live orchestration attempt a mission may have. The session id
+ * is required because it is the only stable key the OCL-11 guard can compare
+ * with card execution attempts.
+ */
+export const MissionAttemptStartInputSchema = z.object({
+  mission_id: z.string().min(1),
+  project_id: z.string().min(1).optional(),
+  executor: z
+    .object({
+      cli: z.string().min(1).optional(),
+      model: z.string().min(1).optional(),
+      effort: EffortSchema.optional(),
+      agent: z.string().min(1).optional(),
+      session_id: z.string().min(1),
+    })
+    .strict(),
+  transcript: TranscriptRefSchema.optional(),
+}).strict();
+
+export const MissionAttemptStartOutputSchema = z.object({
+  attempt_id: z.string().min(1),
+  /** Alias used by callers that prefer the table name in their payloads. */
+  mission_attempt_id: z.string().min(1),
+  mission_id: z.string().min(1),
+  sequence: z.literal(0),
+  started_at: IsoDateTimeSchema,
+  attempt: MissionAttemptSchema,
+});
+
+/** A cumulative usage snapshot for one orchestration round or final close. */
+export const MissionReportUsageInputSchema = z
+  .object({
+    mission_id: z.string().min(1),
+    attempt_id: z.string().min(1).optional(),
+    mission_attempt_id: z.string().min(1).optional(),
+    sequence: z.number().int().min(1),
+    checkpoint: MissionAttemptCheckpointSchema,
+    usage: UsageSchema,
+    result: MissionAttemptResultSchema.optional(),
+    result_note: z.string().max(2_000).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.attempt_id && value.mission_attempt_id && value.attempt_id !== value.mission_attempt_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["mission_attempt_id"],
+        message: "attempt_id and mission_attempt_id must identify the same attempt",
+      });
+    }
+    if (value.checkpoint === "final" && value.result === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["result"],
+        message: "final checkpoint requires result: success or abandoned",
+      });
+    }
+    if (value.checkpoint === "rodada" && value.result !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["result"],
+        message: "result is only valid on the final checkpoint",
+      });
+    }
+    if (value.result === "abandoned" && !value.result_note?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["result_note"],
+        message: "an abandoned final checkpoint requires result_note",
+      });
+    }
+  });
+
+export const MissionReportUsageOutputSchema = z.object({
+  attempt_id: z.string().min(1),
+  mission_attempt_id: z.string().min(1),
+  mission_id: z.string().min(1),
+  sequence: z.number().int().nonnegative(),
+  checkpoint: MissionAttemptCheckpointSchema,
+  idempotent: z.boolean().optional(),
+  attempt: MissionAttemptSchema,
 });
 
 const ProjectRefSchema = z
@@ -1165,6 +1252,8 @@ export const MCP_TOOL_NAMES = [
   "mission_create",
   "mission_update",
   "mission_delete",
+  "mission_attempt_start",
+  "mission_report_usage",
   "task_list",
   "task_get",
   "task_search",
@@ -1229,6 +1318,14 @@ export const toolContracts = {
   mission_delete: {
     input: MissionDeleteInputSchema,
     output: MissionDeleteOutputSchema,
+  },
+  mission_attempt_start: {
+    input: MissionAttemptStartInputSchema,
+    output: MissionAttemptStartOutputSchema,
+  },
+  mission_report_usage: {
+    input: MissionReportUsageInputSchema,
+    output: MissionReportUsageOutputSchema,
   },
   task_list: {
     input: TaskListInputSchema,
@@ -1317,6 +1414,10 @@ export type MissionUpdateInput = z.infer<typeof MissionUpdateInputSchema>;
 export type MissionUpdateOutput = z.infer<typeof MissionUpdateOutputSchema>;
 export type MissionDeleteInput = z.infer<typeof MissionDeleteInputSchema>;
 export type MissionDeleteOutput = z.infer<typeof MissionDeleteOutputSchema>;
+export type MissionAttemptStartInput = z.infer<typeof MissionAttemptStartInputSchema>;
+export type MissionAttemptStartOutput = z.infer<typeof MissionAttemptStartOutputSchema>;
+export type MissionReportUsageInput = z.infer<typeof MissionReportUsageInputSchema>;
+export type MissionReportUsageOutput = z.infer<typeof MissionReportUsageOutputSchema>;
 export type TaskListInput = z.infer<typeof TaskListInputSchema>;
 export type TaskGetInput = z.infer<typeof TaskGetInputSchema>;
 export type TaskSearchInput = z.infer<typeof TaskSearchInputSchema>;
