@@ -235,3 +235,11 @@ The full MCP surface is documented in [`docs/mcp.md`](docs/mcp.md).
 
 By contributing, you agree that your contributions are licensed under the
 [MIT License](LICENSE).
+
+## Every change lands through a pull request
+
+`main` is protected: pull request + owner review (CODEOWNERS) + green `ci / test`.
+This applies to community contributors AND to the project's own worker agents —
+workers push their card branch and deliver with the `pull_request_url`; the
+orchestrator merges after the owner's approval. The repository owner can bypass
+consciously (admin), which is the documented exception, not the norm.

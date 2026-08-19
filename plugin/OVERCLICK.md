@@ -113,3 +113,10 @@ objective, call `project_update`/`mission_update` with `context_ops` (or
 applies granular operations to the current value, preserving concurrent edits.
 Send `context`/`objective` only for an intentional full rewrite, optionally
 guarded with `expected_len` or `expected_hash`.
+
+## Protected main
+
+When the project repository protects its default branch, deliver on the card
+branch and open a pull request; send `pull_request_url` in `task_deliver`. The
+orchestrator (with the owner's approval) merges — never push to the protected
+branch directly.
