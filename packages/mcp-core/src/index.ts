@@ -60,6 +60,17 @@ export {
 } from "./harness/recommend.js";
 
 export {
+  effortOptionsForModel,
+  effortSourceForModel,
+  mergeExecutorEffortCatalog,
+  seededEffortSourceForModel,
+  seededEffortSpec,
+  seededEffortsForModel,
+  type EffortCatalogSpec,
+} from "./harness/efforts.js";
+export { effortOptionsForExecutor } from "./harness/recommend.js";
+
+export {
   ArtifactSchema,
   BranchConventionSchema,
   CardStatusSchema,

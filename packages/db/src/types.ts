@@ -1,6 +1,7 @@
 import type { UsageSegment } from "./domain/usage";
 
-export type Effort = "low" | "medium" | "high";
+/** Provider-specific effort values are intentionally open-ended. */
+export type Effort = string;
 
 /** Where the model identity on an execution attempt came from. */
 export type AttemptModelSource = "declared" | "harness" | "measured";
@@ -35,6 +36,10 @@ export type ExecutorConfig = {
    * saved before this field existed.
    */
   catalog?: string[];
+  /** Supported effort values keyed by model, when the workspace overrides the seed. */
+  efforts?: Record<string, string[]>;
+  /** Evidence URL keyed by model for the effort catalog shown to callers. */
+  effortSources?: Record<string, string>;
 };
 
 export type Cardapio = {

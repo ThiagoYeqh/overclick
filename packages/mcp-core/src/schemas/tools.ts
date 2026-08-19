@@ -423,6 +423,7 @@ export const TaskClaimInputSchema = z.object({
     .object({
       cli: z.string().optional(),
       model: z.string().optional(),
+      effort: EffortSchema.optional(),
       agent: z.string().optional(),
       session_id: z.string().optional(),
     })
@@ -756,6 +757,10 @@ export const ConfiguredExecutorSchema = z.object({
   models: z.array(z.string()),
   /** Editable model list the board's selects offer for this CLI. */
   catalog: z.array(z.string()).optional(),
+  /** Supported effort values keyed by model. */
+  efforts: z.record(z.array(EffortSchema)),
+  /** Public source URL keyed by model; custom overrides may omit a source. */
+  effort_sources: z.record(z.string().min(1)).optional(),
 });
 
 /**
@@ -807,6 +812,7 @@ export const ExecutorsUpdateInputSchema = z
     enabled: z.boolean().optional(),
     add_models: z.array(z.string().min(1)).optional(),
     remove_models: z.array(z.string().min(1)).optional(),
+    efforts: z.record(z.array(EffortSchema)).optional(),
     remove: z.boolean().optional(),
   }).strict()
   .superRefine((value, ctx) => {
@@ -815,13 +821,14 @@ export const ExecutorsUpdateInputSchema = z
       (value.enabled !== undefined ||
         value.add_models?.length ||
         value.remove_models?.length ||
+        value.efforts !== undefined ||
         value.label)
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["remove"],
         message:
-          "remove drops the whole executor; send it alone, without label, enabled, add_models or remove_models",
+          "remove drops the whole executor; send it alone, without label, enabled, add_models, remove_models or efforts",
       });
     }
     if (
@@ -829,13 +836,14 @@ export const ExecutorsUpdateInputSchema = z
       value.enabled === undefined &&
       !value.add_models?.length &&
       !value.remove_models?.length &&
+      Object.keys(value.efforts ?? {}).length === 0 &&
       !value.label
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["cli"],
         message:
-          "provide at least one of label, enabled, add_models, remove_models or remove",
+          "provide at least one of label, enabled, add_models, remove_models, efforts or remove",
       });
     }
   });

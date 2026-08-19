@@ -7,9 +7,11 @@ import type {
 import {
   DEFAULT_CARDAPIO,
   DEFAULT_REVIEWER,
+  mergeExecutorEffortCatalog,
   type Cardapio as McpCardapio,
   type ConfirmationStep,
   type ConfiguredExecutor,
+  type ConfiguredExecutorContract,
   type Harness,
   type Mission,
   type Origem,
@@ -262,11 +264,45 @@ export function executorsFromWorkspace(
 ): ConfiguredExecutor[] {
   return executors
     .filter((item) => item.enabled)
-    .map((item) => ({
-      id: item.id,
-      cli: item.id,
-      models: item.models,
-    }));
+    .map((item) => {
+      const effortCatalog = mergeExecutorEffortCatalog({
+        cli: item.id,
+        models: item.models,
+        catalog: item.catalog,
+        efforts: item.efforts,
+        effortSources: item.effortSources,
+      });
+      return {
+        id: item.id,
+        cli: item.id,
+        models: item.models,
+        efforts: effortCatalog.efforts,
+      };
+    });
+}
+
+/** Maps stored executor JSON to the complete public harness_list contract. */
+export function executorToWire(
+  item: ExecutorConfig,
+): ConfiguredExecutorContract {
+  const effortCatalog = mergeExecutorEffortCatalog({
+    cli: item.id,
+    models: item.models,
+    catalog: item.catalog,
+    efforts: item.efforts,
+    effortSources: item.effortSources,
+  });
+  return {
+    id: item.id,
+    label: item.label,
+    enabled: item.enabled,
+    models: item.models,
+    ...(item.catalog ? { catalog: item.catalog } : {}),
+    efforts: effortCatalog.efforts,
+    ...(Object.keys(effortCatalog.effort_sources).length > 0
+      ? { effort_sources: effortCatalog.effort_sources }
+      : {}),
+  };
 }
 
 export function cardapioFromWorkspace(cardapio: Cardapio): McpCardapio {
@@ -324,6 +360,7 @@ export function encodeExecutor(input: {
   cli?: string;
   agent?: string;
   session_id?: string;
+  effort?: string;
 }): string {
   return JSON.stringify(input);
 }
@@ -337,6 +374,7 @@ export function decodeExecutor(
   cli?: string;
   model?: string;
   model_source?: "declared" | "harness" | "measured";
+  effort?: string;
   agent?: string;
   session_id?: string;
 } {
@@ -358,5 +396,6 @@ export function decodeExecutor(
     session_id: asString(parsed.session_id),
     ...(model ? { model } : {}),
     ...(modelSource ? { model_source: modelSource } : {}),
+    ...(asString(parsed.effort) ? { effort: asString(parsed.effort) } : {}),
   };
 }

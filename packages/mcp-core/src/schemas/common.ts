@@ -36,7 +36,8 @@ export const CardapioTaskTypeSchema = z.enum([
 
 export const PrioritySchema = z.enum(["urgente", "alta", "media", "baixa"]);
 
-export const EffortSchema = z.enum(["low", "medium", "high"]);
+/** Effort names belong to each provider/model, so the wire contract is open. */
+export const EffortSchema = z.string().trim().min(1).max(32);
 
 export const ModelTierSchema = z.enum(["top", "mid", "cheap"]);
 
@@ -330,6 +331,7 @@ export const ExecutionAttemptSchema = z.object({
     cli: z.string().optional(),
     model: z.string().optional(),
     model_source: z.enum(["declared", "harness", "measured"]).optional(),
+    effort: EffortSchema.optional(),
     agent: z.string().optional(),
     session_id: z.string().optional(),
   }),
