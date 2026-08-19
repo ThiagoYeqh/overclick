@@ -24,7 +24,7 @@ import type { BoardTotals } from "../../lib/board-totals";
 import { dict, type Dict } from "../../lib/i18n";
 import { Icon } from "../../components/icon";
 import { Board, type BoardCard, type BoardMissionOption } from "./board";
-import { BoardTotal, BoardTotalLink } from "./board-total";
+import { BoardTotal } from "./board-total";
 import { FacetFilters } from "./facet-filters";
 import { MissionHeader } from "./mission-header";
 import { MissionFilter } from "./mission-filter";
@@ -115,17 +115,18 @@ function BulkMissionBar({
 /**
  * The account and navigation menu (OCL-20): one button on the hard right of
  * the bar holding what is not a filter and not work state — Insights,
- * Settings and the way out. Under 1100px it also carries the telemetry stat,
- * which the bar can no longer hold next to whole filter labels. The dropdown
- * closes on the same gesture as every other panel here: click away, Escape.
+ * Settings and the way out. Under 1100px it also carries the two work-state
+ * lines (review, running), which level 1 folds into it (ux-v2 §3). The
+ * dropdown closes on the same gesture as every other panel here: click away,
+ * Escape.
  */
 function AccountMenu({
-  totals,
-  filter,
+  review,
+  running,
   t,
 }: {
-  totals: BoardTotals;
-  filter: BoardFilter;
+  review: number;
+  running: number;
   t: Dict;
 }) {
   const [open, setOpen] = useState(false);
@@ -162,10 +163,22 @@ function AccountMenu({
       </button>
       {open ? (
         <div className="am-panel nebula-glass" role="menu" aria-label={t.board.accountMenu}>
-          {/* In the bar at full width; here only when the bar gave it up. */}
-          <div className="am-total">
-            <BoardTotalLink totals={totals} filter={filter} t={t} />
-          </div>
+          {/* In level 1 at full width; here only when the level folds them
+              (the 1100px step). Same mark, same words, same count badge as
+              the chip they replace — a number that changes shape when it
+              moves reads as a different number. The telemetry stat never
+              leaves level 1. */}
+          <a className="am-opt am-state" role="menuitem" href="#board-col-feito">
+            <Icon name="review" label={null} size={14} />
+            <span className="sc-label">{t.board.myReview}</span>
+            <span className="badge">{review}</span>
+          </a>
+          <a className="am-opt am-state" role="menuitem" href="#board-col-em_execucao">
+            <span className={`dot${running === 0 ? " idle" : ""}`} />
+            <span className="sc-label">
+              {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
+            </span>
+          </a>
           <a className="am-opt" role="menuitem" href="/insights">
             <Icon name="insights" label={null} size={14} />
             Insights
@@ -303,117 +316,124 @@ export function HomeShell({
 
   return (
     <>
-      <div className="topbar nebula-glass">
-        <Wordmark label={t.board.homeLink} current />
-        {/* OCL-20: the bar is two zones now. On the left, the filters — what
-            the person on the board uses most — with the room the right side
-            used to spend. On the right, the work state (review, running),
-            the telemetry stat and the account menu, nothing else. On the
-            phone the left zone collapses behind the Filtros button and the
-            wrapper becomes the panel that holds it: same controls, same
-            order, nothing dropped (AGB-65). */}
-        <div className={`topbar-more${filtersOpen ? " open" : ""}`}>
-          <div className="crumb">
-            <ProjectFilter
-              options={projectOptions}
-              value={filter.projectIds}
-              onToggle={(projectId) =>
-                apply({
-                  ...filter,
-                  projectIds: toggleProject(filter.projectIds, projectId, projects),
-                })
-              }
-              onAll={() => apply({ ...filter, projectIds: [] })}
+      {/* OCL-35 (ux-v2 §3): the bar is two levels now. Level 1 holds
+          identity, work state, telemetry and account, and it never wraps and
+          never truncates. Level 2 owns filtering, so a selected mission with
+          a long title no longer squeezes everything else off the line. */}
+      <header className="topbar-wrap">
+        <div className="topbar topbar-l1">
+          <Wordmark label={t.board.homeLink} current />
+          <div className="spacer" />
+          {/* Work state stays visible: it is not navigation, it is what the
+              board is doing. Each chip jumps to the column it counts. Under
+              1100px the two chips fold into the account menu. */}
+          <a className="state-chip" href="#board-col-feito">
+            <Icon name="review" label={null} size={13} />
+            <span className="sc-label">{t.board.myReview}</span>
+            <span className="badge">{review}</span>
+          </a>
+          <a className="state-chip agent-status" href="#board-col-em_execucao">
+            <span className={`dot${running === 0 ? " idle" : ""}`} />
+            {running > 0 ? <span className="badge">{running}</span> : null}
+            <span className="sc-label">
+              {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
+            </span>
+          </a>
+          {/* The figure that justifies the board stays readable at a glance;
+              the reading of it moved into the popover it opens. */}
+          <BoardTotal totals={totals} filter={filter} t={t} />
+          <AccountMenu review={review} running={running} t={t} />
+        </div>
+        <div className="topbar-l2">
+          {/* On the desktop the wrapper is transparent to the level, the
+              controls inside it lay out exactly as before, and the phone-only
+              filters button stays hidden. On the phone the level collapses
+              behind the Filtros button and the wrapper becomes the panel that
+              holds it: same controls, same order, nothing dropped (AGB-65). */}
+          <div className={`topbar-more${filtersOpen ? " open" : ""}`}>
+            <div className="crumb">
+              <ProjectFilter
+                options={projectOptions}
+                value={filter.projectIds}
+                onToggle={(projectId) =>
+                  apply({
+                    ...filter,
+                    projectIds: toggleProject(filter.projectIds, projectId, projects),
+                  })
+                }
+                onAll={() => apply({ ...filter, projectIds: [] })}
+                t={t}
+              />
+            </div>
+            <MissionFilter
+              options={missionOptions}
+              looseCount={looseCount}
+              totalCount={scopeCount}
+              value={filter.missionId}
+              onChange={(missionId) => apply({ ...filter, missionId })}
+              onCreated={(missionId) => apply({ ...filter, missionId })}
               t={t}
             />
-          </div>
-          <MissionFilter
-            options={missionOptions}
-            looseCount={looseCount}
-            totalCount={scopeCount}
-            value={filter.missionId}
-            onChange={(missionId) => apply({ ...filter, missionId })}
-            onCreated={(missionId) => apply({ ...filter, missionId })}
-            t={t}
-          />
-          <FacetFilters
-            types={filter.types}
-            priorities={filter.priorities}
-            releases={releaseOptions}
-            resolvedIn={filter.resolvedIn}
-            onTypesChange={(types) => apply({ ...filter, types })}
-            onPrioritiesChange={(priorities) =>
-              apply({ ...filter, priorities })
-            }
-            onReleaseChange={(resolvedIn) =>
-              apply({ ...filter, resolvedIn })
-            }
-            onClear={() => {
-              const { resolvedIn: _release, ...rest } = filter;
-              apply({ ...rest, types: [], priorities: [] });
-            }}
-            t={t}
-          />
-          <span className="filter-result">{t.board.cardsShown(visible.length)}</span>
-          {hasActiveFilters ? (
-            <button
-              className="btn-ghost clear-board-filters"
-              type="button"
-              onClick={() =>
-                apply({
-                  projectIds: defaultProject ? [defaultProject] : [],
-                  missionId: null,
-                  types: [],
-                  priorities: [],
-                })
+            <FacetFilters
+              types={filter.types}
+              priorities={filter.priorities}
+              releases={releaseOptions}
+              resolvedIn={filter.resolvedIn}
+              onTypesChange={(types) => apply({ ...filter, types })}
+              onPrioritiesChange={(priorities) =>
+                apply({ ...filter, priorities })
               }
+              onReleaseChange={(resolvedIn) =>
+                apply({ ...filter, resolvedIn })
+              }
+              onClear={() => {
+                const { resolvedIn: _release, ...rest } = filter;
+                apply({ ...rest, types: [], priorities: [] });
+              }}
+              t={t}
+            />
+            <span className="filter-result">{t.board.cardsShown(visible.length)}</span>
+            {hasActiveFilters ? (
+              <button
+                className="btn-ghost clear-board-filters"
+                type="button"
+                onClick={() =>
+                  apply({
+                    projectIds: defaultProject ? [defaultProject] : [],
+                    missionId: null,
+                    types: [],
+                    priorities: [],
+                  })
+                }
+              >
+                {t.board.clearFilters}
+              </button>
+            ) : null}
+            <button
+              className={`btn-ghost move-btn${picking ? " on" : ""}`}
+              type="button"
+              onClick={() => {
+                setFiltersOpen(false);
+                if (picking) stopPicking();
+                else setPicking(true);
+              }}
             >
-              {t.board.clearFilters}
+              {picking ? t.board.cancelSelection : t.board.moveToMission}
             </button>
-          ) : null}
+          </div>
           <button
-            className={`btn-ghost${picking ? " on" : ""}`}
+            className="filters-btn"
             type="button"
-            onClick={() => {
-              setFiltersOpen(false);
-              if (picking) stopPicking();
-              else setPicking(true);
-            }}
+            aria-expanded={filtersOpen}
+            aria-label={t.board.filters}
+            onClick={() => setFiltersOpen((open) => !open)}
           >
-            {picking ? t.board.cancelSelection : t.board.moveToMission}
+            <Icon name="filter" label={null} size={14} />
+            <span>{t.board.filters}</span>
+            <span className="badge">{visible.length}</span>
           </button>
         </div>
-        <button
-          className="filters-btn"
-          type="button"
-          aria-expanded={filtersOpen}
-          aria-label={t.board.filters}
-          onClick={() => setFiltersOpen((open) => !open)}
-        >
-          <Icon name="filter" label={null} size={14} />
-          <span>{t.board.filters}</span>
-          <span className="badge">{visible.length}</span>
-        </button>
-        <div className="spacer" />
-        {/* Work state stays visible: it is not navigation, it is what the
-            board is doing. Each chip jumps to the column it counts. */}
-        <a className="state-chip" href="#board-col-feito">
-          <Icon name="review" label={null} size={13} />
-          <span className="sc-label">{t.board.myReview}</span>
-          <span className="badge">{review}</span>
-        </a>
-        <a className="state-chip agent-status" href="#board-col-em_execucao">
-          <span className={`dot${running === 0 ? " idle" : ""}`} />
-          {running > 0 ? <span className="badge">{running}</span> : null}
-          <span className="sc-label">
-            {running > 0 ? t.board.running(running) : t.board.noAgentRunning}
-          </span>
-        </a>
-        {/* The figure that justifies the board stays readable at a glance;
-            the reading of it moved into the popover it opens. */}
-        <BoardTotal totals={totals} filter={filter} t={t} />
-        <AccountMenu totals={totals} filter={filter} t={t} />
-      </div>
+      </header>
       {/* Tap-away target for the phone filters panel; rendered only while it
           is open, which the desktop never does. */}
       {filtersOpen ? (

@@ -67,6 +67,7 @@ export function ProjectFilter({
         <span className="pf-label" title={label}>
           {label}
         </span>
+        <Icon name="chevronDown" label={null} size={14} />
       </button>
 
       {open ? (

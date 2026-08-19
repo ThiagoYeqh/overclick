@@ -338,14 +338,28 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-family: var(--nebula-font-sans);
 }
 
-/* ---------- top bar ---------- */
+/* ---------- top bar ----------
+   OCL-35 (ux-v2 §3): on the board the bar is two levels. Level 1 holds
+   identity, work state, telemetry and account; level 2 owns filtering.
+   Filter and navigation no longer fight for one line, which was the source
+   of every squeezed header. Both levels sit on the canvas — no glass — and
+   the only chrome is the 1px line under level 2. The bare `.topbar` rule
+   below still serves the other screens (Insights, Settings), which keep
+   their one glass bar. */
 .nb .topbar {
   display: flex; align-items: center; gap: var(--nebula-space-4);
   padding: var(--nebula-space-3) 18px; margin-bottom: 22px;
 }
-/* AGB-65: on the desktop the wrapper is transparent to the bar, the controls
-   inside it lay out exactly as before, and the phone-only filters button
-   stays hidden. */
+.nb .topbar-wrap { margin-bottom: 22px; }
+.nb .topbar-l1 { padding: 10px 0; margin-bottom: 0; }
+.nb .topbar-l2 {
+  display: flex; align-items: center; flex-wrap: nowrap;
+  gap: var(--nebula-space-3); padding: 0 0 12px;
+  border-bottom: 1px solid var(--nebula-glass-border);
+}
+/* AGB-65: on the desktop the wrapper is transparent to the level, the
+   controls inside it lay out exactly as before, and the phone-only filters
+   button stays hidden. */
 .nb .topbar-more { display: contents; }
 .nb .filters-btn { display: none; }
 .nb .menu-backdrop { display: none; }
@@ -449,10 +463,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .mf-chip.on .mf-trigger { color: var(--nebula-text-primary); }
 .nb .mf-label {
-  /* OCL-20: the mission title is the filter people read, so it prints whole
-     up to ~40ch; past that it truncates and the title attribute keeps the
-     full reading. */
-  display: block; max-width: 40ch;
+  /* OCL-35 (ux-v2 §3): the mission title is the filter people read, so it
+     prints whole up to ~60ch on its own level; past that it truncates and
+     the title attribute keeps the full reading. */
+  display: block; max-width: 60ch;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nb .mf-clear { font-size: 13px; line-height: 1; opacity: 0.7; }
@@ -598,8 +612,14 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-family: var(--nebula-font-mono); font-size: 11px;
   letter-spacing: 0.05em; color: var(--nebula-text-secondary);
 }
-.nb .agent-status .dot { width: 7px; height: 7px; border-radius: 50%; background: #7dd6a0; box-shadow: 0 0 8px rgba(125,214,160,0.6); }
-.nb .agent-status .dot.idle { background: var(--nebula-star-far); box-shadow: none; }
+/* One dot, wherever the running state is shown: on the chip in level 1 and
+   on the line that chip folds into inside the account menu. Flat, no halo —
+   ux-v2 §1 retires the glow, which was the only thing on the bar drawing a
+   coloured light around itself. */
+.nb .agent-status .dot, .nb .am-state .dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #7dd6a0;
+}
+.nb .agent-status .dot.idle, .nb .am-state .dot.idle { background: var(--nebula-star-far); }
 .nb .btn-ghost {
   background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
   border: 1px solid var(--nebula-glass-border);
@@ -659,14 +679,20 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   text-decoration: none;
 }
 .nb .am-opt:hover { background: rgba(255,255,255,0.06); color: var(--nebula-text-primary); }
-/* the telemetry line lives in the menu only once the bar gave the stat up
-   (the 1100px step below) */
-.nb .am-total { display: none; padding: 4px 10px 8px; border-bottom: 1px solid var(--nebula-glass-border); margin-bottom: 4px; }
-.nb .am-total-line {
-  display: inline-flex; align-items: baseline; gap: 7px;
-  text-decoration: none; cursor: pointer; white-space: nowrap;
+/* under 1100px the two work-state chips leave level 1 and live here, one
+   line each, beside the navigation entries. They keep the count badge the
+   chip carried on the level, so the same number reads the same in both
+   places, and the group is separated from navigation by the same rule the
+   panel already uses. */
+.nb .am-state { display: none; }
+.nb .am-state .sc-label { flex: 1; min-width: 0; }
+.nb .am-state .badge {
+  flex: none; min-width: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--nebula-mist-glow); color: var(--nebula-btn-light-text);
+  font-family: var(--nebula-font-mono); font-size: 11px; font-weight: 600;
+  font-variant-numeric: tabular-nums; text-align: center;
 }
-.nb .am-total-line .bt-lead { font-size: 15px; }
+.nb .am-state .dot { flex: none; }
 
 /* ---------- the one-line rule on the bar (AGB-71) ----------
    The rule the phone block already stated, now stated where it always
@@ -683,10 +709,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    they open. Once nothing is left to truncate the bar collapses into the menu
    button, which is the third way out and never the fourth one. */
 .nb .topbar { flex-wrap: nowrap; gap: var(--nebula-space-3); }
+/* level 1 keeps the wider 16px rhythm the checklist asks between the
+   wordmark and the first control */
+.nb .topbar.topbar-l1 { gap: var(--nebula-space-4); }
 /* the room a whole label needs comes out of the bar's own spacing, never out
    of the word: with nine gaps on it, four pixels each is a truncated crumb */
 .nb .topbar .btn-ghost { padding: 7px 12px; }
-.nb .topbar > *, .nb .topbar-more > * { flex: none; }
+.nb .topbar > *, .nb .topbar-l2 > *, .nb .topbar-more > * { flex: none; }
 .nb .topbar .spacer { flex: 1 1 0; min-width: 0; }
 .nb .logo,
 .nb .btn-ghost,
@@ -717,6 +746,119 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mf-chip, .nb .mf-trigger { min-width: 0; }
 .nb .mf-trigger { display: inline-flex; }
 .nb .mf-label { min-width: 0; }
+
+/* ---------- the Control (ux-v2 §3, OCL-35) ----------
+   One anatomy for every trigger in the two levels: 32px tall, 1px border,
+   8px radius, the UI face at 13px/500. Nothing in the levels is bare text
+   and nothing is a stretched toggle — the gray "Filtros" pill glued to the
+   wordmark and the borderless crumb triggers die here. The display of each
+   control stays with its own rule (the filters button still appears only
+   when the level folds); this block owns how the control looks.
+
+   The hover surface is a token and not a literal (ux-v2 checklist 1). It is
+   declared here, on the two levels, and not in :root: the `--oc-*` table is
+   OCL-34's file to write, and a card that reaches into another card's scope
+   to save itself one line is how a parallel round produces a conflict. When
+   34 lands, this is one alias to retire. */
+.nb .topbar-l1, .nb .topbar-l2 { --control-hover-bg: rgba(255,255,255,0.06); }
+.nb .topbar-l1 .state-chip,
+.nb .topbar-l1 .am-trigger,
+.nb .topbar-l2 .pf-trigger,
+.nb .topbar-l2 .mf-chip,
+.nb .topbar-l2 .ff-trigger,
+.nb .topbar-l2 .filters-btn,
+.nb .topbar-l2 .btn-ghost {
+  align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border: 1px solid var(--nebula-glass-border); border-radius: 8px;
+  background: transparent;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-sans); font-size: 13px;
+  font-weight: var(--nebula-weight-medium); letter-spacing: 0;
+  transition: color 0.2s var(--nebula-ease-atmosphere),
+    border-color 0.2s var(--nebula-ease-atmosphere),
+    background-color 0.2s var(--nebula-ease-atmosphere);
+}
+.nb .topbar-l2 .btn-ghost { display: inline-flex; }
+.nb .topbar-l1 .state-chip:hover,
+.nb .topbar-l1 .am-trigger:hover,
+.nb .topbar-l2 .pf-trigger:hover,
+.nb .topbar-l2 .mf-chip:hover,
+.nb .topbar-l2 .ff-trigger:hover,
+.nb .topbar-l2 .filters-btn:hover,
+.nb .topbar-l2 .btn-ghost:hover {
+  background: var(--control-hover-bg);
+  border-color: var(--nebula-corner-color);
+  color: var(--nebula-text-primary);
+}
+/* Every control of both levels answers the keyboard (ux-v2 checklist 10).
+   The radius is restated because the generic `.btn-ghost:focus-visible` far
+   below still rounds its ring to the 999px pill these controls stopped
+   being; without it the ring on "limpar"/"Mover para missão" is a capsule
+   drawn around a square. The stat is in this list too: it is a button, and
+   it was the one control on the bar a keyboard could reach silently. */
+.nb .topbar-l1 .state-chip:focus-visible,
+.nb .topbar-l1 .am-trigger:focus-visible,
+.nb .topbar-l1 .board-total:focus-visible,
+.nb .topbar-l2 .pf-trigger:focus-visible,
+.nb .topbar-l2 .mf-trigger:focus-visible,
+.nb .topbar-l2 .mf-clear:focus-visible,
+.nb .topbar-l2 .ff-trigger:focus-visible,
+.nb .topbar-l2 .filters-btn:focus-visible,
+.nb .topbar-l2 .btn-ghost:focus-visible {
+  outline: none; box-shadow: var(--nebula-focus-ring-offset);
+  border-radius: 8px;
+}
+/* an applied filter reads as text-1 with the count badge, never as a
+   colour of its own */
+.nb .topbar-l2 .ff-trigger.on,
+.nb .topbar-l2 .mf-chip.on { color: var(--nebula-text-primary); }
+.nb .topbar-l1 .state-chip .badge,
+.nb .topbar-l2 .badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--nebula-mist-glow); color: var(--nebula-btn-light-text);
+  font-family: var(--nebula-font-mono); font-size: 11px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* The running chip spells its count out in words ("2 em execução"), so the
+   badge beside it would be the same number twice. The rule that hid it is
+   two specificity steps below the one above, which is how "● ② 2 em
+   execução" got onto the bar; it is restated here at the level. */
+.nb .topbar-l1 .agent-status .badge { display: none; }
+/* the mission chip is the bordered control; the trigger inside it stays
+   bare so the whole chip is the hit area */
+.nb .topbar-l2 .mf-trigger, .nb .topbar-l2 .mf-clear {
+  font: inherit; letter-spacing: inherit; color: inherit;
+}
+.nb .topbar-l2 .pf-trigger svg,
+.nb .topbar-l2 .mf-trigger svg,
+.nb .topbar-l2 .ff-trigger svg { flex: none; }
+/* Both names on the level truncate rather than wrap, but they do not give
+   room back at the same rate: the mission is the long one and the one whose
+   whole reading is a tooltip and a panel away, so it yields first and the
+   project name — three words people navigate by — survives down to the
+   width where the level folds. Without this the crumb read "Agent Boa…" at
+   1100px while the mission still had 40 characters to spare. */
+.nb .topbar-l2 .mission-filter { flex-shrink: 1; }
+.nb .topbar-l2 .crumb { flex-shrink: 0.02; }
+/* the card count is data, so it keeps the data face, but at the 11px of the
+   ramp: 9px uppercase was a caption of a caption */
+.nb .topbar-l2 .filter-result {
+  font-size: 11px; letter-spacing: 0.04em; text-transform: none;
+}
+/* "Mover para missão" closes the level on the right (ux-v2 §3) */
+.nb .topbar-l2 .move-btn { margin-left: auto; }
+/* In the sheet the level's controls stack one per row, and a row that does
+   not own the full width reads as a different kind of control than the one
+   under it. The count keeps its dividing rule on the level, where it stands
+   between two groups on one line, and drops it here, where there is no line
+   left to divide. `.open` is the sheet: on the desktop this wrapper is
+   `display: contents` and never carries the class. */
+.nb .topbar-more.open .project-filter,
+.nb .topbar-more.open .pf-trigger { width: 100%; }
+.nb .topbar-more.open .filter-result { padding-left: 0; border-left: 0; }
 
 /* ---------- the running total (OCL-20) ----------
    The headline figure of the bar, not a caption: it is the number that
@@ -2101,27 +2243,26 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .board-total .bt-sub { display: none; }
 }
 
-/* Step two (OCL-20): what is not a filter and not work state leaves the bar.
-   The telemetry stat moves into the account menu, which keeps a line for the
-   numbers beside the Insights entry; the filters — what the person uses most
-   — keep the width that frees, down to the phone step below. */
+/* OCL-35 (ux-v2 §3): under 1100px level 1 folds the two work-state chips
+   into the account menu, which keeps a line for each. The telemetry stat
+   never leaves level 1. */
 @media (max-width: 1099px) {
-  .nb .topbar > .board-total-wrap, .nb .topbar > .board-total { display: none; }
-  .nb .am-total { display: block; }
+  .nb .topbar-l1 .state-chip { display: none; }
+  .nb .am-state { display: flex; }
+  /* work state is one group, navigation is another: the rule between them
+     is what the menu had while it carried the telemetry line */
+  .nb .am-state + :not(.am-state) {
+    margin-top: 4px; padding-top: 6px;
+    border-top: 1px solid var(--nebula-glass-border);
+  }
 }
 
 /* At the narrow desktop width the board still keeps its four columns, but
-   the new facet chips move behind the same Filters control used on phones.
-   This prevents the topbar from clipping while preserving the desktop board. */
+   level 2 collapses behind the same Filters control used on phones. This
+   prevents the level from clipping while preserving the desktop board. */
 @media (min-width: 769px) and (max-width: 1050px) {
-  .nb .topbar { position: relative; z-index: 30; }
-  .nb .filters-btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
-    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-    font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
-    padding: 6px 11px; cursor: pointer;
-  }
+  .nb .topbar-l2 { position: relative; z-index: 30; }
+  .nb .filters-btn { display: inline-flex; }
   .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
   .nb .topbar-more { display: none; }
   .nb .topbar-more.open {
@@ -2137,7 +2278,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-more .facet-filters, .nb .topbar-more .ff-trigger { width: 100%; }
   .nb .topbar-more .ff-trigger { text-align: left; }
   .nb .topbar-more .filter-result { align-self: flex-start; }
-  .nb .topbar-more .btn-ghost { display: block; width: 100%; text-align: left; }
+  .nb .topbar-more .btn-ghost { display: flex; align-items: center; width: 100%; text-align: left; }
 }
 
 @media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
@@ -2157,26 +2298,35 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .release-usage, .nb .release-relations { padding-top: 10px; }
   .nb .release-relations { grid-template-columns: 1fr; }
 
-  /* AGB-65 + OCL-20: the chrome collapses to one compact bar. The bar keeps
-     what scanning uses — the Filtros button, the work-state chips and the
-     account menu — and it sticks to the top so the list scrolls under it.
-     Nothing wraps: the bar is one row by construction, and every piece
-     inside it already holds its own one line. */
+  /* AGB-65 + OCL-35: the chrome collapses to the two compact levels. Level 1
+     keeps the wordmark, the telemetry stat and the account menu; level 2 is
+     the single Filtros button, and the panel behind it carries the controls.
+     The whole wrap sticks to the top on the canvas itself — no glass — so
+     the list scrolls under it. */
   .nb .topbar {
     position: sticky; top: 8px; z-index: 30;
     gap: 8px; padding: 10px 12px; margin-bottom: 14px;
   }
-  .nb .logo { display: none; }
-  .nb .topbar .btn-ghost { padding: 6px 10px; font-size: 11px; }
-  /* the one button the bar keeps for the filters that left it; the panel
-     hangs off the bar, which being sticky is already its origin */
-  .nb .filters-btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    background: var(--nebula-btn-account-bg); color: var(--nebula-text-secondary);
-    border: 1px solid var(--nebula-glass-border); border-radius: 999px;
-    font-family: var(--nebula-font-mono); font-size: 11px; letter-spacing: 0.04em;
-    padding: 6px 11px; cursor: pointer;
+  .nb .topbar-wrap {
+    position: sticky; top: 8px; z-index: 30; margin-bottom: 14px;
+    /* opaque: the list scrolls under the levels, and a bright row title
+       bleeding through the bar reads as a bug, not as depth */
+    background: var(--nebula-void);
   }
+  .nb .topbar-l1 { position: static; gap: 8px; padding: 4px 0 2px; margin-bottom: 0; }
+  .nb .topbar-l2 { position: relative; padding-bottom: 6px; }
+  .nb .topbar .btn-ghost { padding: 6px 10px; font-size: 11px; }
+  /* the one button level 2 keeps for the filters that left it; the panel
+     hangs off the level, which sits inside the sticky wrap */
+  .nb .filters-btn { display: inline-flex; }
+  /* On a phone every remaining control is hit with a thumb, so the 32px of
+     the Control anatomy gives way to the 44px floor (ux-v2 checklist 12).
+     There are three of them left at this width — Filtros, the stat and the
+     account menu — and the height is bought back from the level's own
+     padding, never from the target. */
+  .nb .topbar-l2 .filters-btn,
+  .nb .topbar-l1 .am-trigger,
+  .nb .topbar-l1 .board-total { min-height: var(--nebula-tap); height: auto; }
   .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: 25; }
   /* the panel behind the button: same controls, same order, one per row */
   .nb .topbar-more { display: none; }
@@ -2188,10 +2338,14 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
        through the panel reads as a bug, not as depth */
     background: var(--nebula-panel-solid);
   }
-  /* in the panel every row owns its width, so nothing in it has to shrink */
+  /* in the panel every row owns its width, so nothing in it has to shrink,
+     and every row keeps the 44px tap floor (ux-v2 checklist) */
   .nb .topbar-more .crumb { align-self: stretch; }
   .nb .topbar-more .pf-label { max-width: none; }
-  .nb .topbar-more .btn-ghost { display: block; width: 100%; text-align: left; }
+  .nb .topbar-more .btn-ghost { display: flex; align-items: center; width: 100%; text-align: left; }
+  .nb .topbar-more.open .filter-chip,
+  .nb .topbar-more.open .pf-trigger,
+  .nb .topbar-more.open .btn-ghost { min-height: var(--nebula-tap); }
   .nb .topbar-more .mission-filter { max-width: none; }
   .nb .topbar-more .mf-label { max-width: none; }
   .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
@@ -2205,10 +2359,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     border-radius: 18px 18px 0 0;
   }
   .nb .topbar-more .filter-result { align-self: flex-start; }
-  /* the state chips shrink to mark and count; the word returns with width */
-  .nb .state-chip { padding: 5px 8px; }
-  .nb .state-chip .sc-label { display: none; }
-  .nb .agent-status .badge { display: inline; }
+  /* the state chips are gone at this width — they folded into the account
+     menu at 1100px — so there is nothing left here to shrink */
   .nb .crumb:has(> .project-filter) { gap: 2px; }
   .nb .crumb select { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; }
   /* the project chip holds its one line; its panel takes the width it needs */

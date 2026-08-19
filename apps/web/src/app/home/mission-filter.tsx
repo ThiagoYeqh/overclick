@@ -146,6 +146,7 @@ export function MissionFilter({
           <span className="mf-label" title={label}>
             {label}
           </span>
+          <Icon name="chevronDown" label={null} size={14} />
         </button>
         {value ? (
           <button

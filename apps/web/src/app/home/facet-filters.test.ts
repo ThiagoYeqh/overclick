@@ -38,7 +38,8 @@ describe("facet filter menu", () => {
       }),
     );
 
-    expect(html).toContain("Filters · 3");
+    expect(html).toContain(">Filters</span>");
+    expect(html).toContain('class="badge">3</span>');
     expect(html).toContain(">Type</h3>");
     expect(html).toContain(">Priority</h3>");
     expect(html).toContain(">Release</h3>");

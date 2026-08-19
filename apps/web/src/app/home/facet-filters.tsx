@@ -50,8 +50,6 @@ export function FacetFilters({
   const root = useRef<HTMLDivElement | null>(null);
   const activeCount =
     types.length + priorities.length + (resolvedIn !== undefined ? 1 : 0);
-  const label =
-    activeCount > 0 ? `${t.board.filters} · ${activeCount}` : t.board.filters;
 
   useEffect(() => {
     if (!open) return;
@@ -131,7 +129,11 @@ export function FacetFilters({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        {label}
+        {/* ux-v2 §3: the funnel is the Lucide filter mark at 14px, and an
+            active filter set reads as a count badge, not as "· N" text. */}
+        <Icon name="filter" label={null} size={14} />
+        <span>{t.board.filters}</span>
+        {activeCount > 0 ? <span className="badge">{activeCount}</span> : null}
       </button>
 
       {open ? (
