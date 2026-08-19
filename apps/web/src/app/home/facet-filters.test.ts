@@ -24,18 +24,28 @@ describe("facet filter menu", () => {
       createElement(FacetFilters, {
         types: ["bug"],
         priorities: ["urgente"],
+        releases: [
+          { value: "v1.2.0", count: 2 },
+          { value: null, count: 3 },
+        ],
+        resolvedIn: "v1.2.0",
         onTypesChange: vi.fn(),
         onPrioritiesChange: vi.fn(),
+        onReleaseChange: vi.fn(),
         onClear: vi.fn(),
         defaultOpen: true,
         t: dict("en"),
       }),
     );
 
-    expect(html).toContain("Filters · 2");
+    expect(html).toContain("Filters · 3");
     expect(html).toContain(">Type</h3>");
     expect(html).toContain(">Priority</h3>");
+    expect(html).toContain(">Release</h3>");
+    expect(html).toContain("v1.2.0");
+    expect(html).toContain("No release");
     expect(html.match(/type="checkbox"/g)).toHaveLength(7);
+    expect(html.match(/type="radio"/g)).toHaveLength(3);
     expect(html).not.toContain("facet-chip");
   });
 });

@@ -3,7 +3,11 @@
 import type { TaskPriority, TaskType } from "@agent-board/db";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/icon";
-import { TASK_PRIORITIES, TASK_TYPES } from "../../lib/board-filter";
+import {
+  TASK_PRIORITIES,
+  TASK_TYPES,
+  type ReleaseCount,
+} from "../../lib/board-filter";
 import type { Dict } from "../../lib/i18n";
 
 export function toggleFacet<T extends string>(
@@ -17,20 +21,26 @@ export function toggleFacet<T extends string>(
   return order.filter((item) => selected.includes(item));
 }
 
-/** Type and priority share one compact control because both describe cards. */
+/** Card facets and the release cut share one compact, responsive control. */
 export function FacetFilters({
   types,
   priorities,
+  releases,
+  resolvedIn,
   onTypesChange,
   onPrioritiesChange,
+  onReleaseChange,
   onClear,
   defaultOpen = false,
   t,
 }: {
   types: TaskType[];
   priorities: TaskPriority[];
+  releases: ReleaseCount[];
+  resolvedIn: string | null | undefined;
   onTypesChange: (types: TaskType[]) => void;
   onPrioritiesChange: (priorities: TaskPriority[]) => void;
+  onReleaseChange: (release: string | null | undefined) => void;
   onClear: () => void;
   /** Lets server-rendered UI tests inspect the panel without a browser. */
   defaultOpen?: boolean;
@@ -38,7 +48,8 @@ export function FacetFilters({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const root = useRef<HTMLDivElement | null>(null);
-  const activeCount = types.length + priorities.length;
+  const activeCount =
+    types.length + priorities.length + (resolvedIn !== undefined ? 1 : 0);
   const label =
     activeCount > 0 ? `${t.board.filters} · ${activeCount}` : t.board.filters;
 
@@ -87,6 +98,30 @@ export function FacetFilters({
     );
   }
 
+  function releaseOption(
+    key: string,
+    value: string | null | undefined,
+    text: string,
+    count?: number,
+  ) {
+    const selected = resolvedIn === value;
+    return (
+      <label key={key} className={`ff-opt${selected ? " on" : ""}`}>
+        <input
+          type="radio"
+          name="board-release"
+          checked={selected}
+          onChange={() => onReleaseChange(value)}
+        />
+        <span className="ff-box ff-radio" aria-hidden="true">
+          {selected ? <span className="ff-radio-dot" /> : null}
+        </span>
+        <span className="ff-opt-name">{text}</span>
+        {count !== undefined ? <span className="ff-opt-count">{count}</span> : null}
+      </label>
+    );
+  }
+
   return (
     <div className="facet-filters" ref={root}>
       <button
@@ -127,6 +162,20 @@ export function FacetFilters({
                     onPrioritiesChange(
                       toggleFacet(priorities, priority, TASK_PRIORITIES),
                     ),
+                ),
+              )}
+            </div>
+          </section>
+          <section className="ff-section" aria-labelledby="ff-release-label">
+            <h3 id="ff-release-label">{t.board.releaseFilter}</h3>
+            <div className="ff-list">
+              {releaseOption("all", undefined, t.board.allReleases)}
+              {releases.map((release) =>
+                releaseOption(
+                  release.value ?? "no-release",
+                  release.value,
+                  release.value ?? t.board.noRelease,
+                  release.count,
                 ),
               )}
             </div>

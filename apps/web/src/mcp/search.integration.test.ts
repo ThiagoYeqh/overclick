@@ -118,6 +118,14 @@ describe("task_search", () => {
     const inMain = await card("Search scope alpha");
     const inOther = await card("Search scope beta", { project_id: other.id });
     const feature = await card("Search scope gamma", { type: "feature" });
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: inMain.id,
+      resolved_in: "v1.2.0",
+    });
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: inOther.id,
+      resolved_in: "v1.1.0",
+    });
 
     const byPrefix = await invokeTool(world.db, ctx(), "task_search", {
       q: "search scope",
@@ -138,6 +146,24 @@ describe("task_search", () => {
     expect(
       TaskSearchOutputSchema.parse(byType.value).tasks.map((t) => t.id),
     ).toEqual([feature.id]);
+
+    const byRelease = await invokeTool(world.db, ctx(), "task_search", {
+      q: "search scope",
+      resolved_in: "v1.2.0",
+    });
+    expect(byRelease.ok).toBe(true);
+    if (!byRelease.ok) return;
+    expect(
+      TaskSearchOutputSchema.parse(byRelease.value).tasks.map((t) => t.id),
+    ).toEqual([inMain.id]);
+
+    const missingRelease = await invokeTool(world.db, ctx(), "task_search", {
+      q: "search scope",
+      resolved_in: "v9.9.9",
+    });
+    expect(missingRelease.ok).toBe(true);
+    if (!missingRelease.ok) return;
+    expect(TaskSearchOutputSchema.parse(missingRelease.value).tasks).toEqual([]);
 
     const claimed = await invokeTool(world.db, ctx(), "task_claim", {
       task_id: inMain.id,

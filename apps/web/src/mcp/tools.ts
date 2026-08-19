@@ -957,6 +957,7 @@ async function taskList(
   input: {
     project_id?: string;
     mission_id?: string;
+    resolved_in?: string;
     status?: CardStatus | CardStatus[];
     priority?: Task["priority"];
     type?: Task["type"];
@@ -985,6 +986,7 @@ async function taskList(
     }
     filters.push(eq(task.missionId, input.mission_id));
   }
+  if (input.resolved_in) filters.push(eq(task.resolvedIn, input.resolved_in));
   if (input.priority) filters.push(eq(task.priority, input.priority));
   if (input.type) filters.push(eq(task.tipo, input.type));
 
@@ -1079,6 +1081,7 @@ async function taskSearch(
   input: {
     q: string;
     project_id?: string;
+    resolved_in?: string;
     type?: Task["type"];
     status?: CardStatus | CardStatus[];
     limit?: number;
@@ -1099,6 +1102,7 @@ async function taskSearch(
     }
     filters.push(eq(task.projectId, proj.id));
   }
+  if (input.resolved_in) filters.push(eq(task.resolvedIn, input.resolved_in));
   if (input.type) filters.push(eq(task.tipo, input.type));
   if (input.status) {
     const statuses = Array.isArray(input.status) ? input.status : [input.status];
@@ -2831,7 +2835,7 @@ async function insightsQuery(
   db: McpDatabase,
   ctx: AuthContext,
   input: {
-    group_by?: "project" | "mission" | "model" | "card";
+    group_by?: "project" | "mission" | "model" | "release" | "card";
     since?: string;
     until?: string;
   },
@@ -2902,6 +2906,7 @@ async function insightsQuery(
   if (input.group_by === "project") grouped = { groups: groupsFor(insights.byProject) };
   if (input.group_by === "mission") grouped = { groups: groupsFor(insights.byMission) };
   if (input.group_by === "model") grouped = { groups: groupsFor(insights.byModel) };
+  if (input.group_by === "release") grouped = { groups: groupsFor(insights.byRelease) };
   if (input.group_by === "card") {
     grouped = {
       cards: insights.perCard.map((card) => ({

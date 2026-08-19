@@ -568,6 +568,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   display: inline-flex; align-items: center; justify-content: center;
 }
 .nb .ff-opt.on .ff-box { border-color: rgba(209,217,235,0.5); background: rgba(255,255,255,0.10); }
+.nb .ff-radio { border-radius: 50%; }
+.nb .ff-radio-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--nebula-dust-core); }
+.nb .ff-opt-count {
+  flex: none; color: var(--nebula-text-tertiary); font-variant-numeric: tabular-nums;
+}
 .nb .ff-opt-name { flex: 1; min-width: 0; }
 .nb .ff-clear {
   width: 100%; margin-top: 8px; padding: 8px;
@@ -861,6 +866,74 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .mission-preview > .md { margin-top: 7px; }
 .nb .mission-editor > .mission-error,
 .nb .mission-editor > .mission-actions { grid-column: 1 / -1; margin-top: 0; }
+
+/* ---------- selected release ----------
+   Release is an audit cut, so its header puts scope, status and consumption
+   in one reading before the cards. It reuses the mission header's density but
+   gives telemetry and relationships their own rows instead of a tooltip. */
+.nb .release-header {
+  display: grid; grid-template-columns: minmax(180px, 0.75fr) minmax(0, 1.25fr);
+  gap: 14px 28px; margin: 0 0 18px; padding: 18px 20px;
+  border-color: rgba(209,217,235,0.14);
+}
+.nb .release-heading { min-width: 0; }
+.nb .release-kicker,
+.nb .release-rel-label {
+  display: block; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-mono); font-size: 9px;
+  letter-spacing: 0.09em; text-transform: uppercase;
+}
+.nb .release-header h1 {
+  margin: 5px 0 0; overflow-wrap: anywhere; color: var(--nebula-text-primary);
+  font-size: 21px; font-weight: var(--nebula-weight-medium);
+  letter-spacing: var(--nebula-tracking-tight); line-height: 1.25;
+}
+.nb .release-counts {
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  gap: 7px; flex-wrap: wrap;
+}
+.nb .release-count {
+  display: inline-flex; align-items: baseline; gap: 5px; padding: 5px 8px;
+  border: 1px solid var(--nebula-glass-border); border-radius: 999px;
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 9px; white-space: nowrap;
+}
+.nb .release-count b {
+  color: var(--nebula-text-primary); font-size: 11px; font-weight: 500;
+}
+.nb .release-usage {
+  display: flex; align-items: baseline; align-content: flex-start;
+  gap: 7px 14px; flex-wrap: wrap; padding-top: 12px;
+  border-top: 1px solid var(--nebula-glass-border);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 11px;
+}
+.nb .release-usage b {
+  color: var(--nebula-text-primary); font-size: 14px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.nb .release-usage small { flex-basis: 100%; color: var(--nebula-text-tertiary); }
+.nb .release-usage a { color: var(--nebula-mist); text-decoration: none; }
+.nb .release-usage a:hover { color: var(--nebula-text-primary); }
+.nb .release-relations {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+  padding-top: 12px; border-top: 1px solid var(--nebula-glass-border);
+}
+.nb .release-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.nb .release-chip {
+  appearance: none; padding: 4px 8px; border: 1px solid var(--nebula-glass-border);
+  border-radius: 999px; background: rgba(255,255,255,0.03);
+  color: var(--nebula-text-secondary); font-family: var(--nebula-font-mono);
+  font-size: 10px; line-height: 1.25; cursor: pointer;
+}
+.nb .release-chip:hover:not(.static) {
+  color: var(--nebula-text-primary); border-color: rgba(209,217,235,0.4);
+}
+.nb .release-chip.static { cursor: default; }
+.nb .release-empty {
+  color: var(--nebula-text-tertiary); font-family: var(--nebula-font-mono);
+  font-size: 10px;
+}
 
 /* ---------- board ---------- */
 /* minmax(0, 1fr), not bare 1fr: a bare fr track is minmax(auto, 1fr), so the
@@ -2079,6 +2152,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .mission-editor > .mission-actions { grid-column: auto; }
   .nb .mission-actions,
   .nb .mission-delete-confirm { align-items: flex-end; flex-wrap: wrap; }
+  .nb .release-header { grid-template-columns: 1fr; gap: 12px; padding: 15px; }
+  .nb .release-counts { justify-content: flex-start; }
+  .nb .release-usage, .nb .release-relations { padding-top: 10px; }
+  .nb .release-relations { grid-template-columns: 1fr; }
 
   /* AGB-65 + OCL-20: the chrome collapses to one compact bar. The bar keeps
      what scanning uses — the Filtros button, the work-state chips and the

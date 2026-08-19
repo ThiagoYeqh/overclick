@@ -4,7 +4,7 @@
  */
 const en = {
   title: "Insights",
-  sub: "What execution takes on this board: tokens and time per project, per mission, per model, per card.",
+  sub: "What execution takes on this board: tokens and time per project, per mission, per release, per model, per card.",
   backToBoard: "Board",
   totalCost: "Total cost",
   totalTokens: "Total tokens",
@@ -96,6 +96,8 @@ const en = {
   filterProjects: (n: number) => `${n} project${n === 1 ? "" : "s"}`,
   filterMission: "one mission",
   filterNoMission: "cards with no mission",
+  filterRelease: (value: string) => `release ${value}`,
+  filterNoRelease: "cards with no release",
   filterTypes: (values: string[]) => `type ${values.join(" or ")}`,
   filterPriorities: (values: string[]) => {
     const labels: Record<string, string> = {
@@ -113,7 +115,7 @@ export type InsightsCopy = typeof en;
 
 const ptBR: InsightsCopy = {
   title: "Insights",
-  sub: "O que a execução consome neste board: tokens e tempo por projeto, por missão, por modelo, por card.",
+  sub: "O que a execução consome neste board: tokens e tempo por projeto, por missão, por release, por modelo, por card.",
   backToBoard: "Board",
   totalCost: "Custo total",
   totalTokens: "Tokens totais",
@@ -198,6 +200,8 @@ const ptBR: InsightsCopy = {
   filterProjects: (n: number) => `${n} projeto${n === 1 ? "" : "s"}`,
   filterMission: "uma missão",
   filterNoMission: "cards sem missão",
+  filterRelease: (value: string) => `release ${value}`,
+  filterNoRelease: "cards sem release",
   filterTypes: (values) => `tipo ${values.join(" ou ")}`,
   filterPriorities: (values) => {
     const labels: Record<string, string> = {

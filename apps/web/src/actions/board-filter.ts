@@ -1,11 +1,12 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
-import { mission, project, user } from "@agent-board/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { mission, project, task, user } from "@agent-board/db";
 import {
   NO_MISSION,
   encodeFacetSelection,
   encodeProjectSelection,
+  encodeReleaseSelection,
   isTaskPriority,
   isTaskType,
   type BoardFilter,
@@ -49,6 +50,22 @@ export async function setBoardFilterAction(
   if (!input.priorities.every(isTaskPriority)) {
     return { ok: false, error: "Task priority not found." };
   }
+  if (typeof input.resolvedIn === "string") {
+    const ws = await db().query.workspace.findFirst({ columns: { id: true } });
+    if (!ws) return { ok: false, error: "Workspace not found." };
+    const [release] = await db()
+      .select({ value: task.resolvedIn })
+      .from(task)
+      .innerJoin(project, eq(task.projectId, project.id))
+      .where(
+        and(
+          eq(project.workspaceId, ws.id),
+          eq(task.resolvedIn, input.resolvedIn),
+        ),
+      )
+      .limit(1);
+    if (!release) return { ok: false, error: "Release not found." };
+  }
 
   await db()
     .update(user)
@@ -58,6 +75,7 @@ export async function setBoardFilterAction(
       boardMissionId: input.missionId,
       boardTaskTypes: encodeFacetSelection([...new Set(input.types)]),
       boardPriorities: encodeFacetSelection([...new Set(input.priorities)]),
+      boardResolvedIn: encodeReleaseSelection(input.resolvedIn),
     })
     .where(eq(user.id, session.userId));
 

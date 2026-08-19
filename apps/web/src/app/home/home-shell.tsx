@@ -15,6 +15,7 @@ import {
   filterBoardCards,
   missionFilterOptions,
   projectFilterOptions,
+  releaseFilterOptions,
   toggleProject,
   type BoardFilter,
 } from "../../lib/board-filter";
@@ -28,6 +29,7 @@ import { FacetFilters } from "./facet-filters";
 import { MissionHeader } from "./mission-header";
 import { MissionFilter } from "./mission-filter";
 import { ProjectFilter } from "./project-filter";
+import { ReleaseHeader } from "./release-header";
 
 export type BoardProjectOption = { id: string; name: string; hasContext: boolean };
 export type { BoardMissionOption };
@@ -188,6 +190,7 @@ export function HomeShell({
   lang,
   projects,
   missions,
+  releases,
   cards,
   initialFilter,
   initialTotals,
@@ -195,6 +198,7 @@ export function HomeShell({
   lang: string;
   projects: BoardProjectOption[];
   missions: BoardMissionOption[];
+  releases: { value: string }[];
   cards: BoardCard[];
   initialFilter: BoardFilter;
   /** What the initial filter consumed, already aggregated on the server. */
@@ -219,8 +223,11 @@ export function HomeShell({
       missionId: null,
       types: filter.types,
       priorities: filter.priorities,
+      ...(filter.resolvedIn !== undefined
+        ? { resolvedIn: filter.resolvedIn }
+        : {}),
     }),
-    [filter.projectIds, filter.types, filter.priorities],
+    [filter.projectIds, filter.types, filter.priorities, filter.resolvedIn],
   );
   const missionOptions = useMemo(
     () => missionFilterOptions(cards, missions, filter),
@@ -243,6 +250,10 @@ export function HomeShell({
       })),
     [cards, projects, filter],
   );
+  const releaseOptions = useMemo(
+    () => releaseFilterOptions(cards, releases, filter),
+    [cards, releases, filter],
+  );
   // The prefix earns its place on the card only when more than one project is
   // on screen. Under a single project it would repeat itself 44 times.
   const mixedProjects = useMemo(
@@ -261,7 +272,8 @@ export function HomeShell({
     (defaultProject ? filter.projectIds[0] !== defaultProject : false) ||
     filter.missionId !== null ||
     filter.types.length > 0 ||
-    filter.priorities.length > 0;
+    filter.priorities.length > 0 ||
+    filter.resolvedIn !== undefined;
 
   // MCP writes happen outside this React tree. Refreshing the dynamic route
   // pulls projects, cards and their latest attempts together, so every part
@@ -327,11 +339,19 @@ export function HomeShell({
           <FacetFilters
             types={filter.types}
             priorities={filter.priorities}
+            releases={releaseOptions}
+            resolvedIn={filter.resolvedIn}
             onTypesChange={(types) => apply({ ...filter, types })}
             onPrioritiesChange={(priorities) =>
               apply({ ...filter, priorities })
             }
-            onClear={() => apply({ ...filter, types: [], priorities: [] })}
+            onReleaseChange={(resolvedIn) =>
+              apply({ ...filter, resolvedIn })
+            }
+            onClear={() => {
+              const { resolvedIn: _release, ...rest } = filter;
+              apply({ ...rest, types: [], priorities: [] });
+            }}
             t={t}
           />
           <span className="filter-result">{t.board.cardsShown(visible.length)}</span>
@@ -405,6 +425,18 @@ export function HomeShell({
           mission={selectedMission}
           t={t}
           onDeleted={() => apply({ ...filter, missionId: null })}
+        />
+      ) : null}
+
+      {filter.resolvedIn !== undefined ? (
+        <ReleaseHeader
+          release={filter.resolvedIn}
+          cards={visible}
+          missions={missions}
+          totals={totals}
+          filter={filter}
+          onMissionSelect={(missionId) => apply({ ...filter, missionId })}
+          t={t}
         />
       ) : null}
 

@@ -119,6 +119,8 @@ export type BoardCard = {
   plannedCli: string | null;
   /** The CLI that actually claimed the card, for its brand mark. */
   ranCli: string | null;
+  /** Every distinct CLI that attempted this card, including earlier reopens. */
+  executors: string[];
   /** Plan and reality in one value: "sonnet-5", or "sonnet-5 → fable-5". */
   harnessChain: string | null;
   /** What actually ran, set only when it was not what the card planned. */

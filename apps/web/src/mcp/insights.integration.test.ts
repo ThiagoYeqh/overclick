@@ -73,6 +73,7 @@ describe("insights_query answers what the Insights page answers", () => {
         shortId: "OC-1",
         title: "Card with full usage",
         status: "feito",
+        resolvedIn: "v1.2.0",
       })
       .returning({ id: task.id });
     const [estimated] = await world.db
@@ -260,6 +261,30 @@ describe("insights_query answers what the Insights page answers", () => {
     ).toBeCloseTo(0.0105);
     // The loose card's group carries a null label, never an invented one.
     expect(missions?.find((row) => row.label === null)?.attempts).toBe(2);
+  });
+
+  it("groups by release, with null as the unreleased bucket", async () => {
+    const queried = await invokeTool(world.db, ctx(), "insights_query", {
+      group_by: "release",
+    });
+    expect(queried.ok).toBe(true);
+    if (!queried.ok) return;
+    const out = InsightsQueryOutputSchema.parse(queried.value);
+    const page = await pageInsights();
+
+    expect(out.groups).toEqual(
+      page.byRelease.map((row) =>
+        expect.objectContaining({
+          key: row.key,
+          label: row.label,
+          cost_usd: row.costUsd,
+          tokens: row.tokens,
+          attempts: row.attempts,
+        }),
+      ),
+    );
+    expect(out.groups?.find((row) => row.label === "v1.2.0")?.attempts).toBe(1);
+    expect(out.groups?.find((row) => row.label === null)?.attempts).toBe(2);
   });
 
   it("reports the reopened rate per model, highest first", async () => {

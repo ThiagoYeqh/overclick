@@ -43,6 +43,7 @@ export type InsightAttemptRow = {
   projectName: string;
   missionId: string | null;
   missionTitle: string | null;
+  resolvedIn: string | null;
   model: string | null;
   executor: string | null;
   modelSource: AttemptModelSource | null;
@@ -89,6 +90,7 @@ export async function loadInsightAttemptRows(
       projectName: project.name,
       missionId: task.missionId,
       missionTitle: mission.title,
+      resolvedIn: task.resolvedIn,
       model: executionAttempt.model,
       executor: executionAttempt.executor,
       modelSource: executionAttempt.modelSource,
@@ -323,12 +325,14 @@ export type Insights = {
   switchedRuns: number;
   byProject: GroupInsight[];
   byMission: GroupInsight[];
+  byRelease: GroupInsight[];
   byModel: GroupInsight[];
   reopensByModel: ModelReopenInsight[];
   perCard: CardInsight[];
 };
 
 const NO_MISSION = "__none__";
+const NO_RELEASE = "__no_release__";
 const NO_MODEL = "__unknown__";
 
 function executorLabel(raw: string | null): string | null {
@@ -661,6 +665,7 @@ export function computeInsights(
   let switchedRuns = 0;
   const byProject = new Map<string, RunningGroup>();
   const byMission = new Map<string, RunningGroup>();
+  const byRelease = new Map<string, RunningGroup>();
   const byModel = new Map<string, RunningGroup>();
   const byCard = new Map<
     string,
@@ -706,6 +711,12 @@ export function computeInsights(
     addAttempt(group(byProject, a.projectId, a.projectName), a, cost, priced);
     addAttempt(
       group(byMission, a.missionId ?? NO_MISSION, a.missionTitle),
+      a,
+      cost,
+      priced,
+    );
+    addAttempt(
+      group(byRelease, a.resolvedIn ?? NO_RELEASE, a.resolvedIn),
       a,
       cost,
       priced,
@@ -903,6 +914,7 @@ export function computeInsights(
     switchedRuns,
     byProject: seal(byProject),
     byMission: seal(byMission),
+    byRelease: seal(byRelease),
     byModel: seal(byModel),
     reopensByModel,
     perCard,

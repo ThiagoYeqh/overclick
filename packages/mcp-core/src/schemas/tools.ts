@@ -230,6 +230,8 @@ export const ProjectDeleteOutputSchema = z.object({
 export const TaskListInputSchema = z.object({
   project_id: ProjectRefSchema.optional(),
   mission_id: z.string().min(1).optional(),
+  /** Exact release tag stored on the card. */
+  resolved_in: z.string().min(1).optional(),
   status: z.union([CardStatusSchema, z.array(CardStatusSchema)]).optional(),
   priority: PrioritySchema.optional(),
   type: TaskTypeSchema.optional(),
@@ -317,6 +319,8 @@ export const TaskGetOutputSchema = z.object({
 export const TaskSearchInputSchema = z.object({
   q: z.string().min(1).max(500),
   project_id: ProjectRefSchema.optional(),
+  /** Exact release tag stored on the card. */
+  resolved_in: z.string().min(1).optional(),
   type: TaskTypeSchema.optional(),
   status: z.union([CardStatusSchema, z.array(CardStatusSchema)]).optional(),
   /** Hits to return, best match first. Default 5, at most 20. */
@@ -960,7 +964,7 @@ export const ModelReopenSchema = z.object({
  */
 export const InsightsQueryInputSchema = z.object({
   group_by: z
-    .enum(["project", "mission", "model", "card"])
+    .enum(["project", "mission", "model", "release", "card"])
     .optional()
     .describe("Omit for totals and the reopen rate only."),
   since: z
@@ -998,7 +1002,7 @@ export const InsightsQueryOutputSchema = z.object({
   note: z.string().min(1),
   /** Where the dollars came from: "3 computed · 1 agent reported". */
   cost_note: z.string().min(1),
-  /** Present when group_by is project, mission or model. Cost descending. */
+  /** Present when group_by is project, mission, model or release. Cost descending. */
   groups: z.array(InsightGroupSchema).optional(),
   /** Present when group_by is card. */
   cards: z.array(InsightCardSchema).optional(),

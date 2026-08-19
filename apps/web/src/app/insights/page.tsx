@@ -52,6 +52,7 @@ function describeFilter(
     missionId: string | null;
     types: string[];
     priorities: string[];
+    resolvedIn?: string | null;
   },
   t: InsightsCopy,
 ): string | null {
@@ -65,6 +66,8 @@ function describeFilter(
   if (filter.priorities.length > 0) {
     parts.push(t.filterPriorities(filter.priorities));
   }
+  if (filter.resolvedIn === null) parts.push(t.filterNoRelease);
+  else if (filter.resolvedIn) parts.push(t.filterRelease(filter.resolvedIn));
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
@@ -406,6 +409,7 @@ export default async function InsightsPage({
       mission: one(params.mission),
       types: one(params.types),
       priorities: one(params.priorities),
+      release: one(params.release),
     },
     projectRows,
     missionRows,

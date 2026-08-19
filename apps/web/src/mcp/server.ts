@@ -72,11 +72,11 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   mission_delete:
     "Deletes an empty mission shell. A mission with cards is refused with its count unless force: true explicitly detaches those cards first.",
   task_list:
-    "The card queue of the workspace. Filters: project, mission, status, priority, awaiting_review_by, limit (default 50, max 200). The response returns truncated: true when the board has more cards than fit.",
+    "The card queue of the workspace. Filters: project, mission, resolved_in (exact release), status, priority, awaiting_review_by, limit (default 50, max 200). The response returns truncated: true when the board has more cards than fit.",
   task_get:
     "The self-contained card: contract, harness, mission and branch convention, in markdown.",
   task_search:
-    "Free-text search over the workspace's cards (title, what, why, comments), best match first. Filters: project_id (uuid or prefix), type, status (one or a list), limit (default 5, max 20). Each hit carries resolved_in, comments_count and reports_count, so you can tell whether a card already covers something before creating one. Empty list when nothing matches.",
+    "Free-text search over the workspace's cards (title, what, why, comments), best match first. Filters: project_id (uuid or prefix), resolved_in (exact release), type, status (one or a list), limit (default 5, max 20). Each hit carries resolved_in, comments_count and reports_count, so you can tell whether a card already covers something before creating one. Empty list when nothing matches.",
   task_create:
     "Creates a card. The workspace comes from the token. mission is the id of an existing mission (mission_create, mission_list); omit it and the card stands on its own. mode is solo or team. supersedes atomically discards the card that was in execution, and inherit reuses its contract without carrying its comments over.",
   task_claim:
@@ -97,7 +97,7 @@ const DESCRIPTIONS: Record<McpToolName, string> = {
   harness_list:
     "The whole workspace policy (every activity type to cli, model, effort) and the configured executors.",
   insights_query:
-    "Cost, tokens and time over the workspace, grouped by project, mission, model or card, with an optional period, plus the reopened rate per model. Same numbers the Insights page shows: estimated and unreported usage come back counted, never silently summed.",
+    "Cost, tokens and time over the workspace, grouped by project, mission, release, model or card, with an optional period, plus the reopened rate per model. Release groups use resolved_in and a null label for cards without one. Same numbers the Insights page shows: estimated and unreported usage come back counted, never silently summed.",
   executors_update:
     "Adds or removes CLIs and models in the workspace executor config, in the same shape the Settings grid saves. Adding models turns the CLI on unless enabled:false says otherwise; remove:true drops the whole CLI. Needs a token with the manage flag.",
   harness_set:

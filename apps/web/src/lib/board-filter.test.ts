@@ -7,10 +7,13 @@ import {
   countLooseCards,
   encodeFacetSelection,
   encodeProjectSelection,
+  encodeReleaseSelection,
   filterBoardCards,
   missionFilterOptions,
   projectFilterOptions,
+  releaseFilterOptions,
   resolveBoardFilter,
+  resolveReleaseSelection,
   resolveProjectSelection,
   searchMissions,
   shouldSearchMissions,
@@ -31,9 +34,9 @@ const titled = [
   { id: "m3", title: "Empty elsewhere" },
 ];
 const cards = [
-  { id: "a", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const },
-  { id: "b", projectId: "p1", missionId: null, tipo: "bug" as const, priority: "alta" as const },
-  { id: "c", projectId: "p2", missionId: "m2", tipo: "bug" as const, priority: "media" as const },
+  { id: "a", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const, resolvedIn: "v1.2.0" },
+  { id: "b", projectId: "p1", missionId: null, tipo: "bug" as const, priority: "alta" as const, resolvedIn: null },
+  { id: "c", projectId: "p2", missionId: "m2", tipo: "bug" as const, priority: "media" as const, resolvedIn: "v1.1.0" },
 ];
 const ALL: string[] = [];
 
@@ -131,6 +134,25 @@ describe("board filters", () => {
     expect(urgentOrMediumBugs.map((card) => card.id)).toEqual(["c"]);
   });
 
+  it("filters one exact release or the no-release bucket and combines dimensions", () => {
+    expect(
+      filterBoardCards(cards, boardFilter({ resolvedIn: "v1.2.0" })).map(
+        (card) => card.id,
+      ),
+    ).toEqual(["a"]);
+    expect(
+      filterBoardCards(cards, boardFilter({ resolvedIn: null })).map(
+        (card) => card.id,
+      ),
+    ).toEqual(["b"]);
+    expect(
+      filterBoardCards(
+        cards,
+        boardFilter({ projectIds: ["p2"], resolvedIn: "v1.2.0" }),
+      ),
+    ).toEqual([]);
+  });
+
   it("stores and restores type and priority selections", () => {
     expect(encodeFacetSelection([])).toBeNull();
     expect(encodeFacetSelection(["bug", "rfc"])).toBe("bug,rfc");
@@ -197,10 +219,11 @@ describe("several projects at once", () => {
           missionId: "m1",
           types: ["bug", "feature"],
           priorities: ["urgente", "alta"],
+          resolvedIn: "v1.2.0",
         }),
       ),
     ).toBe(
-      "projects=p1%2Cp2&mission=m1&types=bug%2Cfeature&priorities=urgente%2Calta",
+      "projects=p1%2Cp2&mission=m1&types=bug%2Cfeature&priorities=urgente%2Calta&release=v1.2.0",
     );
     expect(boardFilterToQuery(boardFilter())).toBe(
       "projects=all",
@@ -229,6 +252,37 @@ describe("several projects at once", () => {
     ).toEqual(
       boardFilter({ types: ["bug", "rfc"], priorities: ["alta", "baixa"] }),
     );
+  });
+
+  it("stores, restores and validates release choices, including no release", () => {
+    const releases = [{ value: "v1.2.0" }, { value: "v1.1.0" }];
+    expect(encodeReleaseSelection(undefined)).toBeNull();
+    expect(encodeReleaseSelection(null)).toBe("__no_release__");
+    expect(resolveReleaseSelection("__no_release__", releases)).toBeNull();
+    expect(resolveReleaseSelection("v1.2.0", releases)).toBe("v1.2.0");
+    expect(resolveReleaseSelection("gone", releases)).toBeUndefined();
+    expect(
+      boardFilterFromQuery(
+        { projects: "all", release: "__no_release__" },
+        projects,
+        missions,
+        releases,
+      ),
+    ).toEqual(boardFilter({ resolvedIn: null }));
+  });
+
+  it("lists releases in server order plus no release, counted under other filters", () => {
+    expect(
+      releaseFilterOptions(
+        cards,
+        [{ value: "v1.2.0" }, { value: "v1.1.0" }],
+        boardFilter({ projectIds: ["p1"] }),
+      ),
+    ).toEqual([
+      { value: "v1.2.0", count: 1 },
+      { value: "v1.1.0", count: 0 },
+      { value: null, count: 1 },
+    ]);
   });
 
   it("offers every project with what picking it would show", () => {
@@ -298,8 +352,8 @@ describe("the missions the filter offers", () => {
   it("counts every card of the mission, not just the first", () => {
     const many = [
       ...cards,
-      { id: "d", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const },
-      { id: "e", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const },
+      { id: "d", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const, resolvedIn: "v1.2.0" },
+      { id: "e", projectId: "p1", missionId: "m1", tipo: "feature" as const, priority: "urgente" as const, resolvedIn: "v1.2.0" },
     ];
     expect(
       missionFilterOptions(many, titled, boardFilter({ projectIds: ["p1"] })),

@@ -22,6 +22,7 @@ function attempt(overrides: Partial<InsightAttemptRow> = {}): InsightAttemptRow 
     projectName: "OverClick",
     missionId: null,
     missionTitle: null,
+    resolvedIn: null,
     model: "sonnet-5",
     executor: "codex",
     modelSource: null,
@@ -246,6 +247,39 @@ describe("computeInsights groups", () => {
     expect(result.byModel).toHaveLength(1);
     expect(result.byModel[0]?.label).toBeNull();
     expect(result.byModel[0]?.attempts).toBe(1);
+  });
+
+  it("groups attempts by exact release and keeps unreleased cards separate", () => {
+    const result = computeInsights(
+      [
+        attempt({ resolvedIn: "v1.2.0", costUsd: "2.00" }),
+        attempt({
+          taskId: "task-2",
+          taskShortId: "OC-2",
+          resolvedIn: "v1.2.0",
+          costUsd: "1.00",
+        }),
+        attempt({
+          taskId: "task-3",
+          taskShortId: "OC-3",
+          resolvedIn: null,
+          costUsd: "0.50",
+        }),
+      ],
+      [],
+    );
+
+    expect(result.byRelease).toHaveLength(2);
+    expect(result.byRelease.find((row) => row.label === "v1.2.0")).toMatchObject({
+      attempts: 2,
+      tokens: 3000,
+      costUsd: 3,
+    });
+    expect(result.byRelease.find((row) => row.label === null)).toMatchObject({
+      attempts: 1,
+      tokens: 1500,
+      costUsd: 0.5,
+    });
   });
 });
 

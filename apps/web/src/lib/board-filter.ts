@@ -7,6 +7,8 @@ export const ALL_PROJECTS = "all";
  * being invisible on a board with 44 cards.
  */
 export const NO_MISSION = "none";
+/** Stored/query sentinel for the cards whose release is still unset. */
+export const NO_RELEASE = "__no_release__";
 
 export const TASK_TYPES: readonly TaskType[] = ["bug", "feature", "rfc"];
 export const TASK_PRIORITIES: readonly TaskPriority[] = [
@@ -24,6 +26,8 @@ export type BoardFilter = {
    */
   projectIds: string[];
   missionId: string | null;
+  /** Undefined means every release; null means only cards without a release. */
+  resolvedIn?: string | null;
   /** Empty means every task type. */
   types: TaskType[];
   /** Empty means every priority. */
@@ -35,6 +39,7 @@ type StoredBoardFilter = {
   missionId: string | null;
   types?: string | string[] | null;
   priorities?: string | string[] | null;
+  resolvedIn?: string | null;
 };
 
 type FilterableCard = {
@@ -42,6 +47,7 @@ type FilterableCard = {
   missionId: string | null;
   tipo: TaskType;
   priority: TaskPriority;
+  resolvedIn: string | null;
 };
 
 export function defaultProjectId(projects: { id: string }[]): string | null {
@@ -59,6 +65,26 @@ export function encodeProjectSelection(projectIds: string[]): string {
 /** Empty is stored as null, the backwards-compatible value for "all". */
 export function encodeFacetSelection(values: readonly string[]): string | null {
   return values.length > 0 ? values.join(",") : null;
+}
+
+/** Null in storage remains available for "no filter", so no-release needs a sentinel. */
+export function encodeReleaseSelection(
+  value: string | null | undefined,
+): string | null {
+  if (value === undefined) return null;
+  return value === null ? NO_RELEASE : value;
+}
+
+export function resolveReleaseSelection(
+  stored: string | null | undefined,
+  releases?: { value: string }[],
+): string | null | undefined {
+  if (stored == null || stored.length === 0) return undefined;
+  if (stored === NO_RELEASE) return null;
+  if (releases && !releases.some((release) => release.value === stored)) {
+    return undefined;
+  }
+  return stored;
 }
 
 function resolveFacetSelection<T extends string>(
@@ -136,6 +162,9 @@ export function boardFilterToQuery(filter: BoardFilter): string {
   if (filter.priorities.length > 0) {
     params.set("priorities", filter.priorities.join(","));
   }
+  if (filter.resolvedIn !== undefined) {
+    params.set("release", encodeReleaseSelection(filter.resolvedIn) ?? "");
+  }
   return params.toString();
 }
 
@@ -146,9 +175,11 @@ export function boardFilterFromQuery(
     mission?: string | null;
     types?: string | null;
     priorities?: string | null;
+    release?: string | null;
   },
   projects: { id: string }[],
   missions: { id: string }[] = [],
+  releases?: { value: string }[],
 ): BoardFilter {
   return resolveBoardFilter(
     {
@@ -156,9 +187,11 @@ export function boardFilterFromQuery(
       missionId: params.mission ?? null,
       types: params.types,
       priorities: params.priorities,
+      resolvedIn: params.release,
     },
     projects,
     missions,
+    releases,
   );
 }
 
@@ -170,6 +203,7 @@ export function resolveBoardFilter(
   stored: StoredBoardFilter,
   projects: { id: string }[],
   missions: { id: string }[] = [],
+  releases?: { value: string }[],
 ): BoardFilter {
   const projectIds = resolveProjectSelection(stored.projectId, projects);
 
@@ -180,12 +214,14 @@ export function resolveBoardFilter(
       : stored.missionId && missionIds.has(stored.missionId)
         ? stored.missionId
         : null;
+  const resolvedIn = resolveReleaseSelection(stored.resolvedIn, releases);
 
   return {
     projectIds,
     missionId,
     types: resolveFacetSelection(stored.types, TASK_TYPES),
     priorities: resolveFacetSelection(stored.priorities, TASK_PRIORITIES),
+    ...(resolvedIn !== undefined ? { resolvedIn } : {}),
   };
 }
 
@@ -200,6 +236,17 @@ function matchesFacets(card: FilterableCard, filter: BoardFilter): boolean {
   return true;
 }
 
+function matchesRelease(card: FilterableCard, filter: BoardFilter): boolean {
+  return (
+    filter.resolvedIn === undefined || card.resolvedIn === filter.resolvedIn
+  );
+}
+
+function matchesMission(card: FilterableCard, filter: BoardFilter): boolean {
+  if (filter.missionId === NO_MISSION) return card.missionId === null;
+  return !filter.missionId || card.missionId === filter.missionId;
+}
+
 export function filterBoardCards<T extends FilterableCard>(
   cards: T[],
   filter: BoardFilter,
@@ -207,11 +254,8 @@ export function filterBoardCards<T extends FilterableCard>(
   return cards.filter((card) => {
     if (!inScope(filter, card.projectId)) return false;
     if (!matchesFacets(card, filter)) return false;
-    if (filter.missionId === NO_MISSION) return card.missionId === null;
-    if (filter.missionId && card.missionId !== filter.missionId) {
-      return false;
-    }
-    return true;
+    if (!matchesRelease(card, filter)) return false;
+    return matchesMission(card, filter);
   });
 }
 
@@ -224,7 +268,8 @@ export function countLooseCards<T extends FilterableCard>(
     (card) =>
       card.missionId === null &&
       inScope(filter, card.projectId) &&
-      matchesFacets(card, filter),
+      matchesFacets(card, filter) &&
+      matchesRelease(card, filter),
   ).length;
 }
 
@@ -246,6 +291,7 @@ export function projectFilterOptions<T extends FilterableCard>(
   const counts = new Map<string, number>();
   for (const card of cards) {
     if (!matchesFacets(card, filter)) continue;
+    if (!matchesRelease(card, filter)) continue;
     if (filter.missionId === NO_MISSION && card.missionId !== null) continue;
     if (
       filter.missionId &&
@@ -287,6 +333,7 @@ export function missionFilterOptions<T extends FilterableCard>(
   for (const card of cards) {
     if (!inScope(filter, card.projectId)) continue;
     if (!matchesFacets(card, filter)) continue;
+    if (!matchesRelease(card, filter)) continue;
     if (!card.missionId) continue;
     counts.set(card.missionId, (counts.get(card.missionId) ?? 0) + 1);
   }
@@ -297,6 +344,30 @@ export function missionFilterOptions<T extends FilterableCard>(
       title: miss.title,
       count: counts.get(miss.id) ?? 0,
     }));
+}
+
+/** A release the filter can offer, with the count left by every other dimension. */
+export type ReleaseCount = { value: string | null; count: number };
+
+export function releaseFilterOptions<T extends FilterableCard>(
+  cards: T[],
+  releases: { value: string }[],
+  filter: BoardFilter,
+): ReleaseCount[] {
+  const counts = new Map<string | null, number>();
+  for (const card of cards) {
+    if (!inScope(filter, card.projectId)) continue;
+    if (!matchesFacets(card, filter)) continue;
+    if (!matchesMission(card, filter)) continue;
+    counts.set(card.resolvedIn, (counts.get(card.resolvedIn) ?? 0) + 1);
+  }
+  return [
+    ...releases.map((release) => ({
+      value: release.value,
+      count: counts.get(release.value) ?? 0,
+    })),
+    { value: null, count: counts.get(null) ?? 0 },
+  ];
 }
 
 /**

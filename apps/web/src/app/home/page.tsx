@@ -1,4 +1,4 @@
-import { asc, count, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import {
   claimInactiveMinutes,
@@ -452,6 +452,17 @@ function toBoardCard(
   // still names what ran on its own, next to the effort the card asked for.
   const ranChain = harnessChain(null, ranModels);
   const plannedChain = harnessChain(plannedModel);
+  const executors = [
+    ...new Set(
+      t.attempts.flatMap((attempt) =>
+        decodeExecutor(
+          attempt.executor,
+          attempt.model,
+          attempt.modelSource,
+        ).cli ?? [],
+      ),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
 
   return {
     id: t.id,
@@ -489,6 +500,7 @@ function toBoardCard(
             latestAttempt.modelSource,
           ).cli ?? null)
         : null),
+    executors,
     harnessChain: harnessChain(plannedModel, ranModels),
     harnessRan: ranChain && ranChain !== plannedChain ? ranChain : null,
     modelSource: latestAttempt?.modelSource ?? null,
@@ -596,12 +608,27 @@ export default async function HomePage() {
     },
   }));
 
+  // Only the tags the workspace actually uses. This stays a small indexed-ish
+  // dimension query instead of loading attempts or handoffs to build a menu.
+  const releaseRows = await db()
+    .selectDistinct({ value: task.resolvedIn })
+    .from(task)
+    .innerJoin(project, eq(task.projectId, project.id))
+    .where(
+      and(eq(project.workspaceId, ws.id), isNotNull(task.resolvedIn)),
+    )
+    .orderBy(desc(task.resolvedIn));
+  const releases = releaseRows.flatMap((row) =>
+    row.value ? [{ value: row.value }] : [],
+  );
+
   const [me] = await db()
     .select({
       boardProjectId: user.boardProjectId,
       boardMissionId: user.boardMissionId,
       boardTaskTypes: user.boardTaskTypes,
       boardPriorities: user.boardPriorities,
+      boardResolvedIn: user.boardResolvedIn,
     })
     .from(user)
     .where(eq(user.id, session.userId))
@@ -636,9 +663,11 @@ export default async function HomePage() {
       missionId: me?.boardMissionId ?? null,
       types: me?.boardTaskTypes ?? null,
       priorities: me?.boardPriorities ?? null,
+      resolvedIn: me?.boardResolvedIn ?? null,
     },
     projects,
     missions,
+    releases,
   );
   // The topbar total, aggregated by the same code the Insights page runs so
   // the board and the page can only report the same numbers for one filter.
@@ -669,6 +698,7 @@ export default async function HomePage() {
         lang={ws.language}
         projects={projects}
         missions={missions}
+        releases={releases}
         cards={cards}
         initialFilter={initialFilter}
         initialTotals={initialTotals}

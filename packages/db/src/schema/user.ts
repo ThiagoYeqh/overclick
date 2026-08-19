@@ -16,6 +16,8 @@ export const user = pgTable("user", {
   boardTaskTypes: text("board_task_types"),
   /** Comma-separated task priorities. Null means every priority. */
   boardPriorities: text("board_priorities"),
+  /** Exact release tag, or the board filter's no-release sentinel. Null = all. */
+  boardResolvedIn: text("board_resolved_in"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

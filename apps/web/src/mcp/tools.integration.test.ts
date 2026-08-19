@@ -1725,6 +1725,42 @@ describe("MCP tool edge cases against a test db", () => {
     );
   });
 
+  it("filters task_list by an exact release and returns an empty list for a missing one", async () => {
+    world = await createTestWorld();
+    const released = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Released card",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(released.ok).toBe(true);
+    if (!released.ok) return;
+    const releasedTask = TaskCreateOutputSchema.parse(released.value).task;
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: releasedTask.id,
+      resolved_in: "v1.2.0",
+    });
+
+    const listed = await invokeTool(world.db, ctx(), "task_list", {
+      resolved_in: "v1.2.0",
+    });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    expect(TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.id)).toEqual([
+      releasedTask.id,
+    ]);
+
+    const missing = await invokeTool(world.db, ctx(), "task_list", {
+      resolved_in: "v9.9.9",
+    });
+    expect(missing.ok).toBe(true);
+    if (!missing.ok) return;
+    expect(TaskListOutputSchema.parse(missing.value).tasks).toEqual([]);
+  });
+
   it("tells the agent to claim before delivering an open card", async () => {
     world = await createTestWorld();
     const created = await invokeTool(world.db, ctx(), "task_create", {
