@@ -1,11 +1,11 @@
 import {
-  TaskCreateOutputSchema,
+  TaskCreateFullOutputSchema as TaskCreateOutputSchema,
   TaskSearchOutputSchema,
 } from "@agent-board/mcp-core";
 import { project } from "@agent-board/db";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 const origem = { session_id: "sess_search", cli: "overclock" };
 

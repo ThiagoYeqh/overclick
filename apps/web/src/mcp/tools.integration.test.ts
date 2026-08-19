@@ -1,17 +1,19 @@
 import {
-  TaskDeliverOutputSchema,
+  TaskDeliverFullOutputSchema as TaskDeliverOutputSchema,
   HarnessRecommendOutputSchema,
   MissionCreateOutputSchema,
   MissionDeleteOutputSchema,
   MissionGetOutputSchema,
   MissionListOutputSchema,
-  MissionUpdateOutputSchema,
+  MissionUpdateFullOutputSchema as MissionUpdateOutputSchema,
   TaskClaimOutputSchema,
-  TaskCreateOutputSchema,
+  TaskCreateOutputSchema as TaskCreateAckOutputSchema,
+  TaskCreateFullOutputSchema as TaskCreateOutputSchema,
   TaskDeleteOutputSchema,
   TaskGetOutputSchema,
   TaskListOutputSchema,
-  TaskUpdateOutputSchema,
+  TaskUpdateOutputSchema as TaskUpdateAckOutputSchema,
+  TaskUpdateFullOutputSchema as TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
 import {
   executionAttempt,
@@ -28,7 +30,8 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
 import { generateTokenSecret, hashToken } from "./token";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
+import { invokeTool as invokeMcpTool } from "./tools";
 
 const origem = {
   session_id: "sess_torre",
@@ -49,6 +52,50 @@ describe("MCP tool edge cases against a test db", () => {
       tokenLabel: "test",
     };
   }
+
+  it("returns a compact write acknowledgement by default and the full card on request", async () => {
+    world = await createTestWorld();
+    const created = await invokeMcpTool(world.db, ctx(), "task_create", {
+      mission: world.missionId,
+      project_id: world.projectId,
+      title: "ACK compacto",
+      type: "bug",
+      o_que: "A escrita não repete o contrato inteiro.",
+      por_que: "Respostas menores preservam contexto.",
+      como_confirmo: [{ step: "chama a tool", expected: "recebe ACK" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const ack = TaskCreateAckOutputSchema.parse(created.value);
+    if ("task" in ack) throw new Error("expected the compact task_create acknowledgement");
+    expect(ack.short_id).toBe("OC-1");
+    expect(ack.changed).toMatchObject({ project_id: world.projectId, mode: "solo" });
+    expect(created.value).not.toHaveProperty("task");
+
+    const updated = await invokeMcpTool(world.db, ctx(), "task_update", {
+      task_id: ack.short_id,
+      harness: { model: "opus-5", effort: "high" },
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const updateAck = TaskUpdateAckOutputSchema.parse(updated.value);
+    if ("task" in updateAck) throw new Error("expected the compact task_update acknowledgement");
+    expect(updateAck.changed).toMatchObject({
+      harness: { model: "opus-5", effort: "high" },
+    });
+    expect(updated.value).not.toHaveProperty("task");
+
+    const full = await invokeMcpTool(world.db, ctx(), "task_update", {
+      task_id: ack.short_id,
+      progress: "Full solicitado.",
+      return: "full",
+    });
+    expect(full.ok).toBe(true);
+    if (!full.ok) return;
+    expect(TaskUpdateOutputSchema.parse(full.value).task.short_id).toBe(ack.short_id);
+  });
 
   it("creates a team card with scoped subtasks and recommended harness", async () => {
     world = await createTestWorld();

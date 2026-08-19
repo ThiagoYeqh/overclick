@@ -3,12 +3,12 @@ import {
   FACTORY_CARDAPIO_POLICY,
   HarnessListOutputSchema,
   HarnessRecommendOutputSchema,
-  HarnessSetOutputSchema,
+  HarnessSetFullOutputSchema as HarnessSetOutputSchema,
 } from "@agent-board/mcp-core";
 import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 describe("cardápio policy via MCP", () => {
   let world: TestWorld;

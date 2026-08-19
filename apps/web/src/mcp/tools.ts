@@ -111,6 +111,7 @@ import {
   encodeExecutor,
   executorToWire,
   executorsFromWorkspace,
+  harnessFromDb,
   harnessToDb,
   iso,
   looksLikeUuid,
@@ -309,6 +310,41 @@ function mapExecutionAttempt(row: typeof executionAttempt.$inferSelect) {
     result_note: row.resultNote,
     transcript: transcriptToWire(row.transcript),
   };
+}
+
+type ChangedFields = Record<string, unknown>;
+
+/** Compact acknowledgement for a task mutation. */
+function taskWriteAck(
+  row: TaskRow,
+  changed: ChangedFields,
+  updatedAt: Date | string = row.updatedAt,
+) {
+  return {
+    short_id: row.shortId,
+    updated_at: iso(updatedAt),
+    status: row.status,
+    changed,
+  };
+}
+
+/** Compact acknowledgement for a non-task row mutation. */
+function rowWriteAck(
+  id: string,
+  updatedAt: Date | string,
+  changed: ChangedFields,
+  status?: string,
+) {
+  return {
+    id,
+    updated_at: iso(updatedAt),
+    ...(status !== undefined ? { status } : {}),
+    changed,
+  };
+}
+
+function jsonEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export async function invokeTool(
@@ -762,6 +798,7 @@ async function projectUpdate(
       refresh: "on_release" | "daily" | "manual";
     } | null;
     id_prefix?: string;
+    return?: "ack" | "full";
   },
 ) {
   return db.transaction(async (tx) => {
@@ -907,7 +944,19 @@ async function projectUpdate(
     }
 
     const counts = await projectCardCounts(tx, row.id);
-    return { project: mapProjectDetail(row, counts) };
+    if (input.return === "full") {
+      return { project: mapProjectDetail(row, counts) };
+    }
+
+    const changed: ChangedFields = {};
+    if (proj.name !== row.name) changed.name = row.name;
+    if (proj.repoUrl !== row.repoUrl) changed.repo_url = row.repoUrl;
+    if (proj.context !== row.context) changed.context = row.context;
+    if (proj.currentVersion !== row.currentVersion) {
+      changed.current_version = row.currentVersion;
+    }
+    if (proj.idPrefix !== row.idPrefix) changed.id_prefix = row.idPrefix;
+    return rowWriteAck(row.id, row.updatedAt, changed);
   });
 }
 
@@ -1097,6 +1146,7 @@ async function missionUpdate(
     expected_len?: number;
     expected_hash?: string;
     status?: "ativa" | "pausada" | "concluida";
+    return?: "ack" | "full";
   },
 ) {
   return db.transaction(async (tx) => {
@@ -1189,7 +1239,15 @@ async function missionUpdate(
         .select({ n: count() })
         .from(task)
         .where(eq(task.missionId, current.id));
-      return { mission: mapMission(current, Number(counted?.n ?? 0)) };
+      if (input.return === "full") {
+        return { mission: mapMission(current, Number(counted?.n ?? 0)) };
+      }
+      return rowWriteAck(
+        current.id,
+        current.updatedAt,
+        {},
+        current.status,
+      );
     }
 
     const [row] = await tx
@@ -1208,7 +1266,16 @@ async function missionUpdate(
       .select({ n: count() })
       .from(task)
       .where(eq(task.missionId, row.id));
-    return { mission: mapMission(row, Number(counted?.n ?? 0)) };
+    if (input.return === "full") {
+      return { mission: mapMission(row, Number(counted?.n ?? 0)) };
+    }
+
+  const changed: ChangedFields = {};
+  if (current.title !== row.title) changed.title = row.title;
+  if (current.objective !== row.objective) changed.objective = row.objective;
+  if (current.context !== row.context) changed.context = row.context;
+  if (current.status !== row.status) changed.status = row.status;
+  return rowWriteAck(row.id, row.updatedAt, changed, row.status);
   });
 }
 
@@ -2175,6 +2242,7 @@ async function taskCreate(
     devolve_para?: Reviewer;
     harness?: Harness;
     origem: Task["origem"];
+    return?: "ack" | "full";
   },
 ) {
   const proj = await findProject(db, ctx.workspaceId, input.project_id);
@@ -2337,10 +2405,25 @@ async function taskCreate(
       children.push(child);
     }
 
-    return {
-      task: mapTask(created, proj),
-      subtasks: children.map((child) => mapTask(child, proj)),
+    if (input.return === "full") {
+      return {
+        task: mapTask(created, proj),
+        subtasks: children.map((child) => mapTask(child, proj)),
+      };
+    }
+
+    const changed: ChangedFields = {
+      project_id: created.projectId,
+      mode: created.mode,
+      ...(created.missionId ? { mission_id: created.missionId } : {}),
+      ...(created.parentId ? { parent_id: created.parentId } : {}),
+      ...(created.supersedesId ? { supersedes: created.supersedesId } : {}),
+      ...(created.harness ? { harness: harnessFromDb(created.harness) } : {}),
+      ...(children.length
+        ? { subtasks: children.map((child) => child.shortId) }
+        : {}),
     };
+    return taskWriteAck(created, changed);
   });
 }
 
@@ -2642,7 +2725,7 @@ async function taskClaim(
 async function taskRelease(
   db: McpDatabase,
   ctx: AuthContext,
-  input: { task_id: string; reason: string },
+  input: { task_id: string; reason: string; return?: "ack" | "full" },
 ) {
   return db.transaction(async (tx) => {
     const found = await findTask(tx, ctx.workspaceId, input.task_id, true);
@@ -2719,10 +2802,16 @@ async function taskRelease(
       body: input.reason,
     });
 
-    return {
-      task: mapTask(updated, found.proj),
-      attempt: mapExecutionAttempt(abandoned),
-    };
+    if (input.return === "full") {
+      return {
+        task: mapTask(updated, found.proj),
+        attempt: mapExecutionAttempt(abandoned),
+      };
+    }
+    return taskWriteAck(updated, {
+      claimed_by: null,
+      status: updated.status,
+    });
   });
 }
 
@@ -2730,7 +2819,7 @@ async function taskRelease(
 async function taskHeartbeat(
   db: McpDatabase,
   ctx: AuthContext,
-  input: { task_id: string },
+  input: { task_id: string; return?: "ack" | "full" },
 ) {
   return db.transaction(async (tx) => {
     const found = await findTask(tx, ctx.workspaceId, input.task_id, true);
@@ -2781,11 +2870,22 @@ async function taskHeartbeat(
       .update(executionAttempt)
       .set({ lastActivityAt: now })
       .where(eq(executionAttempt.id, openAttempt.id));
-    return {
-      task_id: found.row.id,
-      last_activity_at: iso(now),
-      expires_at: iso(claimExpiresAt(now, ws.claimTimeoutMinutes)),
-    };
+    const expiresAt = claimExpiresAt(now, ws.claimTimeoutMinutes);
+    if (input.return === "full") {
+      return {
+        task_id: found.row.id,
+        last_activity_at: iso(now),
+        expires_at: iso(expiresAt),
+      };
+    }
+    return taskWriteAck(
+      found.row,
+      {
+        last_activity_at: iso(now),
+        expires_at: iso(expiresAt),
+      },
+      now,
+    );
   });
 }
 
@@ -2848,6 +2948,7 @@ async function taskUpdate(
     resolved_in?: string | null;
     status?: "descartado";
     superseded_by?: string;
+    return?: "ack" | "full";
   },
 ) {
   const found = await findTask(db, ctx.workspaceId, input.task_id);
@@ -3136,6 +3237,42 @@ async function taskUpdate(
   }
 
   const latestUsageGuard = await latestUsageGuardForTask(db, nextRow.id);
+  const changed: ChangedFields = {};
+  if (found.row.missionId !== nextRow.missionId) {
+    changed.mission_id = nextRow.missionId;
+  }
+  if (found.row.projectId !== nextRow.projectId) {
+    changed.project_id = nextRow.projectId;
+  }
+  if (found.row.shortId !== nextRow.shortId) {
+    changed.short_id = nextRow.shortId;
+  }
+  if (found.row.revisado !== nextRow.revisado) {
+    changed.revisado = nextRow.revisado;
+  }
+  if (!jsonEqual(found.row.harness, nextRow.harness)) {
+    changed.harness = harnessFromDb(nextRow.harness);
+  }
+  if (found.row.resolvedIn !== nextRow.resolvedIn) {
+    changed.resolved_in = nextRow.resolvedIn;
+  }
+  if (found.row.supersededById !== nextRow.supersededById) {
+    changed.superseded_by = nextRow.supersededById;
+  }
+  if (found.row.status !== nextRow.status) {
+    changed.status = nextRow.status;
+  }
+  if (input.comment !== undefined) changed.comment = input.comment;
+  if (input.progress !== undefined) changed.progress = input.progress;
+  if (input.spawn_failure !== undefined) changed.spawn_failure = input.spawn_failure;
+  if (usageRecorded) changed.usage_recorded = true;
+  if (subtasksMoved !== null) changed.subtasks_moved = subtasksMoved;
+  if (projectMove) changed.project_move = projectMove;
+
+  if (input.return !== "full") {
+    return taskWriteAck(nextRow, changed);
+  }
+
   return {
     task: mapTask(nextRow, proj, {
       reopenComment: await latestReopenComment(db, nextRow),
@@ -3396,6 +3533,7 @@ async function taskDeliver(
     resolved_in?: string;
     usage?: Usage;
     transcript?: TranscriptRefWire;
+    return?: "ack" | "full";
   },
 ) {
   // Check the project remote before opening the database transaction. The
@@ -3623,6 +3761,7 @@ async function taskDeliver(
       transcript,
       usageGuard,
       deliveryVerification,
+      attemptCostUsd: assessment.costUsd,
     });
   });
 
@@ -3630,6 +3769,30 @@ async function taskDeliver(
 
   if (persisted.value.attemptExecutor) {
     await recordSeenExecutor(db, ctx.workspaceId, persisted.value.attemptExecutor);
+  }
+
+  if (input.return !== "full") {
+    const updated = persisted.value.updated;
+    return {
+      ...taskWriteAck(updated, {
+        branch: persisted.value.saved.branch,
+        commit: persisted.value.saved.commitHash ?? null,
+        pull_request_url: persisted.value.saved.prUrl ?? null,
+        resolved_in: updated.resolvedIn ?? null,
+        delivery_unverified: persisted.value.saved.deliveryUnverified,
+        delivery_verification: persisted.value.saved.deliveryVerification ?? null,
+        delivery_warning: persisted.value.saved.deliveryWarning ?? null,
+        telemetry_incomplete: persisted.value.incomplete,
+        ...(input.usage ? { usage_recorded: true } : {}),
+      }),
+      handoff_id: persisted.value.saved.id,
+      cost_usd: persisted.value.attemptCostUsd,
+      delivery_unverified: persisted.value.saved.deliveryUnverified,
+      delivery_verification: persisted.value.saved.deliveryVerification ?? null,
+      delivery_warning: persisted.value.saved.deliveryWarning ?? null,
+      usage_suspect: persisted.value.usageGuard.suspect,
+      usage_suspect_reason: persisted.value.usageGuard.reason,
+    };
   }
 
   return {
@@ -3813,6 +3976,7 @@ async function harnessSet(
     model?: string;
     chain?: string[];
     effort: EffortLevel;
+    return?: "ack" | "full";
   },
 ) {
   const denied = requireManage(ctx, "harness_set");
@@ -3893,7 +4057,18 @@ async function harnessSet(
     .returning();
   if (!row) throw new Error("failed to write cardapio entry");
 
-  return { policy: policyEntryFromRow(row) };
+  const policy = policyEntryFromRow(row);
+  if (input.return === "full") return { policy };
+  return rowWriteAck(
+    row.activityType,
+    row.updatedAt,
+    {
+      cli: row.cli,
+      model: row.model,
+      ...(row.chain?.length ? { chain: row.chain } : {}),
+      effort: row.effort,
+    },
+  );
 }
 
 /**
@@ -4096,6 +4271,7 @@ async function executorsUpdate(
     remove_models?: string[];
     efforts?: Record<string, string[]>;
     remove?: boolean;
+    return?: "ack" | "full";
   },
 ) {
   const denied = requireManage(ctx, "executors_update");
@@ -4141,12 +4317,38 @@ async function executorsUpdate(
     .set({ executors: applied.config as ExecutorConfig[] })
     .where(eq(workspace.id, ctx.workspaceId));
 
-  return {
-    executors: applied.config.map(executorToWire),
-    updated: applied.targetId,
-    removed: applied.removed,
-    ...(warnings.length > 0 ? { policy_warnings: warnings } : {}),
-  };
+  const [savedWorkspace] = await db
+    .select({ updatedAt: workspace.updatedAt })
+    .from(workspace)
+    .where(eq(workspace.id, ctx.workspaceId))
+    .limit(1);
+  if (input.return === "full") {
+    return {
+      executors: applied.config.map(executorToWire),
+      updated: applied.targetId,
+      removed: applied.removed,
+      ...(warnings.length > 0 ? { policy_warnings: warnings } : {}),
+    };
+  }
+
+  const changed: ChangedFields = { removed: applied.removed };
+  if (!applied.removed) {
+    const target = applied.config.find((item) => item.id === applied.targetId);
+    if (input.label !== undefined && target) changed.label = target.label;
+    if (input.enabled !== undefined && target) changed.enabled = target.enabled;
+    if (input.add_models?.length || input.remove_models?.length) {
+      changed.models = target?.models ?? [];
+    }
+    if (input.efforts !== undefined && target) {
+      changed.efforts = target.efforts;
+    }
+  }
+  if (warnings.length > 0) changed.policy_warnings = warnings;
+  return rowWriteAck(
+    applied.targetId,
+    savedWorkspace?.updatedAt ?? new Date(),
+    changed,
+  );
 }
 
 /** Activity types whose policy model no longer exists on an enabled executor. */

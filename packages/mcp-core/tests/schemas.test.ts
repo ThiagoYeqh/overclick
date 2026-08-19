@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   TaskDeliverInputSchema,
+  TaskCreateOutputSchema,
   TaskUpdateInputSchema,
   MCP_TOOL_NAMES,
   MissionCreateInputSchema,
@@ -14,6 +15,7 @@ import {
   TaskListItemSchema,
   TaskReadSchema,
   TaskClaimInputSchema,
+  WriteAckSchema,
   ExecutorsUpdateInputSchema,
   isTelemetryIncomplete,
   MissionAttemptStartInputSchema,
@@ -102,6 +104,42 @@ describe("MCP tool contracts", () => {
         result: "success",
       }).sequence,
     ).toBe(1);
+  });
+
+  it("keeps write responses compact by default with an explicit full opt-in", () => {
+    const create = {
+      project_id: "OC",
+      title: "Card",
+      type: "bug" as const,
+      o_que: "O comportamento muda.",
+      por_que: "O fluxo atual falha.",
+      como_confirmo: [{ step: "executa o teste", expected: "passa" }],
+      origem: { cli: "codex", session_id: "sess" },
+    };
+
+    expect(TaskCreateInputSchema.parse(create).return).toBeUndefined();
+    expect(TaskCreateInputSchema.parse({ ...create, return: "full" }).return).toBe(
+      "full",
+    );
+    expect(
+      TaskUpdateInputSchema.parse({
+        task_id: "OC-1",
+        progress: "feito",
+        return: "ack",
+      }).return,
+    ).toBe("ack");
+    expect(
+      TaskClaimInputSchema.safeParse({ task_id: "OC-1", return: "full" }).success,
+    ).toBe(false);
+
+    const ack = TaskCreateOutputSchema.parse({
+      short_id: "OC-1",
+      updated_at: "2026-08-19T12:00:00.000Z",
+      status: "aberto",
+      changed: { mode: "solo" },
+    });
+    expect(ack).toMatchObject({ short_id: "OC-1", status: "aberto" });
+    expect(WriteAckSchema.parse(ack).changed).toEqual({ mode: "solo" });
   });
 });
 

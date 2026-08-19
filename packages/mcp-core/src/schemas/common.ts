@@ -82,6 +82,15 @@ export const ReadOptionsSchema = z.object({
   include: z.array(ReadIncludeSchema).min(1).max(5).optional(),
 }).strict();
 
+/**
+ * Write responses are compact by default. `full` is the explicit escape hatch
+ * for callers that need the complete object after a mutation.
+ *
+ * Reads use `view`; writes use `return` so the two controls cannot be confused
+ * when a caller composes a read and a mutation in the same workflow.
+ */
+export const WriteReturnSchema = z.enum(["ack", "full"]);
+
 export const CliNameSchema = z.enum([
   "overclock",
   "claude-code",
@@ -257,6 +266,17 @@ export const BranchConventionSchema = z.object({
 });
 
 export const IsoDateTimeSchema = z.string().datetime();
+
+/** Common shape for the small acknowledgement returned by write tools. */
+export const WriteAckSchema = z.object({
+  /** Task writes identify the card with its stable human-facing id. */
+  short_id: z.string().min(1).optional(),
+  /** Non-task writes identify their resource with its uuid or policy key. */
+  id: z.string().min(1).optional(),
+  updated_at: IsoDateTimeSchema,
+  /** Only values changed or produced by the mutation; never the full object. */
+  changed: z.record(z.unknown()),
+});
 
 export const MissionSummarySchema = z.object({
   id: z.string().min(1),
@@ -568,6 +588,8 @@ export type Mission = z.infer<typeof MissionSchema>;
 export type ReadView = z.infer<typeof ReadViewSchema>;
 export type ReadInclude = z.infer<typeof ReadIncludeSchema>;
 export type ReadOptions = z.infer<typeof ReadOptionsSchema>;
+export type WriteReturn = z.infer<typeof WriteReturnSchema>;
+export type WriteAck = z.infer<typeof WriteAckSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 export type ProjectCardCounts = z.infer<typeof ProjectCardCountsSchema>;

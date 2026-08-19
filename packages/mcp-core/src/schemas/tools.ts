@@ -34,7 +34,42 @@ import {
   TaskTypeSchema,
   TranscriptRefSchema,
   UsageSchema,
+  WriteAckSchema,
+  WriteReturnSchema,
 } from "./common.js";
+
+const TaskWriteAckSchema = WriteAckSchema.extend({
+  short_id: z.string().min(1),
+  status: CardStatusSchema,
+});
+
+const ProjectWriteAckSchema = WriteAckSchema.extend({
+  id: z.string().min(1),
+});
+
+const MissionWriteAckSchema = WriteAckSchema.extend({
+  id: z.string().min(1),
+  status: MissionStatusSchema,
+});
+
+const PolicyWriteAckSchema = WriteAckSchema.extend({
+  id: z.string().min(1),
+});
+
+const ExecutorsWriteAckSchema = WriteAckSchema.extend({
+  id: z.string().min(1),
+  removed: z.boolean(),
+});
+
+const TaskDeliverAckSchema = TaskWriteAckSchema.extend({
+  handoff_id: z.string().min(1),
+  cost_usd: z.number().nullable(),
+  delivery_unverified: z.boolean(),
+  delivery_verification: DeliveryVerificationSchema.nullable(),
+  delivery_warning: z.string().nullable(),
+  usage_suspect: z.boolean(),
+  usage_suspect_reason: z.string().nullable(),
+});
 
 export const MissionListInputSchema = z.object({
   status: MissionStatusSchema.optional(),
@@ -148,6 +183,8 @@ export const MissionUpdateInputSchema = z.object({
   /** SHA-256 of the blob as last read by the caller. */
   expected_hash: z.string().trim().min(1).max(128).optional(),
   status: MissionStatusSchema.optional(),
+  /** Mutations are compact by default; request the complete mission explicitly. */
+  return: WriteReturnSchema.optional(),
 }).strict()
   .refine(
     (value) => value.context === undefined || value.context_ops === undefined,
@@ -158,9 +195,12 @@ export const MissionUpdateInputSchema = z.object({
     { message: "send objective or objective_ops, not both", path: ["objective_ops"] },
   );
 
-export const MissionUpdateOutputSchema = z.object({
-  mission: MissionSchema,
-});
+export const MissionUpdateFullOutputSchema = z.object({ mission: MissionSchema });
+
+export const MissionUpdateOutputSchema = z.union([
+  MissionWriteAckSchema,
+  MissionUpdateFullOutputSchema,
+]);
 
 /**
  * Empty missions can be removed directly. A mission holding cards is refused
@@ -374,6 +414,8 @@ export const ProjectUpdateInputSchema = z
       .describe(
         "New card prefix, 2 to 4 letters or digits. Only accepted while the project has no cards.",
       ),
+    /** Mutations are compact by default; request the complete project explicitly. */
+    return: WriteReturnSchema.optional(),
   }).strict()
   .refine(
     (value) =>
@@ -394,9 +436,12 @@ export const ProjectUpdateInputSchema = z
     { message: "send context or context_ops, not both", path: ["context_ops"] },
   );
 
-export const ProjectUpdateOutputSchema = z.object({
-  project: ProjectDetailSchema,
-});
+export const ProjectUpdateFullOutputSchema = z.object({ project: ProjectDetailSchema });
+
+export const ProjectUpdateOutputSchema = z.union([
+  ProjectWriteAckSchema,
+  ProjectUpdateFullOutputSchema,
+]);
 
 export const ProjectContextRefreshInputSchema = z.object({
   project_id: ProjectRefSchema,
@@ -588,6 +633,8 @@ export const TaskCreateInputSchema = z
     devolve_para: ReviewerSchema.optional(),
     harness: HarnessSchema.optional(),
     origem: OrigemSchema,
+    /** Mutations are compact by default; request the complete card explicitly. */
+    return: WriteReturnSchema.optional(),
   }).strict()
   .superRefine((value, ctx) => {
     if (value.inherit && !value.supersedes) {
@@ -622,10 +669,15 @@ export const TaskCreateInputSchema = z
     }
   });
 
-export const TaskCreateOutputSchema = z.object({
+export const TaskCreateFullOutputSchema = z.object({
   task: TaskSchema,
   subtasks: z.array(TaskSchema),
 });
+
+export const TaskCreateOutputSchema = z.union([
+  TaskWriteAckSchema,
+  TaskCreateFullOutputSchema,
+]);
 
 export const TaskClaimInputSchema = z.object({
   task_id: TaskIdSchema,
@@ -669,23 +721,37 @@ export const TaskClaimOutputSchema = z.object({
 export const TaskReleaseInputSchema = z.object({
   task_id: TaskIdSchema,
   reason: z.string().trim().min(1).max(1_000),
+  /** Mutations are compact by default; request the complete task explicitly. */
+  return: WriteReturnSchema.optional(),
 }).strict();
 
-export const TaskReleaseOutputSchema = z.object({
+export const TaskReleaseFullOutputSchema = z.object({
   task: TaskSchema,
   attempt: ExecutionAttemptSchema,
 });
 
+export const TaskReleaseOutputSchema = z.union([
+  TaskWriteAckSchema,
+  TaskReleaseFullOutputSchema,
+]);
+
 /** Extends the lease of a long-running executor without adding timeline prose. */
 export const TaskHeartbeatInputSchema = z.object({
   task_id: TaskIdSchema,
+  /** Mutations are compact by default; request the lease object explicitly. */
+  return: WriteReturnSchema.optional(),
 }).strict();
 
-export const TaskHeartbeatOutputSchema = z.object({
+export const TaskHeartbeatFullOutputSchema = z.object({
   task_id: z.string().min(1),
   last_activity_at: IsoDateTimeSchema,
   expires_at: IsoDateTimeSchema,
 });
+
+export const TaskHeartbeatOutputSchema = z.union([
+  TaskWriteAckSchema,
+  TaskHeartbeatFullOutputSchema,
+]);
 
 export const TaskUpdateInputSchema = z
   .object({
@@ -739,6 +805,8 @@ export const TaskUpdateInputSchema = z
     /** Discard an in-execution card, optionally linking its existing continuation. */
     status: z.literal("descartado").optional(),
     superseded_by: TaskIdSchema.optional(),
+    /** Mutations are compact by default; request the complete card explicitly. */
+    return: WriteReturnSchema.optional(),
   }).strict()
   .refine(
     (value) =>
@@ -786,7 +854,7 @@ export const ProjectMoveSchema = z.object({
   short_ids: z.array(ShortIdChangeSchema),
 });
 
-export const TaskUpdateOutputSchema = z.object({
+export const TaskUpdateFullOutputSchema = z.object({
   task: TaskSchema,
   /** Present when a usage block was applied to the latest attempt. */
   usage_recorded: z.boolean().optional(),
@@ -804,6 +872,11 @@ export const TaskUpdateOutputSchema = z.object({
    */
   project_move: ProjectMoveSchema.optional(),
 });
+
+export const TaskUpdateOutputSchema = z.union([
+  TaskWriteAckSchema,
+  TaskUpdateFullOutputSchema,
+]);
 
 export const TaskDeliverInputSchema = z.object({
   task_id: TaskIdSchema,
@@ -826,6 +899,8 @@ export const TaskDeliverInputSchema = z.object({
    * correct it later.
    */
   resolved_in: z.string().min(1).optional(),
+  /** Mutations are compact by default; request the complete handoff explicitly. */
+  return: WriteReturnSchema.optional(),
   /**
    * Required by contract: report exact numbers when the harness exposes
    * them, otherwise ESTIMATE tokens, turns and cost and set estimated: true.
@@ -843,7 +918,7 @@ export const TaskDeliverInputSchema = z.object({
   transcript: TranscriptRefSchema.optional(),
 }).strict();
 
-export const TaskDeliverOutputSchema = z.object({
+export const TaskDeliverFullOutputSchema = z.object({
   task: TaskSchema,
   handoff: HandoffSchema,
   delivery_unverified: z.boolean(),
@@ -858,6 +933,11 @@ export const TaskDeliverOutputSchema = z.object({
   transcript: StoredTranscriptRefSchema.nullable().optional(),
   routed_to: ReviewerSchema,
 });
+
+export const TaskDeliverOutputSchema = z.union([
+  TaskDeliverAckSchema,
+  TaskDeliverFullOutputSchema,
+]);
 
 /**
  * task_delete is a hard delete by owner decision: the card row is removed and the
@@ -950,15 +1030,20 @@ export const HarnessSetInputSchema = z
      */
     chain: z.array(z.string().min(1)).min(1).max(8).optional(),
     effort: EffortSchema,
+    /** Mutations are compact by default; request the complete policy explicitly. */
+    return: WriteReturnSchema.optional(),
   }).strict()
   .refine((input) => Boolean(input.model) || Boolean(input.chain?.length), {
     message: "Send a model, a chain, or both.",
     path: ["model"],
   });
 
-export const HarnessSetOutputSchema = z.object({
-  policy: CardapioPolicyEntrySchema,
-});
+export const HarnessSetFullOutputSchema = z.object({ policy: CardapioPolicyEntrySchema });
+
+export const HarnessSetOutputSchema = z.union([
+  PolicyWriteAckSchema,
+  HarnessSetFullOutputSchema,
+]);
 
 export const ConfiguredExecutorSchema = z.object({
   id: z.string().min(1),
@@ -1025,6 +1110,8 @@ export const ExecutorsUpdateInputSchema = z
     remove_models: z.array(z.string().min(1)).optional(),
     efforts: z.record(z.array(EffortSchema)).optional(),
     remove: z.boolean().optional(),
+    /** Mutations are compact by default; request the complete config explicitly. */
+    return: WriteReturnSchema.optional(),
   }).strict()
   .superRefine((value, ctx) => {
     if (
@@ -1059,7 +1146,7 @@ export const ExecutorsUpdateInputSchema = z
     }
   });
 
-export const ExecutorsUpdateOutputSchema = z.object({
+export const ExecutorsUpdateFullOutputSchema = z.object({
   /** The whole config after the change, the shape Settings reads. */
   executors: z.array(ConfiguredExecutorSchema),
   /** Id the cli resolved to, which may differ from what was sent. */
@@ -1071,6 +1158,11 @@ export const ExecutorsUpdateOutputSchema = z.object({
    */
   policy_warnings: z.array(z.string()).optional(),
 });
+
+export const ExecutorsUpdateOutputSchema = z.union([
+  ExecutorsWriteAckSchema,
+  ExecutorsUpdateFullOutputSchema,
+]);
 
 /**
  * Usage totals over a set of finished attempts. Tokens and time are the
