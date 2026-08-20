@@ -165,6 +165,32 @@ describe("usage collection recipes", () => {
     expect(grok?.command).toContain("OVERCLICK_CLAIMED_AT");
   });
 
+  it("counts only Grok updates.jsonl records at or after claimed_at, reading epoch-second timestamps", () => {
+    // Grok's own "timestamp" is epoch seconds, not the ISO text the other
+    // CLIs write; the same claim-window bug found in Kimi's "time" field was
+    // latent here too.
+    const grok = findUsageRecipe(recipes, "grok");
+    const transcript = fileURLToPath(
+      new URL("./fixtures/grok-updates.jsonl", import.meta.url),
+    );
+    const output = execFileSync("bash", ["-c", grok!.command], {
+      env: {
+        ...process.env,
+        TRANSCRIPT_PATH: transcript,
+        OVERCLICK_CLAIMED_AT: "2026-08-18T10:00:00.000Z",
+      },
+      encoding: "utf8",
+    });
+
+    expect(JSON.parse(output)).toMatchObject({
+      turns: 2,
+      segments: expect.arrayContaining([
+        { model: "grok-4.6-build", input: 300, output: 300, cache_read: 900, cache_write: 10 },
+        { model: "grok-4.6-fast", input: 400, output: 90, cache_read: 200, cache_write: 0 },
+      ]),
+    });
+  });
+
   it("gives Kimi a command that totals every agent's wire log", () => {
     const kimi = findUsageRecipe(recipes, "kimi");
     expect(kimi?.yields).toBe("tokens_per_model");
@@ -174,6 +200,51 @@ describe("usage collection recipes", () => {
     expect(kimi?.command).toContain('usageScope") != "turn"');
     expect(kimi?.command).toContain("segments");
     expect(kimi?.command).toContain("OVERCLICK_CLAIMED_AT");
+    // wire.jsonl stamps records with "time", not "timestamp"; the field has
+    // to be in the list the claim-window filter reads.
+    expect(kimi?.command).toContain('entry.get("time")');
+  });
+
+  it("measures a real wire.jsonl session, merging every agent and skipping the cumulative session record", () => {
+    const kimi = findUsageRecipe(recipes, "kimi");
+    const session = fileURLToPath(
+      new URL("./fixtures/kimi-session", import.meta.url),
+    );
+    const output = execFileSync("bash", ["-c", kimi!.command], {
+      env: { ...process.env, TRANSCRIPT_PATH: session },
+      encoding: "utf8",
+    });
+
+    expect(JSON.parse(output)).toMatchObject({
+      turns: 4,
+      segments: expect.arrayContaining([
+        { model: "kimi-code/k3", input: 1060, output: 115, cache_read: 460, cache_write: 5 },
+        { model: "kimi-code/k3-mini", input: 40, output: 10, cache_read: 0, cache_write: 0 },
+      ]),
+    });
+  });
+
+  it("counts only Kimi wire.jsonl records at or after claimed_at, reading the time field", () => {
+    const kimi = findUsageRecipe(recipes, "kimi");
+    const session = fileURLToPath(
+      new URL("./fixtures/kimi-session", import.meta.url),
+    );
+    const output = execFileSync("bash", ["-c", kimi!.command], {
+      env: {
+        ...process.env,
+        TRANSCRIPT_PATH: session,
+        OVERCLICK_CLAIMED_AT: "2026-08-19T18:14:39.899Z",
+      },
+      encoding: "utf8",
+    });
+
+    expect(JSON.parse(output)).toMatchObject({
+      turns: 3,
+      segments: expect.arrayContaining([
+        { model: "kimi-code/k3", input: 160, output: 35, cache_read: 60, cache_write: 5 },
+        { model: "kimi-code/k3-mini", input: 40, output: 10, cache_read: 0, cache_write: 0 },
+      ]),
+    });
   });
 
   describe("coverage", () => {
