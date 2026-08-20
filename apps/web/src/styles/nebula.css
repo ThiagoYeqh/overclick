@@ -3173,3 +3173,46 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .copy { display: inline-flex; align-items: center; gap: 6px; }
 .nb .btn-back, .nb .btn-next { gap: 7px; }
 .nb-auth .auth-rule { display: flex; align-items: center; gap: 6px; }
+
+/* ---------- OCL-102: the plugin offer, and the manual path under it ---------- */
+/* The block is the same in onboarding step three and in the MCP tokens tab,
+   so its rules live once here and neither surface owns them. */
+.nb .plug { margin-bottom: 22px; }
+.nb .plug-lead {
+  font-size: 12.5px; line-height: 1.6; max-width: 74ch;
+  color: var(--nebula-text-secondary); margin: 0 0 14px;
+}
+.nb .plug-name { max-width: 420px; }
+/* The command before a code exists: same block, same width, dimmed, so the
+   shape of what is coming is already on screen and the copy button is not
+   offering six bullet points. */
+.nb .cmd.ghost { color: var(--nebula-text-tertiary); }
+.nb .plug-actions {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 10px 16px; margin-top: 12px;
+}
+.nb .plug-state {
+  font-family: var(--nebula-font-label); font-size: 10.5px; letter-spacing: .04em;
+  line-height: 1.5; color: var(--nebula-text-tertiary);
+}
+.nb .plug-state b { color: var(--nebula-text-primary); font-weight: 500; }
+.nb .plug .tok-note { margin-top: 10px; }
+
+/* The manual MCP entry is still here, and it is still correct; it is just no
+   longer the first thing offered, because it brings the access and none of the
+   skill, hooks or commands the plugin carries. */
+.nb .alt-path {
+  border-top: 1px solid var(--nebula-glass-border);
+  padding-top: 14px; margin-bottom: 18px;
+}
+.nb .alt-path summary {
+  width: max-content; cursor: pointer; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-label); font-size: 11px; letter-spacing: .05em;
+  min-height: 34px; display: flex; align-items: center;
+}
+.nb .alt-path summary:hover { color: var(--nebula-text-primary); }
+.nb .alt-path summary:focus-visible {
+  outline: none; border-radius: var(--oc-radius-chip);
+  box-shadow: var(--oc-focus-ring-inset);
+}
+.nb .alt-path[open] summary { color: var(--nebula-text-primary); margin-bottom: 10px; }
