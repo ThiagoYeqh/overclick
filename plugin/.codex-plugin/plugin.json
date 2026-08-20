@@ -12,8 +12,11 @@
     "longDescription": "Connect Codex to an OverClick board and keep every work item in the claim-to-deliver loop.",
     "developerName": "OverClick",
     "category": "Productivity",
-    "capabilities": ["MCP", "Skills"],
+    "capabilities": [
+      "MCP",
+      "Skills"
+    ],
     "defaultPrompt": "Show my OverClick board and help me execute the next card."
   },
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.codex-plugin/mcp.json"
 }
