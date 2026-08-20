@@ -174,7 +174,7 @@ jq -e '(.mcpServers.overclick.serverUrl | startswith("$") | not)
   and .mcpServers.overclick.headers.Authorization
   and (.mcpServers.overclick | has("type") | not)' \
   "$agy_plugin/mcp_config.json" >/dev/null
-test "$(stat -f '%Lp' "$agy_plugin/mcp_config.json" 2>/dev/null || stat -c '%a' "$agy_plugin/mcp_config.json")" -eq 600
+test "$(file_mode "$agy_plugin/mcp_config.json")" -eq 600
 test "$(grep -c '<!-- overclick:start -->' "$agy_plugin/rules/AGENTS.md")" -eq 1
 grep -Fq "$agy_plugin/OVERCLICK.md" "$agy_plugin/rules/AGENTS.md"
 test -f "$agy_plugin/OVERCLICK.md"
