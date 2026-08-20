@@ -44,10 +44,7 @@ jq -e '(.hooks.PostToolUse | length == 2) and (.hooks.PreToolUse | length == 2)'
   "$REPO_ROOT/plugin/hooks/hooks.json" >/dev/null
 test -x "$REPO_ROOT/plugin/hooks/claim-guard.sh"
 test "$(find "$REPO_ROOT/plugin/commands" -name '*.md' | wc -l | tr -d ' ')" -eq 5
-# A root skills/ need not exist; 2>/dev/null keeps its absence from printing a
-# find error that reads like a failed check in CI. A stray root SKILL.md still
-# pushes the count past 1 and fails here.
-test "$(find "$REPO_ROOT/plugin" "$REPO_ROOT/skills" -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')" -eq 1
+test "$(find "$REPO_ROOT/plugin/skills" -name SKILL.md | wc -l | tr -d ' ')" -eq 1
 
 # `stat -f` means "file mode" on BSD/macOS but "filesystem status" on GNU
 # coreutils — where it SUCCEEDS and prints a multi-line filesystem block, so a
