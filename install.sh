@@ -339,6 +339,29 @@ process.stdin.on("end", () => {
   return 1
 }
 
+# Same reasoning as verify_claude_plugin: `codex plugin add` prints a success
+# line even when the marketplace layout is wrong, so ask Codex what it holds.
+verify_codex_plugin() {
+  local listing
+  listing=$(codex plugin list --json 2>/dev/null) || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$listing" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+for entry in data.get("installed", []):
+    if entry.get("name") == "overclick" and entry.get("installed") and entry.get("enabled"):
+        print((entry.get("source") or {}).get("path", ""))
+        sys.exit(0)
+sys.exit(1)
+'
+    return $?
+  fi
+  return 1
+}
+
 validation_failed=0
 
 if has_cli claude; then
@@ -371,8 +394,13 @@ fi
 
 if has_cli codex; then
   codex_marketplace="$overclick_root/codex-marketplace"
-  codex_plugin="$codex_marketplace/.agents/plugins/overclick"
-  mkdir -p "$codex_plugin"
+  # Codex resolves each plugin `source.path` against the MARKETPLACE ROOT, not
+  # against the directory holding marketplace.json. The manifest below says
+  # "./plugins/overclick", so the payload has to live at <root>/plugins/overclick;
+  # copying it next to the manifest makes `codex plugin add` fail with
+  # "plugin source path is not a directory".
+  codex_plugin="$codex_marketplace/plugins/overclick"
+  mkdir -p "$codex_plugin" "$codex_marketplace/.agents/plugins"
   cp -R "$plugin_target/." "$codex_plugin/"
   cat >"$codex_marketplace/.agents/plugins/marketplace.json" <<'JSON'
 {
@@ -388,9 +416,21 @@ if has_cli codex; then
   ]
 }
 JSON
+  # `codex` refuses to load its configuration when CODEX_HOME does not exist,
+  # so every plugin call below would fail on a machine where codex is installed
+  # but has never been run.
+  mkdir -p "$install_home/.codex"
   quiet_try "Codex marketplace" codex plugin marketplace add "$codex_marketplace"
   quiet_try "Codex plugin" codex plugin add overclick@overclick
   write_codex_mcp
+
+  codex_install_path=$(verify_codex_plugin) || codex_install_path=""
+  if [[ -n "$codex_install_path" && -f "$codex_install_path/OVERCLICK.md" ]]; then
+    printf '%s\n' "Codex plugin verified: enabled and materialized at $codex_install_path."
+  else
+    printf '%s\n' "Codex plugin did not materialize: 'codex plugin list --json' shows no enabled overclick entry with OVERCLICK.md on disk. Do not trust the earlier \"configured\" messages; retry or install manually." >&2
+    validation_failed=1
+  fi
   # Codex has no supported client-side claim guard. Keep the existing lifecycle
   # integrations, while claim enforcement remains on the board for this CLI.
   merge_json_config hooks-no-claim-guard "$install_home/.codex/hooks.json" "$plugin_target/hooks/hooks.json"
