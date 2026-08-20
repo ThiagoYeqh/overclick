@@ -19,6 +19,26 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Backs the real-postgres regression suite (pairing.real-postgres.integration.test.ts),
+    # which exists because the PGlite-only suite shipped OCL-109: PGlite tolerates a
+    # `Date` bound into `sql`, postgres-js — what production runs — does not. Every
+    # other integration test still boots its own in-memory PGlite and ignores this.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v5
 
@@ -49,8 +69,13 @@ jobs:
       # so a type error reaches main unless tsc is asked separately.
       - run: pnpm -r --if-present typecheck
 
-      # No database service: the integration tests boot an in-memory PGlite.
+      # Most integration tests boot an in-memory PGlite and need no service.
+      # pairing.real-postgres.integration.test.ts is the exception: it talks
+      # to the postgres service above through the same postgres-js driver
+      # production uses, which is what OCL-109 needed and PGlite cannot give it.
       - run: pnpm test
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
 
       # The plugin package is not a pnpm workspace, so `pnpm test` never reached
       # it and this suite only ever ran by hand. That is how the manifest version
