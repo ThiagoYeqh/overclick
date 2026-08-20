@@ -14,15 +14,6 @@
   "skills": [
     "./skills/overclick"
   ],
-  "mcpServers": {
-    "overclick": {
-      "transport": "http",
-      "url": "${OVERCLICK_URL}",
-      "headers": {
-        "Authorization": "Bearer ${OVERCLICK_TOKEN}"
-      }
-    }
-  },
   "hooks": [
     {
       "event": "SessionStart",

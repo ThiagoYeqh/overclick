@@ -1,11 +1,3 @@
 {
-  "mcpServers": {
-    "overclick": {
-      "serverUrl": "${OVERCLICK_URL}",
-      "headers": {
-        "Authorization": "Bearer ${OVERCLICK_TOKEN}"
-      },
-      "disabled": false
-    }
-  }
+  "mcpServers": {}
 }

@@ -16,6 +16,25 @@ overclick_root="$config_root/overclick"
 plugin_target="$overclick_root/plugin"
 private_config="$overclick_root/config"
 
+# OCL-114: OVERCLICK_INSTALL_HOME only ever redirected the files this script
+# writes itself. The native managers below (`claude plugin marketplace add`,
+# `claude mcp add`, `codex plugin add`, ...) resolve their own user scope from
+# HOME, so a sandboxed or test run still wrote into the operator's real
+# configuration - which is how a marketplace pointing at a temporary directory,
+# carrying a fixture instance URL, ended up registered on a working machine.
+# Redirect the managers to the same home the files go to - as an override, not a
+# default: a CLI that already exports its own config directory (a Claude Code
+# session managing more than one account does) would otherwise win and put the
+# sandboxed run right back into the real configuration.
+if [[ -n "${OVERCLICK_INSTALL_HOME:-}" ]]; then
+  export HOME="$install_home"
+  export XDG_CONFIG_HOME="$config_root"
+  export CLAUDE_CONFIG_DIR="$install_home/.claude"
+  export CODEX_HOME="$install_home/.codex"
+  export KIMI_CODE_HOME="$install_home/.kimi-code"
+  export GEMINI_HOME="$install_home/.gemini"
+fi
+
 read_private_setting() {
   local key=$1 line
   [[ -f "$private_config" ]] || return 1
@@ -47,6 +66,22 @@ if [[ "${instance_url#*://}" == *@* ]]; then
   printf '%s\n' "Instance URL must not contain embedded credentials." >&2
   exit 1
 fi
+
+# OCL-114: a run pointed at a test fixture baked that fixture into every agent
+# config it touched, and each of those agents then reported the board as down.
+# The reserved namespaces of RFC 2606/6761 can never resolve, so a URL in one is
+# never a board: refuse it here rather than register a server that cannot connect.
+instance_host=${instance_url#*://}
+instance_host=${instance_host%%/*}
+instance_host=${instance_host%%\?*}
+instance_host=${instance_host%%:*}
+instance_host=$(printf '%s' "$instance_host" | tr '[:upper:]' '[:lower:]')
+case "$instance_host" in
+  invalid|test|example|localdomain|*.invalid|*.test|*.example|*.localdomain|example.com|example.net|example.org)
+    printf '%s\n' "That instance URL is in a reserved namespace that can never resolve (RFC 2606/6761), so it is a test fixture rather than a board. Use the URL of your own OverClick instance." >&2
+    exit 1
+    ;;
+esac
 
 instance_url=${instance_url%/}
 if [[ "$instance_url" == */mcp ]]; then
@@ -269,9 +304,11 @@ else:
     data = {}
 
 mode = os.environ["OC_JSON_MODE"]
-if mode in ("mcp", "mcp-kimi"):
+if mode == "mcp-kimi":
+    # Kimi discriminates the transport on `transport`; a `type` key is dropped
+    # and the transport re-inferred from the url.
     data.setdefault("mcpServers", {})["overclick"] = {
-        ("transport" if mode == "mcp-kimi" else "type"): "http",
+        "transport": "http",
         "url": os.environ["OC_MCP_URL"],
         "headers": {"Authorization": "Bearer " + os.environ["OC_MCP_TOKEN"]},
     }
@@ -319,10 +356,10 @@ const path = require("node:path");
 const file = process.env.OC_JSON_FILE;
 let data = {};
 if (fs.existsSync(file)) data = JSON.parse(fs.readFileSync(file, "utf8"));
-if (process.env.OC_JSON_MODE === "mcp" || process.env.OC_JSON_MODE === "mcp-kimi") {
+if (process.env.OC_JSON_MODE === "mcp-kimi") {
   data.mcpServers ??= {};
   data.mcpServers.overclick = {
-    [process.env.OC_JSON_MODE === "mcp-kimi" ? "transport" : "type"]: "http",
+    transport: "http",
     url: process.env.OC_MCP_URL,
     headers: { Authorization: "Bearer " + process.env.OC_MCP_TOKEN },
   };
@@ -360,12 +397,14 @@ JS
   return 1
 }
 
-# Native managers install this private copy, so plugin-level MCP declarations
-# work without requiring shell profile edits. The repository package remains a
-# generic environment-variable template.
-merge_json_config mcp "$plugin_target/.mcp.json"
-merge_json_config mcp-kimi "$plugin_target/kimi.plugin.json"
-chmod 600 "$plugin_target/.mcp.json" "$plugin_target/kimi.plugin.json"
+# OCL-114: the package used to declare its own `overclick` MCP server on top of
+# the one registered in each CLI's own configuration below. Every install
+# therefore produced two servers of the same name per CLI - and, because the
+# repository template carries an unexpanded ${OVERCLICK_URL}, the plugin-level
+# one is dead for anyone who installs straight from a marketplace instead of
+# through this script. Each CLI now gets exactly one registration, written where
+# that CLI keeps its own servers, and the package ships none. Antigravity is the
+# exception below: its plugin manifest is the only channel it reads.
 
 native_marketplace="$overclick_root/native-marketplace"
 mkdir -p "$native_marketplace/.claude-plugin" "$native_marketplace/.grok-plugin" "$native_marketplace/plugin"
@@ -391,6 +430,19 @@ fi
 
 has_cli() {
   [[ "$detected_clis" == *",$1,"* ]]
+}
+
+# A server already named `overclick` in a CLI is somebody's board. Answering
+# "yes" here only for one that points somewhere else keeps a re-run against the
+# same instance a plain credential refresh, while a run pointed at a different
+# instance stops instead of silently taking the name over (OCL-114). The listing
+# carries an Authorization header, so it is matched and discarded, never printed.
+foreign_mcp_registration() {
+  local existing
+  existing=$("$@" 2>/dev/null) || return 1
+  [[ -n "$existing" ]] || return 1
+  printf '%s' "$existing" | grep -Fq "$mcp_url" && return 1
+  return 0
 }
 
 quiet_try() {
@@ -480,9 +532,18 @@ if has_cli claude; then
   else
     printf '%s\n' "Claude plugin needs manual confirmation in its native plugin manager." >&2
   fi
-  claude mcp remove overclick --scope user >/dev/null 2>&1 || true
-  quiet_try "Claude MCP" claude mcp add --transport http --scope user \
-    --header "Authorization: Bearer $token" overclick "$mcp_url"
+  if foreign_mcp_registration claude mcp get overclick; then
+    printf '%s\n' "Claude already has an MCP server named overclick pointing at a different instance; it was left untouched. Remove it with 'claude mcp remove overclick' and re-run this installer to move to this board." >&2
+  else
+    claude mcp remove overclick --scope user >/dev/null 2>&1 || true
+    # `--header` is variadic (`-H, --header <header...>`), so it eats every
+    # argument that follows it - including the name and the URL, which is why
+    # this call used to die on "missing required argument 'name'" while
+    # quiet_try reported it as something to confirm by hand. The positionals
+    # have to come first (OCL-114).
+    quiet_try "Claude MCP" claude mcp add --transport http --scope user \
+      overclick "$mcp_url" --header "Authorization: Bearer $token"
+  fi
   claude_block=$(printf '%s\n' '<!-- overclick:start -->' "@$plugin_target/OVERCLICK.md" '<!-- overclick:end -->')
   replace_marked_block "$install_home/.claude/CLAUDE.md" "$claude_block"
 
@@ -552,9 +613,14 @@ if has_cli grok; then
   else
     printf '%s\n' "Grok plugin needs manual confirmation in its native plugin manager." >&2
   fi
-  grok mcp remove --scope user overclick >/dev/null 2>&1 || true
-  quiet_try "Grok MCP" grok mcp add --transport http --scope user \
-    --header "Authorization: Bearer $token" overclick "$mcp_url"
+  if foreign_mcp_registration grok mcp get overclick; then
+    printf '%s\n' "Grok already has an MCP server named overclick pointing at a different instance; it was left untouched. Remove it with 'grok mcp remove overclick' and re-run this installer to move to this board." >&2
+  else
+    grok mcp remove --scope user >/dev/null 2>&1 || true
+    # Same variadic `--header` as Claude: name and URL before it.
+    quiet_try "Grok MCP" grok mcp add --transport http --scope user \
+      overclick "$mcp_url" --header "Authorization: Bearer $token"
+  fi
 fi
 
 # Kimi Code has no non-interactive plugin subcommand: `/plugins install` is a TUI
