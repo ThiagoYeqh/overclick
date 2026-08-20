@@ -1,6 +1,6 @@
 {
   "name": "overclick",
-  "version": "0.1.12",
+  "version": "0.2.1",
   "description": "Run the complete OverClick card workflow from Kimi Code.",
   "keywords": ["overclick", "task-board", "mcp"],
   "author": {
