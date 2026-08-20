@@ -12,7 +12,11 @@ import { clearSession, setSession } from "../lib/cookies";
 import { db } from "../lib/db";
 import { dict } from "../lib/i18n";
 import { countUsers, ensureWorkspace } from "../lib/instance";
-import { hashPassword, verifyPassword } from "../lib/password";
+import {
+  ABSENT_USER_HASH,
+  hashPassword,
+  verifyPassword,
+} from "../lib/password";
 
 export type AuthState = { error: string } | null;
 
@@ -91,11 +95,15 @@ export async function loginAction(
     .where(eq(user.email, email))
     .limit(1);
 
-  if (
-    !found ||
-    !found.active ||
-    !(await verifyPassword(password, found.passwordHash))
-  ) {
+  // Same work on every branch. Short-circuiting on `found` or on `active`
+  // skipped scrypt entirely, and answering that much sooner told a caller
+  // which addresses have an account, and which of those are switched off,
+  // however generic the message is.
+  const passwordOk = await verifyPassword(
+    password,
+    found?.passwordHash ?? ABSENT_USER_HASH,
+  );
+  if (!found || !found.active || !passwordOk) {
     return { error: (await authCopy()).errCredentials };
   }
 
