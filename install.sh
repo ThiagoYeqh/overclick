@@ -275,6 +275,14 @@ if mode in ("mcp", "mcp-kimi"):
         "url": os.environ["OC_MCP_URL"],
         "headers": {"Authorization": "Bearer " + os.environ["OC_MCP_TOKEN"]},
     }
+elif mode == "mcp-antigravity":
+    # Antigravity names the remote transport `serverUrl` and has no `type`
+    # field; `agy mcp add --header ... <url>` writes exactly this shape.
+    data.setdefault("mcpServers", {})["overclick"] = {
+        "serverUrl": os.environ["OC_MCP_URL"],
+        "headers": {"Authorization": "Bearer " + os.environ["OC_MCP_TOKEN"]},
+        "disabled": False,
+    }
 elif mode in ("hooks", "hooks-no-claim-guard"):
     source = json.loads(pathlib.Path(os.environ["OC_HOOK_SOURCE"]).read_text())
     target = os.environ["OC_PLUGIN_TARGET"]
@@ -317,6 +325,13 @@ if (process.env.OC_JSON_MODE === "mcp" || process.env.OC_JSON_MODE === "mcp-kimi
     [process.env.OC_JSON_MODE === "mcp-kimi" ? "transport" : "type"]: "http",
     url: process.env.OC_MCP_URL,
     headers: { Authorization: "Bearer " + process.env.OC_MCP_TOKEN },
+  };
+} else if (process.env.OC_JSON_MODE === "mcp-antigravity") {
+  data.mcpServers ??= {};
+  data.mcpServers.overclick = {
+    serverUrl: process.env.OC_MCP_URL,
+    headers: { Authorization: "Bearer " + process.env.OC_MCP_TOKEN },
+    disabled: false,
   };
 } else {
   const source = JSON.parse(fs.readFileSync(process.env.OC_HOOK_SOURCE, "utf8"));
@@ -362,6 +377,11 @@ if [[ -n "${OVERCLICK_CLIS:-}" ]]; then
   detected_clis=",${OVERCLICK_CLIS// /},"
 else
   detected_clis=","
+  # Antigravity ships its CLI as `agy`, and its own installer puts it in
+  # ~/.local/bin, which is not always on PATH for a non-login shell.
+  if command -v agy >/dev/null 2>&1 || [[ -x "$install_home/.local/bin/agy" ]]; then
+    detected_clis+="agy,"
+  fi
   for candidate in claude codex grok kimi; do
     if command -v "$candidate" >/dev/null 2>&1; then
       detected_clis+="$candidate,"
@@ -599,8 +619,46 @@ if has_cli kimi; then
   fi
 fi
 
+if has_cli agy; then
+  if command -v agy >/dev/null 2>&1; then
+    agy_bin=agy
+  else
+    agy_bin="$install_home/.local/bin/agy"
+  fi
+  # `agy plugin install` copies the directory it is given into
+  # ~/.gemini/config/plugins/<name>, so the staged copy is what carries the
+  # credentials and the resolved rule path, and the repository package stays a
+  # generic template.
+  agy_stage="$overclick_root/antigravity/overclick"
+  agy_installed="$install_home/.gemini/config/plugins/overclick"
+  rm -rf -- "$agy_stage"
+  mkdir -p "$agy_stage"
+  cp -R "$plugin_target/." "$agy_stage/"
+  merge_json_config mcp-antigravity "$agy_stage/mcp_config.json"
+  chmod 600 "$agy_stage/mcp_config.json"
+  agy_rule_block=$(printf '%s\n' '<!-- overclick:start -->' \
+    "Read and follow $agy_installed/OVERCLICK.md for all OverClick board work." \
+    '<!-- overclick:end -->')
+  replace_marked_block "$agy_stage/rules/AGENTS.md" "$agy_rule_block"
+  quiet_try "Antigravity plugin" "$agy_bin" plugin install "$agy_stage"
+  "$agy_bin" plugin enable overclick >/dev/null 2>&1 || true
+  # The manager copies the staged directory, so the credentials land in a second
+  # place and need the same mode-600 the staged copy already has.
+  if [[ -f "$agy_installed/mcp_config.json" ]]; then
+    chmod 600 "$agy_installed/mcp_config.json"
+  fi
+
+  if "$agy_bin" plugin list 2>/dev/null | grep -q '"overclick"' && \
+    [[ -f "$agy_installed/OVERCLICK.md" ]]; then
+    printf '%s\n' "Antigravity plugin verified: imported and materialized at $agy_installed."
+  else
+    printf '%s\n' "Antigravity plugin did not materialize: 'agy plugin list' shows no overclick entry with OVERCLICK.md on disk. Retry or install manually." >&2
+    validation_failed=1
+  fi
+fi
+
 if [[ "${OVERCLICK_AGENTS_FALLBACK:-0}" = "1" ]] || \
-  { ! has_cli claude && ! has_cli codex && ! has_cli grok && ! has_cli kimi; }; then
+  { ! has_cli claude && ! has_cli codex && ! has_cli grok && ! has_cli kimi && ! has_cli agy; }; then
   agents_block=$(printf '%s\n' '<!-- overclick:start -->' "Read and follow $plugin_target/OVERCLICK.md for all OverClick board work." '<!-- overclick:end -->')
   replace_marked_block "$project_dir/AGENTS.md" "$agents_block"
   printf '%s\n' "No plugin-capable CLI was detected; the AGENTS.md fallback was installed."

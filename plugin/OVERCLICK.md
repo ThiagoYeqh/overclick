@@ -148,6 +148,18 @@ claim leases expire when abandoned, and the delivery verification introduced by
 OCL-23 rejects unverifiable delivery evidence. This limitation is why the guard
 must not be described as universal enforcement.
 
+Antigravity (`agy`) runs every hook through `hooks/antigravity.sh`, which
+translates its dialect into the shared scripts. Three behaviours differ there:
+the board snapshot rides on `PreInvocation` gated to the first model call,
+because Antigravity has no `SessionStart`; the post-delivery remote check runs
+*before* `task_deliver` and answers `ask` instead of reporting afterwards,
+because Antigravity's `PostToolUse` carries no tool response and therefore has
+no way to tell the model anything; and the claim marker is written from the call
+arguments, for the same reason. Antigravity also leaves `workspacePaths` empty
+in print mode, so the repository is recovered from the path the call itself
+mentions — set `OVERCLICK_WORKSPACE` to pin it when a session edits nothing
+under the repository root.
+
 The motivating incident happened on 2026-08-19: a Kimi worker executed OCL-37
 without claiming it, leaving the card `aberto` while real work was already in
 progress and therefore invisible to the board.
