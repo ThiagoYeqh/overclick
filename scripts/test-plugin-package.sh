@@ -10,10 +10,14 @@ FIXTURE_URL=$(printf '%s%s%s' 'https' '://' 'fixture')
 # release guard in verify-release-version.sh only covers the package.json set,
 # so the plugin manifests drifted to 0.1.12 while package.json was already at
 # 0.2.1 — and .grok-plugin/marketplace.json advertised that stale version to
-# every Grok user browsing the catalog.
+# every Grok user browsing the catalog. OCL-105 fixed the four manifests under
+# plugin/ but missed .kimi-plugin/plugin.json — the top-level root manifest
+# Kimi reads for a repository install (OCL-110) — leaving it free to drift the
+# same way undetected.
 PKG_VERSION=$(jq -r '.version' "$REPO_ROOT/package.json")
 for manifest in plugin/plugin.json plugin/.claude-plugin/plugin.json \
-  plugin/.codex-plugin/plugin.json plugin/kimi.plugin.json; do
+  plugin/.codex-plugin/plugin.json plugin/kimi.plugin.json \
+  .kimi-plugin/plugin.json; do
   jq -e --arg v "$PKG_VERSION" '.version == $v' "$REPO_ROOT/$manifest" >/dev/null ||
     { echo "$manifest is not at $PKG_VERSION" >&2; exit 1; }
 done
