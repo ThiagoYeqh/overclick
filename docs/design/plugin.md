@@ -85,10 +85,29 @@ it clones the plugin package with plain `git` into a persistent
 clone`. Re-running install.sh fetches and hard-resets that checkout to
 `origin/HEAD` — **updating the plugin is re-running install.sh**, nothing else.
 This checkout, not a `source github` marketplace entry, is what Claude's
-native marketplace add points at: a `source github` entry can register and
-report success without ever materializing a cache (confirmed 2026-08-19 on
-the owner's machine), while a local directory marketplace served from this
-checkout works. install.sh never uses `source github` for this reason.
+native marketplace add points at — but the reason is token injection, not a
+broken `source github`. install.sh merges the user's instance URL and token
+into the plugin copy's `.mcp.json` before handing it to the native manager,
+and only a local directory can carry that private copy; the repository package
+ships a generic environment-variable template.
+
+OCL-103 corrected the reason originally recorded here. `source github` was
+blamed for "registering without ever materializing a cache" (OCL-76,
+2026-08-19). That premise is wrong: on a clean profile,
+`claude plugin marketplace add ustoppble/overclick` followed by
+`claude plugin install overclick@overclick` clones the repository, materializes
+`plugins/cache/overclick/overclick/<version>`, and reports the full component
+inventory — verified on CLI 2.1.235 (the exact build in use when the ghost was
+reported) and on 2.1.237. The real cause was manifest version drift: Claude
+resolves an installed plugin's version from `plugin.json`, not from the
+marketplace entry, and keys the cache directory by it. With the marketplace
+entry advertising 0.2.1 over a `plugin.json` still pinned to 0.1.12, users
+installed 0.1.12 into a directory a previous 0.1.12 install already occupied,
+and every `claude plugin update` answered "already at the latest version
+(0.1.12)" without ever refreshing the content. OCL-105 pinned every manifest to
+`package.json`'s version in `scripts/test-plugin-package.sh`, and OCL-103 put
+that suite in CI, where it had never run.
+
 Because "successfully installed" only means the CLI accepted the command,
 install.sh also asks `claude plugin list --json` for the enabled overclick
 entry's `installPath` and checks that `OVERCLICK.md` actually exists there;

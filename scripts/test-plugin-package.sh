@@ -44,15 +44,41 @@ jq -e '(.hooks.PostToolUse | length == 2) and (.hooks.PreToolUse | length == 2)'
   "$REPO_ROOT/plugin/hooks/hooks.json" >/dev/null
 test -x "$REPO_ROOT/plugin/hooks/claim-guard.sh"
 test "$(find "$REPO_ROOT/plugin/commands" -name '*.md' | wc -l | tr -d ' ')" -eq 5
-test "$(find "$REPO_ROOT/plugin" "$REPO_ROOT/skills" -name SKILL.md | wc -l | tr -d ' ')" -eq 1
+# A root skills/ need not exist; 2>/dev/null keeps its absence from printing a
+# find error that reads like a failed check in CI. A stray root SKILL.md still
+# pushes the count past 1 and fails here.
+test "$(find "$REPO_ROOT/plugin" "$REPO_ROOT/skills" -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')" -eq 1
 
-mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/home/.codex" "$TEST_ROOT/project" "$TEST_ROOT/claude-cache"
+# `stat -f` means "file mode" on BSD/macOS but "filesystem status" on GNU
+# coreutils — where it SUCCEEDS and prints a multi-line filesystem block, so a
+# `stat -f ... || stat -c ...` fallback never reaches the GNU form and `test`
+# aborts with "Illegal number" (exit 2). Probe the GNU flag first: it is the one
+# that fails cleanly on the other platform.
+file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"
+}
+
+mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/home/.codex" "$TEST_ROOT/project" "$TEST_ROOT/claude-cache" "$TEST_ROOT/codex-cache"
 touch "$TEST_ROOT/claude-cache/OVERCLICK.md"
+touch "$TEST_ROOT/codex-cache/OVERCLICK.md"
+# OCL-104 gave install.sh a `codex plugin list --json` materialization check to
+# match the Claude one, but this stub only ever answered for claude, so codex
+# verification saw empty output, install.sh exited 1, and this whole suite
+# failed. Each CLI that install.sh verifies needs an answer here — its own
+# shape: claude returns a flat array with installPath, codex an {installed: []}
+# whose entries carry source.path.
 cat >"$TEST_ROOT/bin/agent-stub" <<'SH'
 #!/bin/sh
 printf '%s:%s:%s\n' "$(basename -- "$0")" "${1:-}" "${2:-}" >>"$OC_TEST_NATIVE_LOG"
-if [ "$(basename -- "$0")" = "claude" ] && [ "${1:-}" = "plugin" ] && [ "${2:-}" = "list" ]; then
-  printf '[{"id":"overclick@overclick","enabled":true,"installPath":"%s"}]' "$OC_TEST_CLAUDE_CACHE"
+if [ "${1:-}" = "plugin" ] && [ "${2:-}" = "list" ]; then
+  case "$(basename -- "$0")" in
+    claude)
+      printf '[{"id":"overclick@overclick","enabled":true,"installPath":"%s"}]' "$OC_TEST_CLAUDE_CACHE"
+      ;;
+    codex)
+      printf '{"installed":[{"name":"overclick","installed":true,"enabled":true,"source":{"path":"%s"}}]}' "$OC_TEST_CODEX_CACHE"
+      ;;
+  esac
 fi
 exit 0
 SH
@@ -78,6 +104,7 @@ run_installer() {
   PATH="$TEST_ROOT/bin:$PATH" \
   OC_TEST_NATIVE_LOG="$TEST_ROOT/native.log" \
   OC_TEST_CLAUDE_CACHE="$TEST_ROOT/claude-cache" \
+  OC_TEST_CODEX_CACHE="$TEST_ROOT/codex-cache" \
   OVERCLICK_INSTALL_HOME="$TEST_ROOT/home" \
   OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
   OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
@@ -101,7 +128,7 @@ test "$(grep -c 'session-start.sh' "$TEST_ROOT/home/.codex/hooks.json")" -eq 1
 test "$(grep -c 'claim-guard.sh' "$TEST_ROOT/home/.codex/hooks.json" || true)" -eq 0
 test "$(grep -c '^enforce_claim=0$' "$TEST_ROOT/home/.config/overclick/config")" -eq 1
 test "$(grep -c '^token=' "$TEST_ROOT/home/.config/overclick/config")" -eq 1
-test "$(stat -f '%Lp' "$TEST_ROOT/home/.config/overclick/config" 2>/dev/null || stat -c '%a' "$TEST_ROOT/home/.config/overclick/config")" -eq 600
+test "$(file_mode "$TEST_ROOT/home/.config/overclick/config")" -eq 600
 
 # Kimi has no non-interactive plugin subcommand, so install.sh writes its registry
 # directly. Running twice must leave exactly one entry, and the installed copy must
@@ -124,6 +151,7 @@ mkdir -p "$TEST_ROOT/claude-cache-empty"
 if PATH="$TEST_ROOT/bin:$PATH" \
   OC_TEST_NATIVE_LOG="$TEST_ROOT/native-unverified.log" \
   OC_TEST_CLAUDE_CACHE="$TEST_ROOT/claude-cache-empty" \
+  OC_TEST_CODEX_CACHE="$TEST_ROOT/codex-cache" \
   OVERCLICK_INSTALL_HOME="$TEST_ROOT/home-unverified" \
   OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
   OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
@@ -135,8 +163,8 @@ if PATH="$TEST_ROOT/bin:$PATH" \
 fi
 grep -Fq 'did not materialize' "$TEST_ROOT/unverified.err"
 
-# The github-source bug this fixes never gives install.sh a local checkout to
-# reuse. Exercise that path directly: a bare install.sh copy, no plugin/ next
+# `curl | bash` never gives install.sh a local checkout to reuse (OCL-103: the
+# github source was never the bug). Exercise that path directly: a bare install.sh copy, no plugin/ next
 # to it, sourcing a local git remote instead of network github.
 mkdir -p "$TEST_ROOT/plugin-remote/plugin/.codex-plugin" \
   "$TEST_ROOT/plugin-remote/.claude-plugin" "$TEST_ROOT/plugin-remote/.grok-plugin"
@@ -159,6 +187,7 @@ run_clone_installer() {
   PATH="$TEST_ROOT/bin:$PATH" \
   OC_TEST_NATIVE_LOG="$TEST_ROOT/clone-native.log" \
   OC_TEST_CLAUDE_CACHE="$TEST_ROOT/clone-cache" \
+  OC_TEST_CODEX_CACHE="$TEST_ROOT/codex-cache" \
   OVERCLICK_INSTALL_HOME="$TEST_ROOT/clone-home" \
   OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
   OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
@@ -341,7 +370,7 @@ test ! -e "$TEST_ROOT/project/.overclick/claim.json"
 claim_input=$(jq -nc --arg cwd "$TEST_ROOT/project" '{cwd:$cwd,session_id:"session-fixture",tool_name:"mcp__overclick__task_claim",tool_input:{task_id:"T-1"},tool_response:{structuredContent:{task:{short_id:"T-1",status:"em_execucao"},attempt:{id:"attempt-fixture",started_at:"2026-08-19T12:00:00.000Z"}}}}')
 printf '%s' "$claim_input" | PATH="$TEST_ROOT/bin:$PATH" OVERCLICK_CONFIG_FILE="$HOOK_CONFIG" "$REPO_ROOT/plugin/hooks/claim-guard.sh"
 test -f "$TEST_ROOT/project/.overclick/claim.json"
-test "$(stat -f '%Lp' "$TEST_ROOT/project/.overclick/claim.json" 2>/dev/null || stat -c '%a' "$TEST_ROOT/project/.overclick/claim.json")" -eq 600
+test "$(file_mode "$TEST_ROOT/project/.overclick/claim.json")" -eq 600
 jq -e '.task_id == "T-1" and .claimed_at == "2026-08-19T12:00:00.000Z" and .session_id == "session-fixture"' "$TEST_ROOT/project/.overclick/claim.json" >/dev/null
 test -z "$(printf '%s' "$write_input" | PATH="$TEST_ROOT/bin:$PATH" OC_TEST_HAS_CLAIM=0 OVERCLICK_CONFIG_FILE="$HOOK_CONFIG" "$REPO_ROOT/plugin/hooks/claim-guard.sh")"
 other_session_input=$(jq -nc --arg cwd "$TEST_ROOT/project" '{cwd:$cwd,session_id:"another-session",tool_name:"Write",tool_input:{file_path:"changed.txt",content:"fixture"}}')
