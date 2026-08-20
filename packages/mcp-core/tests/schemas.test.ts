@@ -24,6 +24,10 @@ import {
   MissionAttemptStartInputSchema,
   MissionReportUsageInputSchema,
   toolContracts,
+  HarnessSchema,
+  ConfiguredExecutorSchema,
+  CardapioPolicyEntrySchema,
+  HarnessSetInputSchema,
 } from "../src/index.js";
 
 describe("model-specific efforts", () => {
@@ -821,5 +825,121 @@ describe("task_deliver usage and artifacts", () => {
         `${name} must be strict`,
       ).toBe("strict");
     }
+  });
+});
+
+describe("harness account/provider wire contract (OCL-108)", () => {
+  it("keeps account optional so a card built before this feature still parses", () => {
+    const parsed = HarnessSchema.parse({ model: "sonnet-5", effort: "high" });
+    expect(parsed.account).toBeUndefined();
+    expect(parsed).not.toHaveProperty("cli");
+  });
+
+  it("accepts task_create.harness.account, retrocompatibly optional", () => {
+    const withAccount = TaskCreateInputSchema.parse({
+      project_id: "AGB",
+      title: "test",
+      type: "feature",
+      o_que: "x",
+      por_que: "x",
+      como_confirmo: [{ step: "s", expected: "e" }],
+      origem: { agent: "test" },
+      harness: { cli: "claude-code", model: "sonnet-5", effort: "high", account: "claude-oauth-acc-2" },
+    });
+    expect(withAccount.harness?.account).toBe("claude-oauth-acc-2");
+
+    const withoutAccount = TaskCreateInputSchema.parse({
+      project_id: "AGB",
+      title: "test",
+      type: "feature",
+      o_que: "x",
+      por_que: "x",
+      como_confirmo: [{ step: "s", expected: "e" }],
+      origem: { agent: "test" },
+      harness: { cli: "claude-code", model: "sonnet-5", effort: "high" },
+    });
+    expect(withoutAccount.harness?.account).toBeUndefined();
+  });
+
+  it("lets task_update.harness carry an account too", () => {
+    const parsed = TaskUpdateInputSchema.parse({
+      task_id: "AGB-1",
+      harness: { model: "sonnet-5", effort: "high", account: "claude-oauth" },
+    });
+    expect(parsed.harness?.account).toBe("claude-oauth");
+  });
+
+  it("lets a cardápio policy row carry a preferred account", () => {
+    const parsed = CardapioPolicyEntrySchema.parse({
+      type: "feature",
+      cli: "claude-code",
+      model: "sonnet-5",
+      effort: "high",
+      account: "claude-oauth-acc-2",
+    });
+    expect(parsed.account).toBe("claude-oauth-acc-2");
+  });
+
+  it("lets harness_set declare a preferred account", () => {
+    const parsed = HarnessSetInputSchema.parse({
+      type: "feature",
+      model: "sonnet-5",
+      effort: "high",
+      account: "claude-oauth-acc-2",
+    });
+    expect(parsed.account).toBe("claude-oauth-acc-2");
+  });
+
+  it("exposes the accounts available for a cli, each independently enabled", () => {
+    const parsed = ConfiguredExecutorSchema.parse({
+      id: "claude-code",
+      label: "Claude Code",
+      enabled: true,
+      models: ["sonnet-5"],
+      efforts: {},
+      accounts: [
+        { id: "claude-oauth", label: "Conta 1", enabled: true },
+        { id: "claude-oauth-acc-2", label: "Conta 2", enabled: false },
+      ],
+    });
+    expect(parsed.accounts).toHaveLength(2);
+    expect(parsed.accounts?.[1]).toEqual({
+      id: "claude-oauth-acc-2",
+      label: "Conta 2",
+      enabled: false,
+    });
+  });
+
+  it("parses without accounts at all, retrocompatibly", () => {
+    const parsed = ConfiguredExecutorSchema.parse({
+      id: "codex",
+      label: "Codex",
+      enabled: true,
+      models: ["gpt-5.6-sol"],
+      efforts: {},
+    });
+    expect(parsed.accounts).toBeUndefined();
+  });
+
+  it("disables one account without touching the rest of the executor (refines OCL-75)", () => {
+    const parsed = ExecutorsUpdateInputSchema.parse({
+      cli: "claude-code",
+      set_account: { id: "claude-oauth", enabled: false },
+    });
+    expect(parsed.set_account).toEqual({ id: "claude-oauth", enabled: false });
+  });
+
+  it("still refuses an executors_update with nothing to change", () => {
+    const empty = ExecutorsUpdateInputSchema.safeParse({ cli: "claude-code" });
+    expect(empty.success).toBe(false);
+  });
+
+  it("refuses set_account combined with remove, same as the other fields", () => {
+    const invalid = ExecutorsUpdateInputSchema.safeParse({
+      cli: "claude-code",
+      remove: true,
+      set_account: { id: "claude-oauth", enabled: false },
+    });
+    expect(invalid.success).toBe(false);
   });
 });

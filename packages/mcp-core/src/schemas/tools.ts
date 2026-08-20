@@ -988,6 +988,8 @@ export const HarnessRecommendOutputSchema = z.object({
     cli: z.string().min(1).nullable(),
     model: z.string().min(1).nullable(),
     effort: EffortSchema,
+    /** Resolved account/provider, when the policy or the executor named one. */
+    account: z.string().min(1).nullable().optional(),
   }),
   model_tier: z.enum(["top", "mid", "cheap"]),
   /**
@@ -1024,6 +1026,12 @@ export const CardapioPolicyEntrySchema = z.object({
   chain: z.array(z.string().min(1)).max(8).optional(),
   effort: EffortSchema,
   /**
+   * Preferred account/provider for this activity, when `cli` has more than
+   * one (e.g. two Claude OAuth accounts). Optional; null/omitted means any
+   * account. Leniently validated free text — see `HarnessSchema.account`.
+   */
+  account: z.string().min(1).nullable().optional(),
+  /**
    * Who wrote this line last and when: an email when it came from Settings,
    * the token label when it came from harness_set. Null on a factory default
    * nobody has touched yet.
@@ -1050,6 +1058,8 @@ export const HarnessSetInputSchema = z
      */
     chain: z.array(z.string().min(1)).min(1).max(8).optional(),
     effort: EffortSchema,
+    /** Preferred account/provider for this activity; null clears it. */
+    account: z.string().min(1).nullable().optional(),
     /** Mutations are compact by default; request the complete policy explicitly. */
     return: WriteReturnSchema.optional(),
   }).strict()
@@ -1065,6 +1075,17 @@ export const HarnessSetOutputSchema = z.union([
   HarnessSetFullOutputSchema,
 ]);
 
+/**
+ * One account/provider this executor can run under (e.g. a second Claude
+ * OAuth account). `id` is the value a harness's `account` field names.
+ */
+export const ConfiguredAccountSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  /** Disable a specific account without turning the whole CLI off (OCL-108). */
+  enabled: z.boolean(),
+});
+
 export const ConfiguredExecutorSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
@@ -1077,6 +1098,13 @@ export const ConfiguredExecutorSchema = z.object({
   efforts: z.record(z.array(EffortSchema)),
   /** Public source URL keyed by model; custom overrides may omit a source. */
   effort_sources: z.record(z.string().min(1)).optional(),
+  /**
+   * Accounts/providers available for this CLI, as reported by Overclock's
+   * `pane_list_providers` (e.g. two Claude OAuth accounts). Absent or empty
+   * means the board does not track accounts for this CLI: any account a
+   * harness names is accepted untouched.
+   */
+  accounts: z.array(ConfiguredAccountSchema).optional(),
 });
 
 /**
@@ -1129,6 +1157,21 @@ export const ExecutorsUpdateInputSchema = z
     add_models: z.array(z.string().min(1)).optional(),
     remove_models: z.array(z.string().min(1)).optional(),
     efforts: z.record(z.array(EffortSchema)).optional(),
+    /**
+     * Upserts one account by id: disables/re-enables it (OCL-108) without
+     * disabling the whole CLI, the way `remove: true` on the CLI itself does
+     * (OCL-75). `label` fills or renames it; omitted keeps the existing one,
+     * or falls back to `id` when the account is new.
+     */
+    set_account: z
+      .object({
+        id: z.string().min(1),
+        label: z.string().min(1).optional(),
+        enabled: z.boolean(),
+      })
+      .optional(),
+    /** Drops one account by id. Combine with `set_account` to rename+keep others untouched. */
+    remove_account: z.string().min(1).optional(),
     remove: z.boolean().optional(),
     /** Mutations are compact by default; request the complete config explicitly. */
     return: WriteReturnSchema.optional(),
@@ -1140,13 +1183,15 @@ export const ExecutorsUpdateInputSchema = z
         value.add_models?.length ||
         value.remove_models?.length ||
         value.efforts !== undefined ||
+        value.set_account !== undefined ||
+        value.remove_account !== undefined ||
         value.label)
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["remove"],
         message:
-          "remove drops the whole executor; send it alone, without label, enabled, add_models, remove_models or efforts",
+          "remove drops the whole executor; send it alone, without label, enabled, add_models, remove_models, efforts, set_account or remove_account",
       });
     }
     if (
@@ -1155,13 +1200,15 @@ export const ExecutorsUpdateInputSchema = z
       !value.add_models?.length &&
       !value.remove_models?.length &&
       Object.keys(value.efforts ?? {}).length === 0 &&
+      value.set_account === undefined &&
+      value.remove_account === undefined &&
       !value.label
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["cli"],
         message:
-          "provide at least one of label, enabled, add_models, remove_models, efforts or remove",
+          "provide at least one of label, enabled, add_models, remove_models, efforts, set_account, remove_account or remove",
       });
     }
   });
@@ -1568,6 +1615,7 @@ export type HarnessRecommendInput = z.infer<typeof HarnessRecommendInputSchema>;
 export type HarnessListInput = z.infer<typeof HarnessListInputSchema>;
 export type HarnessListOutput = z.infer<typeof HarnessListOutputSchema>;
 export type CardapioPolicyEntryContract = z.infer<typeof CardapioPolicyEntrySchema>;
+export type ConfiguredAccountContract = z.infer<typeof ConfiguredAccountSchema>;
 export type ConfiguredExecutorContract = z.infer<typeof ConfiguredExecutorSchema>;
 export type ModelPriceContract = z.infer<typeof ModelPriceSchema>;
 export type ExecutorsUpdateInput = z.infer<typeof ExecutorsUpdateInputSchema>;
