@@ -54,6 +54,29 @@ claude mcp add --transport http overclick http://<your-host>/mcp \
 
 Then, in your terminal: *"grab the next task from the board."* Watch the example card move.
 
+### Install the plugin (Claude Code)
+
+The MCP server above is enough to claim and deliver cards. The plugin adds the rest of
+the workflow — the canonical `OVERCLICK.md`, the `/overclick:*` commands, and the
+lifecycle hooks — from this repository's own marketplace:
+
+```bash
+claude plugin marketplace add ustoppble/overclick
+claude plugin install overclick@overclick
+```
+
+Verify it materialized rather than trusting the success message — `claude plugin list`
+must report the version and `claude plugin details overclick` must list the components:
+
+```bash
+claude plugin list          # overclick@overclick, enabled
+claude plugin details overclick
+```
+
+`claude plugin update overclick@overclick` picks up later releases. For the other CLIs, or
+to have the installer write the MCP server and your token into each CLI's native config in
+one pass, use `install.sh` instead — see [docs/design/plugin.md](docs/design/plugin.md).
+
 ## What makes it different
 
 - **Cards are contracts.** *What / Why / How to confirm*, written before the work, so

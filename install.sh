@@ -148,12 +148,14 @@ if [[ -f "$script_dir/plugin/OVERCLICK.md" ]]; then
 elif [[ -n "${OVERCLICK_PLUGIN_DIR:-}" && -f "$OVERCLICK_PLUGIN_DIR/OVERCLICK.md" ]]; then
   source_root=$(CDPATH='' cd -- "$OVERCLICK_PLUGIN_DIR/.." && pwd)
 else
-  # A `source github` marketplace entry can register without ever fetching the
-  # package (Claude CLI accepts it, marks it enabled, never materializes a
-  # cache). A plain git checkout served as a local directory marketplace is
-  # what actually works, so this installer keeps that checkout itself and
-  # re-running install.sh doubles as the update path (git pull, not a fresh
-  # ephemeral clone every run).
+  # This installer serves a local directory marketplace instead of a
+  # `source github` entry because it injects the user's instance URL and token
+  # into the package's .mcp.json, and only a private local copy can carry
+  # that. (OCL-103: `source github` itself works; the ghost install blamed on
+  # it in OCL-76 was manifest version drift. Users who only want the plugin can
+  # `claude plugin marketplace add ustoppble/overclick` directly.) The checkout
+  # is kept rather than re-cloned so re-running install.sh doubles as the
+  # update path: git fetch + reset, not a fresh ephemeral clone every run.
   if ! command -v git >/dev/null 2>&1; then
     printf '%s\n' "git is required to fetch the OverClick plugin package." >&2
     exit 1
@@ -381,9 +383,10 @@ quiet_try() {
   fi
 }
 
-# "Successfully installed" only means the CLI accepted the command; the
-# github-source bug this fixes accepted it and never materialized anything.
-# Ask the CLI what it actually has on disk instead of trusting exit codes.
+# "Successfully installed" only means the CLI accepted the command. The OCL-76
+# ghost install exited 0 while the plugin the user ended up with was a stale
+# cache directory from an earlier version. Ask the CLI what it actually has on
+# disk instead of trusting exit codes.
 verify_claude_plugin() {
   local listing
   listing=$(claude plugin list --json 2>/dev/null) || return 1
