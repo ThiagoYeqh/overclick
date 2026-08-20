@@ -74,25 +74,46 @@ export function isValidPairingCodeFormat(code: string): boolean {
  *
  * The window is the code TTL: outside it there was no live code to protect,
  * so the count starts over.
+ *
+ * The two timestamps go in as ISO strings with an explicit cast, and that is
+ * not a style choice (OCL-109). A value handed to `.values()` is mapped by the
+ * column that receives it; a value interpolated into `sql` has no column, so
+ * it reaches the driver as whatever it already was. postgres-js, which is what
+ * production runs, refuses a `Date` in that position and the whole endpoint
+ * answers 500. PGlite, which is what the integration tests run, accepts it,
+ * which is exactly how a green suite shipped a pairing endpoint that could not
+ * pair.
+ *
+ * The statement is built by an exported function for that reason alone: a test
+ * can read the parameters it is about to send without needing the driver that
+ * would have caught them.
  */
-async function spendAttempt(db: McpDatabase, scope: string): Promise<boolean> {
-  const now = new Date();
+export function spendAttemptStatement(
+  db: McpDatabase,
+  scope: string,
+  now: Date,
+) {
   const windowFloor = new Date(now.getTime() - PAIRING_CODE_TTL_MS);
+  const floorParam = sql`${windowFloor.toISOString()}::timestamptz`;
+  const nowParam = sql`${now.toISOString()}::timestamptz`;
 
-  const [row] = await db
+  return db
     .insert(pairingFailure)
     .values({ id: scope, count: 1, windowStartedAt: now })
     .onConflictDoUpdate({
       target: pairingFailure.id,
       set: {
-        count: sql`case when ${pairingFailure.windowStartedAt} < ${windowFloor}
+        count: sql`case when ${pairingFailure.windowStartedAt} < ${floorParam}
           then 1 else ${pairingFailure.count} + 1 end`,
-        windowStartedAt: sql`case when ${pairingFailure.windowStartedAt} < ${windowFloor}
-          then ${now} else ${pairingFailure.windowStartedAt} end`,
+        windowStartedAt: sql`case when ${pairingFailure.windowStartedAt} < ${floorParam}
+          then ${nowParam} else ${pairingFailure.windowStartedAt} end`,
       },
     })
     .returning({ count: pairingFailure.count });
+}
 
+async function spendAttempt(db: McpDatabase, scope: string): Promise<boolean> {
+  const [row] = await spendAttemptStatement(db, scope, new Date());
   return (row?.count ?? 1) <= MAX_PAIRING_FAILURES;
 }
 

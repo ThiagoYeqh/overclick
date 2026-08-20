@@ -6,6 +6,7 @@ import {
   exchangePairingCode,
   MAX_PAIRING_FAILURES,
   pairingStatus,
+  spendAttemptStatement,
 } from "../lib/pairing";
 import { authenticateBearer } from "./auth";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
@@ -249,6 +250,28 @@ describe("one-time token pairing", () => {
     if (!expired.ok) {
       expect(expired.error).not.toMatch(/ocb_|select |failed query/i);
     }
+  });
+
+  /**
+   * The regression this suite could not have caught on its own (OCL-109).
+   *
+   * These tests run on PGlite, which accepts a `Date` as a query parameter.
+   * Production runs postgres-js, which does not: it answered every call to
+   * /api/pair with a 500 while this file stayed green. A parameter that goes
+   * through a column mapper is fine either way; one interpolated into `sql`
+   * has no column to map it, so it arrives as whatever it was. The assertion
+   * is therefore about what is sent, not about what a driver tolerates.
+   */
+  it("sends no Date to the driver, which is what broke every real pairing", async () => {
+    world = await createTestWorld();
+    const { params } = spendAttemptStatement(
+      world.db,
+      "origin:203.0.113.9",
+      new Date("2026-08-20T12:00:00.000Z"),
+    ).toSQL();
+
+    expect(params.length).toBeGreaterThan(0);
+    expect(params.filter((param) => param instanceof Date)).toEqual([]);
   });
 
   it("keeps a single active code per workspace", async () => {
