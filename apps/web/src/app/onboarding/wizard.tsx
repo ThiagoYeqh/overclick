@@ -5,7 +5,9 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { saveExecutorsAction } from "../../actions/executors";
 import { saveProjectAction } from "../../actions/onboarding";
 import {
+  createPairingCodeAction,
   createTokenAction,
+  pollPairingAction,
   pollTokenAction,
   workspaceEverConnectedAction,
 } from "../../actions/tokens";
@@ -15,6 +17,10 @@ import {
   ExecutorsGrid,
   type ExecutorSelection,
 } from "../../components/executors-grid";
+import {
+  PluginInstall,
+  type PluginPairing,
+} from "../../components/plugin-install";
 import { dict } from "../../lib/i18n";
 
 type ProjectData = {
@@ -91,6 +97,8 @@ export function Wizard({
   const [label, setLabel] = useState("Claude Code on this machine");
   const [tab, setTab] = useState<string>("claude-code");
   const [token, setToken] = useState<{ id: string; secret: string } | null>(null);
+  const [pairing, setPairing] = useState<PluginPairing | null>(null);
+  const [paired, setPaired] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -112,12 +120,30 @@ export function Wizard({
   }, []);
 
   useEffect(() => {
-    if (!token || connected) return;
+    if ((!token && !pairing) || connected) return;
     let stopped = false;
     const check = async () => {
       if (stopped) return;
-      const r = await pollTokenAction(token.id);
-      if (r.used && !stopped) setConnected(true);
+      // The plugin path has two moments worth showing: the installer taking
+      // the code, and the agent making its first call.
+      if (pairing && !paired) {
+        const p = await pollPairingAction(pairing.id);
+        if (p.paired && !stopped) setPaired(true);
+      }
+      if (token) {
+        const r = await pollTokenAction(token.id);
+        if (r.used && !stopped) {
+          setConnected(true);
+          return;
+        }
+      }
+      // The token the installer created belongs to the pairing code, not to
+      // this tab, so "has anything ever reached this workspace" is the only
+      // question the plugin path can honestly ask.
+      if (pairing) {
+        const w = await workspaceEverConnectedAction();
+        if (w.connected && !stopped) setConnected(true);
+      }
     };
     // This step asks the user to leave and paste the command in a terminal;
     // with the tab in the background Chrome throttles setInterval (down to
@@ -136,7 +162,7 @@ export function Wizard({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [token, connected]);
+  }, [token, pairing, paired, connected]);
 
   const goNext = () =>
     start(async () => {
@@ -163,6 +189,15 @@ export function Wizard({
       const r = await createTokenAction(label);
       if (!r.ok) return setErr(r.error);
       setToken({ id: r.id, secret: r.secret });
+    });
+
+  const genPairing = () =>
+    start(async () => {
+      setErr(null);
+      const r = await createPairingCodeAction(label);
+      if (!r.ok) return setErr(r.error);
+      setPairing({ id: r.id, code: r.code, expiresAt: r.expiresAt });
+      setPaired(false);
     });
 
   const copyCmd = async () => {
@@ -278,60 +313,94 @@ export function Wizard({
             <div className={`wstep${step === 3 ? " active" : ""}`}>
               <h2>{t.wizard.t3Title}</h2>
               <p className="sub">{t.wizard.t3Sub}</p>
-              <div className="field" style={{ maxWidth: 420 }}>
-                <label>{t.wizard.tokenName}</label>
-                <input
-                  className="input"
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  disabled={Boolean(token)}
-                />
-              </div>
-              {!token ? (
-                <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genToken}>
-                  {pending ? t.wizard.generating : t.wizard.generateToken}
-                </button>
-              ) : (
-                <>
-                  <div className="tabs" role="tablist" aria-label={t.wizard.commandTab}>
-                    {CMD_TABS.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={tab === c.id}
-                        className={tab === c.id ? "on" : ""}
-                        onClick={() => setTab(c.id)}
-                      >
-                        {c.label}
+
+              {/* The plugin is the path, and it is the path first: everything
+                  the board asks an agent to do (the skill, the hooks, the
+                  /overclick commands) comes with it, and the hand-written MCP
+                  entry below brings none of it. It was the other way round
+                  until OCL-102, which is how the whole 0.2 plugin managed to
+                  ship invisible to the people meant to run it. */}
+              <PluginInstall
+                origin={origin}
+                t={t}
+                label={label}
+                onLabelChange={setLabel}
+                pairing={pairing}
+                onGenerate={genPairing}
+                pending={pending}
+              />
+
+              <details className="alt-path">
+                <summary>{t.plugin.manualCap}</summary>
+                <p className="plug-lead">{t.plugin.manualNote}</p>
+                <div className="field" style={{ maxWidth: 420 }}>
+                  <label>{t.wizard.tokenName}</label>
+                  <input
+                    className="input"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    disabled={Boolean(token)}
+                  />
+                </div>
+                {!token ? (
+                  <button className="btn-next" style={{ marginBottom: 18 }} disabled={pending} onClick={genToken}>
+                    {pending ? t.wizard.generating : t.wizard.generateToken}
+                  </button>
+                ) : (
+                  <>
+                    <div className="tabs" role="tablist" aria-label={t.wizard.commandTab}>
+                      {CMD_TABS.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={tab === c.id}
+                          className={tab === c.id ? "on" : ""}
+                          onClick={() => setTab(c.id)}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="cmd">
+                      {commandFor(tab, baseUrl, revealed ? token.secret : maskedSecret)}
+                      <button className={`copy${copied ? " ok" : ""}`} onClick={copyCmd}>
+                        <Icon name={copied ? "check" : "copy"} label={null} size={12} />
+                        {copied ? t.wizard.copied : t.wizard.copy}
                       </button>
-                    ))}
-                  </div>
-                  <div className="cmd">
-                    {commandFor(tab, baseUrl, revealed ? token.secret : maskedSecret)}
-                    <button className={`copy${copied ? " ok" : ""}`} onClick={copyCmd}>
-                      <Icon name={copied ? "check" : "copy"} label={null} size={12} />
-                      {copied ? t.wizard.copied : t.wizard.copy}
-                    </button>
-                  </div>
-                  <div className="tok-note">
-                    {t.wizard.tokNote}{" "}
-                    <span className="reveal" onClick={() => setRevealed(!revealed)}>
-                      {revealed ? t.wizard.hide : t.wizard.reveal}
-                    </span>
-                  </div>
-                </>
-              )}
-              {token ? (
+                    </div>
+                    <div className="tok-note">
+                      {t.wizard.tokNote}{" "}
+                      <span className="reveal" onClick={() => setRevealed(!revealed)}>
+                        {revealed ? t.wizard.hide : t.wizard.reveal}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </details>
+
+              {token || pairing ? (
                 <div className={`conn${connected ? " lit" : ""}`}>
                   <div className="l1">
                     <span className={`pip${connected ? " green" : ""}`} />
-                    <span>{connected ? t.wizard.connected : t.wizard.waiting}</span>
+                    <span>
+                      {connected
+                        ? t.wizard.connected
+                        : paired
+                          ? t.wizard.paired
+                          : t.wizard.waiting}
+                    </span>
                   </div>
                   <div className="l2">
                     {connected ? `${label} · ${t.wizard.justNow}` : t.wizard.pasteCmd}
                   </div>
-                  <div className="cap">{connected ? t.wizard.firstCall : t.wizard.polling}</div>
+                  <div className="cap">
+                    {connected
+                      ? t.wizard.firstCall
+                      : paired
+                        ? t.wizard.pairedCap
+                        : t.wizard.polling}
+                  </div>
                 </div>
               ) : null}
             </div>

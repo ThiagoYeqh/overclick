@@ -294,6 +294,8 @@ const en = {
     connected: "Agent connected.",
     waiting: "Waiting for the first connection…",
     pasteCmd: "Paste the command in your terminal. I'll keep watch.",
+    paired: "Code used. The installer is setting up your CLIs…",
+    pairedCap: "PAIRED ✓",
     justNow: "just now",
     firstCall: "FIRST CALL ✓",
     polling: "POLLING · 2s ⟳",
@@ -302,6 +304,23 @@ const en = {
     seeMyBoard: "See my board",
     finish: "Finish",
     next: "Next",
+  },
+  plugin: {
+    cap: "install the plugin",
+    lead:
+      "One command sets the OverClick plugin up on this machine: MCP access, the board skill, the lifecycle hooks and the /overclick commands, on Claude Code, Codex, Grok and Kimi, whichever of them it finds.",
+    nameLabel: "Name this machine",
+    namePlaceholder: "Claude Code on this machine",
+    generate: "Generate the command",
+    regenerate: "Generate a new command",
+    codeLive: "the code inside it expires in",
+    codeExpired: "the code expired · generate a new command",
+    codeWhy: "the command carries a single-use code, so you never paste a token",
+    safety:
+      "those six digits are a pairing code, not a token: one use, ten minutes, worthless once spent · the installer trades it on /api/pair and never prints the real token",
+    manualCap: "Manual MCP setup (advanced)",
+    manualNote:
+      "The same access with more steps: generate a token and paste the MCP configuration into your CLI by hand. No skill, no hooks, no commands.",
   },
   settings: {
     title: "Settings",
@@ -834,6 +853,8 @@ const ptBR: Dict = {
     connected: "Agente conectado.",
     waiting: "Aguardando a primeira conexão…",
     pasteCmd: "Cole o comando no seu terminal. Eu fico de olho.",
+    paired: "Código usado. O instalador está configurando suas CLIs…",
+    pairedCap: "PAREADO ✓",
     justNow: "agora mesmo",
     firstCall: "PRIMEIRA CHAMADA ✓",
     polling: "POLLING · 2s ⟳",
@@ -842,6 +863,23 @@ const ptBR: Dict = {
     seeMyBoard: "Ver meu board",
     finish: "Concluir",
     next: "Avançar",
+  },
+  plugin: {
+    cap: "instalar o plugin",
+    lead:
+      "Um comando instala o plugin do OverClick nesta máquina: acesso MCP, a skill do board, os hooks de ciclo de vida e os comandos /overclick, no Claude Code, Codex, Grok e Kimi, os que ele encontrar.",
+    nameLabel: "Nome desta máquina",
+    namePlaceholder: "Claude Code nesta máquina",
+    generate: "Gerar o comando",
+    regenerate: "Gerar um novo comando",
+    codeLive: "o código dentro dele expira em",
+    codeExpired: "o código expirou · gere um novo comando",
+    codeWhy: "o comando já vem com um código de uso único, então você nunca cola um token",
+    safety:
+      "esses seis dígitos são um código de pareamento, não um token: valem uma vez, duram dez minutos e não servem pra nada depois de usados · o instalador troca ele em /api/pair e nunca imprime o token real",
+    manualCap: "Configuração MCP manual (avançado)",
+    manualNote:
+      "O mesmo acesso com mais passos: gere um token e cole a configuração MCP na sua CLI na mão. Sem skill, sem hooks, sem comandos.",
   },
   settings: {
     title: "Configurações",

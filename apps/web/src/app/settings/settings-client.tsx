@@ -16,6 +16,10 @@ import {
 } from "../../actions/tokens";
 import { saveUpdateModeAction } from "../../actions/updates";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
+import {
+  PluginInstall,
+  type PluginPairing,
+} from "../../components/plugin-install";
 import { UpdatePanel } from "../../components/update-panel";
 import { Wordmark } from "../../components/wordmark";
 import {
@@ -443,19 +447,26 @@ export function SettingsClient({
   };
 
   // ---- pairing code: the token never travels through a chat
-  const [pairFresh, setPairFresh] = useState<{ code: string } | null>(null);
+  //
+  // One state for both surfaces, because the board keeps one live code per
+  // workspace: generating from either place kills the other's code, and two
+  // blocks showing two different sets of six digits, one of them already dead,
+  // is the confusion that costs somebody a terminal round trip.
+  const [pairFresh, setPairFresh] = useState<PluginPairing | null>(null);
   const [pairCopied, setPairCopied] = useState(false);
+  const [machineLabel, setMachineLabel] = useState("");
   const pairCmd = pairFresh
     ? `curl -sX POST ${origin}/api/pair \\\n  -H 'Content-Type: application/json' -d '{"code":"${pairFresh.code}"}'`
     : "";
-  const genPair = () =>
+  const makePairing = (label: string) =>
     start(async () => {
       setErr(null); setMsg(null);
-      const r = await createPairingCodeAction(newLabel || "paired agent");
+      const r = await createPairingCodeAction(label || "paired agent");
       if (!r.ok) return setErr(r.error);
-      setPairFresh({ code: r.code });
-      setNewLabel("");
+      setPairFresh({ id: r.id, code: r.code, expiresAt: r.expiresAt });
     });
+  const genPair = () => makePairing(newLabel);
+  const genPluginPairing = () => makePairing(machineLabel);
   const copyPair = async () => {
     if (!pairFresh) return;
     try {
@@ -888,9 +899,20 @@ export function SettingsClient({
           role="tabpanel"
           aria-labelledby="settab-tokens"
         >
-          <div className="sec-cap" style={{ marginTop: 0 }}>
-            {t.settings.tokensCap}
-          </div>
+          {/* Same offer as onboarding step three, for everyone who already
+              walked past it: the plugin first, the hand-written MCP entry
+              folded away under it (OCL-102). */}
+          <PluginInstall
+            origin={origin}
+            t={t}
+            label={machineLabel}
+            onLabelChange={setMachineLabel}
+            pairing={pairFresh}
+            onGenerate={genPluginPairing}
+            pending={pending}
+          />
+
+          <div className="sec-cap">{t.settings.tokensCap}</div>
           <div className="tok-list">
             {tokens.length === 0 ? (
               <div className="empty-col">{t.settings.tokensEmpty}</div>
@@ -917,6 +939,10 @@ export function SettingsClient({
               ))
             )}
           </div>
+
+          <details className="alt-path">
+          <summary>{t.plugin.manualCap}</summary>
+          <p className="plug-lead">{t.plugin.manualNote}</p>
 
           {fresh ? (
             <div className="fresh-tok">
@@ -987,6 +1013,7 @@ export function SettingsClient({
           <div className="policy-note" style={{ borderTop: 0, paddingTop: 8 }}>
             {t.settings.maskedNote}
           </div>
+          </details>
         </div>
 
         {/* ---- CLAIM LEASE ---- */}
