@@ -48,7 +48,7 @@ one's *native* plugin manager (Claude Code, Codex, Grok, Kimi). See the reposito
 | `skills/overclick` | The workflow: how to read a card contract, claim it, deliver it with measured usage |
 | `commands/` | `/board`, `/card`, `/claim`, `/deliver`, `/release` |
 | `hooks/hooks.json` | Board snapshot at session start; claim-marker bookkeeping; a delivery commit check; opt-in guards |
-| `.mcp.json` | The `overclick` MCP server, read from `${OVERCLICK_URL}` / `${OVERCLICK_TOKEN}` |
+| `.mcp.json` | Empty on purpose: the package declares no MCP server. The installer writes the `overclick` server into each CLI's own configuration, with your instance URL resolved, so a marketplace install can never leave you a server that cannot connect |
 | `OVERCLICK.md` | The canonical rules the skill and commands both defer to |
 
 ## Network endpoints and credentials

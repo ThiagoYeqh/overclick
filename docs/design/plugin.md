@@ -15,13 +15,62 @@ Provider manifests adapt that same package to each native loader.
 | Repository marketplace | `.claude-plugin/marketplace.json` | `.grok-plugin/marketplace.json` | Official registry (`curated` tier) plus native custom install | Installer-created local marketplace | No public registry; installs from a directory or a GitHub subpath |
 | Skill | `skills/overclick/SKILL.md` | Same | Same | Same | Same |
 | Commands | Auto-discovered `commands/` | Auto-discovered `commands/` | `commands` manifest field | Skill-driven; not declared in the manifest | Auto-discovered `commands/`, converted to namespaced skills |
-| MCP | `.mcp.json` plus native user config | `.mcp.json` plus native user config | `mcpServers` plus private user config | `mcpServers` manifest field plus `[mcp_servers]` user config | `mcp_config.json` in the plugin (`serverUrl` + `headers`) |
+| MCP | `claude mcp add`, user scope | `grok mcp add`, user scope | `~/.kimi-code/mcp.json` | `[mcp_servers.overclick]` in `config.toml` | `mcp_config.json` in the plugin (`serverUrl` + `headers`) - its only channel |
 | Hooks | `hooks/hooks.json` | `hooks/hooks.json` | `hooks` manifest field | Global lifecycle hooks, but no client-side claim guard; deliberately absent from the plugin manifest | `hooks.json` at the plugin root, dispatched through `hooks/antigravity.sh` |
 | Memory | `@` import in `~/.claude/CLAUDE.md` | Bundled skill only | Bundled skill only | Bundled skill only | `rules/AGENTS.md` inside the plugin, loaded whenever the plugin is enabled |
 
 The Codex manifest contains only the skill and MCP contributions. Its installer
 uses the native marketplace manager, then writes the required user MCP block and
 merges global hooks without replacing unrelated rules.
+
+### One MCP registration per CLI, and none in the package (OCL-114)
+
+The package declares **no** MCP server. `plugin/.mcp.json`, `plugin/mcp_config.json`
+and `plugin/.codex-plugin/mcp.json` ship an empty `mcpServers`, and
+`plugin/kimi.plugin.json` has no `mcpServers` key at all - the same reasoning that
+already kept it out of the repository-root `.kimi-plugin/plugin.json`, applied
+everywhere.
+
+Two failures came out of the old arrangement, and both were seen on a real machine:
+
+- A `${OVERCLICK_URL}` placeholder is not expanded by any of these CLIs from the
+  package itself. Kimi drops the server silently. Claude keeps it and reports
+  `${OVERCLICK_URL} (HTTP) - Failed to connect`. Anyone installing straight from a
+  marketplace - the documented path for users who only want the plugin - therefore
+  got a server that could never connect, and every agent reading it concluded the
+  board was down.
+- Where install.sh *did* resolve the URL, it wrote the server into the package copy
+  **and** into the CLI's own configuration, so each CLI ended up holding two servers
+  named `overclick`. A stale package copy could then shadow a working connection.
+
+So: install.sh writes the resolved server where each CLI keeps its own servers, and
+never into the package. Antigravity is the exception, because its plugin manifest is
+the only channel it reads; that copy stays mode-600. A registry or marketplace install
+without install.sh gets the skill, commands and hooks and no server - absent, never
+dead.
+
+The installer also refuses an instance URL whose host is in a reserved namespace
+(RFC 2606/6761: `.invalid`, `.test`, `.example`), because such a URL is a test
+fixture rather than a board and baking it produces exactly the dead server above.
+
+And it will not take the name over: if a CLI already holds an `overclick` server
+pointing at a different instance, that registration is left alone with an
+instruction, while one pointing at this instance is refreshed as before.
+
+### `--header` is variadic (OCL-114)
+
+`claude mcp add` and `grok mcp add` declare `-H, --header <header...>`. A variadic
+option consumes every following argument that is not itself an option, so
+
+```
+claude mcp add --transport http --scope user --header "Authorization: Bearer …" overclick <url>
+```
+
+hands `overclick` and `<url>` to `--header` and dies on `missing required argument
+'name'`. `quiet_try` renders that as "needs manual confirmation in its native plugin
+manager", which reads like advice rather than a failure, so the Claude registration
+had been failing silently while the package's own `.mcp.json` carried the connection.
+The name and the URL go before `--header`.
 
 ## Hook policy
 
@@ -70,6 +119,16 @@ mode-600 permission on the materialized `mcp_config.json`. The repository packag
 stays a generic template. The stable package copy and a mode-600 config live in
 the user's configuration area. Provider MCP config is updated idempotently; Codex gets
 an explicit `[mcp_servers.overclick]` block and merged global hooks.
+
+`OVERCLICK_INSTALL_HOME` redirects the *managers*, not only the files (OCL-114).
+The native plugin managers resolve their user scope from `HOME` - and Claude Code
+from `CLAUDE_CONFIG_DIR` when that is exported, which a session managing more than
+one account does - so a sandboxed or test run used to register a marketplace in the
+operator's real configuration, pointing at a temporary directory and carrying
+whatever instance that run was given. The installer now overrides `HOME`,
+`XDG_CONFIG_HOME`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME` and
+`GEMINI_HOME` whenever `OVERCLICK_INSTALL_HOME` is set. They are overrides rather
+than defaults for the reason above: an ambient value would otherwise win.
 
 `GET /install.sh?code=NNNNNN` serves the same script with the instance URL and a
 one-time pairing code answered ahead of the prompts, which is what makes the

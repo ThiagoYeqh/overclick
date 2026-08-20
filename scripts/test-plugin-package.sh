@@ -28,12 +28,24 @@ done
 
 jq -e '.skills and .mcpServers and (has("hooks") | not) and (has("commands") | not)' \
   "$REPO_ROOT/plugin/.codex-plugin/plugin.json" >/dev/null
-jq -e '.skills and .mcpServers and (.hooks | length == 6) and .commands' \
+jq -e '.skills and (.hooks | length == 6) and .commands' \
   "$REPO_ROOT/plugin/kimi.plugin.json" >/dev/null
-# Kimi discriminates MCP transports on "transport"; a "type" key is dropped and the
-# transport re-inferred from the url, so declaring it is working by accident.
-jq -e '.mcpServers.overclick.transport == "http" and (.mcpServers.overclick | has("type") | not)' \
-  "$REPO_ROOT/plugin/kimi.plugin.json" >/dev/null
+
+# OCL-114. The package ships NO MCP server. A `${OVERCLICK_URL}` placeholder is
+# never expanded by the CLIs, so every marketplace install used to hand the user
+# an `overclick` server that could not connect - and, on a machine where a run
+# had baked a fixture instance into these files, one that pointed at a host that
+# does not exist. install.sh writes the resolved server into each CLI's own
+# configuration instead, so the only thing the package can contribute is nothing.
+for template in plugin/.mcp.json plugin/mcp_config.json plugin/.codex-plugin/mcp.json; do
+  jq -e '.mcpServers | length == 0' "$REPO_ROOT/$template" >/dev/null ||
+    { echo "$template must ship no MCP server" >&2; exit 1; }
+done
+jq -e 'has("mcpServers") | not' "$REPO_ROOT/plugin/kimi.plugin.json" >/dev/null
+if grep -rq 'OVERCLICK_URL' "$REPO_ROOT/plugin"; then
+  echo "the package still carries an unexpandable OVERCLICK_URL placeholder" >&2
+  exit 1
+fi
 # Kimi finds a plugin root only in an archive root or a single child directory, so a
 # repository install needs a root manifest pointing into ./plugin/. It carries no
 # mcpServers: a registry install cannot know the instance URL, and Kimi drops an
@@ -71,6 +83,43 @@ touch "$TEST_ROOT/codex-cache/OVERCLICK.md"
 cat >"$TEST_ROOT/bin/agent-stub" <<'SH'
 #!/bin/sh
 printf '%s:%s:%s\n' "$(basename -- "$0")" "${1:-}" "${2:-}" >>"$OC_TEST_NATIVE_LOG"
+# The native managers resolve their own user scope from HOME, so what HOME was
+# when they ran is the whole question a sandboxed install has to answer.
+printf 'home:%s\n' "${HOME:-}" >>"$OC_TEST_NATIVE_LOG"
+# `claude mcp add` and `grok mcp add` declare `-H, --header <header...>`, a
+# VARIADIC option: it consumes every following argument that is not itself an
+# option. Put the name and the URL after it and they become header values, and
+# the command dies on "missing required argument 'name'" - which quiet_try
+# reports as a step to confirm by hand, so the failure reads like a warning
+# (OCL-114). Parse the way commander does, so the ordering stays under test.
+if [ "${1:-}" = "mcp" ] && [ "${2:-}" = "add" ]; then
+  shift 2
+  positionals=0
+  collecting=0
+  url=""
+  for argument in "$@"; do
+    case "$argument" in
+      --header|-H) collecting=1; continue ;;
+      --transport|--scope|-s) collecting=0; skip_value=1; continue ;;
+      -*) collecting=0; continue ;;
+    esac
+    if [ "${skip_value:-0}" = "1" ]; then skip_value=0; continue; fi
+    if [ "$collecting" = "1" ]; then continue; fi
+    positionals=$((positionals + 1))
+    case "$argument" in http://*|https://*) url=$argument ;; esac
+  done
+  if [ "$positionals" -lt 2 ]; then
+    echo "error: missing required argument 'name'" >&2
+    exit 1
+  fi
+  printf 'mcp-url:%s\n' "$url" >>"$OC_TEST_NATIVE_LOG"
+  exit 0
+fi
+# A board somebody already configured under this name. The real CLIs print the
+# server they hold; an absent one is empty output here and a non-zero exit there.
+if [ "${1:-}" = "mcp" ] && [ "${2:-}" = "get" ]; then
+  [ -n "${OC_TEST_EXISTING_MCP:-}" ] && printf 'overclick: %s (HTTP)\n' "$OC_TEST_EXISTING_MCP"
+fi
 if [ "${1:-}" = "plugin" ] && [ "${2:-}" = "list" ]; then
   case "$(basename -- "$0")" in
     claude)
@@ -160,9 +209,14 @@ test "$(file_mode "$TEST_ROOT/home/.config/overclick/config")" -eq 600
 # carry a resolved url: Kimi validates it and silently drops the server otherwise.
 test "$(jq -r '[.plugins[] | select(.id == "overclick")] | length' \
   "$TEST_ROOT/home/.kimi-code/plugins/installed.json")" -eq 1
-jq -e '.mcpServers.overclick.transport == "http"
-  and (.mcpServers.overclick.url | startswith("$") | not)' \
+jq -e 'has("mcpServers") | not' \
   "$TEST_ROOT/home/.kimi-code/plugins/managed/overclick/kimi.plugin.json" >/dev/null
+# Kimi discriminates MCP transports on "transport"; a "type" key is dropped and the
+# transport re-inferred from the url, so declaring it is working by accident.
+jq -e --arg url "$FIXTURE_URL/mcp" '.mcpServers.overclick.transport == "http"
+  and .mcpServers.overclick.url == $url
+  and (.mcpServers.overclick | has("type") | not)' \
+  "$TEST_ROOT/home/.kimi-code/mcp.json" >/dev/null
 test -x "$TEST_ROOT/home/.kimi-code/plugins/managed/overclick/hooks/claim-guard.sh"
 
 # Antigravity gets the package through its own manager, so what has to hold is
@@ -184,8 +238,41 @@ jq -e '.overclick | (.PreToolUse | length == 2) and (.PostToolUse | length == 1)
   and .PreInvocation and .Stop' "$agy_plugin/hooks.json" >/dev/null
 # The repository package stays a generic template: only the installed copy is
 # allowed to carry an instance.
-jq -e '.mcpServers.overclick.serverUrl == "${OVERCLICK_URL}"' \
-  "$REPO_ROOT/plugin/mcp_config.json" >/dev/null
+jq -e '.mcpServers | length == 0' "$REPO_ROOT/plugin/mcp_config.json" >/dev/null
+
+# OCL-114: every copy the installer leaves behind, other than the Antigravity
+# one above and each CLI's own config, must be free of a server entry - so no
+# CLI can end up with two `overclick` servers, and no dead one can survive in a
+# marketplace directory after the instance it was baked from is gone.
+for copy in \
+  "$TEST_ROOT/home/.config/overclick/plugin" \
+  "$TEST_ROOT/home/.config/overclick/native-marketplace/plugin" \
+  "$TEST_ROOT/home/.config/overclick/codex-marketplace/plugins/overclick"; do
+  jq -e '.mcpServers | length == 0' "$copy/.mcp.json" >/dev/null ||
+    { echo "$copy/.mcp.json declares a duplicate MCP server" >&2; exit 1; }
+  jq -e 'has("mcpServers") | not' "$copy/kimi.plugin.json" >/dev/null ||
+    { echo "$copy/kimi.plugin.json declares a duplicate MCP server" >&2; exit 1; }
+  if grep -Rq 'fixture' "$copy/.mcp.json" "$copy/kimi.plugin.json"; then
+    echo "$copy still carries baked credentials" >&2
+    exit 1
+  fi
+done
+
+# The one registration Claude gets has to be the resolved instance, and it has
+# to be written through Claude's own manager rather than into the package.
+grep -Fq "mcp-url:$FIXTURE_URL/mcp" "$TEST_ROOT/native.log"
+# quiet_try turns a failed registration into a line that reads like advice, so
+# the absence of that line is the only thing that says the server was really
+# registered.
+if grep -Fq 'Claude MCP needs manual confirmation' "$TEST_ROOT/install.err"; then
+  echo "the Claude MCP registration failed" >&2
+  exit 1
+fi
+grep -Fq 'Claude MCP configured.' "$TEST_ROOT/install.out"
+# A sandboxed install must not reach the operator's real configuration: the
+# native managers resolve their user scope from HOME, so HOME has to follow
+# OVERCLICK_INSTALL_HOME (OCL-114).
+grep -Fq "home:$TEST_ROOT/home" "$TEST_ROOT/native.log"
 
 # A PreToolUse hook that answers with an empty object is read by Antigravity as
 # a denial, so the adapter has to speak on every path — including the one where
@@ -485,5 +572,57 @@ git -C "$TEST_ROOT/git/work" remote add origin "$TEST_ROOT/git/remote.git"
 git -C "$TEST_ROOT/git/work" push -u origin HEAD >/dev/null 2>&1
 commit=$(git -C "$TEST_ROOT/git/work" rev-parse HEAD)
 (cd "$TEST_ROOT/git/work" && printf '{"tool_input":{"evidence":[{"text":"commit %s"}]}}' "$commit" | "$REPO_ROOT/plugin/hooks/post-deliver.sh")
+
+# OCL-114, the shape of the original failure: a run pointed at a reserved,
+# unresolvable namespace baked that host into the agent configs and every agent
+# that read them concluded the board was down. It has to be refused up front.
+if PATH="$TEST_ROOT/bin:$PATH" \
+  OC_TEST_NATIVE_LOG="$TEST_ROOT/reserved-native.log" \
+  OC_TEST_CLAUDE_CACHE="$TEST_ROOT/claude-cache" \
+  OC_TEST_CODEX_CACHE="$TEST_ROOT/codex-cache" \
+  OVERCLICK_INSTALL_HOME="$TEST_ROOT/home-reserved" \
+  OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
+  OVERCLICK_INSTANCE_URL="$(printf '%s%s%s' 'https' '://' 'board.invalid')" \
+  OVERCLICK_TOKEN="fixture" \
+  OVERCLICK_CLIS="claude" \
+    "$REPO_ROOT/install.sh" >"$TEST_ROOT/reserved.out" 2>"$TEST_ROOT/reserved.err"; then
+  echo "installer accepted an instance URL in a reserved namespace" >&2
+  exit 1
+fi
+grep -Fq 'reserved namespace' "$TEST_ROOT/reserved.err"
+test ! -e "$TEST_ROOT/home-reserved/.config/overclick/config"
+test ! -e "$TEST_ROOT/reserved-native.log"
+
+# A server already named `overclick` and pointing somewhere else is somebody's
+# working board. Installing must not take the name over: no remove, no add.
+PATH="$TEST_ROOT/bin:$PATH" \
+OC_TEST_NATIVE_LOG="$TEST_ROOT/collision-native.log" \
+OC_TEST_CLAUDE_CACHE="$TEST_ROOT/claude-cache" \
+OC_TEST_CODEX_CACHE="$TEST_ROOT/codex-cache" \
+OC_TEST_EXISTING_MCP="$(printf '%s%s%s' 'https' '://' 'other-board.internal/mcp')" \
+OVERCLICK_INSTALL_HOME="$TEST_ROOT/home-collision" \
+OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
+OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
+OVERCLICK_TOKEN="fixture" \
+OVERCLICK_CLIS="claude" \
+  "$REPO_ROOT/install.sh" >"$TEST_ROOT/collision.out" 2>"$TEST_ROOT/collision.err"
+grep -Fq 'left untouched' "$TEST_ROOT/collision.err"
+test "$(grep -c '^claude:mcp:remove$' "$TEST_ROOT/collision-native.log" || true)" -eq 0
+test "$(grep -c '^mcp-url:' "$TEST_ROOT/collision-native.log" || true)" -eq 0
+
+# The same server pointing at THIS instance is just a credential refresh, so a
+# re-run must still rewrite it rather than skip it.
+PATH="$TEST_ROOT/bin:$PATH" \
+OC_TEST_NATIVE_LOG="$TEST_ROOT/refresh-native.log" \
+OC_TEST_CLAUDE_CACHE="$TEST_ROOT/claude-cache" \
+OC_TEST_CODEX_CACHE="$TEST_ROOT/codex-cache" \
+OC_TEST_EXISTING_MCP="$FIXTURE_URL/mcp" \
+OVERCLICK_INSTALL_HOME="$TEST_ROOT/home-refresh" \
+OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
+OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
+OVERCLICK_TOKEN="fixture" \
+OVERCLICK_CLIS="claude" \
+  "$REPO_ROOT/install.sh" >"$TEST_ROOT/refresh.out" 2>"$TEST_ROOT/refresh.err"
+grep -Fq "mcp-url:$FIXTURE_URL/mcp" "$TEST_ROOT/refresh-native.log"
 
 echo "plugin package checks passed"
