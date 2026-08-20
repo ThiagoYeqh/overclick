@@ -1,15 +1,17 @@
 import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
- * Failed pairing exchanges, counted for the whole instance.
+ * Attempts spent against the public pairing endpoint, counted per scope.
  *
  * A wrong guess matches no row, because the lookup is by hash, so there is
  * no code to attribute the attempt to and the counter has to live outside
- * the codes. One row is enough: only one code is live per workspace, and
- * the question being asked is whether somebody is guessing at all.
+ * the codes. What it can be attributed to is where it came from, which is
+ * why the key is a scope string and not a fixed one: a single instance-wide
+ * counter would let ten anonymous requests freeze the pairing of every
+ * workspace at once.
  */
 export const pairingFailure = pgTable("pairing_failure", {
-  /** Fixed key. This table holds exactly one row. */
+  /** The scope the attempts are charged to, e.g. `origin:203.0.113.7`. */
   id: text("id").primaryKey(),
   count: integer("count").notNull().default(0),
   windowStartedAt: timestamp("window_started_at", { withTimezone: true })

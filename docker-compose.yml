@@ -37,6 +37,14 @@ services:
       # OCL-73: tells the update banner/panel which command to show. Never
       # "hosted" here — that value is reserved for deploy/docker-compose.cloud.yml.
       OVERCLICK_DEPLOY_MODE: quickstart
+      # GHSA-hccf: the pairing endpoint charges wrong guesses to the origin
+      # they came from, and the only way it learns one is from a proxy that
+      # APPENDS the peer to x-forwarded-for. Off here because this file
+      # publishes port 3000 directly, and a caller that reaches the app
+      # itself would just be naming itself. Turn it on only when something
+      # of yours sits in front:
+      #   OVERCLICK_TRUSTED_PROXY=1 docker compose up
+      OVERCLICK_TRUSTED_PROXY: "${OVERCLICK_TRUSTED_PROXY:-0}"
     volumes:
       - update-trigger:/update-trigger
     ports:
