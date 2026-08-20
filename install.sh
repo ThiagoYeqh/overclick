@@ -187,9 +187,9 @@ else:
     data = {}
 
 mode = os.environ["OC_JSON_MODE"]
-if mode == "mcp":
+if mode in ("mcp", "mcp-kimi"):
     data.setdefault("mcpServers", {})["overclick"] = {
-        "type": "http",
+        ("transport" if mode == "mcp-kimi" else "type"): "http",
         "url": os.environ["OC_MCP_URL"],
         "headers": {"Authorization": "Bearer " + os.environ["OC_MCP_TOKEN"]},
     }
@@ -229,10 +229,10 @@ const path = require("node:path");
 const file = process.env.OC_JSON_FILE;
 let data = {};
 if (fs.existsSync(file)) data = JSON.parse(fs.readFileSync(file, "utf8"));
-if (process.env.OC_JSON_MODE === "mcp") {
+if (process.env.OC_JSON_MODE === "mcp" || process.env.OC_JSON_MODE === "mcp-kimi") {
   data.mcpServers ??= {};
   data.mcpServers.overclick = {
-    type: "http",
+    [process.env.OC_JSON_MODE === "mcp-kimi" ? "transport" : "type"]: "http",
     url: process.env.OC_MCP_URL,
     headers: { Authorization: "Bearer " + process.env.OC_MCP_TOKEN },
   };
@@ -267,7 +267,7 @@ JS
 # work without requiring shell profile edits. The repository package remains a
 # generic environment-variable template.
 merge_json_config mcp "$plugin_target/.mcp.json"
-merge_json_config mcp "$plugin_target/kimi.plugin.json"
+merge_json_config mcp-kimi "$plugin_target/kimi.plugin.json"
 chmod 600 "$plugin_target/.mcp.json" "$plugin_target/kimi.plugin.json"
 
 native_marketplace="$overclick_root/native-marketplace"
@@ -414,12 +414,66 @@ if has_cli grok; then
     --header "Authorization: Bearer $token" overclick "$mcp_url"
 fi
 
+# Kimi Code has no non-interactive plugin subcommand: `/plugins install` is a TUI
+# slash command, and `--prompt` hands slash commands to the model instead of the
+# host (and refuses to combine with --auto/--yolo at all). So we write Kimi's own
+# plugin registry directly, the same way its manager does: copy the payload to
+# plugins/managed/<id> and register it in plugins/installed.json, preserving any
+# other installed plugin.
+kimi_register_plugin() {
+  local kimi_home=${KIMI_CODE_HOME:-$install_home/.kimi-code}
+  local managed="$kimi_home/plugins/managed/overclick"
+
+  mkdir -p "$kimi_home/plugins/managed" || return 1
+  rm -rf "$managed" || return 1
+  cp -R "$plugin_target" "$managed" || return 1
+
+  OC_KIMI_INSTALLED="$kimi_home/plugins/installed.json" OC_KIMI_ROOT="$managed" \
+    OC_PLUGIN_TARGET="$plugin_target" python3 <<'KIMIPY'
+import json, os, pathlib, tempfile
+from datetime import datetime, timezone
+
+path = pathlib.Path(os.environ["OC_KIMI_INSTALLED"])
+data = {"version": 1, "plugins": []}
+if path.exists():
+    try:
+        loaded = json.loads(path.read_text())
+    except Exception as exc:
+        raise SystemExit(f"Refusing to replace invalid Kimi plugin registry: {exc}")
+    if isinstance(loaded, dict) and isinstance(loaded.get("plugins"), list):
+        data = loaded
+
+now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+previous = next((p for p in data["plugins"] if p.get("id") == "overclick"), {})
+plugins = [p for p in data["plugins"] if p.get("id") != "overclick"]
+plugins.append({
+    "id": "overclick",
+    "root": os.environ["OC_KIMI_ROOT"],
+    "source": "local-path",
+    "enabled": previous.get("enabled", True),
+    "installedAt": previous.get("installedAt", now),
+    "updatedAt": now,
+    "originalSource": os.environ["OC_PLUGIN_TARGET"],
+})
+data["plugins"] = plugins
+
+path.parent.mkdir(parents=True, exist_ok=True)
+fd, temp_name = tempfile.mkstemp(prefix=".overclick-", dir=path.parent)
+with os.fdopen(fd, "w") as handle:
+    json.dump(data, handle, indent=2)
+    handle.write("\n")
+os.replace(temp_name, path)
+os.chmod(path, 0o600)
+KIMIPY
+}
+
 if has_cli kimi; then
-  kimi_plugin_path=${plugin_target//\\/\\\\}
-  kimi_plugin_path=${kimi_plugin_path//\"/\\\"}
-  quiet_try "Kimi plugin" kimi --auto --prompt "/plugins install \"$kimi_plugin_path\""
-  merge_json_config mcp "$install_home/.kimi-code/mcp.json"
-  quiet_try "Kimi MCP" kimi --auto --prompt "/plugins mcp enable overclick overclick"
+  merge_json_config mcp-kimi "$install_home/.kimi-code/mcp.json"
+  if command -v python3 >/dev/null 2>&1 && kimi_register_plugin; then
+    printf '%s\n' "Kimi plugin configured."
+  else
+    printf '%s\n' "Kimi plugin needs manual confirmation: run /plugins install $plugin_target inside Kimi Code." >&2
+  fi
 fi
 
 if [[ "${OVERCLICK_AGENTS_FALLBACK:-0}" = "1" ]] || \

@@ -2,15 +2,21 @@
   "name": "overclick",
   "version": "0.1.12",
   "description": "Run the complete OverClick card workflow from Kimi Code.",
-  "keywords": ["overclick", "task-board", "mcp"],
+  "keywords": [
+    "overclick",
+    "task-board",
+    "mcp"
+  ],
   "author": {
     "name": "OverClick"
   },
   "license": "MIT",
-  "skills": ["./skills/overclick"],
+  "skills": [
+    "./skills/overclick"
+  ],
   "mcpServers": {
     "overclick": {
-      "type": "http",
+      "transport": "http",
       "url": "${OVERCLICK_URL}",
       "headers": {
         "Authorization": "Bearer ${OVERCLICK_TOKEN}"

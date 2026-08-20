@@ -10,6 +10,18 @@ jq -e '.skills and .mcpServers and (has("hooks") | not) and (has("commands") | n
   "$REPO_ROOT/plugin/.codex-plugin/plugin.json" >/dev/null
 jq -e '.skills and .mcpServers and (.hooks | length == 6) and .commands' \
   "$REPO_ROOT/plugin/kimi.plugin.json" >/dev/null
+# Kimi discriminates MCP transports on "transport"; a "type" key is dropped and the
+# transport re-inferred from the url, so declaring it is working by accident.
+jq -e '.mcpServers.overclick.transport == "http" and (.mcpServers.overclick | has("type") | not)' \
+  "$REPO_ROOT/plugin/kimi.plugin.json" >/dev/null
+# Kimi finds a plugin root only in an archive root or a single child directory, so a
+# repository install needs a root manifest pointing into ./plugin/. It carries no
+# mcpServers: a registry install cannot know the instance URL, and Kimi drops an
+# unresolvable url silently.
+jq -e '(.skills | index("./plugin/skills/overclick")) and .commands == "./plugin/commands"
+  and (.hooks | length == 6) and (.hooks | all(.command | startswith("./plugin/hooks/")))
+  and (has("mcpServers") | not)' \
+  "$REPO_ROOT/.kimi-plugin/plugin.json" >/dev/null
 jq -e '.hooks | keys | sort == ["PostToolUse", "PreToolUse", "SessionStart", "Stop"]' \
   "$REPO_ROOT/plugin/hooks/hooks.json" >/dev/null
 jq -e '(.hooks.PostToolUse | length == 2) and (.hooks.PreToolUse | length == 2)' \
@@ -74,6 +86,17 @@ test "$(grep -c 'claim-guard.sh' "$TEST_ROOT/home/.codex/hooks.json" || true)" -
 test "$(grep -c '^enforce_claim=0$' "$TEST_ROOT/home/.config/overclick/config")" -eq 1
 test "$(grep -c '^token=' "$TEST_ROOT/home/.config/overclick/config")" -eq 1
 test "$(stat -f '%Lp' "$TEST_ROOT/home/.config/overclick/config" 2>/dev/null || stat -c '%a' "$TEST_ROOT/home/.config/overclick/config")" -eq 600
+
+# Kimi has no non-interactive plugin subcommand, so install.sh writes its registry
+# directly. Running twice must leave exactly one entry, and the installed copy must
+# carry a resolved url: Kimi validates it and silently drops the server otherwise.
+test "$(jq -r '[.plugins[] | select(.id == "overclick")] | length' \
+  "$TEST_ROOT/home/.kimi-code/plugins/installed.json")" -eq 1
+jq -e '.mcpServers.overclick.transport == "http"
+  and (.mcpServers.overclick.url | startswith("$") | not)' \
+  "$TEST_ROOT/home/.kimi-code/plugins/managed/overclick/kimi.plugin.json" >/dev/null
+test -x "$TEST_ROOT/home/.kimi-code/plugins/managed/overclick/hooks/claim-guard.sh"
+
 sed -i.bak 's/enforce_claim=0/enforce_claim=1/' "$TEST_ROOT/home/.config/overclick/config"
 run_installer
 test "$(grep -c '^enforce_claim=1$' "$TEST_ROOT/home/.config/overclick/config")" -eq 1
