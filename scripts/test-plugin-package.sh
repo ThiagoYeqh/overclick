@@ -6,6 +6,22 @@ TEST_ROOT=$(mktemp -d)
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
 FIXTURE_URL=$(printf '%s%s%s' 'https' '://' 'fixture')
 
+# Every plugin manifest ships the same version as package.json (OCL-105). The
+# release guard in verify-release-version.sh only covers the package.json set,
+# so the plugin manifests drifted to 0.1.12 while package.json was already at
+# 0.2.1 — and .grok-plugin/marketplace.json advertised that stale version to
+# every Grok user browsing the catalog.
+PKG_VERSION=$(jq -r '.version' "$REPO_ROOT/package.json")
+for manifest in plugin/plugin.json plugin/.claude-plugin/plugin.json \
+  plugin/.codex-plugin/plugin.json plugin/kimi.plugin.json; do
+  jq -e --arg v "$PKG_VERSION" '.version == $v' "$REPO_ROOT/$manifest" >/dev/null ||
+    { echo "$manifest is not at $PKG_VERSION" >&2; exit 1; }
+done
+for catalog in .grok-plugin/marketplace.json .claude-plugin/marketplace.json; do
+  jq -e --arg v "$PKG_VERSION" 'all(.plugins[]; .version == $v)' "$REPO_ROOT/$catalog" >/dev/null ||
+    { echo "$catalog is not at $PKG_VERSION" >&2; exit 1; }
+done
+
 jq -e '.skills and .mcpServers and (has("hooks") | not) and (has("commands") | not)' \
   "$REPO_ROOT/plugin/.codex-plugin/plugin.json" >/dev/null
 jq -e '.skills and .mcpServers and (.hooks | length == 6) and .commands' \
