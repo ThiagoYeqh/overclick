@@ -45,5 +45,9 @@ jobs:
       - run: pnpm db:generate
       - run: git diff --exit-code packages/db/drizzle
 
+      # vitest transpiles with esbuild, which strips types without checking them,
+      # so a type error reaches main unless tsc is asked separately.
+      - run: pnpm -r --if-present typecheck
+
       # No database service: the integration tests boot an in-memory PGlite.
       - run: pnpm test

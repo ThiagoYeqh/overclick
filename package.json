@@ -16,6 +16,7 @@
     "db:generate": "pnpm --filter @agent-board/db generate",
     "db:migrate": "pnpm --filter @agent-board/db migrate",
     "db:seed": "pnpm --filter @agent-board/db seed",
+    "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",
     "check:topbar": "node scripts/topbar-one-line.mjs",
     "check:sheet": "node scripts/detail-sheet.mjs"
