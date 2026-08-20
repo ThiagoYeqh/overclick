@@ -9,14 +9,15 @@ in OCL-49 and the owner's final decisions. It replaces the discarded OCL-47 desi
 workflow source; the bundled skill points to it instead of maintaining a second copy.
 Provider manifests adapt that same package to each native loader.
 
-| Capability | Claude Code | Grok CLI | Kimi Code | Codex |
-| --- | --- | --- | --- | --- |
-| Manifest | `.claude-plugin/plugin.json` | `plugin.json` | `kimi.plugin.json` (package root) or `.kimi-plugin/plugin.json` (repository root) | `.codex-plugin/plugin.json` |
-| Repository marketplace | `.claude-plugin/marketplace.json` | `.grok-plugin/marketplace.json` | Official registry (`curated` tier) plus native custom install | Installer-created local marketplace |
-| Skill | `skills/overclick/SKILL.md` | Same | Same | Same |
-| Commands | Auto-discovered `commands/` | Auto-discovered `commands/` | `commands` manifest field | Skill-driven; not declared in the manifest |
-| MCP | `.mcp.json` plus native user config | `.mcp.json` plus native user config | `mcpServers` plus private user config | `mcpServers` manifest field plus `[mcp_servers]` user config |
-| Hooks | `hooks/hooks.json` | `hooks/hooks.json` | `hooks` manifest field | Global lifecycle hooks, but no client-side claim guard; deliberately absent from the plugin manifest |
+| Capability | Claude Code | Grok CLI | Kimi Code | Codex | Antigravity (`agy`) |
+| --- | --- | --- | --- | --- | --- |
+| Manifest | `.claude-plugin/plugin.json` | `plugin.json` | `kimi.plugin.json` (package root) or `.kimi-plugin/plugin.json` (repository root) | `.codex-plugin/plugin.json` | `plugin.json` (shared with Grok) |
+| Repository marketplace | `.claude-plugin/marketplace.json` | `.grok-plugin/marketplace.json` | Official registry (`curated` tier) plus native custom install | Installer-created local marketplace | No public registry; installs from a directory or a GitHub subpath |
+| Skill | `skills/overclick/SKILL.md` | Same | Same | Same | Same |
+| Commands | Auto-discovered `commands/` | Auto-discovered `commands/` | `commands` manifest field | Skill-driven; not declared in the manifest | Auto-discovered `commands/`, converted to namespaced skills |
+| MCP | `.mcp.json` plus native user config | `.mcp.json` plus native user config | `mcpServers` plus private user config | `mcpServers` manifest field plus `[mcp_servers]` user config | `mcp_config.json` in the plugin (`serverUrl` + `headers`) |
+| Hooks | `hooks/hooks.json` | `hooks/hooks.json` | `hooks` manifest field | Global lifecycle hooks, but no client-side claim guard; deliberately absent from the plugin manifest | `hooks.json` at the plugin root, dispatched through `hooks/antigravity.sh` |
+| Memory | `@` import in `~/.claude/CLAUDE.md` | Bundled skill only | Bundled skill only | Bundled skill only | `rules/AGENTS.md` inside the plugin, loaded whenever the plugin is enabled |
 
 The Codex manifest contains only the skill and MCP contributions. Its installer
 uses the native marketplace manager, then writes the required user MCP block and
@@ -60,7 +61,13 @@ contains the board URL or token.
 
 The repository root `install.sh` is also served verbatim by `GET /install.sh`.
 It uses a hidden token prompt in interactive mode, detects installed CLIs, and calls
-their native plugin managers. The stable package copy and a mode-600 config live in
+their native plugin managers. Antigravity is detected as `agy` on PATH or at
+`~/.local/bin/agy`, where its own installer puts it. Because `agy plugin install`
+copies the directory it is handed, the installer stages a private copy under
+`<config root>/overclick/antigravity/overclick`, writes the credentials and the
+resolved `OVERCLICK.md` path into that copy, installs it, and re-checks the
+mode-600 permission on the materialized `mcp_config.json`. The repository package
+stays a generic template. The stable package copy and a mode-600 config live in
 the user's configuration area. Provider MCP config is updated idempotently; Codex gets
 an explicit `[mcp_servers.overclick]` block and merged global hooks.
 
@@ -204,10 +211,67 @@ The entry to submit, once the owner decides to publish:
 }
 ```
 
+## Antigravity, validated hands-on (OCL-107)
+
+OCL-49 never covered Antigravity. It is validated here against `agy` on the
+owner's machine (binary at `~/.local/bin/agy`, customization docs bundled as
+the built-in `agy-customizations` skill). Antigravity has a first-class plugin system —
+`agy plugin install|uninstall|list|enable|disable|validate` — and all five
+components the board needs load from a single directory, so it gets the native
+path, not the AGENTS.md fallback.
+
+`agy plugin install <dir>` copies the directory into
+`~/.gemini/config/plugins/<name>/` and ingests `skills/`, `commands/`,
+`mcp_config.json`, `hooks.json`, and `rules/`. A GitHub subpath works too:
+`agy plugin install https://github.com/ustoppble/overclick/tree/main/plugin`
+clones and installs the same package. `agy plugin validate <dir>` reports what
+each component contributed and is the cheapest pre-flight check.
+
+Four dialect differences are absorbed by `plugin/hooks/antigravity.sh` rather
+than by forking the shared hooks, all confirmed by probing a live `agy` session:
+
+1. Tool names are Antigravity step types — `run_command`, `write_to_file`,
+   `replace_file_content`, `view_file`, `call_mcp_tool` — and every MCP call
+   arrives as `call_mcp_tool` with the real tool under
+   `toolCall.args.ToolName` and its input under `toolCall.args.Arguments`. A
+   matcher alone cannot single out `task_claim`; the adapter reads the payload.
+2. `PreToolUse` must answer with an explicit decision. An empty object is read
+   as a denial — a hook that stays quiet blocks the agent — so the adapter
+   always emits `allow`, `deny`, or `ask`, and fails open when it cannot parse
+   its input.
+3. `PostToolUse` carries the call and an `error` string but never the tool
+   response. The claim marker is therefore written from the call arguments, and
+   the post-delivery remote check moves ahead of `task_deliver` as an `ask`,
+   since after the fact there is no channel back to the model.
+4. Hooks start in the plugin directory and `workspacePaths` is empty in print
+   mode, so the repository is recovered from the path the call mentions
+   (`TargetFile`, `Cwd`) and resolved with `git rev-parse --show-toplevel`.
+   `OVERCLICK_WORKSPACE` overrides it.
+
+There is no `SessionStart`. `PreInvocation` is the closest event and fires on
+every model call, so the snapshot is gated on `invocationNum == 0` and returned
+as `{"injectSteps": [{"ephemeralMessage": ...}]}`.
+
+MCP uses `serverUrl` plus `headers`, which the bundled `mcp_servers.md` does not
+document but `agy mcp add --header "Authorization: Bearer …" <name> <url>`
+writes verbatim; install.sh emits that same shape into the staged copy.
+
+### Official registry and submission
+
+There is nothing to submit to, and that is a finding rather than a blocker.
+`agy plugin link` and the `plugin@marketplace` form resolve names against a
+Google-hosted, server-side customization catalog
+(`SearchMarketplaceCustomizations`); every name tried was rejected as
+`unknown marketplace`, and neither the CLI nor the bundled docs expose a
+submission endpoint. Distribution is therefore the directory install that
+install.sh performs, or the GitHub subpath form for a manual install.
+
 ## Verification contract
 
 - Validate all JSON manifests and both provider validators.
 - Validate the Codex plugin and the OverClick skill with their official local tools.
+- Run `agy plugin validate plugin/`; skills, commands, mcpServers, and hooks must all
+  report as processed.
 - Run the installer twice against an isolated home with stub native managers; markers,
   MCP entries, and hook rules must remain singular and private input must not appear in
   output.

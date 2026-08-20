@@ -10,7 +10,7 @@ Takes about 10 minutes.
   Linux: your distro's `docker` + `docker-compose-plugin` packages;
   Windows: Docker Desktop with WSL2.
 - An MCP-capable coding agent on your machine: Claude Code, Codex CLI, Gemini CLI,
-  [Overclock](https://overclock.sh), or any MCP client
+  Antigravity (`agy`), [Overclock](https://overclock.sh), or any MCP client
 
 ## 1. Run the board
 

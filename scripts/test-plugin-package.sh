@@ -75,6 +75,9 @@ if [ "${1:-}" = "plugin" ] && [ "${2:-}" = "list" ]; then
     claude)
       printf '[{"id":"overclick@overclick","enabled":true,"installPath":"%s"}]' "$OC_TEST_CLAUDE_CACHE"
       ;;
+    # OCL-104 gave Codex the same "ask the CLI what it holds" check Claude has,
+    # in its own listing shape. Without an answer here the stub reports an
+    # install that never materialized and the whole suite fails on that.
     codex)
       printf '{"installed":[{"name":"overclick","installed":true,"enabled":true,"source":{"path":"%s"}}]}' "$OC_TEST_CODEX_CACHE"
       ;;
@@ -86,6 +89,27 @@ chmod +x "$TEST_ROOT/bin/agent-stub"
 for cli in claude codex grok kimi; do
   ln -s agent-stub "$TEST_ROOT/bin/$cli"
 done
+
+# Antigravity's manager copies the directory it is handed into
+# ~/.gemini/config/plugins/<name>, and install.sh then re-checks the mode of the
+# credentials that landed in that second copy. A stub that only exits 0 would
+# leave both the copy and that check untested, so it copies like the real one.
+cat >"$TEST_ROOT/bin/agy" <<'SH'
+#!/bin/sh
+printf '%s:%s:%s\n' agy "${1:-}" "${2:-}" >>"$OC_TEST_NATIVE_LOG"
+plugins="$OVERCLICK_INSTALL_HOME/.gemini/config/plugins"
+case "${1:-}:${2:-}" in
+  plugin:install)
+    mkdir -p "$plugins/overclick"
+    cp -R "$3/." "$plugins/overclick/"
+    ;;
+  plugin:list)
+    [ -d "$plugins/overclick" ] && printf '{"imports":[{"name":"overclick","source":"antigravity"}]}'
+    ;;
+esac
+exit 0
+SH
+chmod +x "$TEST_ROOT/bin/agy"
 
 cat >"$TEST_ROOT/home/.codex/hooks.json" <<'JSON'
 {
@@ -109,7 +133,7 @@ run_installer() {
   OVERCLICK_PROJECT_DIR="$TEST_ROOT/project" \
   OVERCLICK_INSTANCE_URL="$FIXTURE_URL" \
   OVERCLICK_TOKEN="fixture" \
-  OVERCLICK_CLIS="claude,codex,grok,kimi" \
+  OVERCLICK_CLIS="claude,codex,grok,kimi,agy" \
     "$REPO_ROOT/install.sh" >"$TEST_ROOT/install.out" 2>"$TEST_ROOT/install.err"
 }
 
@@ -139,6 +163,44 @@ jq -e '.mcpServers.overclick.transport == "http"
   and (.mcpServers.overclick.url | startswith("$") | not)' \
   "$TEST_ROOT/home/.kimi-code/plugins/managed/overclick/kimi.plugin.json" >/dev/null
 test -x "$TEST_ROOT/home/.kimi-code/plugins/managed/overclick/hooks/claim-guard.sh"
+
+# Antigravity gets the package through its own manager, so what has to hold is
+# what the manager ends up holding: the MCP shape it actually parses
+# (serverUrl + headers, no "type"), a resolved url rather than the repository
+# template, the rule pointing at the OVERCLICK.md that exists on disk, and a
+# second copy of the credentials that is no more readable than the first.
+agy_plugin="$TEST_ROOT/home/.gemini/config/plugins/overclick"
+jq -e '(.mcpServers.overclick.serverUrl | startswith("$") | not)
+  and .mcpServers.overclick.headers.Authorization
+  and (.mcpServers.overclick | has("type") | not)' \
+  "$agy_plugin/mcp_config.json" >/dev/null
+test "$(stat -f '%Lp' "$agy_plugin/mcp_config.json" 2>/dev/null || stat -c '%a' "$agy_plugin/mcp_config.json")" -eq 600
+test "$(grep -c '<!-- overclick:start -->' "$agy_plugin/rules/AGENTS.md")" -eq 1
+grep -Fq "$agy_plugin/OVERCLICK.md" "$agy_plugin/rules/AGENTS.md"
+test -f "$agy_plugin/OVERCLICK.md"
+test -x "$agy_plugin/hooks/antigravity.sh"
+jq -e '.overclick | (.PreToolUse | length == 2) and (.PostToolUse | length == 1)
+  and .PreInvocation and .Stop' "$agy_plugin/hooks.json" >/dev/null
+# The repository package stays a generic template: only the installed copy is
+# allowed to carry an instance.
+jq -e '.mcpServers.overclick.serverUrl == "${OVERCLICK_URL}"' \
+  "$REPO_ROOT/plugin/mcp_config.json" >/dev/null
+
+# A PreToolUse hook that answers with an empty object is read by Antigravity as
+# a denial, so the adapter has to speak on every path — including the one where
+# there is no JSON runtime to read the payload with at all. That branch is only
+# reachable with python3 and node off PATH, which is why it gets its own PATH.
+mkdir -p "$TEST_ROOT/nojson"
+for utility in sh grep sed tr cat dirname printf git; do
+  target=$(command -v "$utility" 2>/dev/null) && ln -sf "$target" "$TEST_ROOT/nojson/$utility"
+done
+agy_hook() { (cd "$agy_plugin" && printf '%s' "$3" | PATH="$1" sh ./hooks/antigravity.sh "$2"); }
+for agy_path in "$PATH" "$TEST_ROOT/nojson"; do
+  printf '%s' "$(agy_hook "$agy_path" pre-tool 'not json')" | grep -Fq '"decision":'
+  printf '%s' "$(agy_hook "$agy_path" pre-tool '{"toolCall":{"name":"run_command","args":{"CommandLine":"ls"}}}')" |
+    grep -Fq '"decision":"allow"'
+done
+printf '%s' "$(agy_hook "$PATH" pre-invocation '{"invocationNum":3}')" | grep -Fq '{}'
 
 sed -i.bak 's/enforce_claim=0/enforce_claim=1/' "$TEST_ROOT/home/.config/overclick/config"
 run_installer
