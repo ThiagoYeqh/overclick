@@ -35,6 +35,7 @@ export function UpdateBanner({
   const [requested, setRequested] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hidden, setHidden] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
 
   if (hidden) return null;
 
@@ -59,9 +60,20 @@ export function UpdateBanner({
     <div className="update-banner nebula-glass">
       <div className="ub-head">
         <b>{t.updates.newVersion(version)}</b>
-        <a href={url} target="_blank" rel="noreferrer">
-          {t.updates.releaseNotes}
-        </a>
+        {notes ? (
+          <button
+            type="button"
+            className="ub-notes-toggle"
+            aria-expanded={showNotes}
+            onClick={() => setShowNotes((v) => !v)}
+          >
+            {t.updates.releaseNotes} {showNotes ? "▴" : "▾"}
+          </button>
+        ) : (
+          <a href={url} target="_blank" rel="noreferrer">
+            {t.updates.releaseNotes}
+          </a>
+        )}
         <div className="spacer" />
         <button className="btn-ghost" onClick={() => setHidden(true)}>
           {t.updates.dismiss}
@@ -70,7 +82,7 @@ export function UpdateBanner({
           {t.updates.updateBtn}
         </button>
       </div>
-      {notes ? <pre className="ub-notes">{notes.slice(0, 800)}</pre> : null}
+      {notes && showNotes ? <pre className="ub-notes">{notes.slice(0, 800)}</pre> : null}
       {requested ? <p className="wok">{t.updates.updateRequested}</p> : null}
       {showCmd ? (
         runtime === "source" ? (
