@@ -172,6 +172,13 @@ export const HarnessSchema = z.object({
   cli: z.string().min(1).optional(),
   model: z.string().min(1),
   effort: EffortSchema,
+  /**
+   * Which account/provider of `cli` runs this card (e.g. a second Claude
+   * OAuth account). Optional and retrocompatible: omitted means any account
+   * of that cli, today's behavior. Free text and leniently validated — the
+   * board does not own the canonical account list, Overclock does.
+   */
+  account: z.string().min(1).nullable().optional(),
 });
 
 /**

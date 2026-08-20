@@ -625,3 +625,153 @@ describe("cross-CLI fallback when a whole chain's executor is disabled (OCL-75)"
     );
   });
 });
+
+describe("harness account/provider (OCL-108)", () => {
+  const twoAccountPolicy = [
+    {
+      type: "feature",
+      cli: "claude-code",
+      model: "sonnet-5",
+      effort: "high" as const,
+    },
+  ];
+
+  it("stays untouched, retrocompatible, when nobody names an account", () => {
+    const result = recommendHarness({
+      type: "feature",
+      executors: [{ id: "claude-code", cli: "claude-code", models: ["sonnet-5"] }],
+      policy: twoAccountPolicy,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.harness).toEqual({
+      cli: "claude-code",
+      model: "sonnet-5",
+      effort: "high",
+    });
+    expect(result.value.harness).not.toHaveProperty("account");
+    expect(result.value.divergence).toBeUndefined();
+  });
+
+  it("passes an account through untouched when the executor tracks none", () => {
+    const result = recommendHarness({
+      type: "feature",
+      executors: [{ id: "claude-code", cli: "claude-code", models: ["sonnet-5"] }],
+      policy: [{ ...twoAccountPolicy[0], account: "claude-oauth-acc-2" }],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.harness.account).toBe("claude-oauth-acc-2");
+    expect(result.value.divergence).toBeUndefined();
+  });
+
+  it("resolves the enabled preferred account with no divergence", () => {
+    const result = recommendHarness({
+      type: "feature",
+      executors: [
+        {
+          id: "claude-code",
+          cli: "claude-code",
+          models: ["sonnet-5"],
+          accounts: [
+            { id: "claude-oauth", label: "Conta 1", enabled: true },
+            { id: "claude-oauth-acc-2", label: "Conta 2", enabled: true },
+          ],
+        },
+      ],
+      policy: [{ ...twoAccountPolicy[0], account: "claude-oauth-acc-2" }],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.harness.account).toBe("claude-oauth-acc-2");
+    expect(result.value.divergence).toBeUndefined();
+  });
+
+  it("skips a disabled account for another one on the same cli, and says so", () => {
+    const result = recommendHarness({
+      type: "feature",
+      executors: [
+        {
+          id: "claude-code",
+          cli: "claude-code",
+          models: ["sonnet-5"],
+          accounts: [
+            { id: "claude-oauth", label: "Conta 1", enabled: false },
+            { id: "claude-oauth-acc-2", label: "Conta 2", enabled: true },
+          ],
+        },
+      ],
+      policy: twoAccountPolicy,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.available).toBe(true);
+    expect(result.value.harness.cli).toBe("claude-code");
+    expect(result.value.harness.account).toBe("claude-oauth-acc-2");
+    expect(result.value.divergence).toMatch(/claude-oauth.*disabled/);
+    expect(result.value.divergence).toMatch(/claude-oauth-acc-2/);
+  });
+
+  it("falls back cross-CLI only once every account of the chain's executor is disabled", () => {
+    const result = recommendHarness({
+      type: "feature",
+      executors: [
+        {
+          id: "claude-code",
+          cli: "claude-code",
+          models: ["sonnet-5"],
+          accounts: [{ id: "claude-oauth", label: "Conta 1", enabled: false }],
+        },
+        { id: "codex", cli: "codex", models: ["gpt-5.6-sol"] },
+      ],
+      policy: twoAccountPolicy,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.available).toBe("fallback");
+    expect(result.value.harness.cli).toBe("codex");
+    expect(result.value.harness).not.toHaveProperty("account");
+  });
+
+  it("accepts an unknown account id leniently, since the board does not own the list", () => {
+    const result = recommendHarness({
+      type: "feature",
+      executors: [
+        {
+          id: "claude-code",
+          cli: "claude-code",
+          models: ["sonnet-5"],
+          accounts: [{ id: "claude-oauth", label: "Conta 1", enabled: true }],
+        },
+      ],
+      policy: [{ ...twoAccountPolicy[0], account: "some-other-account" }],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.harness.account).toBe("some-other-account");
+    expect(result.value.divergence).toBeUndefined();
+  });
+
+  it("resolves the explicit path's account the same way", () => {
+    const result = recommendHarness({
+      type: "feature",
+      executors: [
+        {
+          id: "claude-code",
+          cli: "claude-code",
+          models: ["sonnet-5"],
+          accounts: [
+            { id: "claude-oauth", label: "Conta 1", enabled: false },
+            { id: "claude-oauth-acc-2", label: "Conta 2", enabled: true },
+          ],
+        },
+      ],
+      explicit: { model: "sonnet-5", effort: "high", account: "claude-oauth" },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.source).toBe("explicit");
+    expect(result.value.harness.account).toBe("claude-oauth-acc-2");
+    expect(result.value.divergence).toMatch(/claude-oauth.*disabled/);
+  });
+});

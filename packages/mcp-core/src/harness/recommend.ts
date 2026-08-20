@@ -72,6 +72,19 @@ export type ModelInfo = {
   aliases?: readonly string[];
 };
 
+/**
+ * One account/provider a CLI can run under (e.g. two Claude OAuth accounts
+ * behind the same `claude-code` executor). Unset `accounts` on the parent
+ * executor means the board does not track accounts for that CLI: any
+ * `harness.account` a card names is passed through untouched, since
+ * validating it is somebody else's job (usually Overclock itself).
+ */
+export type ConfiguredAccount = {
+  id: string;
+  label: string;
+  enabled: boolean;
+};
+
 export type ConfiguredExecutor = {
   id: string;
   cli: string;
@@ -79,12 +92,20 @@ export type ConfiguredExecutor = {
   agents?: string[];
   /** Supported effort values keyed by model, when known. */
   efforts?: Readonly<Record<string, readonly string[]>>;
+  /** Accounts this executor can run under. Absent/empty means untracked. */
+  accounts?: readonly ConfiguredAccount[];
 };
 
 export type Harness = {
   cli: string | null;
   model: string | null;
   effort: EffortLevel;
+  /**
+   * Which account/provider of `cli` should run this. Optional and
+   * retrocompatible: a harness with no account means any account of that
+   * cli, exactly today's behavior.
+   */
+  account?: string | null;
 };
 
 export type MatchedExecutor = {
@@ -111,6 +132,8 @@ export type RecommendInput = {
     cli?: string;
     model: string;
     effort: EffortLevel;
+    /** Preferred account/provider; disabled or unknown falls back leniently. */
+    account?: string | null;
   };
 };
 
@@ -129,6 +152,8 @@ export type CardapioPolicyEntry = {
   model: string | null;
   chain?: readonly string[];
   effort: EffortLevel;
+  /** Preferred account/provider for this activity, when the CLI has more than one. */
+  account?: string | null;
 };
 
 export type RecommendResult = {
@@ -357,6 +382,67 @@ function sameEffort(left: string, right: string): boolean {
   return normalize(left) === normalize(right);
 }
 
+/**
+ * An executor with no tracked accounts is always viable — the board is not
+ * the source of truth for that CLI's accounts. One with a tracked list needs
+ * at least one enabled entry, or every model behind it is effectively off,
+ * the same way a switched-off CLI is.
+ */
+function hasEnabledAccount(executor: ConfiguredExecutor): boolean {
+  if (!executor.accounts || executor.accounts.length === 0) return true;
+  return executor.accounts.some((account) => account.enabled);
+}
+
+type AccountResolution = {
+  account: string | null;
+  /** True when the answer differs from what was asked for (or the default). */
+  adjusted: boolean;
+  /** The account id that was actually requested, named or by default. */
+  requested: string | null;
+};
+
+/**
+ * Resolves which account a matched executor should run under. `preferred` is
+ * the card's or policy's declared account; with none given, the executor's
+ * first account stands in for "no preference", same as `chain[0]`. Untracked
+ * accounts (the common case today) pass the request through unchanged: the
+ * board has no list to validate against.
+ */
+function resolveAccount(
+  executor: ConfiguredExecutor | undefined,
+  preferred: string | null | undefined,
+): AccountResolution {
+  const accounts = executor?.accounts;
+  if (!accounts || accounts.length === 0) {
+    return { account: preferred ?? null, adjusted: false, requested: preferred ?? null };
+  }
+  if (preferred) {
+    const match = accounts.find((account) => normalize(account.id) === normalize(preferred));
+    if (!match) {
+      return { account: preferred, adjusted: false, requested: preferred };
+    }
+    if (match.enabled) {
+      return { account: match.id, adjusted: false, requested: preferred };
+    }
+    const alternative = accounts.find((account) => account.enabled);
+    return { account: alternative?.id ?? null, adjusted: true, requested: preferred };
+  }
+  const primary = accounts[0];
+  const requested = primary?.id ?? null;
+  if (primary?.enabled) {
+    return { account: primary.id, adjusted: false, requested };
+  }
+  const alternative = accounts.find((account) => account.enabled);
+  return { account: alternative?.id ?? null, adjusted: true, requested };
+}
+
+function accountDivergenceNote(resolution: AccountResolution): string | undefined {
+  if (!resolution.adjusted) return undefined;
+  return resolution.account
+    ? `Account '${resolution.requested}' is disabled; using '${resolution.account}'.`
+    : `Account '${resolution.requested}' is disabled and no other account is enabled for this executor.`;
+}
+
 export function effortOptionsForExecutor(
   executor: Pick<ConfiguredExecutor, "cli" | "models" | "efforts">,
   model: string,
@@ -419,6 +505,7 @@ function findByTier(
   catalog: readonly ModelInfo[],
 ): MatchedExecutor | null {
   for (const executor of executors) {
+    if (!hasEnabledAccount(executor)) continue;
     for (const model of executor.models) {
       if (resolveModelTier(model, catalog) === tier) {
         return { id: executor.id, cli: executor.cli, model };
@@ -434,6 +521,7 @@ function findByModelName(
 ): MatchedExecutor | null {
   const needle = normalize(modelName);
   for (const executor of executors) {
+    if (!hasEnabledAccount(executor)) continue;
     for (const model of executor.models) {
       if (normalize(model) === needle) {
         return { id: executor.id, cli: executor.cli, model };
@@ -514,6 +602,7 @@ function matchOneModel(
       if (normalize(executor.cli) !== needleCli && normalize(executor.id) !== needleCli) {
         continue;
       }
+      if (!hasEnabledAccount(executor)) continue;
       const model = executor.models.find((name) => normalize(name) === normalize(modelName));
       if (model) {
         return { id: executor.id, cli: executor.cli, model };
@@ -560,10 +649,10 @@ export function recommendHarness(
     const explicit = input.explicit;
     const matched = findByModelName(input.executors, input.explicit.model);
     const available = matched !== null;
+    const matchedSource = matched
+      ? input.executors.find((executor) => executor.id === matched.id)
+      : undefined;
     if (matched) {
-      const matchedSource = input.executors.find(
-        (executor) => executor.id === matched.id,
-      );
       const options = matchedSource
         ? effortOptionsForExecutor(matchedSource, matched.model)
         : undefined;
@@ -578,21 +667,25 @@ export function recommendHarness(
       resolveModelTier(explicit.model, catalog) ??
       DEFAULT_CARDAPIO[input.type]?.model_tier ??
       "mid";
+    const accountResolution = resolveAccount(matchedSource, explicit.account ?? null);
+    const unavailableNote = available
+      ? undefined
+      : `Explicit model '${input.explicit.model}' is not among the configured executors.`;
+    const divergence =
+      [unavailableNote, accountDivergenceNote(accountResolution)].filter(Boolean).join(" ") ||
+      undefined;
     return ok({
       harness: {
         cli: explicit.cli ?? matched?.cli ?? null,
         model: explicit.model,
         effort: explicit.effort,
+        ...(accountResolution.account ? { account: accountResolution.account } : {}),
       },
       model_tier: tier,
       available,
       source: "explicit",
       matched_executor: matched,
-      ...(available
-        ? {}
-        : {
-            divergence: `Explicit model '${input.explicit.model}' is not among the configured executors.`,
-          }),
+      ...(divergence ? { divergence } : {}),
     });
   }
 
@@ -665,8 +758,16 @@ export function recommendHarness(
     const fallbackNote = fallback
       ? `Recommending '${fallback.model}' (${fallback.cli}) as a cross-CLI fallback.`
       : undefined;
+    // Account resolution runs after the model/CLI walk: hasEnabledAccount
+    // already dropped an executor with every account disabled from `hit` and
+    // `fallback`, so what is left here is picking among the ones still on.
+    const accountResolution = (hit || fallback) && matchedSource
+      ? resolveAccount(matchedSource, entry.account ?? null)
+      : { account: entry.account ?? null, adjusted: false, requested: entry.account ?? null };
+    const accountNote = accountDivergenceNote(accountResolution);
     const divergence =
-      [unavailableNote, fallbackNote, effortNote].filter(Boolean).join(" ") || undefined;
+      [unavailableNote, fallbackNote, effortNote, accountNote].filter(Boolean).join(" ") ||
+      undefined;
     return ok({
       harness: {
         // A null cli is "no preference", and staying on the first choice does
@@ -676,6 +777,7 @@ export function recommendHarness(
         cli: hit && hit.position > 0 ? hit.matched.cli : fallback ? fallback.cli : entry.cli,
         model: running,
         effort: effort.effort,
+        ...(accountResolution.account ? { account: accountResolution.account } : {}),
       },
       model_tier: tier,
       available: hit !== null ? Boolean(entry.model) : fallback ? "fallback" : false,
