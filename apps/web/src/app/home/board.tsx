@@ -311,11 +311,14 @@ function CardMetaTail({
   card,
   t,
   lead,
+  telemetryLine,
 }: {
   card: BoardCard;
   t: Dict;
   /** True when something already sits to the left on this line. */
   lead: boolean;
+  /** The footer's share of the telemetry line — cost already pulled out of it. */
+  telemetryLine: TelemetrySegment[];
 }) {
   const sep = lead ? <span className="tel-sep">·</span> : null;
   if (card.status === "aberto") {
@@ -335,8 +338,8 @@ function CardMetaTail({
       </span>
     ) : null;
   }
-  if (card.telemetryLine.length > 0) {
-    return <TelemetryLine segments={card.telemetryLine} lead={lead} />;
+  if (telemetryLine.length > 0) {
+    return <TelemetryLine segments={telemetryLine} lead={lead} />;
   }
   // Never a bare "no telemetry" on a delivered card: without any numbers the
   // honest label is that usage went unreported.
@@ -428,6 +431,13 @@ function Card({
   const harness =
     card.harnessChain ?? (exec ? (card.executor ?? t.board.agent) : null);
   const activate = () => (selectable ? onToggleSelect(card.id) : onOpen(card));
+  // The cost lives at the top of the card (ux-v2 §3), on the id's own line,
+  // so the footer never has to compete with it for room. What is left of the
+  // telemetry line still degrades there, by priority, never past the border.
+  const costSegment = card.telemetryLine.find((s) => s.kind === "cost") ?? null;
+  const footTelemetry = costSegment
+    ? card.telemetryLine.filter((s) => s !== costSegment)
+    : card.telemetryLine;
   // Three lines and no more: what the card is, what it says, what it cost.
   // Mission, branch, executor and the effort of the harness all stay one
   // click away in the detail panel.
@@ -436,7 +446,7 @@ function Card({
       id={`board-card-${card.id}`}
       className={`card nebula-glass${exec ? " exec nebula-corners" : ""}${dim ? " dim" : ""}${
         selectable ? " selectable" : ""
-      }${selected ? " picked" : ""}`}
+      }${selected ? " picked" : ""}${card.tipo === "bug" ? " type-bug" : ""}`}
       role="button"
       tabIndex={0}
       aria-pressed={selectable ? selected : undefined}
@@ -444,32 +454,41 @@ function Card({
       onKeyDown={activateOnKey(activate)}
     >
       <div className="id-row">
-        {selectable ? (
-          <input
-            type="checkbox"
-            className="card-pick"
-            checked={selected}
-            aria-label={card.shortId}
-            onChange={() => onToggleSelect(card.id)}
-            onClick={(event) => event.stopPropagation()}
-          />
-        ) : null}
-        <CardId shortId={card.shortId} showProject={showProject} />
-        <span className={`tag ${card.tipo}`}>{card.tipo}</span>
-        {card.isExample ? <span className="selo">{t.board.example}</span> : null}
-        {card.awaitingMyReview ? (
-          <span className="review-chip">{t.board.yourReview}</span>
-        ) : null}
-        {card.supersedes ? (
-          <span className="selo">
-            {t.board.continues} {card.supersedes.shortId}
+        <div className="id-row-main">
+          {selectable ? (
+            <input
+              type="checkbox"
+              className="card-pick"
+              checked={selected}
+              aria-label={card.shortId}
+              onChange={() => onToggleSelect(card.id)}
+              onClick={(event) => event.stopPropagation()}
+            />
+          ) : null}
+          <CardId shortId={card.shortId} showProject={showProject} />
+          {/* Type reads as a plain word in the meta line, never a coloured
+              chip (ux-v2 §3): the only scanning aid a bug keeps is the card's
+              own left border, set from the `type-bug` class above. */}
+          <span className="id-sep" aria-hidden="true">
+            ·
           </span>
-        ) : null}
-        {card.status === "descartado" ? (
-          <span className="selo">
-            {t.board.discardedTo} {card.supersededBy?.shortId ?? "—"}
-          </span>
-        ) : null}
+          <span className="card-type">{card.tipo}</span>
+          {card.isExample ? <span className="selo">{t.board.example}</span> : null}
+          {card.awaitingMyReview ? (
+            <span className="review-chip">{t.board.yourReview}</span>
+          ) : null}
+          {card.supersedes ? (
+            <span className="selo">
+              {t.board.continues} {card.supersedes.shortId}
+            </span>
+          ) : null}
+          {card.status === "descartado" ? (
+            <span className="selo">
+              {t.board.discardedTo} {card.supersededBy?.shortId ?? "—"}
+            </span>
+          ) : null}
+        </div>
+        {costSegment ? <span className="card-cost">{costSegment.text}</span> : null}
       </div>
       {/* One line on the phone: the ellipsis points here and to the panel. */}
       <h4 title={card.title}>{card.title}</h4>
@@ -485,7 +504,12 @@ function Card({
         ) : null}
         {/* The separator belongs to what comes after the harness, not to the
             harness itself: an ellipsis on the model chain would eat it. */}
-        <CardMetaTail card={card} t={t} lead={harness != null} />
+        <CardMetaTail
+          card={card}
+          t={t}
+          lead={harness != null}
+          telemetryLine={footTelemetry}
+        />
       </div>
     </div>
   );
