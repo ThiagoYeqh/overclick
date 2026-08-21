@@ -196,21 +196,21 @@
 .nebula-glass-fade {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  height: 38%;
+  height: 100%;
   pointer-events: none;
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-  mask-image: linear-gradient(to bottom, transparent, black 70%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 70%);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 100%);
 }
 .nebula-glass-fade::after {
   content: "";
   position: absolute;
-  inset: 30% 0 0 0;
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
-  mask-image: linear-gradient(to bottom, transparent, black 80%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 80%);
+  inset: 50% 0 0 0;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 100%);
 }
 .nebula-corners { position: relative; }
 .nebula-corners::before {
@@ -637,9 +637,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .ff-section h3 {
   margin: 0; padding: 4px 8px;
-  color: var(--nebula-text-secondary); font-family: var(--nebula-font-label);
-  font-size: 9px; font-weight: var(--nebula-weight-medium);
-  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--nebula-text-tertiary); font-family: var(--nebula-font-sans);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
 }
 .nb .ff-list { display: flex; flex-direction: column; }
 .nb .ff-opt {
@@ -765,25 +765,26 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    one is marked the way a chosen filter is marked — border and text, never
    a colour of its own. */
 .nb .am-theme {
-  display: flex; flex-direction: column; gap: 6px;
-  margin-top: 4px; padding: 8px 10px 4px;
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 4px; padding: 8px;
   border-top: 1px solid var(--nebula-glass-border);
 }
 .nb .am-theme-lbl {
-  color: var(--nebula-text-tertiary); font-family: var(--nebula-font-label);
-  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--nebula-text-tertiary); font-family: var(--nebula-font-sans);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
 }
-/* the options take the width of their own names and wrap rather than
-   truncate: a theme whose name reads "Overc…" is a theme nobody can pick
-   with confidence */
-.nb .am-theme-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+/* Three siblings form one group: equal columns, never an orphan stretched on
+   a second line. Each option follows the Control anatomy (32px, 8px radius,
+   13px UI face) so the picker reads as part of the same control family. */
+.nb .am-theme-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
 .nb .am-theme-opt {
-  flex: 1 1 auto; min-width: 0; padding: 5px 8px;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 32px; padding: 0 8px;
   border: 1px solid var(--nebula-glass-border);
   border-radius: var(--oc-radius-control);
   background: transparent; color: var(--nebula-text-secondary);
-  font-family: var(--nebula-font-label); font-size: 10px;
-  letter-spacing: 0.03em; text-align: center; cursor: pointer;
+  font-family: var(--nebula-font-sans); font-size: 13px; font-weight: 500;
+  letter-spacing: 0; text-align: center; cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: color var(--oc-duration-micro) var(--nebula-ease-atmosphere),
     border-color var(--oc-duration-micro) var(--nebula-ease-atmosphere);
@@ -1211,7 +1212,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   text-transform: uppercase; color: var(--nebula-text-secondary);
 }
 .nb .col-head .count { color: var(--nebula-text-tertiary); }
-.nb .col { display: flex; flex-direction: column; gap: var(--nebula-space-3); min-height: 300px; }
+.nb .col { display: flex; flex-direction: column; gap: var(--nebula-space-3); min-height: 300px; padding-bottom: 48px; }
 
 .nb .empty-col {
   border: 1px dashed var(--oc-border-dashed); border-radius: var(--nebula-glass-radius);
@@ -1412,8 +1413,10 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .ov, .nb .detail { animation: none; }
 }
 
-/* ---------- progressive blur no rodapé do viewport ---------- */
-.nb .viewport-fade { position: fixed; height: 15vh; z-index: var(--oc-z-fade); }
+/* ---------- progressive blur no rodapé do viewport ----------
+   The fade signals "more below" but must not hide the last card. Keep it
+   short (48px) and gentle so the title of the last card stays legible. */
+.nb .viewport-fade { position: fixed; height: 48px; z-index: var(--oc-z-fade); }
 
 /* ---------- detalhe do card (overlay client-side) ---------- */
 /* The modal is the top layer of the board: above the phone's sticky bar (30)
@@ -1430,7 +1433,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    inside it; the browser's default ring around a whole panel is noise, and
    the ring that matters is the one on the controls inside. */
 .nb .detail:focus { outline: none; }
-.nb .detail { width: 700px; max-width: 96vw; padding: 26px 30px 24px; position: relative;
+.nb .detail { width: 700px; max-width: 96vw; padding: 24px; position: relative;
   background: var(--oc-modal-bg);
   animation: nb-d-in .22s cubic-bezier(.2,.8,.2,1); }
 @keyframes nb-d-in { from { opacity: 0; transform: translateY(10px) scale(.985) } to { opacity: 1; transform: none } }
@@ -1497,11 +1500,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .md .md-inline-code,
 .nb .md code {
   font-family: var(--nebula-font-mono);
-  color: var(--nebula-dust-core);
-  background: rgb(var(--oc-scrim-rgb) / 0.66);
-  border: 1px solid var(--nebula-glass-border);
+  color: var(--nebula-text-secondary);
+  background: rgb(var(--oc-scrim-rgb) / 0.22);
+  border: none;
   border-radius: var(--oc-radius-chip);
-  padding: 2px 4px;
+  padding: 1px 4px;
   font-size: 12px;
 }
 .nb .d-check-step .md code,
@@ -1561,8 +1564,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   line-height: 1.3;
 }
 .nb .d-sec .lbl { display: flex; align-items: baseline; justify-content: space-between; gap: var(--nebula-space-3);
-  font-family: var(--nebula-font-label); font-size: 10px; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--nebula-mist); margin-bottom: 7px; }
+  font-family: var(--nebula-font-sans); font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--nebula-text-tertiary); margin-bottom: 8px; }
 .nb .d-progress { font-family: var(--nebula-font-label); font-size: 10px; letter-spacing: .04em;
   color: var(--nebula-text-tertiary); text-transform: none; }
 .nb .d-progress.done { color: var(--oc-ok); }
@@ -2010,7 +2013,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    The fade on the trailing edge is what says there is more to the right. */
 .nb .settabs {
   position: relative;
-  display: flex; gap: 22px;
+  display: flex; gap: 12px;
   margin-bottom: 22px; padding-bottom: 0;
   border-bottom: 1px solid var(--nebula-plan-divider);
   overflow-x: auto; overflow-y: hidden;
