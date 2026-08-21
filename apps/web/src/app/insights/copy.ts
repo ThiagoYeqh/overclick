@@ -97,6 +97,9 @@ const en = {
   footElapsed: (items: string) => `+ elapsed, never added: ${items}`,
   footUnpriced: (items: string) => `no price: ${items}`,
   footUnverified: (items: string) => `commit not found on remote: ${items}`,
+  /** Inline key so every table symbol is readable without leaving the page. */
+  symbolsLegend:
+    "⌀ no price · ! suspect usage · + elapsed only · ≈ estimated · 0 zero usage · ○ usage not reported",
   emptyTitle: "Nothing measured yet.",
   empty:
     "No delivered work yet. When an agent claims and delivers a card, its tokens and time land here.",
@@ -217,6 +220,8 @@ const ptBR: InsightsCopy = {
   footElapsed: (items: string) => `+ decorrido, não somado: ${items}`,
   footUnpriced: (items: string) => `sem preço: ${items}`,
   footUnverified: (items: string) => `commit não encontrado no remoto: ${items}`,
+  symbolsLegend:
+    "⌀ sem preço · ! uso suspeito · + só decorrido · ≈ estimado · 0 uso reportado como zero · ○ sem uso reportado",
   emptyTitle: "Nada medido ainda.",
   empty:
     "Nenhuma entrega ainda. Quando um agente pegar e entregar um card, os tokens e o tempo aparecem aqui.",

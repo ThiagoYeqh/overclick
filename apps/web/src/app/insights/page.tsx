@@ -97,6 +97,11 @@ function sourceNote(totals: UsageTotals, t: InsightsCopy): string {
   return parts.length > 0 ? parts.join(" · ") : t.noCostSource;
 }
 
+/** One visible key per panel: the symbols on values are explained in place. */
+function SymbolsLegend({ t }: { t: InsightsCopy }) {
+  return <p className="ins-legend">{t.symbolsLegend}</p>;
+}
+
 /**
  * The qualifiers a table's rows carry, as one quiet line under it. Markers on
  * the values point here; every count the old inline badges showed is named in
@@ -207,32 +212,51 @@ function combinedRows(
   groups: CombinedGroupInsight[],
   t: InsightsCopy,
 ): GroupTableRow[] {
-  return groups.flatMap((group) => [
-    {
-      ...group.execution,
-      key: `${group.key}:execution`,
-      label: group.label,
-      groupLabel: group.label ?? "",
-      lineLabel: t.executionLine,
-      combinedTotal: false,
-    },
-    {
-      ...group.orchestration,
-      key: `${group.key}:orchestration`,
-      label: group.label,
-      groupLabel: group.label ?? "",
-      lineLabel: t.orchestrationLine,
-      combinedTotal: false,
-    },
-    {
-      ...group.total,
-      key: `${group.key}:total`,
-      label: group.label,
-      groupLabel: group.label ?? "",
-      lineLabel: t.totalLine,
-      combinedTotal: true,
-    },
-  ]);
+  const rows: GroupTableRow[] = [];
+  for (const group of groups) {
+    const collapsed =
+      group.orchestration.tokens === 0 &&
+      group.orchestration.durationMs === 0 &&
+      group.orchestration.attempts === 0;
+    if (collapsed) {
+      rows.push({
+        ...group.total,
+        key: `${group.key}:total`,
+        label: group.label,
+        groupLabel: group.label ?? "",
+        lineLabel: undefined,
+        combinedTotal: false,
+      });
+      continue;
+    }
+    rows.push(
+      {
+        ...group.execution,
+        key: `${group.key}:execution`,
+        label: group.label,
+        groupLabel: group.label ?? "",
+        lineLabel: t.executionLine,
+        combinedTotal: false,
+      },
+      {
+        ...group.orchestration,
+        key: `${group.key}:orchestration`,
+        label: group.label,
+        groupLabel: group.label ?? "",
+        lineLabel: t.orchestrationLine,
+        combinedTotal: false,
+      },
+      {
+        ...group.total,
+        key: `${group.key}:total`,
+        label: group.label,
+        groupLabel: group.label ?? "",
+        lineLabel: t.totalLine,
+        combinedTotal: true,
+      },
+    );
+  }
+  return rows;
 }
 
 function GroupTable({
@@ -531,19 +555,23 @@ export default async function InsightsPage({
       <NebulaAtmosphere />
 
       <div className="page ins-page">
-        <div className="topbar nebula-glass">
-          <Wordmark label={shared.board.homeLink} />
-          <div className="crumb">
-            {ws.name} / <b>{t.title}</b>
+        <header className="ins-topbar-wrap">
+          <div className="ins-topbar-l1">
+            <Wordmark label={shared.board.homeLink} />
+            <div className="spacer" />
+            {/* The arrow was a character inside the label; it is the set's own
+                glyph now, silent because the word beside it says where it goes. */}
+            <a className="btn-ghost ins-back" href="/home">
+              <Icon name="back" label={null} size={14} />
+              {t.backToBoard}
+            </a>
           </div>
-          <div className="spacer" />
-          {/* The arrow was a character inside the label; it is the set's own
-              glyph now, silent because the word beside it says where it goes. */}
-          <a className="btn-ghost ins-back" href="/home">
-            <Icon name="back" label={null} size={14} />
-            {t.backToBoard}
-          </a>
-        </div>
+          <div className="ins-topbar-l2">
+            <div className="crumb">
+              {ws.name} / <b>{t.title}</b>
+            </div>
+          </div>
+        </header>
 
         {/* Title, what the page counts and the filter that qualifies both are
             one group with one gap, instead of three margins that had to be
@@ -702,6 +730,7 @@ export default async function InsightsPage({
                   t={t}
                   pricingEnabled={pricingEnabled}
                 />
+                <SymbolsLegend t={t} />
               </section>
               <section className="ins-panel nebula-glass">
                 <div className="ins-cap">
@@ -713,6 +742,7 @@ export default async function InsightsPage({
                   t={t}
                   pricingEnabled={pricingEnabled}
                 />
+                <SymbolsLegend t={t} />
               </section>
               <section className="ins-panel nebula-glass">
                 <div className="ins-cap">
@@ -725,6 +755,7 @@ export default async function InsightsPage({
                   pricingEnabled={pricingEnabled}
                   showUnverified
                 />
+                <SymbolsLegend t={t} />
               </section>
               <section className="ins-panel nebula-glass">
                 <div className="ins-cap">
@@ -738,6 +769,7 @@ export default async function InsightsPage({
                   showUnpriced
                   showUnverified
                 />
+                <SymbolsLegend t={t} />
               </section>
               <section className="ins-panel nebula-glass">
                 <div className="ins-cap">
@@ -759,6 +791,7 @@ export default async function InsightsPage({
                 lang={ws.language}
                 pricingEnabled={pricingEnabled}
               />
+              <SymbolsLegend t={t} />
             </section>
           </>
         )}

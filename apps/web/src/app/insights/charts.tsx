@@ -1,3 +1,4 @@
+import type React from "react";
 import type { GroupInsight } from "../../lib/insights";
 import type { InsightsCopy } from "./copy";
 import { formatMoney, formatTokens } from "../../lib/format";
@@ -27,6 +28,7 @@ export function TrendChart({
         className="ins-trend-bars"
         role="img"
         aria-label={metric === "cost" ? t.trendCostTitle : t.trendTokensTitle}
+        style={{ "--ins-points": points.length } as React.CSSProperties}
       >
         {points.map((p) => {
           const v = trendValue(p, metric);

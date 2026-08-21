@@ -987,16 +987,16 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   white-space: nowrap; overflow: hidden;
 }
 .nb .board-total .bt-lead {
-  font-family: var(--nebula-font-mono); font-size: 19px; line-height: 1;
-  color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium);
+  font-family: var(--nebula-font-mono); font-size: 16px; line-height: 1;
+  color: var(--nebula-text-primary); font-weight: 600;
   letter-spacing: var(--nebula-tracking-tight);
   font-variant-numeric: tabular-nums;
   text-shadow: var(--nebula-glow-text);
 }
 .nb .board-total:hover .bt-lead { color: var(--nebula-dust-core); }
 .nb .board-total .bt-sub {
-  font-family: var(--nebula-font-mono); font-size: 10px;
-  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--nebula-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 /* The break between the figure and what supports it (ux-v2 §4). Size and
@@ -1006,8 +1006,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 /* The stat's own label ("Custo"): money never leads unnamed (ux-v2 §4).
    Same quiet voice as the support numbers — the figure is the headline. */
 .nb .bt-label {
-  font-family: var(--nebula-font-mono); font-size: 10px;
-  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--nebula-text-tertiary);
 }
 .nb .bt-popover .bt-note {
   color: var(--nebula-text-primary);
@@ -1026,13 +1026,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .bt-popover .bt-figure { display: flex; align-items: baseline; gap: 7px; }
 .nb .bt-popover .bt-figure .bt-lead {
-  font-family: var(--nebula-font-mono); font-size: 19px; line-height: 1;
-  color: var(--nebula-text-primary); font-weight: var(--nebula-weight-medium);
+  font-family: var(--nebula-font-mono); font-size: 16px; line-height: 1;
+  color: var(--nebula-text-primary); font-weight: 600;
   font-variant-numeric: tabular-nums; text-shadow: var(--nebula-glow-text);
 }
 .nb .bt-popover .bt-figure .bt-sub {
-  font-family: var(--nebula-font-mono); font-size: 10px;
-  letter-spacing: 0.04em; color: var(--nebula-text-secondary);
+  font-family: var(--nebula-font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--nebula-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 .nb .bt-line {
@@ -1042,6 +1042,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb a.bt-line { text-decoration: none; }
 .nb a.bt-line:hover { color: var(--nebula-text-primary); }
 .nb .bt-insights { margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--nebula-glass-border); }
+.nb .board-total-wrap { position: relative; }
+.nb .board-total { min-height: 32px; }
 
 /* the columns the state chips jump to clear the bar on the way (OCL-20) */
 .nb [id^="board-col-"] { scroll-margin-top: 76px; }
