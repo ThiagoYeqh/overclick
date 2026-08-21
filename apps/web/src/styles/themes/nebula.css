@@ -17,6 +17,13 @@
    redesigned: the board looks exactly as it did before the extraction.
    ============================================================ */
 
+/*
+   EXEMPTIONS — Tier-2 divergences declared per A2 (OCL-88, docs/design/amendments.md).
+   - nebula is pixel-faithful to the board's original look as shipped today
+        → Tier-2 rule: theme-scoped identity
+        → source: the board's existing production skin before UX v2
+*/
+
 :root,
 [data-theme="nebula"] {
   /* ---------- colour families, as RGB triplets ----------
