@@ -60,6 +60,11 @@ describe("task status machine (spec §3.1)", () => {
     expect(canTransition("validado", "aberto", "human")).toBe(false);
   });
 
+  it("allows human-only desvalidation: validado → feito, agent cannot move it back in silence", () => {
+    expect(canTransition("validado", "feito", "human")).toBe(true);
+    expect(canTransition("validado", "feito", "agent")).toBe(false);
+  });
+
   it("treats revisado as a flag on feito, not a status", () => {
     expect(canMarkRevisado("feito")).toBe(true);
     expect(canMarkRevisado("aberto")).toBe(false);

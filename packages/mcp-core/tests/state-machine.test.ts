@@ -189,17 +189,6 @@ describe("card state machine", () => {
     }
   });
 
-  it("allows force_reopen from em execução → aberto", () => {
-    const result = applyTransition(card({ status: "em_execucao" }), {
-      type: "force_reopen",
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.status).toBe("aberto");
-      expect(result.value.revisado).toBe(false);
-    }
-  });
-
   it("rejects handoff from aberto", () => {
     const result = applyTransition(card(), { type: "handoff" });
     expect(result.ok).toBe(false);
@@ -224,7 +213,6 @@ describe("card state machine", () => {
       { type: "claim" },
       { type: "handoff" },
       { type: "mark_revisado" },
-      { type: "force_reopen" },
     ];
     for (const status of ["aberto", "em_execucao", "feito", "validado"] as const) {
       for (const event of events) {
@@ -232,7 +220,7 @@ describe("card state machine", () => {
         if (result.ok) continue;
         if (result.error.code !== "INVALID_TRANSITION") continue;
         expect(result.error.message).not.toMatch(
-          /handoff|force_claim|force_reopen|mark_revisado|'claim'/i,
+          /handoff|force_claim|mark_revisado|'claim'/i,
         );
       }
     }
@@ -262,7 +250,7 @@ describe("card state machine", () => {
     }
   });
 
-  it("rejects every transition out of validado", () => {
+  it("rejects every transition out of validado except desvalidar", () => {
     const events: CardEvent[] = [
       { type: "claim" },
       { type: "force_claim" },
@@ -270,10 +258,44 @@ describe("card state machine", () => {
       { type: "validate", actor: "human" },
       { type: "reopen", comment: "já validado" },
       { type: "mark_revisado" },
-      { type: "force_reopen" },
     ];
     for (const event of events) {
       const result = applyTransition(card({ status: "validado" }), event);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("INVALID_TRANSITION");
+      }
+    }
+  });
+
+  it("allows validado → feito via human desvalidar, leaving an auditable trail", () => {
+    const result = applyTransition(card({ status: "validado" }), {
+      type: "desvalidar",
+      actor: "human",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.status).toBe("feito");
+    }
+  });
+
+  it("rejects agent desvalidar — desvalidar is a human-only action, never exposed via MCP", () => {
+    const result = applyTransition(card({ status: "validado" }), {
+      type: "desvalidar",
+      actor: "agent",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("DESVALIDATE_HUMAN_ONLY");
+    }
+  });
+
+  it("rejects desvalidar from any status other than validado", () => {
+    for (const status of ["aberto", "em_execucao", "feito"] as const) {
+      const result = applyTransition(card({ status }), {
+        type: "desvalidar",
+        actor: "human",
+      });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe("INVALID_TRANSITION");
@@ -297,12 +319,14 @@ describe("card state machine", () => {
   it("lists valid events exhaustively for each status", () => {
     expect(listValidEvents(card({ status: "aberto" }))).toEqual(["claim"]);
     expect(listValidEvents(card({ status: "em_execucao" })).sort()).toEqual(
-      ["force_claim", "force_reopen", "handoff"].sort(),
+      ["force_claim", "handoff"].sort(),
     );
     expect(listValidEvents(card({ status: "feito" })).sort()).toEqual(
       ["mark_revisado", "reopen", "validate"].sort(),
     );
-    expect(listValidEvents(card({ status: "validado" }))).toEqual([]);
+    expect(listValidEvents(card({ status: "validado" }))).toEqual([
+      "desvalidar",
+    ]);
   });
 
   it("does not mutate the input snapshot", () => {

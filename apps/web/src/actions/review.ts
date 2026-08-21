@@ -89,6 +89,35 @@ export async function validateTaskAction(
   return { ok: true };
 }
 
+/**
+ * validado → feito (signed-in human only, never exposed via MCP). Leaves an
+ * auditable trail — who desvalidated and when — instead of moving the card
+ * back in silence.
+ */
+export async function unvalidateTaskAction(taskId: string): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Session expired. Sign in again." };
+
+  const row = await db().query.task.findFirst({ where: eq(task.id, taskId) });
+  if (!row) return { ok: false, error: "Card not found." };
+  if (!canTransition(row.status, "feito", "human")) {
+    return { ok: false, error: "You can only desvalidate a card that is validated." };
+  }
+
+  await db().insert(taskComment).values({
+    taskId,
+    authorUserId: session.userId,
+    kind: "desvalidar",
+    body: `Desvalidado por ${session.email} em ${new Date().toISOString()}.`,
+  });
+  await db()
+    .update(task)
+    .set({ status: "feito" })
+    .where(eq(task.id, taskId));
+  revalidatePath("/home");
+  return { ok: true };
+}
+
 /** feito → aberto, recording the comment the agent reads on its next claim. */
 export async function reopenTaskAction(
   taskId: string,
