@@ -4,6 +4,11 @@
 > a change that contradicts it is wrong until the doctrine itself is amended.
 > Implementation is split across OCL-34 (themes), OCL-35 (topbar), OCL-36 (numbers),
 > OCL-37 (brand) — see the scope map at the end.
+>
+> Amendments in force: **A1** (touch floor, OCL-87) and **A2** (theme
+> conformance, OCL-88). The rules below already read as amended; the conflict
+> each one resolved and the reasoning behind it live in
+> [`amendments.md`](./amendments.md).
 
 Direction in one line: **the x.ai school — near-black, one typeface speaking through
 weight, one accent, generous air, and not a single decorative color.**
@@ -26,8 +31,11 @@ weight, one accent, generous air, and not a single decorative color.**
   UI face; monospace is demoted from "the whole interface" to a *data voice* — ids,
   counts, money, code. Today the entire board speaks 10–11px mono; that reads as
   terminal soup, not as x.ai.
-- **Air.** Density is bought with padding and type size, never by shrinking targets
-  (the 44px floor in `--nebula-tap` stays law).
+- **Air.** Density is bought with padding and type size, never by shrinking the
+  **hit area** (A1). The visual box may be as compact as 32px; the area that
+  receives the tap never goes under `--oc-tap-min` (24px) on any device, and never
+  under `--oc-tap` (44px) where the pointer is a finger. The box and the target are
+  two different things, and only one of them is negotiable.
 - **1px borders, low-alpha white.** Edges whisper (`rgba(255,255,255,.08)` at rest,
   `.14` on hover). No colored borders as decoration.
 
@@ -43,8 +51,8 @@ weight, one accent, generous air, and not a single decorative color.**
 | Keep | Current value | Why |
 |---|---|---|
 | Canvas | `--nebula-void: #000000` | Already the right floor |
-| Focus ring | `0 0 0 2px rgba(209,217,235,0.55)` + offset | Correct pattern: outside the control, never resizes it |
-| Tap floor | `--nebula-tap: 44px` | Accessibility law |
+| Focus ring | `0 0 0 2px rgba(209,217,235,0.55)` + offset | Correct pattern: outside the control, never resizes it — and **neutral in every theme** (A2/U2): a focus ring in the danger colour announces every keyboard stop as an error |
+| Tap floor | `--nebula-tap: 44px` | Accessibility law — under a coarse pointer. It is a **hit-area floor, never a `height`** (A1) |
 | Panel solid | `rgb(13,15,19)` | The "no glass when the panel is the screen" rule is right |
 | Spacing scale | 4/8/12/16/24/32 | Sane; gains a 48 step for section air |
 | Motion ease | `cubic-bezier(0.22,0.61,0.36,1)`, 150–300ms micro | Keep |
@@ -66,9 +74,10 @@ weight, one accent, generous air, and not a single decorative color.**
 
 All board styles migrate to `--oc-*` custom properties. A theme is a file in
 `apps/web/src/styles/themes/<name>.css` that only redefines tokens. `nebula` must be
-pixel-faithful to today; `xai` is the new direction; `overclock` is a placeholder
-until its values are extracted from the Overclock app (TODO — OCL-34 documents the
-source of each extracted value).
+pixel-faithful to today; `xai` is the reference implementation of this document;
+`overclock` is the board wearing the product's own palette, extracted from the
+Overclock app and documented value by value (OCL-56). What a theme may and may not
+diverge on is settled below, in **Theme conformance**.
 
 Type ramp (all themes): 22/16/13/12/11 px = display/title/body/label/data,
 weights 400/500/600 only. UI face: `Inter, -apple-system, sans-serif`.
@@ -94,14 +103,54 @@ Data face: `"SF Mono", ui-monospace, Menlo, monospace`.
 | `--oc-radius-control` | buttons, chips, inputs | mixed 7–999px | `8px` (uniform; pills die) | TODO |
 | `--oc-radius-panel` | cards, popovers, modal | 16px | `12px` | TODO |
 | `--oc-space-1..8` | 4/8/12/16/24/32 | same | same + `--oc-space-9: 48px` | TODO |
-| `--oc-focus-ring` | focus | current double ring | same values | TODO |
-| `--oc-tap` | touch floor | 44px | 44px | TODO |
+| `--oc-focus-ring` | focus — **neutral in every theme** (A2/U2) | current double ring | same values | same values |
+| `--oc-tap` | **coarse-pointer hit floor** (A1) — never a `height` | 44px | 44px | 44px |
+| `--oc-tap-min` | **universal hit floor**, every pointer (A1, WCAG 2.2 SC 2.5.8) | 24px | 24px | 24px |
 | `--oc-shadow-panel` | floating panels | `0 8px 32px rgba(0,0,0,0.5)` | `0 8px 24px rgba(0,0,0,0.6)` | TODO |
 | `--oc-duration` / `--oc-ease` | micro-motion | 150–300ms / atmosphere curve | same | TODO |
 
 Rules: no component may use a hex/rgba literal — tokens only. `--oc-ok`/`--oc-danger`
 may appear **only** on status dots, status text, error text and destructive actions;
 never on tags, counters, borders-as-decoration.
+
+The `overclock` column above was written before the theme existed. The theme file
+(`themes/overclock.css`) is now the source of truth for its values and documents the
+origin of each; its declared divergences from this document are listed under Theme
+conformance, below.
+
+### Theme conformance — when an extracted palette contradicts §1 (A2)
+
+A theme built by extracting a real product's palette will contradict this document,
+because the product was not designed against it. That is expected and it is not a
+defect of the theme. What follows decides which contradictions are allowed.
+
+**Tier 1 — universal. No theme may break these, in any circumstance.** These are
+the rules whose violation changes what the user *understands*, not what they see:
+
+| # | Law | Binary test |
+|---|---|---|
+| U1 | `--oc-accent` ≠ `--oc-danger`. A theme may not resolve both to the same colour. | The two computed colours differ by ≥25° of OKLCH hue **or** ≥0.15 of OKLCH lightness. Equal values fail. |
+| U2 | The focus ring is **neutral** in every theme — never `--oc-danger`, and never the accent when the accent is a semantic colour. | `--oc-focus-ring`'s colour has OKLCH chroma ≤ 0.04 and is not in the danger hue family. |
+| U3 | Hover and open borders are neutral. Colour is not decoration. | Same chroma test as U2, on `--oc-border-strong`. |
+| U4 | `--oc-ok` / `--oc-danger` are reserved to meaning: status dots, status text, error text, destructive actions. A theme picks its red and green; it may not spend them elsewhere. | No other token resolves to the `--oc-ok` / `--oc-danger` value. |
+| U5 | A theme declares values only — never a size that moves a box. | Checklist 14. |
+| U6 | Type ramp, Control anatomy and the hit floors of A1 hold in every theme. | Checklist 3, 12. |
+
+**Tier 2 — theme-scoped. A theme may diverge, and must declare it.** Identity and
+taste: accent hue (an accent need not be white), the radius family including pills,
+the label face (mono as the UI voice), tag foreground colours, decorative glow,
+extra semantic colours (`warn`, `info`), and the hue of the gray ladder. One guard
+rides along: **a Tier-2 colour may not equal `--oc-ok` or `--oc-danger`** — a cyan
+`feature` tag is identity, a red one is a lie.
+
+**Tier 3 — the declaration.** Every theme file opens with an `EXEMPTIONS` block:
+one line per Tier-2 divergence, naming the rule it departs from and the source of
+the value. **An undeclared divergence is a bug**; a declared one is the theme.
+`nebula`'s exemption is "pixel-faithful to today". `overclock`'s is "the board
+wearing the product": pills, mono labels, the agent colour spectrum on tags, the
+red haze, `warn`/`info`, and a hued gray ladder — all sourced from the Overclock
+app. `xai` declares none and is the only theme required to pass every item of the §5
+checklist, universal and theme-scoped alike.
 
 ### Layers (`--oc-z-*`, OCL-59)
 
@@ -159,6 +208,51 @@ active  → (filter applied) text-1 + count badge:
 
 The funnel icon is Lucide `filter` at 14px — never an emoji, never a toggle-switch
 graphic. Minimum 16px gap between the wordmark block and the first control.
+
+**Hit area (A1).** The 32px above is the *drawn box*. Every Control — and every
+other interactive element in the board — also carries a hit area that never falls
+below `--oc-tap-min` (24px), and grows to `--oc-tap` (44px) under a coarse pointer.
+The area grows without moving the box, with a non-painting pseudo-element:
+
+```css
+.oc-tappable { position: relative; }
+
+.oc-tappable::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: max(100%, var(--oc-tap-min));
+  height: max(100%, var(--oc-tap-min));
+}
+
+@media (pointer: coarse) {
+  .oc-tappable::after {
+    width: max(100%, var(--oc-tap));
+    height: max(100%, var(--oc-tap));
+  }
+}
+```
+
+Four constraints, all of them review points:
+
+- No ancestor between the control and the bar may `overflow: hidden` it — clipping
+  reverts the fix silently. If the row must clip, the control grows its own
+  `min-block-size` instead and the row grows with it.
+- A row of tappables holds `gap: var(--oc-space-2)` (8px) or more under a coarse
+  pointer; otherwise the expanded areas overlap and the later element in the DOM
+  steals the tap.
+- Replaced elements (`input[type="checkbox"|"radio"|"range"]`) have no
+  pseudo-elements: they are wrapped in their `<label>`, and the label is the
+  `.oc-tappable`.
+- The pseudo-element paints nothing — no background, no border, no shadow. It
+  inherits `pointer-events` from the control, so a tap on it is a tap on the
+  control.
+
+`--oc-tap` is never written as a `height` or `min-height` on a visual box. A
+control that is under 24px drawn *and* under 24px in hit area is a bug on every
+device, not a dense control.
 
 ### Topbar — two levels
 
@@ -230,24 +324,46 @@ OCL-24 stays.
 
 ## 5. Acceptance checklist (binary — implementation cards cite these)
 
-1. [ ] No hex/rgba literal in any component rule; tokens only.
-2. [ ] Zero colored type/priority badges; `--oc-ok`/`--oc-danger` appear only on
-       status dots, status/error text, destructive actions.
-3. [ ] Every topbar trigger follows the Control anatomy (32px, 1px border, 8px
-       radius, 14px SVG icon); no bare-text triggers, no pill toggles.
-4. [ ] ≥16px between wordmark and first control at every width.
-5. [ ] Topbar renders as two levels ≥768px; L1 never wraps nor truncates.
-6. [ ] Mission chip shows ≥60ch before ellipsis at 1440px.
-7. [ ] UI text is the UI face; mono appears only on ids, numbers, timestamps, code.
-8. [ ] Money always labeled + currency-explicit; no unlabeled number groups.
-9. [ ] "~" explained in the stat popover with both counts.
-10. [ ] Focus ring visible on every interactive element (keyboard walk of topbar,
-        card, modal).
-11. [ ] No hover scale transforms; hover = surface/border/text change in 150–300ms.
-12. [ ] 44px touch floor held on every control (density via padding only).
-13. [ ] No horizontal scroll at 375/768/1024/1440 in any theme.
-14. [ ] Theme switch (nebula ⇄ xai) changes zero layout — only token values.
-15. [ ] `prefers-reduced-motion` disables non-essential animation.
+Every item is tagged **[universal]** — it holds in every theme, no exemption
+possible — or **[theme]** — `xai` and `nebula` must pass it, and another theme may
+diverge only by declaring it in its `EXEMPTIONS` block (§2, Theme conformance).
+
+1. [ ] **[universal]** No hex/rgba literal in any component rule; tokens only.
+2a. [ ] **[universal]** `--oc-ok`/`--oc-danger` appear only on status dots,
+        status/error text and destructive actions — never on tags, counters or
+        borders-as-decoration.
+2b. [ ] **[theme]** Zero coloured type/priority badges; type is a plain word.
+3. [ ] **[universal]** Every topbar trigger follows the Control anatomy (32px box,
+       1px border, `--oc-radius-control`, 14px SVG icon); no bare-text triggers, no
+       pill toggles. The radius *value* is [theme].
+4. [ ] **[universal]** ≥16px between wordmark and first control at every width.
+5. [ ] **[universal]** Topbar renders as two levels ≥768px; L1 never wraps nor
+       truncates.
+6. [ ] **[universal]** Mission chip shows ≥60ch before ellipsis at 1440px.
+7a. [ ] **[universal]** Ids, numbers, timestamps and code speak the data face.
+7b. [ ] **[theme]** UI text speaks the UI face (`--oc-font-label` = `--oc-font-ui`).
+8. [ ] **[universal]** Money always labeled + currency-explicit; no unlabeled
+       number groups.
+9. [ ] **[universal]** "~" explained in the stat popover with both counts.
+10. [ ] **[universal]** Focus ring visible on every interactive element (keyboard
+        walk of topbar, card, modal), and neutral per U2 — never the danger colour.
+11. [ ] **[universal]** No hover scale transforms; hover = surface/border/text
+        change in 150–300ms.
+12. [ ] **[universal]** Hit floors (A1): for every interactive element, the union of
+        its border box and its `::after` floor measures **≥24×24 CSS px with
+        `pointer: fine`** and **≥44×44 with `pointer: coarse`**. The drawn box stays
+        32px (36px for fields); density is bought with padding, never with the
+        target.
+13. [ ] **[universal]** No horizontal scroll at 375/768/1024/1440 in any theme.
+14. [ ] **[universal]** A theme switch changes zero layout — only token values.
+15. [ ] **[universal]** `prefers-reduced-motion` disables non-essential animation.
+16. [ ] **[universal]** `--oc-accent` ≠ `--oc-danger` (U1), and `--oc-border-strong`
+        is neutral (U3), in every theme.
+17. [ ] **[universal]** Every theme file opens with an `EXEMPTIONS` block; every
+        Tier-2 divergence it ships is listed there with its source. An undeclared
+        divergence fails this item.
+18. [ ] **[universal]** No Tier-2 colour (tag foregrounds, glow, `warn`, `info`)
+        resolves to the `--oc-ok` or `--oc-danger` value.
 
 ---
 
@@ -262,3 +378,12 @@ OCL-24 stays.
 
 Sequence: 34 → 35 → 36 → 37 (35+ build on tokens; each cites the checklist items it
 closes in its deliver).
+
+### Amendment follow-ups (A1, A2 — see [`amendments.md`](./amendments.md))
+
+| Card | Owns | Must not touch |
+|---|---|---|
+| **A1 implementation** | `--oc-tap-min`, the `.oc-tappable` utility, adoption on the seven measured components (`.mf-trigger`, cost stat, `.mchip`, `.am-theme-opt`, `.seen-add`, banner and modal buttons) | Theme values, layout |
+| **A1 guard** | The hit-floor test (fine + coarse pointer passes), sibling of `styles/layers.test.ts` | Component styles |
+| **A2 implementation** | Four values in `themes/overclock.css` (`--oc-danger-rgb`, `--oc-focus-ring`, `--oc-focus-ring-inset`, `--oc-border-strong`) + the `EXEMPTIONS` block in all three theme files | Component styles, layout |
+| **A2 guard** | U1–U4 as assertions in `styles/tokens.test.ts`, evaluated per theme | Theme values |
