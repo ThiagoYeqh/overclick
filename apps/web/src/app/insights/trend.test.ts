@@ -14,11 +14,17 @@ function row(over: Partial<InsightAttemptRow>): InsightAttemptRow {
     taskShortId: "AGB-1",
     taskTitle: "card",
     taskIsExample: false,
+    taskStatus: "feito",
+    tipo: "feature",
+    priority: "media",
     projectId: "p1",
     projectName: "proj",
     missionId: null,
     missionTitle: null,
+    resolvedIn: null,
     model: "claude-opus-5",
+    executor: "claude-code",
+    modelSource: null,
     result: "success",
     finishedAt: new Date(2026, 7, 10, 12),
     usageSegments: null,
@@ -26,10 +32,15 @@ function row(over: Partial<InsightAttemptRow>): InsightAttemptRow {
     tokensOut: 100_000,
     tokensCache: 0,
     costUsd: null,
+    costSource: null,
+    costStatus: null,
+    costUnpricedModels: null,
+    costBreakdown: null,
     durationMs: 60_000,
     serverDurationMs: 60_000,
     turns: 3,
     usageEstimated: false,
+    usageSuspect: false,
     ...over,
   };
 }
@@ -87,5 +98,13 @@ describe("buildDailyTrend", () => {
       { prices: PRICES, pricingEnabled: true, lang: "en" },
     );
     expect(trend.points[0].costUsd).toBeCloseTo(3.25);
+  });
+
+  it("keeps suspect counters out of the trend", () => {
+    const trend = buildDailyTrend(
+      [row({ usageSuspect: true, tokensIn: 5_000_000 })],
+      { prices: [], pricingEnabled: false, lang: "en" },
+    );
+    expect(trend.points[0]).toMatchObject({ attempts: 1, tokens: 0 });
   });
 });

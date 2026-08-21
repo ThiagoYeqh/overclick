@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   areSegmentsPriced,
+  assessAttemptCost,
   computeCostUsd,
   factoryModelPrices,
   findModelPrice,
@@ -35,6 +36,16 @@ describe("model key normalization", () => {
   it("leaves an unknown model as its own key", () => {
     expect(normalizeModelKey("gpt-5.6-sol")).toBe("gpt-5-6-sol");
   });
+
+  it("keeps CLI aliases on the same canonical price key", () => {
+    expect(normalizeModelKey("gpt-5.3-codex-spark")).toBe(
+      "gpt-5-3-codex-spark",
+    );
+    expect(normalizeModelKey("kimi-code/k3")).toBe("k3");
+    expect(normalizeModelKey("kimi")).toBe("k3");
+    expect(normalizeModelKey("claude-fable-5")).toBe("fable-5");
+    expect(normalizeModelKey("gpt-5-codex")).toBe("gpt-5-3-codex-spark");
+  });
 });
 
 describe("price lookup", () => {
@@ -59,6 +70,62 @@ describe("cost arithmetic", () => {
 
   it("rounds to the precision the column stores", () => {
     expect(computeCostUsd(PRICES[1]!, { input: 1 })).toBe(0.000001);
+  });
+});
+
+describe("stored cost assessment", () => {
+  it("normalizes Spark, computes the acceptance-case cost and snapshots the breakdown", () => {
+    const result = assessAttemptCost(
+      [{ model: "gpt-5.3-codex-spark", input: 100_000, output: 20_000 }],
+      factoryModelPrices(),
+      { tokensReported: true },
+    );
+    expect(result).toMatchObject({
+      costUsd: 0.455,
+      source: "computed",
+      status: "computed",
+      unpricedModels: [],
+    });
+    expect(result.normalizedSegments[0]?.model).toBe("gpt-5-3-codex-spark");
+    expect(result.breakdown[0]).toMatchObject({
+      model: "gpt-5-3-codex-spark",
+      cost_usd: 0.455,
+      priced: true,
+    });
+  });
+
+  it("stores the missing model instead of turning an unknown cost into zero", () => {
+    const result = assessAttemptCost(
+      [{ model: "future-model", input: 10_000 }],
+      factoryModelPrices(),
+      { tokensReported: true },
+    );
+    expect(result).toMatchObject({
+      costUsd: null,
+      source: null,
+      status: "unpriced",
+      unpricedModels: ["future-model"],
+    });
+  });
+
+  it("distinguishes absent counters, explicit zero and a genuine free tier", () => {
+    expect(
+      assessAttemptCost([], factoryModelPrices(), { tokensReported: false }).status,
+    ).toBe("not_reported");
+    expect(
+      assessAttemptCost(
+        [{ model: "gpt-5.6-sol", input: 0, output: 0 }],
+        factoryModelPrices(),
+        { tokensReported: true },
+      ).status,
+    ).toBe("zero_usage");
+    expect(
+      assessAttemptCost(
+        [{ model: "mimo-v2.5-free", input: 1000 }],
+        factoryModelPrices(),
+        { tokensReported: true },
+      ),
+    ).toMatchObject({ costUsd: 0, source: "computed", status: "computed" });
   });
 });
 
@@ -149,6 +216,11 @@ describe("seeded price list", () => {
     // read as free work, so the row simply is not there.
     expect(findModelPrice(rows, "auto")).toBeNull();
     expect(findModelPrice(rows, "muse-spark-1.2")).toBeNull();
+  });
+
+  it("adds GPT-5.3-Codex-Spark once it gets a published rate", () => {
+    const rows = factoryModelPrices();
+    expect(findModelPrice(rows, "gpt-5-3-codex-spark")).not.toBeNull();
   });
 
   it("prices a free tier at zero, which is a price and not a missing one", () => {

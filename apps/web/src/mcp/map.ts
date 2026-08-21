@@ -7,17 +7,21 @@ import type {
 import {
   DEFAULT_CARDAPIO,
   DEFAULT_REVIEWER,
+  mergeExecutorEffortCatalog,
   type Cardapio as McpCardapio,
   type ConfirmationStep,
   type ConfiguredExecutor,
+  type ConfiguredExecutorContract,
   type Harness,
   type Mission,
   type Origem,
   type Project,
   type ProjectCardCounts,
+  type ProjectDetail,
   type Reviewer,
   type StoredTranscriptRefWire,
   type Task,
+  type TaskRead,
   type Usage,
 } from "@agent-board/mcp-core";
 import type { mission, project, task } from "@agent-board/db/schema";
@@ -176,7 +180,14 @@ export function mapMission(row: MissionRow, taskCount?: number): Mission {
 }
 
 export function emptyCardCounts(): ProjectCardCounts {
-  return { total: 0, aberto: 0, em_execucao: 0, feito: 0, validado: 0 };
+  return {
+    total: 0,
+    aberto: 0,
+    em_execucao: 0,
+    feito: 0,
+    validado: 0,
+    descartado: 0,
+  };
 }
 
 export function mapProject(
@@ -188,16 +199,41 @@ export function mapProject(
     name: row.name,
     id_prefix: row.idPrefix,
     repo_url: row.repoUrl,
+    has_context: Boolean(row.context?.trim()),
     next_number: row.nextNumber,
     cards,
     created_at: iso(row.createdAt),
   };
 }
 
+export function mapProjectDetail(
+  row: ProjectRow,
+  cards: ProjectCardCounts = emptyCardCounts(),
+): ProjectDetail {
+  return {
+    ...mapProject(row, cards),
+    context: row.context,
+    current_version: row.currentVersion,
+    latest_prerelease: row.latestPrerelease,
+    context_updated_at: row.contextUpdatedAt ? iso(row.contextUpdatedAt) : null,
+    context_source: row.contextSource
+      ? {
+          ...(row.contextSource.releasesRepo
+            ? { releases_repo: row.contextSource.releasesRepo }
+            : {}),
+          ...(row.contextSource.contextFile
+            ? { context_file: row.contextSource.contextFile }
+            : {}),
+          refresh: row.contextSource.refresh,
+        }
+      : null,
+  };
+}
+
 export function mapTask(
   row: TaskRow,
   proj: ProjectRow,
-  extras: { reopenComment?: string | null } = {},
+  extras: { reopenComment?: string | null; reportsCount?: number } = {},
 ): Task {
   const pr = row.prUrl && /^https?:\/\//.test(row.prUrl) ? row.prUrl : null;
   return {
@@ -211,8 +247,15 @@ export function mapTask(
     project_id: row.projectId,
     mission_id: row.missionId,
     devolve_para: reviewerFromRow(row),
+    commit: row.commitHash ?? null,
+    delivery_unverified: row.deliveryUnverified,
+    delivery_verification: row.deliveryVerification ?? null,
+    delivery_warning: row.deliveryWarning ?? null,
     workspace_id: proj.workspaceId,
+    previous_short_ids: row.previousShortIds ?? [],
     parent_id: row.parentId,
+    supersedes: row.supersedesId,
+    superseded_by: row.supersededById,
     o_que: row.oQue,
     por_que: row.porQue,
     como_confirmo: parseComoConfirmo(row.comoConfirmo),
@@ -221,10 +264,60 @@ export function mapTask(
     mode: row.mode,
     branch: row.branch,
     pull_request_url: pr,
+    resolved_in: row.resolvedIn ?? null,
+    reports_count: extras.reportsCount ?? 0,
     reopen_comment: extras.reopenComment ?? null,
     claimed_by: row.claimedByTokenId,
     created_at: iso(row.createdAt),
     updated_at: iso(row.updatedAt),
+  };
+}
+
+/**
+ * Read-only card payloads omit workspace identity and unset values. Write
+ * responses keep using mapTask so their established nullable contract stays
+ * compatible with clients that consume mutation acknowledgements.
+ */
+export function mapTaskForRead(value: Task): TaskRead {
+  const {
+    workspace_id: _workspaceId,
+    mission_id,
+    commit,
+    delivery_verification: deliveryVerification,
+    delivery_warning: deliveryWarning,
+    previous_short_ids: previousShortIds,
+    parent_id: parentId,
+    supersedes,
+    superseded_by: supersededBy,
+    harness,
+    branch,
+    pull_request_url: pullRequestUrl,
+    resolved_in: resolvedIn,
+    reopen_comment: reopenComment,
+    claimed_by: claimedBy,
+    reports_count: reportsCount,
+    ...stable
+  } = value;
+
+  return {
+    ...stable,
+    ...(mission_id ? { mission_id } : {}),
+    ...(commit ? { commit } : {}),
+    ...(deliveryVerification ? { delivery_verification: deliveryVerification } : {}),
+    ...(deliveryWarning ? { delivery_warning: deliveryWarning } : {}),
+    ...(previousShortIds.length > 0
+      ? { previous_short_ids: previousShortIds }
+      : {}),
+    ...(parentId ? { parent_id: parentId } : {}),
+    ...(supersedes ? { supersedes } : {}),
+    ...(supersededBy ? { superseded_by: supersededBy } : {}),
+    ...(harness ? { harness } : {}),
+    ...(branch ? { branch } : {}),
+    ...(pullRequestUrl ? { pull_request_url: pullRequestUrl } : {}),
+    ...(resolvedIn ? { resolved_in: resolvedIn } : {}),
+    ...(reopenComment ? { reopen_comment: reopenComment } : {}),
+    ...(claimedBy ? { claimed_by: claimedBy } : {}),
+    ...(reportsCount > 0 ? { reports_count: reportsCount } : {}),
   };
 }
 
@@ -233,11 +326,45 @@ export function executorsFromWorkspace(
 ): ConfiguredExecutor[] {
   return executors
     .filter((item) => item.enabled)
-    .map((item) => ({
-      id: item.id,
-      cli: item.id,
-      models: item.models,
-    }));
+    .map((item) => {
+      const effortCatalog = mergeExecutorEffortCatalog({
+        cli: item.id,
+        models: item.models,
+        catalog: item.catalog,
+        efforts: item.efforts,
+        effortSources: item.effortSources,
+      });
+      return {
+        id: item.id,
+        cli: item.id,
+        models: item.models,
+        efforts: effortCatalog.efforts,
+      };
+    });
+}
+
+/** Maps stored executor JSON to the complete public harness_list contract. */
+export function executorToWire(
+  item: ExecutorConfig,
+): ConfiguredExecutorContract {
+  const effortCatalog = mergeExecutorEffortCatalog({
+    cli: item.id,
+    models: item.models,
+    catalog: item.catalog,
+    efforts: item.efforts,
+    effortSources: item.effortSources,
+  });
+  return {
+    id: item.id,
+    label: item.label,
+    enabled: item.enabled,
+    models: item.models,
+    ...(item.catalog ? { catalog: item.catalog } : {}),
+    efforts: effortCatalog.efforts,
+    ...(Object.keys(effortCatalog.effort_sources).length > 0
+      ? { effort_sources: effortCatalog.effort_sources }
+      : {}),
+  };
 }
 
 export function cardapioFromWorkspace(cardapio: Cardapio): McpCardapio {
@@ -295,6 +422,7 @@ export function encodeExecutor(input: {
   cli?: string;
   agent?: string;
   session_id?: string;
+  effort?: string;
 }): string {
   return JSON.stringify(input);
 }
@@ -302,10 +430,13 @@ export function encodeExecutor(input: {
 export function decodeExecutor(
   raw: string | null,
   model: string | null,
+  modelSource?: "declared" | "harness" | "measured" | null,
 ): {
   token_id?: string;
   cli?: string;
   model?: string;
+  model_source?: "declared" | "harness" | "measured";
+  effort?: string;
   agent?: string;
   session_id?: string;
 } {
@@ -326,5 +457,7 @@ export function decodeExecutor(
     agent: asString(parsed.agent),
     session_id: asString(parsed.session_id),
     ...(model ? { model } : {}),
+    ...(modelSource ? { model_source: modelSource } : {}),
+    ...(asString(parsed.effort) ? { effort: asString(parsed.effort) } : {}),
   };
 }

@@ -1,3 +1,6 @@
+import type { TaskPriority, TaskType } from "@agent-board/db";
+import { isReleaseVersion } from "@agent-board/mcp-core";
+
 export const ALL_PROJECTS = "all";
 /**
  * The cards nobody put in a mission. A bucket, not a mission: without it a
@@ -5,6 +8,16 @@ export const ALL_PROJECTS = "all";
  * being invisible on a board with 44 cards.
  */
 export const NO_MISSION = "none";
+/** Stored/query sentinel for the cards whose release is still unset. */
+export const NO_RELEASE = "__no_release__";
+
+export const TASK_TYPES: readonly TaskType[] = ["bug", "feature", "rfc"];
+export const TASK_PRIORITIES: readonly TaskPriority[] = [
+  "urgente",
+  "alta",
+  "media",
+  "baixa",
+];
 
 export type BoardFilter = {
   /**
@@ -14,6 +27,36 @@ export type BoardFilter = {
    */
   projectIds: string[];
   missionId: string | null;
+  /** Undefined means every release; null means only cards without a release. */
+  resolvedIn?: string | null;
+  /** Empty means every task type. */
+  types: TaskType[];
+  /** Empty means every priority. */
+  priorities: TaskPriority[];
+};
+
+type StoredBoardFilter = {
+  projectId: string | null;
+  missionId: string | null;
+  types?: string | string[] | null;
+  priorities?: string | string[] | null;
+  resolvedIn?: string | null;
+};
+
+type FilterableCard = {
+  projectId: string;
+  missionId: string | null;
+  tipo: TaskType;
+  priority: TaskPriority;
+  resolvedIn: string | null;
+};
+
+export type SearchableBoardCard = FilterableCard & {
+  shortId: string;
+  title: string;
+  oQue: string;
+  porQue: string;
+  comoConfirmo: readonly { step: string; expected: string }[];
 };
 
 export function defaultProjectId(projects: { id: string }[]): string | null {
@@ -26,6 +69,55 @@ export function defaultProjectId(projects: { id: string }[]): string | null {
  */
 export function encodeProjectSelection(projectIds: string[]): string {
   return projectIds.length === 0 ? ALL_PROJECTS : projectIds.join(",");
+}
+
+/** Empty is stored as null, the backwards-compatible value for "all". */
+export function encodeFacetSelection(values: readonly string[]): string | null {
+  return values.length > 0 ? values.join(",") : null;
+}
+
+/** Null in storage remains available for "no filter", so no-release needs a sentinel. */
+export function encodeReleaseSelection(
+  value: string | null | undefined,
+): string | null {
+  if (value === undefined) return null;
+  return value === null ? NO_RELEASE : value;
+}
+
+export function resolveReleaseSelection(
+  stored: string | null | undefined,
+  releases?: { value: string }[],
+): string | null | undefined {
+  if (stored == null || stored.length === 0) return undefined;
+  if (stored === NO_RELEASE) return null;
+  // A stored value the filter would not offer is no longer a selection: a
+  // release that was deleted, and since OCL-128 also a branch name that some
+  // delivery wrote into resolved_in.
+  if (!isReleaseVersion(stored)) return undefined;
+  if (releases && !releases.some((release) => release.value === stored)) {
+    return undefined;
+  }
+  return stored;
+}
+
+function resolveFacetSelection<T extends string>(
+  stored: string | string[] | null | undefined,
+  known: readonly T[],
+): T[] {
+  const requested = new Set(
+    (Array.isArray(stored) ? stored : (stored ?? "").split(","))
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  return known.filter((value) => requested.has(value));
+}
+
+export function isTaskType(value: string): value is TaskType {
+  return (TASK_TYPES as readonly string[]).includes(value);
+}
+
+export function isTaskPriority(value: string): value is TaskPriority {
+  return (TASK_PRIORITIES as readonly string[]).includes(value);
 }
 
 /**
@@ -79,22 +171,40 @@ export function boardFilterToQuery(filter: BoardFilter): string {
   const params = new URLSearchParams();
   params.set("projects", encodeProjectSelection(filter.projectIds));
   if (filter.missionId) params.set("mission", filter.missionId);
+  if (filter.types.length > 0) params.set("types", filter.types.join(","));
+  if (filter.priorities.length > 0) {
+    params.set("priorities", filter.priorities.join(","));
+  }
+  if (filter.resolvedIn !== undefined) {
+    params.set("release", encodeReleaseSelection(filter.resolvedIn) ?? "");
+  }
   return params.toString();
 }
 
 /** The other end of boardFilterToQuery. No params at all means everything. */
 export function boardFilterFromQuery(
-  params: { projects?: string | null; mission?: string | null },
+  params: {
+    projects?: string | null;
+    mission?: string | null;
+    types?: string | null;
+    priorities?: string | null;
+    release?: string | null;
+  },
   projects: { id: string }[],
   missions: { id: string }[] = [],
+  releases?: { value: string }[],
 ): BoardFilter {
   return resolveBoardFilter(
     {
       projectId: params.projects ?? ALL_PROJECTS,
       missionId: params.mission ?? null,
+      types: params.types,
+      priorities: params.priorities,
+      resolvedIn: params.release,
     },
     projects,
     missions,
+    releases,
   );
 }
 
@@ -103,9 +213,10 @@ function inScope(filter: BoardFilter, projectId: string): boolean {
 }
 
 export function resolveBoardFilter(
-  stored: { projectId: string | null; missionId: string | null },
+  stored: StoredBoardFilter,
   projects: { id: string }[],
   missions: { id: string }[] = [],
+  releases?: { value: string }[],
 ): BoardFilter {
   const projectIds = resolveProjectSelection(stored.projectId, projects);
 
@@ -116,29 +227,86 @@ export function resolveBoardFilter(
       : stored.missionId && missionIds.has(stored.missionId)
         ? stored.missionId
         : null;
+  const resolvedIn = resolveReleaseSelection(stored.resolvedIn, releases);
 
-  return { projectIds, missionId };
+  return {
+    projectIds,
+    missionId,
+    types: resolveFacetSelection(stored.types, TASK_TYPES),
+    priorities: resolveFacetSelection(stored.priorities, TASK_PRIORITIES),
+    ...(resolvedIn !== undefined ? { resolvedIn } : {}),
+  };
 }
 
-export function filterBoardCards<
-  T extends { projectId: string; missionId: string | null },
->(cards: T[], filter: BoardFilter): T[] {
+function matchesFacets(card: FilterableCard, filter: BoardFilter): boolean {
+  if (filter.types.length > 0 && !filter.types.includes(card.tipo)) return false;
+  if (
+    filter.priorities.length > 0 &&
+    !filter.priorities.includes(card.priority)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function matchesRelease(card: FilterableCard, filter: BoardFilter): boolean {
+  return (
+    filter.resolvedIn === undefined || card.resolvedIn === filter.resolvedIn
+  );
+}
+
+function matchesMission(card: FilterableCard, filter: BoardFilter): boolean {
+  if (filter.missionId === NO_MISSION) return card.missionId === null;
+  return !filter.missionId || card.missionId === filter.missionId;
+}
+
+export function filterBoardCards<T extends FilterableCard>(
+  cards: T[],
+  filter: BoardFilter,
+): T[] {
   return cards.filter((card) => {
     if (!inScope(filter, card.projectId)) return false;
-    if (filter.missionId === NO_MISSION) return card.missionId === null;
-    if (filter.missionId && card.missionId !== filter.missionId) {
-      return false;
-    }
-    return true;
+    if (!matchesFacets(card, filter)) return false;
+    if (!matchesRelease(card, filter)) return false;
+    return matchesMission(card, filter);
+  });
+}
+
+/**
+ * Free-text board search stays separate from facet resolution so it can be
+ * composed with every active project, mission, type, priority and release
+ * filter. Each word is required, which makes a query such as "OCL-72 board"
+ * useful without requiring the words to appear next to each other.
+ */
+export function searchBoardCards<T extends SearchableBoardCard>(
+  cards: T[],
+  query: string,
+): T[] {
+  const needles = normalize(query).split(/\s+/).filter(Boolean);
+  if (needles.length === 0) return cards;
+
+  return cards.filter((card) => {
+    const contract = card.comoConfirmo
+      .flatMap((step) => [step.step, step.expected])
+      .join(" ");
+    const haystack = normalize(
+      [card.shortId, card.title, card.oQue, card.porQue, contract].join(" "),
+    );
+    return needles.every((needle) => haystack.includes(needle));
   });
 }
 
 /** How many cards of the current selection have no mission at all. */
-export function countLooseCards<
-  T extends { projectId: string; missionId: string | null },
->(cards: T[], filter: BoardFilter): number {
+export function countLooseCards<T extends FilterableCard>(
+  cards: T[],
+  filter: BoardFilter,
+): number {
   return cards.filter(
-    (card) => card.missionId === null && inScope(filter, card.projectId),
+    (card) =>
+      card.missionId === null &&
+      inScope(filter, card.projectId) &&
+      matchesFacets(card, filter) &&
+      matchesRelease(card, filter),
   ).length;
 }
 
@@ -152,15 +320,15 @@ export type ProjectCount = { id: string; name: string; count: number };
  * goes. The counts answer the mission filter in force, because that is what
  * picking this project would actually show.
  */
-export function projectFilterOptions<
-  T extends { projectId: string; missionId: string | null },
->(
+export function projectFilterOptions<T extends FilterableCard>(
   cards: T[],
   projects: { id: string; name: string }[],
   filter: BoardFilter,
 ): ProjectCount[] {
   const counts = new Map<string, number>();
   for (const card of cards) {
+    if (!matchesFacets(card, filter)) continue;
+    if (!matchesRelease(card, filter)) continue;
     if (filter.missionId === NO_MISSION && card.missionId !== null) continue;
     if (
       filter.missionId &&
@@ -193,9 +361,7 @@ export type MissionCount = { id: string; title: string; count: number };
  * every mission of the workspace, because a mission crosses projects and this
  * card may be the first of that mission here.
  */
-export function missionFilterOptions<
-  T extends { projectId: string; missionId: string | null },
->(
+export function missionFilterOptions<T extends FilterableCard>(
   cards: T[],
   missions: { id: string; title: string }[],
   filter: BoardFilter,
@@ -203,6 +369,8 @@ export function missionFilterOptions<
   const counts = new Map<string, number>();
   for (const card of cards) {
     if (!inScope(filter, card.projectId)) continue;
+    if (!matchesFacets(card, filter)) continue;
+    if (!matchesRelease(card, filter)) continue;
     if (!card.missionId) continue;
     counts.set(card.missionId, (counts.get(card.missionId) ?? 0) + 1);
   }
@@ -213,6 +381,47 @@ export function missionFilterOptions<
       title: miss.title,
       count: counts.get(miss.id) ?? 0,
     }));
+}
+
+/** A release the filter can offer, with the count left by every other dimension. */
+export type ReleaseCount = { value: string | null; count: number };
+
+/**
+ * The releases worth putting on the filter (OCL-128).
+ *
+ * `resolved_in` is a free-text column, and a delivery that wrote its branch
+ * name there ("ovka-78-...-f@68218bba") became an option on the RELEASE
+ * filter, next to v0.2.2 and holding no cards. The write path refuses that
+ * value now; this is the reading end, so the rows already stamped stop
+ * polluting the menu. The cards themselves are not hidden: they stay under
+ * "all releases", which is where a card whose release this filter cannot
+ * read belongs.
+ */
+export function releaseValueOptions(
+  releases: { value: string }[],
+): { value: string }[] {
+  return releases.filter((release) => isReleaseVersion(release.value));
+}
+
+export function releaseFilterOptions<T extends FilterableCard>(
+  cards: T[],
+  releases: { value: string }[],
+  filter: BoardFilter,
+): ReleaseCount[] {
+  const counts = new Map<string | null, number>();
+  for (const card of cards) {
+    if (!inScope(filter, card.projectId)) continue;
+    if (!matchesFacets(card, filter)) continue;
+    if (!matchesMission(card, filter)) continue;
+    counts.set(card.resolvedIn, (counts.get(card.resolvedIn) ?? 0) + 1);
+  }
+  return [
+    ...releaseValueOptions(releases).map((release) => ({
+      value: release.value,
+      count: counts.get(release.value) ?? 0,
+    })),
+    { value: null, count: counts.get(null) ?? 0 },
+  ];
 }
 
 /**

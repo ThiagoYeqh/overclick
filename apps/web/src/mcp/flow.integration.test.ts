@@ -1,17 +1,17 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
-  TaskDeliverOutputSchema,
+  TaskDeliverFullOutputSchema as TaskDeliverOutputSchema,
   MCP_TOOL_NAMES,
   TaskClaimOutputSchema,
-  TaskCreateOutputSchema,
+  TaskCreateFullOutputSchema as TaskCreateOutputSchema,
   TaskGetOutputSchema,
   TaskListOutputSchema,
 } from "@agent-board/mcp-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { createOverclickMcpServer } from "./server";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 const origem = {
   pane_id: "pane_1",
@@ -22,7 +22,7 @@ const origem = {
 };
 
 async function connectClient(world: TestWorld, tokenId = world.tokenId) {
-  const server = createOverclickMcpServer({
+  const server = await createOverclickMcpServer({
     db: world.db,
     ctx: { tokenId, workspaceId: world.workspaceId, tokenLabel: "test" },
   });
@@ -53,7 +53,39 @@ describe("MCP end-to-end against a test db", () => {
     if (world) await closeTestWorld(world);
   });
 
-  it("lists the 13 tools and runs create → claim → handoff", async () => {
+  it("lists and reads project context as an MCP resource", async () => {
+    world = await createTestWorld();
+    const updated = await invokeTool(world.db, {
+      tokenId: world.tokenId,
+      workspaceId: world.workspaceId,
+      tokenLabel: "test",
+    }, "project_update", {
+      project_id: "OC",
+      context: "# Resource context\n\nComplete markdown.",
+      current_version: "1.3.5",
+    });
+    expect(updated.ok).toBe(true);
+
+    const { client, server } = await connectClient(world);
+    try {
+      const listed = await client.listResources();
+      expect(listed.resources.map((resource) => resource.uri)).toContain(
+        "overclick://project/OC/context",
+      );
+      const read = await client.readResource({
+        uri: "overclick://project/OC/context",
+      });
+      expect(read.contents[0]).toMatchObject({
+        mimeType: "text/markdown",
+        text: "# Resource context\n\nComplete markdown.",
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("lists the tool catalog and runs create → claim → handoff", async () => {
     world = await createTestWorld();
     const { client, server } = await connectClient(world);
     try {
@@ -74,6 +106,7 @@ describe("MCP end-to-end against a test db", () => {
             mode: "solo",
             origem,
             devolve_para: { kind: "agent", session_id: "sess_torre" },
+            return: "full",
           },
         }),
         TaskCreateOutputSchema,
@@ -82,7 +115,7 @@ describe("MCP end-to-end against a test db", () => {
       expect(created.task.workspace_id).toBe(world.workspaceId);
       expect(created.task.mission_id).toBe(world.missionId);
       expect(created.task.status).toBe("aberto");
-      expect(created.task.harness?.model).toBe("sonnet-5");
+      expect(created.task.harness?.model).toBe("fable-5");
       expect(created.task.devolve_para).toEqual({
         kind: "agent",
         session_id: "sess_torre",
@@ -91,7 +124,7 @@ describe("MCP end-to-end against a test db", () => {
       const got = parseTool(
         await client.callTool({
           name: "task_get",
-          arguments: { task_id: created.task.short_id },
+          arguments: { task_id: created.task.short_id, view: "briefing" },
         }),
         TaskGetOutputSchema,
       );
@@ -141,6 +174,7 @@ describe("MCP end-to-end against a test db", () => {
               duration_ms: 8000,
               turns: 3,
             },
+            return: "full",
           },
         }),
         TaskDeliverOutputSchema,

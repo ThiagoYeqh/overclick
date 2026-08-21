@@ -1,6 +1,13 @@
 import type { UsageSegment } from "./domain/usage";
 
-export type Effort = "low" | "medium" | "high";
+/** Provider-specific effort values are intentionally open-ended. */
+export type Effort = string;
+
+/** Where the model identity on an execution attempt came from. */
+export type AttemptModelSource = "declared" | "harness" | "measured";
+
+/** Whether a delivered commit could be checked against the project's remote. */
+export type DeliveryVerification = "verified" | "unverified";
 
 export type Harness = {
   cli?: string | null;
@@ -13,6 +20,8 @@ export type CardapioPolicyEntry = {
   type: string;
   cli: string | null;
   model: string | null;
+  /** Line of succession for this activity, best first, `model` as its head. */
+  chain?: string[] | null;
   effort: Effort;
 };
 
@@ -27,6 +36,10 @@ export type ExecutorConfig = {
    * saved before this field existed.
    */
   catalog?: string[];
+  /** Supported effort values keyed by model, when the workspace overrides the seed. */
+  efforts?: Record<string, string[]>;
+  /** Evidence URL keyed by model for the effort catalog shown to callers. */
+  effortSources?: Record<string, string>;
 };
 
 export type Cardapio = {
@@ -103,6 +116,19 @@ export type ValidationTick = {
  * the same interval, under exactly the rules the manual path follows.
  */
 export type UpdateMode = "off" | "check" | "auto";
+
+/** Optional GitHub sources that keep one project's context current. */
+export type ProjectContextSource = {
+  releasesRepo?: string;
+  contextFile?: string;
+  refresh: "on_release" | "daily" | "manual";
+};
+
+/** Where a project context audit entry came from. */
+export type ProjectContextAuditSource =
+  | "github_release"
+  | "context_file"
+  | "manual";
 
 /** What an automatic update did, kept so the panel can say what and when. */
 export type AutoUpdateRecord = {

@@ -57,3 +57,51 @@ export function recipeForCli(
   const resolved = raw ? (resolveCatalogCli(raw) ?? raw) : null;
   return findUsageRecipe(recipes, resolved);
 }
+
+function shellValue(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+/**
+ * Binds a recipe to this attempt's claim window. Every transcript-reading
+ * shipped recipe understands OVERCLICK_CLAIMED_AT; Codex additionally gets
+ * the exact session and harness model that select and label its rollout.
+ */
+export function bindUsageRecipe(
+  recipe: UsageRecipeRow | null,
+  executor: {
+    sessionId?: string | null;
+    model?: string | null;
+    claimedAt?: Date | string | null;
+  },
+): UsageRecipeRow | null {
+  if (!recipe) return recipe;
+
+  const claimedAt = executor.claimedAt
+    ? new Date(executor.claimedAt).toISOString()
+    : null;
+
+  const environment = [
+    claimedAt ? `OVERCLICK_CLAIMED_AT=${shellValue(claimedAt)}` : null,
+    recipe.cli === "codex" && executor.sessionId
+      ? `CODEX_SESSION_ID=${shellValue(executor.sessionId)}`
+      : null,
+    recipe.cli === "codex" && executor.model
+      ? `CODEX_HARNESS_MODEL=${shellValue(executor.model)}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const windowInstruction = claimedAt
+    ? ` Count only transcript entries at or after claimed_at ${claimedAt}; ` +
+      "work already present in this session belongs to no part of this card."
+    : "";
+
+  return {
+    ...recipe,
+    instructions: `${recipe.instructions}${windowInstruction}`,
+    command:
+      recipe.command && environment.length
+        ? `${environment.join(" ")} ${recipe.command}`
+        : recipe.command,
+  };
+}

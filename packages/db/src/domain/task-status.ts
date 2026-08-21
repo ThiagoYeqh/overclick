@@ -3,6 +3,7 @@ export const TASK_STATUSES = [
   "em_execucao",
   "feito",
   "validado",
+  "descartado",
 ] as const;
 
 export type TaskStatus = (typeof TASK_STATUSES)[number];
@@ -31,6 +32,10 @@ export function canTransition(
   }
 
   if (from === "feito" && to === "validado") {
+    return actor === "human";
+  }
+
+  if (from === "validado" && to === "feito") {
     return actor === "human";
   }
 

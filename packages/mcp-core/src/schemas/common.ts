@@ -1,31 +1,140 @@
 import { z } from "zod";
+import { RELEASE_VERSION_PATTERN } from "../release.js";
 
 export const CardStatusSchema = z.enum([
   "aberto",
   "em_execucao",
   "feito",
   "validado",
+  "descartado",
 ]);
 
 export const TaskTypeSchema = z.enum(["feature", "bug", "rfc"]);
 
+/**
+ * The release a card shipped in, as it is written (OCL-128). A delivery that
+ * put its branch there ("ovka-78-...-f@68218bba") turned the branch into an
+ * option on the board's RELEASE filter, beside v0.2.2 and with no cards under
+ * it. A delivery already carries `branch` and `commit`; this field is the
+ * release, so it takes a version and says so when it does not get one.
+ *
+ * Only the write paths use it. Reading filters (task_list, task_search) stay
+ * permissive, so cards stamped before this guard remain findable by the exact
+ * value they carry.
+ */
+export const ReleaseVersionSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .regex(
+    RELEASE_VERSION_PATTERN,
+    "resolved_in is a release version (v1.4.0, 1.4.0, v1.0.0-rc.1); send a branch name in branch and a commit in commit",
+  );
+
+/** Keep in step with CARDAPIO_TASK_TYPES: the routing table is the source. */
 export const CardapioTaskTypeSchema = z.enum([
-  "bug",
   "feature",
+  "tweak",
+  "contract",
+  "refactor",
+  "bug",
+  "deep_bug",
+  "fleet_triage",
+  "showpiece",
+  "visual_fix",
+  "publish",
+  "page_copy",
+  "docs",
+  "microcopy",
   "rfc",
-  "architecture",
-  "mechanical",
+  "fanout",
+  "doctrine",
+  "review",
+  "drone",
+  "ship",
+  "research",
 ]);
 
 export const PrioritySchema = z.enum(["urgente", "alta", "media", "baixa"]);
 
-export const EffortSchema = z.enum(["low", "medium", "high"]);
+/** Effort names belong to each provider/model, so the wire contract is open. */
+export const EffortSchema = z.string().trim().min(1).max(32);
 
 export const ModelTierSchema = z.enum(["top", "mid", "cheap"]);
 
 export const ExecutionModeSchema = z.enum(["solo", "team"]);
 
+/** Outcome of checking a delivered commit against the project's remote. */
+export const DeliveryVerificationSchema = z.enum(["verified", "unverified"]);
+
 export const MissionStatusSchema = z.enum(["ativa", "pausada", "concluida"]);
+
+/** Lifecycle of an orchestration run attached to a mission. */
+export const MissionAttemptStatusSchema = z.enum([
+  "aberto",
+  "sucesso",
+  "abandonado",
+]);
+
+/** A usage snapshot either advances a live run or closes it. */
+export const MissionAttemptCheckpointSchema = z.enum(["rodada", "final"]);
+
+/** Final result recorded by the closing snapshot. */
+export const MissionAttemptResultSchema = z.enum(["success", "abandoned"]);
+
+/**
+ * Shared read controls. Reads default to the compact contract/summary view;
+ * callers opt into the expensive prompt material explicitly.
+ */
+export const ReadViewSchema = z.enum(["contract", "briefing", "full"]);
+
+export const ReadIncludeSchema = z.enum([
+  "briefing",
+  "usage_recipe",
+  "mission",
+  "project",
+  "context",
+  "comments",
+]);
+
+export const ReadOptionsSchema = z.object({
+  /** `briefing` and `full` are aliases for all heavy content. */
+  view: ReadViewSchema.optional(),
+  /** Add individual heavy sections without opting into every section. */
+  include: z.array(ReadIncludeSchema).min(1).max(5).optional(),
+}).strict();
+
+/**
+ * Row-scoped groups for task_list/task_search. The default row answers "what
+ * exists and in what state"; every uuid, delivery flag and the planned
+ * harness ride behind one of these instead of paying for a screenful of ids
+ * nobody reads (every tool already accepts `short_id`).
+ */
+export const ListIncludeSchema = z.enum([
+  /** The planned harness (cli, model, effort) — needed to dispatch a card. */
+  "harness",
+  /** Uuids: the card's own `id`. */
+  "ids",
+  /** commit, delivery_verification, delivery_warning, reports_count, revisado, devolve_para. */
+  "delivery",
+  /** mission_id, project_id, branch, claimed_by. */
+  "refs",
+  /** Every group above, at once. */
+  "all",
+]);
+
+export const ListOptionsSchema = z.object({
+  include: z.array(ListIncludeSchema).min(1).max(5).optional(),
+}).strict();
+
+/**
+ * Write responses are compact by default. `full` is the explicit escape hatch
+ * for callers that need the complete object after a mutation.
+ *
+ * Reads use `view`; writes use `return` so the two controls cannot be confused
+ * when a caller composes a read and a mutation in the same workflow.
+ */
+export const WriteReturnSchema = z.enum(["ack", "full"]);
 
 export const CliNameSchema = z.enum([
   "overclock",
@@ -84,6 +193,13 @@ export const HarnessSchema = z.object({
   cli: z.string().min(1).optional(),
   model: z.string().min(1),
   effort: EffortSchema,
+  /**
+   * Which account/provider of `cli` runs this card (e.g. a second Claude
+   * OAuth account). Optional and retrocompatible: omitted means any account
+   * of that cli, today's behavior. Free text and leniently validated — the
+   * board does not own the canonical account list, Overclock does.
+   */
+  account: z.string().min(1).nullable().optional(),
 });
 
 /**
@@ -203,6 +319,17 @@ export const BranchConventionSchema = z.object({
 
 export const IsoDateTimeSchema = z.string().datetime();
 
+/** Common shape for the small acknowledgement returned by write tools. */
+export const WriteAckSchema = z.object({
+  /** Task writes identify the card with its stable human-facing id. */
+  short_id: z.string().min(1).optional(),
+  /** Non-task writes identify their resource with its uuid or policy key. */
+  id: z.string().min(1).optional(),
+  updated_at: IsoDateTimeSchema,
+  /** Only values changed or produced by the mutation; never the full object. */
+  changed: z.record(z.unknown()),
+});
+
 export const MissionSummarySchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -222,7 +349,39 @@ export const ProjectCardCountsSchema = z.object({
   em_execucao: z.number().int().nonnegative(),
   feito: z.number().int().nonnegative(),
   validado: z.number().int().nonnegative(),
+  descartado: z.number().int().nonnegative(),
 });
+
+const GitHubRepoRefSchema = z
+  .string()
+  .trim()
+  .regex(/^[^/\s]+\/[^:/\s]+(?:\.git)?$/, "use owner/repo");
+
+const GitHubContextFileRefSchema = z
+  .string()
+  .trim()
+  .regex(/^[^/\s]+\/[^:/\s]+:[^\s]+$/, "use owner/repo:path/to/context.md");
+
+export const ProjectContextRefreshSchema = z.enum([
+  "on_release",
+  "daily",
+  "manual",
+]);
+
+/** Optional sources that can update a project's managed context. */
+export const ProjectContextSourceSchema = z
+  .object({
+    releases_repo: GitHubRepoRefSchema.optional(),
+    context_file: GitHubContextFileRefSchema.optional(),
+    refresh: ProjectContextRefreshSchema.default("manual"),
+  })
+  .strict()
+  .refine(
+    (value) => Boolean(value.releases_repo || value.context_file),
+    "context_source needs releases_repo or context_file",
+  );
+
+export type ProjectContextSource = z.infer<typeof ProjectContextSourceSchema>;
 
 export const ProjectSchema = z.object({
   id: z.string().min(1),
@@ -230,10 +389,21 @@ export const ProjectSchema = z.object({
   /** Card prefix: `AGB` gives `AGB-1`, `AGB-2`. Unique per workspace. */
   id_prefix: z.string().min(1),
   repo_url: z.string().nullable(),
+  /** Summary-only signal: project_list never sends the markdown itself. */
+  has_context: z.boolean(),
   /** Number the next card in this project will get. */
   next_number: z.number().int().positive(),
   cards: ProjectCardCountsSchema,
   created_at: IsoDateTimeSchema,
+});
+
+/** The complete project payload returned by project_get and write tools. */
+export const ProjectDetailSchema = ProjectSchema.extend({
+  context: z.string().nullable(),
+  current_version: z.string().nullable(),
+  latest_prerelease: z.string().nullable(),
+  context_updated_at: IsoDateTimeSchema.nullable(),
+  context_source: ProjectContextSourceSchema.nullable(),
 });
 
 export const TaskSummarySchema = z.object({
@@ -247,11 +417,45 @@ export const TaskSummarySchema = z.object({
   project_id: z.string().min(1),
   mission_id: z.string().min(1).nullable(),
   devolve_para: ReviewerSchema,
+  /** Commit hash reported at the latest delivery, when one was sent. */
+  commit: z.string().min(1).nullable(),
+  /** True when a project remote exists but the latest delivery was not verified. */
+  delivery_unverified: z.boolean(),
+  delivery_verification: DeliveryVerificationSchema.nullable(),
+  delivery_warning: z.string().nullable(),
+  /**
+   * Only comments with kind `report` are counted.
+   * 0 by default in list payloads and detailed counts in get/update.
+   */
+  reports_count: z.number().int().nonnegative().default(0),
+});
+
+/**
+ * A prose comment or delivery report attached to a card, in the order they
+ * were written. Typed timeline events (executor swaps, stale-claim
+ * takeovers) are operational traces, not contract corrections, and are left
+ * out: this is only what a human or agent deliberately said about the card.
+ */
+export const TaskCommentSchema = z.object({
+  author: z.string().min(1),
+  kind: z.enum(["comment", "report"]),
+  body: z.string().min(1),
+  created_at: IsoDateTimeSchema,
 });
 
 export const TaskSchema = TaskSummarySchema.extend({
   workspace_id: z.string().min(1),
+  /**
+   * Short ids this card carried before, oldest first. A move between projects
+   * restamps `short_id` with the destination prefix and leaves the old one
+   * here, so a branch or PR named after it is still traceable.
+   */
+  previous_short_ids: z.array(z.string().min(1)),
   parent_id: z.string().min(1).nullable(),
+  /** Card this one continues, if it replaced an abandoned execution. */
+  supersedes: z.string().min(1).nullable(),
+  /** Replacement card, when this card was discarded. */
+  superseded_by: z.string().min(1).nullable(),
   o_que: z.string(),
   por_que: z.string(),
   como_confirmo: z.array(ConfirmationStepSchema),
@@ -260,10 +464,92 @@ export const TaskSchema = TaskSummarySchema.extend({
   mode: ExecutionModeSchema,
   branch: z.string().min(1).nullable(),
   pull_request_url: z.string().url().nullable(),
+  /**
+   * Version, tag or release the card was resolved in, free text. Null until
+   * a delivery or a later task_update says so. Lets a caller compare "which
+   * build has this" against a version someone reports.
+   */
+  resolved_in: z.string().nullable(),
   reopen_comment: z.string().nullable(),
   claimed_by: z.string().nullable(),
   created_at: IsoDateTimeSchema,
   updated_at: IsoDateTimeSchema,
+});
+
+/**
+ * Read payload for task_get. Workspace identity and absent optional values do
+ * not belong in a card read: the MCP token already scopes the workspace, and
+ * callers can distinguish an unset field from an empty string without paying
+ * for a collection of null placeholders.
+ */
+export const TaskReadSchema = TaskSchema.omit({
+  workspace_id: true,
+  mission_id: true,
+  commit: true,
+  delivery_verification: true,
+  delivery_warning: true,
+  previous_short_ids: true,
+  parent_id: true,
+  supersedes: true,
+  superseded_by: true,
+  harness: true,
+  branch: true,
+  pull_request_url: true,
+  resolved_in: true,
+  reopen_comment: true,
+  claimed_by: true,
+  reports_count: true,
+}).extend({
+  mission_id: z.string().min(1).optional(),
+  commit: z.string().min(1).optional(),
+  delivery_verification: DeliveryVerificationSchema.optional(),
+  delivery_warning: z.string().min(1).optional(),
+  previous_short_ids: z.array(z.string().min(1)).min(1).optional(),
+  parent_id: z.string().min(1).optional(),
+  supersedes: z.string().min(1).optional(),
+  superseded_by: z.string().min(1).optional(),
+  harness: HarnessSchema.optional(),
+  branch: z.string().min(1).optional(),
+  pull_request_url: z.string().url().optional(),
+  resolved_in: z.string().min(1).optional(),
+  reopen_comment: z.string().min(1).optional(),
+  claimed_by: z.string().min(1).optional(),
+  reports_count: z.number().int().positive().optional(),
+});
+
+/** Queue rows stay metadata-only while carrying the planned harness. */
+/**
+ * The task_list default row: the operational minimum that answers "what
+ * exists and in what state" without a single uuid. Everything else — ids,
+ * refs, delivery flags, the planned harness — rides behind `include`; see
+ * `ListIncludeSchema`. `include: ["all"]` reproduces every field below.
+ */
+export const TaskListItemSchema = TaskReadSchema.pick({
+  short_id: true,
+  title: true,
+  type: true,
+  status: true,
+  priority: true,
+}).extend({
+  /** Attention flag: present only when true, never `false`. */
+  delivery_unverified: z.boolean().optional(),
+  cost_usd: z.number().optional(),
+  // include: ["ids"]
+  id: z.string().min(1).optional(),
+  // include: ["refs"]
+  project_id: z.string().min(1).optional(),
+  mission_id: z.string().min(1).optional(),
+  branch: z.string().min(1).optional(),
+  claimed_by: z.string().min(1).optional(),
+  // include: ["delivery"]
+  revisado: z.boolean().optional(),
+  devolve_para: ReviewerSchema.optional(),
+  commit: z.string().min(1).optional(),
+  delivery_verification: DeliveryVerificationSchema.optional(),
+  delivery_warning: z.string().min(1).optional(),
+  reports_count: z.number().int().positive().optional(),
+  // include: ["harness"]
+  harness: HarnessSchema.optional(),
 });
 
 export const ExecutionAttemptSchema = z.object({
@@ -273,15 +559,69 @@ export const ExecutionAttemptSchema = z.object({
     token_id: z.string().min(1).optional(),
     cli: z.string().optional(),
     model: z.string().optional(),
+    model_source: z.enum(["declared", "harness", "measured"]).optional(),
+    effort: EffortSchema.optional(),
     agent: z.string().optional(),
     session_id: z.string().optional(),
   }),
   started_at: IsoDateTimeSchema,
+  last_activity_at: IsoDateTimeSchema,
   finished_at: IsoDateTimeSchema.nullable(),
   usage: UsageSchema.nullable(),
+  usage_suspect: z.boolean(),
+  usage_suspect_reason: z.string().nullable(),
+  delivery_unverified: z.boolean(),
+  delivery_verification: DeliveryVerificationSchema.nullable(),
+  delivery_warning: z.string().nullable(),
   result: z.enum(["success", "failure", "abandoned"]).nullable(),
+  /** Why an attempt failed or was abandoned; usage remains on the attempt. */
+  result_note: z.string().nullable(),
   /** Null when the executor sent no session and its cli has no resume hint. */
   transcript: StoredTranscriptRefSchema.nullable().optional(),
+});
+
+/** Executor identity captured when an orchestration attempt starts. */
+export const MissionAttemptExecutorSchema = z.object({
+  cli: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  model_source: z.enum(["declared", "harness", "measured"]).optional(),
+  effort: EffortSchema.optional(),
+  agent: z.string().min(1).optional(),
+  session_id: z.string().min(1),
+});
+
+/** Public snapshot of a mission-level orchestration attempt. */
+export const MissionAttemptSchema = z.object({
+  id: z.string().min(1),
+  mission_id: z.string().min(1),
+  project_id: z.string().min(1).nullable(),
+  executor: MissionAttemptExecutorSchema,
+  transcript: StoredTranscriptRefSchema.nullable(),
+  status: MissionAttemptStatusSchema,
+  started_at: IsoDateTimeSchema,
+  last_activity_at: IsoDateTimeSchema,
+  finished_at: IsoDateTimeSchema.nullable(),
+  usage: UsageSchema.nullable(),
+  server_duration_ms: z.number().int().nonnegative().nullable(),
+  last_report_sequence: z.number().int().nonnegative(),
+  usage_suspect: z.boolean(),
+  usage_suspect_reason: z.string().nullable(),
+  cost_usd: z.number().nullable(),
+  cost_source: z.enum(["computed", "reported", "estimated"]).nullable(),
+  cost_status: z
+    .enum([
+      "computed",
+      "reported",
+      "estimated",
+      "unpriced",
+      "not_reported",
+      "zero_usage",
+      "suspect",
+    ])
+    .nullable(),
+  cost_unpriced_models: z.array(z.string()),
+  result: MissionAttemptResultSchema.nullable(),
+  result_note: z.string().nullable(),
 });
 
 export const HandoffSchema = z.object({
@@ -294,6 +634,10 @@ export const HandoffSchema = z.object({
   artifacts: z.array(ArtifactSchema),
   branch: z.string().min(1).nullable(),
   pull_request_url: z.string().url().nullable(),
+  commit: z.string().min(1).nullable(),
+  delivery_unverified: z.boolean(),
+  delivery_verification: DeliveryVerificationSchema.nullable(),
+  delivery_warning: z.string().nullable(),
   usage: UsageSchema.nullable(),
   telemetry_incomplete: z.boolean(),
   created_at: IsoDateTimeSchema,
@@ -304,6 +648,7 @@ export type TaskType = z.infer<typeof TaskTypeSchema>;
 export type Priority = z.infer<typeof PrioritySchema>;
 export type Effort = z.infer<typeof EffortSchema>;
 export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
+export type DeliveryVerification = z.infer<typeof DeliveryVerificationSchema>;
 export type ConfirmationStep = z.infer<typeof ConfirmationStepSchema>;
 export type Origem = z.infer<typeof OrigemSchema>;
 export type Reviewer = z.infer<typeof ReviewerSchema>;
@@ -316,10 +661,23 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 export type Artifact = z.infer<typeof ArtifactSchema>;
 export type SubtaskCreate = z.infer<typeof SubtaskCreateSchema>;
 export type Mission = z.infer<typeof MissionSchema>;
+export type ReadView = z.infer<typeof ReadViewSchema>;
+export type ReadInclude = z.infer<typeof ReadIncludeSchema>;
+export type ReadOptions = z.infer<typeof ReadOptionsSchema>;
+export type ListInclude = z.infer<typeof ListIncludeSchema>;
+export type ListOptions = z.infer<typeof ListOptionsSchema>;
+export type WriteReturn = z.infer<typeof WriteReturnSchema>;
+export type WriteAck = z.infer<typeof WriteAckSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
+export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
 export type ProjectCardCounts = z.infer<typeof ProjectCardCountsSchema>;
 export type Task = z.infer<typeof TaskSchema>;
+export type TaskComment = z.infer<typeof TaskCommentSchema>;
+export type TaskRead = z.infer<typeof TaskReadSchema>;
+export type TaskListItem = z.infer<typeof TaskListItemSchema>;
 export type ExecutionAttempt = z.infer<typeof ExecutionAttemptSchema>;
+export type MissionAttemptExecutor = z.infer<typeof MissionAttemptExecutorSchema>;
+export type MissionAttempt = z.infer<typeof MissionAttemptSchema>;
 export type Handoff = z.infer<typeof HandoffSchema>;
 export type BranchConvention = z.infer<typeof BranchConventionSchema>;
 

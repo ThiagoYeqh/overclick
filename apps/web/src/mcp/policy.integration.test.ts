@@ -3,12 +3,12 @@ import {
   FACTORY_CARDAPIO_POLICY,
   HarnessListOutputSchema,
   HarnessRecommendOutputSchema,
-  HarnessSetOutputSchema,
+  HarnessSetFullOutputSchema as HarnessSetOutputSchema,
 } from "@agent-board/mcp-core";
 import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 describe("cardápio policy via MCP", () => {
   let world: TestWorld;
@@ -37,7 +37,8 @@ describe("cardápio policy via MCP", () => {
     expect(out.policy.find((row) => row.type === "bug")).toEqual({
       type: "bug",
       cli: null,
-      model: "sonnet-5",
+      model: "fable-5",
+      chain: ["fable-5", "opus-5", "gpt-5.6-sol"],
       effort: "medium",
       // Seeded straight from the factory policy: nobody has changed it yet.
       updated_by: null,
@@ -46,14 +47,23 @@ describe("cardápio policy via MCP", () => {
     for (const row of out.policy) {
       expect(row).not.toHaveProperty("skills");
     }
-    expect(out.executors).toEqual([
-      {
-        id: "claude-code",
-        label: "Claude Code",
-        enabled: true,
-        models: ["opus-4-8", "sonnet-5", "haiku-4"],
-      },
+    expect(out.executors).toHaveLength(1);
+    expect(out.executors[0]).toMatchObject({
+      id: "claude-code",
+      label: "Claude Code",
+      enabled: true,
+      models: ["fable-5", "opus-5", "opus-4-8", "sonnet-5", "haiku-4-5"],
+    });
+    expect(out.executors[0]?.efforts["fable-5"]).toEqual([
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
     ]);
+    expect(out.executors[0]?.effort_sources?.["fable-5"]).toMatch(
+      /\/effort$/,
+    );
   });
 
   it("editing the stored policy changes what harness_recommend returns", async () => {
@@ -89,19 +99,45 @@ describe("cardápio policy via MCP", () => {
       .where(
         and(
           eq(cardapioEntry.workspaceId, world.workspaceId),
-          eq(cardapioEntry.activityType, "mechanical"),
+          eq(cardapioEntry.activityType, "drone"),
         ),
       );
 
     const rec = await invokeTool(world.db, ctx(), "harness_recommend", {
-      type: "mechanical",
+      type: "drone",
     });
     expect(rec.ok).toBe(true);
     if (!rec.ok) return;
     const out = HarnessRecommendOutputSchema.parse(rec.value);
-    expect(out.harness.model).toBe("haiku-4");
+    expect(out.harness.model).toBe("haiku-4-5");
     expect(out.harness.effort).toBe("low");
     expect(out.harness.cli).toBeNull();
+  });
+
+  it("returns a supported effort when a legacy policy row has an invalid value", async () => {
+    world = await createTestWorld();
+    await world.db
+      .update(cardapioEntry)
+      .set({ cli: "claude-code", model: "haiku-4-5", effort: "max" })
+      .where(
+        and(
+          eq(cardapioEntry.workspaceId, world.workspaceId),
+          eq(cardapioEntry.activityType, "bug"),
+        ),
+      );
+
+    const rec = await invokeTool(world.db, ctx(), "harness_recommend", {
+      type: "bug",
+    });
+    expect(rec.ok).toBe(true);
+    if (!rec.ok) return;
+    const out = HarnessRecommendOutputSchema.parse(rec.value);
+    expect(out.harness).toMatchObject({
+      cli: "claude-code",
+      model: "haiku-4-5",
+      effort: "low",
+    });
+    expect(out.divergence).toContain("max");
   });
 });
 
@@ -235,8 +271,8 @@ describe("harness_set writes the policy over MCP", () => {
   it("keeps no preference when the cli is omitted", async () => {
     world = await createTestWorld();
     const set = await invokeTool(world.db, manager(), "harness_set", {
-      type: "mechanical",
-      model: "haiku-4",
+      type: "drone",
+      model: "haiku-4-5",
       effort: "low",
     });
     expect(set.ok).toBe(true);
@@ -244,7 +280,7 @@ describe("harness_set writes the policy over MCP", () => {
     expect(HarnessSetOutputSchema.parse(set.value).policy.cli).toBeNull();
 
     const rec = await invokeTool(world.db, manager(), "harness_recommend", {
-      type: "mechanical",
+      type: "drone",
     });
     expect(rec.ok).toBe(true);
     if (!rec.ok) return;
@@ -258,19 +294,19 @@ describe("harness_set writes the policy over MCP", () => {
       .where(
         and(
           eq(cardapioEntry.workspaceId, world.workspaceId),
-          eq(cardapioEntry.activityType, "architecture"),
+          eq(cardapioEntry.activityType, "contract"),
         ),
       );
 
     const set = await invokeTool(world.db, manager(), "harness_set", {
-      type: "architecture",
+      type: "contract",
       model: "sonnet-5",
       effort: "high",
     });
     expect(set.ok).toBe(true);
     if (!set.ok) return;
     expect(HarnessSetOutputSchema.parse(set.value).policy).toMatchObject({
-      type: "architecture",
+      type: "contract",
       model: "sonnet-5",
       effort: "high",
       updated_by: "owner-console",

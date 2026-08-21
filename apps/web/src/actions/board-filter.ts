@@ -1,8 +1,17 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
-import { mission, project, user } from "@agent-board/db";
-import { NO_MISSION, encodeProjectSelection } from "../lib/board-filter";
+import { and, eq, inArray } from "drizzle-orm";
+import { mission, project, task, user } from "@agent-board/db";
+import { isReleaseVersion } from "@agent-board/mcp-core";
+import {
+  NO_MISSION,
+  encodeFacetSelection,
+  encodeProjectSelection,
+  encodeReleaseSelection,
+  isTaskPriority,
+  isTaskType,
+  type BoardFilter,
+} from "../lib/board-filter";
 import { EMPTY_BOARD_TOTALS, type BoardTotals } from "../lib/board-totals";
 import { loadBoardTotals } from "../lib/board-totals-query";
 import type { ActionResult } from "../lib/action-result";
@@ -10,11 +19,9 @@ import { getSession } from "../lib/cookies";
 import { db } from "../lib/db";
 import { loadModelPrices } from "../lib/prices";
 
-export async function setBoardFilterAction(input: {
-  /** Empty is the All projects shortcut. */
-  projectIds: string[];
-  missionId: string | null;
-}): Promise<ActionResult> {
+export async function setBoardFilterAction(
+  input: BoardFilter,
+): Promise<ActionResult> {
   const session = await getSession();
   if (!session) return { ok: false, error: "Not signed in." };
 
@@ -38,12 +45,43 @@ export async function setBoardFilterAction(input: {
     if (!miss) return { ok: false, error: "Mission not found." };
   }
 
+  if (!input.types.every(isTaskType)) {
+    return { ok: false, error: "Task type not found." };
+  }
+  if (!input.priorities.every(isTaskPriority)) {
+    return { ok: false, error: "Task priority not found." };
+  }
+  if (typeof input.resolvedIn === "string") {
+    // The filter offers releases only, so only a release can be stored as
+    // one — a branch name in resolved_in is not a selection (OCL-128).
+    if (!isReleaseVersion(input.resolvedIn)) {
+      return { ok: false, error: "Release not found." };
+    }
+    const ws = await db().query.workspace.findFirst({ columns: { id: true } });
+    if (!ws) return { ok: false, error: "Workspace not found." };
+    const [release] = await db()
+      .select({ value: task.resolvedIn })
+      .from(task)
+      .innerJoin(project, eq(task.projectId, project.id))
+      .where(
+        and(
+          eq(project.workspaceId, ws.id),
+          eq(task.resolvedIn, input.resolvedIn),
+        ),
+      )
+      .limit(1);
+    if (!release) return { ok: false, error: "Release not found." };
+  }
+
   await db()
     .update(user)
     .set({
       // One column holds the whole selection: "all", or the ids joined.
       boardProjectId: encodeProjectSelection(projectIds),
       boardMissionId: input.missionId,
+      boardTaskTypes: encodeFacetSelection([...new Set(input.types)]),
+      boardPriorities: encodeFacetSelection([...new Set(input.priorities)]),
+      boardResolvedIn: encodeReleaseSelection(input.resolvedIn),
     })
     .where(eq(user.id, session.userId));
 
@@ -56,10 +94,9 @@ export async function setBoardFilterAction(input: {
  * board is the number Insights reports for that filter and not a second
  * arithmetic that drifts from it.
  */
-export async function boardTotalsAction(input: {
-  projectIds: string[];
-  missionId: string | null;
-}): Promise<BoardTotals> {
+export async function boardTotalsAction(
+  input: BoardFilter,
+): Promise<BoardTotals> {
   const session = await getSession();
   if (!session) return EMPTY_BOARD_TOTALS;
 
@@ -67,8 +104,5 @@ export async function boardTotalsAction(input: {
   if (!ws) return EMPTY_BOARD_TOTALS;
 
   const prices = ws.pricingEnabled ? await loadModelPrices(db(), ws.id) : [];
-  return loadBoardTotals(db(), ws.id, ws.pricingEnabled, prices, {
-    projectIds: input.projectIds,
-    missionId: input.missionId,
-  });
+  return loadBoardTotals(db(), ws.id, ws.pricingEnabled, prices, input);
 }

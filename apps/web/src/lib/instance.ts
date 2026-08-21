@@ -40,6 +40,7 @@ export async function ensureWorkspace(): Promise<{ id: string }> {
         activityType: row.type,
         cli: row.cli,
         model: row.model,
+        chain: row.chain,
         effort: row.effort,
       })),
     );

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ProjectCount } from "../../lib/board-filter";
 import type { Dict } from "../../lib/i18n";
+import { Icon } from "../../components/icon";
 
 /**
  * The project filter of the board. A single choice dropdown forced looking at
@@ -18,7 +19,7 @@ export function ProjectFilter({
   onAll,
   t,
 }: {
-  options: ProjectCount[];
+  options: Array<ProjectCount & { hasContext?: boolean; contextStatus?: string | null }>;
   value: string[];
   onToggle: (projectId: string) => void;
   onAll: () => void;
@@ -66,6 +67,7 @@ export function ProjectFilter({
         <span className="pf-label" title={label}>
           {label}
         </span>
+        <Icon name="chevronDown" label={null} size={14} />
       </button>
 
       {open ? (
@@ -81,8 +83,8 @@ export function ProjectFilter({
                 setOpen(false);
               }}
             >
-              <span className="pf-box" aria-hidden="true">
-                {all ? "✓" : ""}
+              <span className="pf-box">
+                {all ? <Icon name="check" label={null} size={11} /> : null}
               </span>
               <span className="pf-opt-name">{t.board.allProjects}</span>
             </button>
@@ -100,12 +102,24 @@ export function ProjectFilter({
                   className={`pf-opt${picked ? " on" : ""}`}
                   onClick={() => onToggle(option.id)}
                 >
-                  <span className="pf-box" aria-hidden="true">
-                    {picked ? "✓" : ""}
+                  <span className="pf-box">
+                    {picked ? <Icon name="check" label={null} size={11} /> : null}
                   </span>
-                  <span className="pf-opt-name" title={option.name}>
+                  <span className="pf-opt-name" title={option.contextStatus ?? option.name}>
                     {option.name}
+                    {option.contextStatus ? (
+                      <small className="pf-context-status">{option.contextStatus}</small>
+                    ) : null}
                   </span>
+                  {option.hasContext ? (
+                    <span
+                      className="pf-opt-count"
+                      aria-label={t.board.projectContextAvailable}
+                      title={t.board.projectContextAvailable}
+                    >
+                      ctx
+                    </span>
+                  ) : null}
                   <span className="pf-opt-count">{option.count}</span>
                 </button>
               );

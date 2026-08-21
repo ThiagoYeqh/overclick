@@ -8,6 +8,7 @@ import {
   type ColumnStatus,
 } from "../../lib/board-columns";
 import type { Dict } from "../../lib/i18n";
+import { Icon } from "../../components/icon";
 import type { BoardCard } from "./board";
 
 /**
@@ -24,22 +25,27 @@ import type { BoardCard } from "./board";
  * select on purpose, because the phone renders its options full size and
  * nothing about the choice depends on a popover behaving on touch.
  *
- * The cards themselves come in already rendered, so the list never owns a
- * second version of the card: the same component, the same filters, the same
- * detail panel. The one-line rule holds here too, and the count sits outside
- * the select so it is never the thing an ellipsis eats.
+ * The rows themselves come in already rendered, so the list never owns a
+ * second version of the card: the same BoardCard, the same filters, the same
+ * detail panel. The count sits outside the select so it is never the thing an
+ * ellipsis eats.
+ *
+ * Since AGB-64 a card here is a single row, not the three-line card the desktop
+ * columns render: on a narrow screen the board is for scanning what exists, and
+ * everything a row drops is one tap away in the detail panel.
  */
 export function BoardMobileList({
   cards,
   labels,
-  renderCard,
+  renderRow,
   renderEmpty,
   t,
 }: {
   /** Already through the board filters, exactly what the columns render. */
   cards: BoardCard[];
   labels: Record<ColumnStatus, string>;
-  renderCard: (card: BoardCard) => ReactNode;
+  /** The card as one dense row, rendered by the board that owns the detail. */
+  renderRow: (card: BoardCard) => ReactNode;
   renderEmpty: (status: ColumnStatus) => ReactNode;
   t: Dict;
 }) {
@@ -67,14 +73,16 @@ export function BoardMobileList({
           ))}
         </select>
         {/* The select has no chrome of its own here, so the caret is what
-            says this line is a control and not a heading. */}
-        <span className="ml-caret" aria-hidden="true">
-          ▾
+            says this line is a control and not a heading. Since AGB-73 the
+            caret is the set's own chevron, not the ▾ character: the glyph a
+            phone had for that codepoint was never the same shape twice. */}
+        <span className="ml-caret">
+          <Icon name="chevronDown" label={null} size={13} />
         </span>
         <span className="count">{counts[status]}</span>
       </label>
       <div className="col">
-        {list.length === 0 ? renderEmpty(status) : list.map(renderCard)}
+        {list.length === 0 ? renderEmpty(status) : list.map(renderRow)}
       </div>
     </div>
   );

@@ -1,9 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Icon } from "../../components/icon";
 import type { CardInsight } from "../../lib/insights";
 import { insightsCopy, type InsightsCopy } from "./copy";
-import { fmtCostUsd, fmtDurationMs, fmtElapsedMs, fmtTokens } from "./format";
+import {
+  formatDuration,
+  formatElapsed,
+  formatMoney,
+  formatTokens,
+} from "../../lib/format";
 
 type SortKey = "cost" | "tokens" | "time" | "attempts";
 
@@ -44,7 +50,13 @@ function CardFootnote({
     ? cards.filter((c) => c.unpricedTokens > 0)
     : [];
   if (unpriced.length > 0) {
-    items.push(t.footUnpriced(unpriced.map((c) => c.shortId).join(" · ")));
+    items.push(
+      t.footUnpriced(
+        unpriced
+          .map((c) => `${c.shortId} ${c.unpricedModels.join(", ")}`)
+          .join(" · "),
+      ),
+    );
   }
   const estimated = cards.filter((c) => c.estimated);
   if (estimated.length > 0) {
@@ -54,12 +66,29 @@ function CardFootnote({
   if (missing.length > 0) {
     items.push(t.footMissing(missing.map((c) => c.shortId).join(" · ")));
   }
+  const zeroUsage = cards.filter((c) => c.zeroUsage);
+  if (zeroUsage.length > 0) {
+    items.push(t.footZeroUsage(zeroUsage.map((c) => c.shortId).join(" · ")));
+  }
+  const suspect = cards.filter((c) => c.suspect);
+  if (suspect.length > 0) {
+    items.push(
+      t.footSuspect(
+        suspect
+          .map(
+            (c) =>
+              `${c.shortId} ${t.suspectSeparate(formatTokens(c.suspectTokens))}`,
+          )
+          .join(" · "),
+      ),
+    );
+  }
   const elapsed = cards.filter((c) => c.elapsedMs > 0);
   if (elapsed.length > 0) {
     items.push(
       t.footElapsed(
         elapsed
-          .map((c) => `${c.shortId} ${t.elapsedTag(fmtElapsedMs(c.elapsedMs))}`)
+          .map((c) => `${c.shortId} ${t.elapsedTag(formatElapsed(c.elapsedMs))}`)
           .join(" · "),
       ),
     );
@@ -108,8 +137,18 @@ export function CostTable({
     }
   };
 
+  /* Which way the table is sorted, in the set's own glyph. The arrow used to
+     be a character glued to the label, at whatever weight the font had for it;
+     it is silent here because aria-sort on the header already says it. */
   const arrow = (key: SortKey) =>
-    key === sortKey ? (descending ? " ↓" : " ↑") : "";
+    key === sortKey ? (
+      <Icon
+        name={descending ? "chevronDown" : "chevronUp"}
+        label={null}
+        size={11}
+        className="ins-sort-arrow"
+      />
+    ) : null;
 
   const sortable: { key: SortKey; label: string }[] = [
     ...(pricingEnabled ? [{ key: "cost" as const, label: t.colCost }] : []),
@@ -138,15 +177,29 @@ export function CostTable({
               <th>{t.colMission}</th>
               <th>{t.colModel}</th>
               {pricingEnabled ? <th>{t.colSource}</th> : null}
+              {/* A column header that sorts is a control: a keyboard reaches
+                  it, a screen reader is told which way the table is sorted,
+                  and the whole cell is the target instead of the glyphs. */}
               {sortable.map((col) => (
                 <th
                   key={col.key}
                   className={`ins-sort num${col.key === sortKey ? " on" : ""}`}
-                  onClick={() => toggle(col.key)}
-                  title={t.sortHint}
+                  aria-sort={
+                    col.key === sortKey
+                      ? descending
+                        ? "descending"
+                        : "ascending"
+                      : "none"
+                  }
                 >
-                  {col.label}
-                  {arrow(col.key)}
+                  <button
+                    type="button"
+                    onClick={() => toggle(col.key)}
+                    title={t.sortHint}
+                  >
+                    {col.label}
+                    {arrow(col.key)}
+                  </button>
                 </th>
               ))}
             </tr>
@@ -154,7 +207,18 @@ export function CostTable({
           <tbody>
             {sorted.map((card) => {
               const models =
-                card.models.length > 0 ? card.models.join(", ") : t.noModel;
+                card.models.length > 0
+                  ? card.models
+                      .map((model) =>
+                        card.modelOrigins.some(
+                          (origin) =>
+                            origin.model === model && origin.source === "harness",
+                        )
+                          ? `${model} (${t.modelFromHarness})`
+                          : model,
+                      )
+                      .join(", ")
+                  : t.noModel;
               return (
                 <tr key={card.taskId}>
                   <td>
@@ -190,11 +254,11 @@ export function CostTable({
                     <td className="num">
                       {card.costUsd != null ? (
                         <>
-                          <b>{fmtCostUsd(card.costUsd)}</b>
+                          <b>{formatMoney(card.costUsd, t.lang)}</b>
                           {card.unpricedTokens > 0 ? (
                             <span
                               className="ins-mark"
-                              title={t.noPriceTitle(fmtTokens(card.unpricedTokens))}
+                              title={t.noPriceTitle(formatTokens(card.unpricedTokens))}
                             >
                               ⌀
                             </span>
@@ -205,27 +269,45 @@ export function CostTable({
                           className="ins-dim"
                           title={
                             card.unpricedTokens > 0
-                              ? t.noPriceTitle(fmtTokens(card.unpricedTokens))
+                              ? t.costNoPriceFor(card.unpricedModels.join(", "))
                               : undefined
                           }
                         >
                           {card.unpricedTokens > 0
-                            ? t.costNoPrice
-                            : t.costNotReported}
+                            ? t.costNoPriceFor(card.unpricedModels.join(", "))
+                            : card.zeroUsage
+                              ? t.costZeroUsage
+                              : card.suspect
+                                ? t.suspectCount(1)
+                                : card.estimated
+                                  ? t.estimatedCount(1)
+                                  : t.costNotReported}
                         </span>
                       )}
                     </td>
                   ) : null}
                   <td className="num">
-                    {fmtTokens(card.tokens)}
-                    {card.estimated || card.missing ? (
+                    {formatTokens(card.tokens)}
+                    {card.estimated || card.missing || card.zeroUsage || card.suspect ? (
                       <span
                         className="ins-mark"
                         title={
-                          card.missing ? t.missingCount(1) : t.estimatedCount(1)
+                          card.suspect
+                            ? t.suspectSeparate(formatTokens(card.suspectTokens))
+                            : card.missing
+                              ? t.missingCount(1)
+                              : card.zeroUsage
+                                ? t.zeroUsageCount(1)
+                                : t.estimatedCount(1)
                         }
                       >
-                        {card.missing ? "○" : "≈"}
+                        {card.suspect
+                          ? "!"
+                          : card.missing
+                            ? "○"
+                            : card.zeroUsage
+                              ? "0"
+                              : "≈"}
                       </span>
                     ) : null}
                   </td>
@@ -233,10 +315,10 @@ export function CostTable({
                       time it stayed open instead, labeled, never as work. */}
                   <td className="num">
                     {card.durationMs > 0 || card.elapsedMs === 0 ? (
-                      fmtDurationMs(card.durationMs)
+                      formatDuration(card.durationMs)
                     ) : (
                       <span className="ins-dim">
-                        {t.elapsedTag(fmtElapsedMs(card.elapsedMs))}
+                        {t.elapsedTag(formatElapsed(card.elapsedMs))}
                       </span>
                     )}
                   </td>

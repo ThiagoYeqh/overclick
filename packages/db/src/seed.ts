@@ -36,6 +36,7 @@ export async function seed(url = requireDatabaseUrl()): Promise<{
         activityType: row.type,
         cli: row.cli,
         model: row.model,
+        chain: row.chain,
         effort: row.effort,
       })),
     );

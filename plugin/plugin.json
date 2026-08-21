@@ -1,0 +1,9 @@
+{
+  "name": "overclick",
+  "version": "0.2.3",
+  "description": "Run the complete OverClick card workflow from Grok CLI.",
+  "author": {
+    "name": "OverClick"
+  },
+  "license": "MIT"
+}

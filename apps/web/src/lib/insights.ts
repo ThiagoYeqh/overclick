@@ -1,4 +1,5 @@
 import { and, eq, isNotNull } from "drizzle-orm";
+import * as BoardDb from "@agent-board/db";
 import {
   areSegmentsPriced,
   elapsedOnlyMs,
@@ -7,6 +8,7 @@ import {
   findModelPrice,
   mergeCostSources,
   mission,
+  normalizeModelKey,
   normalizeUsageSegments,
   project,
   resolveAttemptCost,
@@ -17,7 +19,10 @@ import {
   task,
   taskComment,
   type CostSource,
+  type CostBreakdownSegment,
+  type CostStatus,
   type Database,
+  type AttemptModelSource,
   type ModelPrice,
   type ResolvedCost,
   type UsageSegment,
@@ -26,17 +31,18 @@ import {
 /** Postgres or PGlite drizzle client — the query surface insights needs. */
 export type InsightsDb = Pick<Database, "select">;
 
-export type InsightAttemptRow = {
+/** Fields shared by card and mission attempts. */
+export type InsightUsageRow = {
   attemptId: string;
-  taskId: string;
-  taskShortId: string;
-  taskTitle: string;
-  taskIsExample: boolean;
-  projectId: string;
-  projectName: string;
+  projectId: string | null;
+  projectName: string | null;
   missionId: string | null;
   missionTitle: string | null;
   model: string | null;
+  executor: string | null;
+  modelSource: AttemptModelSource | null;
+  /** The lifecycle status is present on mission attempts; cards use result. */
+  status?: string | null;
   result: string | null;
   finishedAt: Date | null;
   /** Tokens by model. Null on attempts recorded before segments existed. */
@@ -45,10 +51,37 @@ export type InsightAttemptRow = {
   tokensOut: number | null;
   tokensCache: number | null;
   costUsd: string | null;
+  costSource: CostSource | null;
+  costStatus: CostStatus | null;
+  costUnpricedModels: string[] | null;
+  costBreakdown: CostBreakdownSegment[] | null;
   durationMs: number | null;
   serverDurationMs: number | null;
   turns: number | null;
   usageEstimated: boolean;
+  usageSuspect: boolean;
+  usageSuspectReason?: string | null;
+  /** A delivery accepted without a verified commit on the project remote. */
+  deliveryUnverified?: boolean;
+};
+
+export type InsightAttemptRow = InsightUsageRow & {
+  taskId: string;
+  taskShortId: string;
+  taskTitle: string;
+  taskIsExample: boolean;
+  taskStatus: "aberto" | "em_execucao" | "feito" | "validado" | "descartado";
+  tipo: "feature" | "bug" | "rfc";
+  priority: "urgente" | "alta" | "media" | "baixa";
+  projectId: string;
+  projectName: string;
+  missionId: string | null;
+  resolvedIn: string | null;
+};
+
+/** A mission attempt is deliberately not a card and therefore has no task fields. */
+export type MissionAttemptInsightRow = InsightUsageRow & {
+  missionTitle: string;
 };
 
 export type ReopenRow = {
@@ -68,11 +101,17 @@ export async function loadInsightAttemptRows(
       taskShortId: task.shortId,
       taskTitle: task.title,
       taskIsExample: task.isExample,
+      taskStatus: task.status,
+      tipo: task.tipo,
+      priority: task.priority,
       projectId: project.id,
       projectName: project.name,
       missionId: task.missionId,
       missionTitle: mission.title,
+      resolvedIn: task.resolvedIn,
       model: executionAttempt.model,
+      executor: executionAttempt.executor,
+      modelSource: executionAttempt.modelSource,
       result: executionAttempt.result,
       finishedAt: executionAttempt.finishedAt,
       usageSegments: executionAttempt.usageSegments,
@@ -80,16 +119,107 @@ export async function loadInsightAttemptRows(
       tokensOut: executionAttempt.tokensOut,
       tokensCache: executionAttempt.tokensCache,
       costUsd: executionAttempt.costUsd,
+      costSource: executionAttempt.costSource,
+      costStatus: executionAttempt.costStatus,
+      costUnpricedModels: executionAttempt.costUnpricedModels,
+      costBreakdown: executionAttempt.costBreakdown,
       durationMs: executionAttempt.durationMs,
       serverDurationMs: executionAttempt.serverDurationMs,
       turns: executionAttempt.turns,
       usageEstimated: executionAttempt.usageEstimated,
+      usageSuspect: executionAttempt.usageSuspect,
+      deliveryUnverified: executionAttempt.deliveryUnverified,
     })
     .from(executionAttempt)
     .innerJoin(task, eq(executionAttempt.taskId, task.id))
     .innerJoin(project, eq(task.projectId, project.id))
     .leftJoin(mission, eq(task.missionId, mission.id))
     .where(eq(project.workspaceId, workspaceId));
+}
+
+/**
+ * Mission attempts are added by the lifecycle card. Keeping the lookup here
+ * means the page, the MCP tool and the board totals all consume one source.
+ * The optional runtime lookup keeps this card composable while that schema is
+ * being merged: an older database has no mission-attempt table and therefore
+ * has no orchestration rows to aggregate.
+ */
+type MissionAttemptTable = Record<string, any>;
+
+export async function loadMissionAttemptRows(
+  db: InsightsDb,
+  workspaceId: string,
+): Promise<MissionAttemptInsightRow[]> {
+  const missionAttempt = (
+    BoardDb as unknown as { missionAttempt?: MissionAttemptTable }
+  ).missionAttempt;
+  if (!missionAttempt) return [];
+
+  const rows = await db
+    .select({
+      attemptId: missionAttempt.id,
+      projectId: missionAttempt.projectId,
+      projectName: project.name,
+      missionId: missionAttempt.missionId,
+      missionTitle: mission.title,
+      model: missionAttempt.model,
+      executor: missionAttempt.executor,
+      modelSource: missionAttempt.modelSource,
+      status: missionAttempt.status,
+      result: missionAttempt.result,
+      finishedAt: missionAttempt.finishedAt,
+      usageSegments: missionAttempt.usageSegments,
+      tokensIn: missionAttempt.tokensIn,
+      tokensOut: missionAttempt.tokensOut,
+      tokensCache: missionAttempt.tokensCache,
+      costUsd: missionAttempt.costUsd,
+      costSource: missionAttempt.costSource,
+      costStatus: missionAttempt.costStatus,
+      costUnpricedModels: missionAttempt.costUnpricedModels,
+      costBreakdown: missionAttempt.costBreakdown,
+      durationMs: missionAttempt.durationMs,
+      serverDurationMs: missionAttempt.serverDurationMs,
+      turns: missionAttempt.turns,
+      usageEstimated: missionAttempt.usageEstimated,
+      usageSuspect: missionAttempt.usageSuspect,
+      usageSuspectReason: missionAttempt.usageSuspectReason,
+    })
+    .from(missionAttempt as any)
+    .innerJoin(mission, eq(missionAttempt.missionId, mission.id))
+    .leftJoin(project, eq(missionAttempt.projectId, project.id))
+    .where(eq(mission.workspaceId, workspaceId));
+
+  return rows as MissionAttemptInsightRow[];
+}
+
+/** Apply the project/mission part of the board filter to mission work. */
+export function filterMissionAttempts<T extends Pick<InsightUsageRow, "projectId" | "missionId">>(
+  rows: T[],
+  filter: {
+    projectIds: string[];
+    missionId: string | null;
+    types?: readonly unknown[];
+    priorities?: readonly unknown[];
+    resolvedIn?: string | null;
+  },
+): T[] {
+  return rows.filter((row) => {
+    // Mission attempts have no card type, priority or release. A facet on
+    // those fields is therefore a card-only view, not an excuse to invent an
+    // allocation for orchestration.
+    if (
+      (filter.types && filter.types.length > 0) ||
+      (filter.priorities && filter.priorities.length > 0) ||
+      filter.resolvedIn !== undefined
+    ) {
+      return false;
+    }
+    if (filter.projectIds.length > 0 && (!row.projectId || !filter.projectIds.includes(row.projectId))) {
+      return false;
+    }
+    if (filter.missionId === "none") return false;
+    return !filter.missionId || row.missionId === filter.missionId;
+  });
 }
 
 /**
@@ -122,10 +252,10 @@ export async function loadReopenRows(
  * attempts are narrowed: a reopen that lands after the window still means that
  * delivery was reopened, so the reopen rows stay whole.
  */
-export function filterAttemptsByPeriod(
-  rows: InsightAttemptRow[],
+export function filterAttemptsByPeriod<T extends Pick<InsightUsageRow, "finishedAt">>(
+  rows: T[],
   period: { since?: Date; until?: Date },
-): InsightAttemptRow[] {
+): T[] {
   if (!period.since && !period.until) return rows;
   return rows.filter((row) => {
     if (!row.finishedAt) return false;
@@ -141,6 +271,15 @@ export function usageHonestyNote(totals: UsageTotals): string {
   const parts: string[] = [];
   if (totals.estimated > 0) parts.push(`${totals.estimated} estimated`);
   if (totals.missing > 0) parts.push(`${totals.missing} usage not reported`);
+  if (totals.zeroUsage > 0) parts.push(`${totals.zeroUsage} reported zero usage`);
+  if (totals.suspect > 0) {
+    parts.push(
+      `${totals.suspect} suspect · ${totals.suspectTokens} tokens kept separate`,
+    );
+  }
+  if (totals.deliveryUnverified > 0) {
+    parts.push(`${totals.deliveryUnverified} delivery commit unverified`);
+  }
   return parts.length > 0 ? parts.join(" · ") : "all usage reported";
 }
 
@@ -202,6 +341,15 @@ export type UsageTotals = {
   estimated: number;
   /** How many finished with no usage numbers at all. */
   missing: number;
+  /** Attempts that explicitly reported token counters whose sum is zero. */
+  zeroUsage: number;
+  /** Attempts whose usage is intentionally outside the trusted sums. */
+  suspect: number;
+  suspectTokens: number;
+  suspectDurationMs: number;
+  suspectCostUsd: number | null;
+  /** Deliveries accepted without a verified remote commit. */
+  deliveryUnverified: number;
 };
 
 export type GroupInsight = UsageTotals & {
@@ -240,6 +388,8 @@ export type CardInsight = {
   projectName: string;
   missionTitle: string | null;
   models: string[];
+  /** Origin of each current attempt model, for labels such as "via harness". */
+  modelOrigins: Array<{ model: string; source: AttemptModelSource }>;
   /** null when no attempt on the card has a cost. Distinct from a real $0. */
   costUsd: number | null;
   /** Where that figure came from, "mixed" when the attempts disagree. */
@@ -250,6 +400,8 @@ export type CardInsight = {
    * the table says "no price" instead of showing a total that looks complete.
    */
   unpricedTokens: number;
+  /** Canonical model keys that had tokens but no price when cost was frozen. */
+  unpricedModels: string[];
   tokens: number;
   /** Execution time the agents reported on this card. */
   durationMs: number;
@@ -258,10 +410,50 @@ export type CardInsight = {
   attempts: number;
   estimated: boolean;
   missing: boolean;
+  zeroUsage: boolean;
+  suspect: boolean;
+  suspectTokens: number;
+  suspectDurationMs: number;
+  suspectCostUsd: number | null;
+  deliveryUnverified: boolean;
+};
+
+export type InsightGroupSet = {
+  byProject: GroupInsight[];
+  byMission: GroupInsight[];
+  byModel: GroupInsight[];
+};
+
+/** One dimension with the source subtotals and their non-duplicating sum. */
+export type CombinedGroupInsight = {
+  key: string;
+  label: string | null;
+  execution: GroupInsight;
+  orchestration: GroupInsight;
+  total: GroupInsight;
+};
+
+export type CombinedGroupSet = {
+  byProject: CombinedGroupInsight[];
+  byMission: CombinedGroupInsight[];
+  byModel: CombinedGroupInsight[];
 };
 
 export type Insights = {
+  /** Card-only subtotal, preserved for existing readers. */
+  executionTotals: UsageTotals;
+  /** Successful, finished mission-attempt subtotal. */
+  orchestrationTotals: UsageTotals;
   totals: UsageTotals;
+  /** Abandoned attempts on discarded cards, deliberately outside success totals. */
+  discarded: {
+    totals: UsageTotals;
+    byExecutor: GroupInsight[];
+    byMission: GroupInsight[];
+    byModel: GroupInsight[];
+    /** Abandoned mission attempts, kept outside the trusted total. */
+    orchestration: UsageTotals;
+  };
   /**
    * Finished attempts that ran more than one model. Each of them appears in
    * several byModel groups, so this is the count the screen can name without
@@ -270,19 +462,43 @@ export type Insights = {
   switchedRuns: number;
   byProject: GroupInsight[];
   byMission: GroupInsight[];
+  byRelease: GroupInsight[];
+  byExecutor: GroupInsight[];
   byModel: GroupInsight[];
+  /** Mission-attempt groups, separate from the legacy card groups above. */
+  orchestrationGroups: InsightGroupSet;
+  /** Each group carries execution, orchestration and total lines. */
+  combinedGroups: CombinedGroupSet;
   reopensByModel: ModelReopenInsight[];
   perCard: CardInsight[];
 };
 
 const NO_MISSION = "__none__";
+const NO_RELEASE = "__no_release__";
 const NO_MODEL = "__unknown__";
+const CROSS_PROJECT = "__cross_project__";
+
+function executorLabel(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { cli?: unknown; agent?: unknown };
+    if (typeof parsed.cli === "string" && parsed.cli) return parsed.cli;
+    if (typeof parsed.agent === "string" && parsed.agent) return parsed.agent;
+  } catch {
+    // Older rows stored the executor label directly.
+  }
+  return raw;
+}
 
 /**
  * Totals while they are being summed. The running cost is a number here and
  * only becomes null at the end, when it turns out nothing fed it.
  */
-type RunningTotals = Omit<UsageTotals, "costUsd"> & { costUsd: number };
+type RunningTotals = Omit<UsageTotals, "costUsd" | "suspectCostUsd"> & {
+  costUsd: number;
+  suspectCostUsd: number;
+  suspectCostKnown: boolean;
+};
 
 function emptyTotals(): RunningTotals {
   return {
@@ -299,11 +515,26 @@ function emptyTotals(): RunningTotals {
     attempts: 0,
     estimated: 0,
     missing: 0,
+    zeroUsage: 0,
+    suspect: 0,
+    suspectTokens: 0,
+    suspectDurationMs: 0,
+    suspectCostUsd: 0,
+    deliveryUnverified: 0,
+    suspectCostKnown: false,
   };
 }
 
-function attemptTokens(a: InsightAttemptRow): number {
-  return (a.tokensIn ?? 0) + (a.tokensOut ?? 0) + (a.tokensCache ?? 0);
+function attemptTokens(a: InsightUsageRow): number {
+  const hasFlatCounter =
+    a.tokensIn != null || a.tokensOut != null || a.tokensCache != null;
+  if (hasFlatCounter) {
+    return (a.tokensIn ?? 0) + (a.tokensOut ?? 0) + (a.tokensCache ?? 0);
+  }
+  return (a.usageSegments ?? []).reduce(
+    (sum, segment) => sum + segmentTotalTokens(segment),
+    0,
+  );
 }
 
 /**
@@ -313,7 +544,7 @@ function attemptTokens(a: InsightAttemptRow): number {
  * yields one empty segment so it keeps showing up under its model instead of
  * vanishing from the per-model view.
  */
-function attemptSegments(a: InsightAttemptRow): UsageSegment[] {
+function attemptSegments(a: InsightUsageRow): UsageSegment[] {
   const stored = a.usageSegments?.length
     ? a.usageSegments
     : normalizeUsageSegments(
@@ -328,7 +559,9 @@ function attemptSegments(a: InsightAttemptRow): UsageSegment[] {
 }
 
 /** Same ladder the board uses: any number counts as reported usage. */
-function hasReportedUsage(a: InsightAttemptRow): boolean {
+function hasReportedUsage(a: InsightUsageRow): boolean {
+  if (a.costStatus === "not_reported") return false;
+  if (a.costStatus != null) return true;
   return (
     attemptTokens(a) > 0 ||
     a.costUsd != null ||
@@ -337,12 +570,52 @@ function hasReportedUsage(a: InsightAttemptRow): boolean {
   );
 }
 
+function isZeroUsage(a: InsightUsageRow): boolean {
+  return a.costStatus === "zero_usage";
+}
+
+function hasStoredCostAssessment(a: InsightUsageRow): boolean {
+  return (
+    a.costStatus != null ||
+    a.costSource != null ||
+    a.costUnpricedModels != null ||
+    a.costBreakdown != null
+  );
+}
+
+function storedUnpricedModels(a: InsightUsageRow): string[] | null {
+  return a.costUnpricedModels?.map(normalizeModelKey) ?? null;
+}
+
+function isAttemptPriced(
+  a: InsightUsageRow,
+  segments: readonly UsageSegment[],
+  prices: readonly ModelPrice[],
+): boolean {
+  const stored = storedUnpricedModels(a);
+  if (stored) return attemptTokens(a) > 0 && stored.length === 0;
+  return areSegmentsPriced(segments, prices);
+}
+
+function isSegmentPriced(
+  a: InsightUsageRow,
+  segment: UsageSegment,
+  prices: readonly ModelPrice[],
+): boolean {
+  const normalized = segment.model ? normalizeModelKey(segment.model) : "unknown";
+  const stored = storedUnpricedModels(a);
+  if (stored) {
+    return segmentTotalTokens(segment) > 0 && !stored.includes(normalized);
+  }
+  return findModelPrice(prices, segment.model) != null;
+}
+
 /**
  * The two clocks of one attempt, added to a total that keeps them apart. Work
  * is what the agent reported; the server measurement is elapsed time and only
  * counts when there is no reported work to count instead.
  */
-function addDurations(totals: UsageTotals, a: InsightAttemptRow): void {
+function addDurations(totals: UsageTotals, a: InsightUsageRow): void {
   totals.durationMs += executionOnlyMs(a);
   const elapsed = elapsedOnlyMs(a);
   totals.elapsedMs += elapsed;
@@ -351,10 +624,16 @@ function addDurations(totals: UsageTotals, a: InsightAttemptRow): void {
 
 /** The cost of one attempt, every segment priced at its own model's rate. */
 function attemptCost(
-  a: InsightAttemptRow,
+  a: InsightUsageRow,
   segments: readonly UsageSegment[],
   prices: readonly ModelPrice[],
 ): ResolvedCost {
+  if (hasStoredCostAssessment(a)) {
+    return {
+      costUsd: a.costUsd != null ? Number(a.costUsd) : null,
+      source: a.costSource,
+    };
+  }
   return resolveSegmentedCost(segments, prices, {
     costUsd: a.costUsd != null ? Number(a.costUsd) : null,
     usageEstimated: a.usageEstimated,
@@ -367,11 +646,35 @@ function attemptCost(
  * splitting one volunteered figure across models would be inventing numbers.
  */
 function segmentCost(
-  a: InsightAttemptRow,
+  a: InsightUsageRow,
   segment: UsageSegment,
   prices: readonly ModelPrice[],
   allowReportedFallback: boolean,
 ): ResolvedCost {
+  if (hasStoredCostAssessment(a)) {
+    const counts = segmentTokenCounts(segment);
+    const model = segment.model ? normalizeModelKey(segment.model) : null;
+    const frozen = a.costBreakdown?.find(
+      (item) =>
+        item.model === model &&
+        item.input === counts.input &&
+        item.output === counts.output &&
+        item.cache === counts.cache,
+    );
+    if (frozen) {
+      return {
+        costUsd: frozen.cost_usd,
+        source: frozen.priced ? "computed" : null,
+      };
+    }
+    if (allowReportedFallback) {
+      return {
+        costUsd: a.costUsd != null ? Number(a.costUsd) : null,
+        source: a.costSource,
+      };
+    }
+    return { costUsd: null, source: null };
+  }
   const tokens = segmentTokenCounts(segment);
   return resolveAttemptCost(
     {
@@ -389,11 +692,22 @@ function segmentCost(
 
 function addAttempt(
   totals: RunningTotals,
-  a: InsightAttemptRow,
+  a: InsightUsageRow,
   cost: { costUsd: number | null; source: CostSource | null },
   priced: boolean,
 ): void {
   totals.attempts += 1;
+  if (a.deliveryUnverified) totals.deliveryUnverified += 1;
+  if (a.usageSuspect) {
+    totals.suspect += 1;
+    totals.suspectTokens += attemptTokens(a);
+    totals.suspectDurationMs += executionOnlyMs(a);
+    if (cost.costUsd != null) {
+      totals.suspectCostUsd += cost.costUsd;
+      totals.suspectCostKnown = true;
+    }
+    return;
+  }
   totals.tokens += attemptTokens(a);
   addDurations(totals, a);
   if (cost.costUsd != null) totals.costUsd += cost.costUsd;
@@ -405,7 +719,8 @@ function addAttempt(
     totals.unpricedTokens += attemptTokens(a);
   }
   if (!hasReportedUsage(a)) totals.missing += 1;
-  else if (a.usageEstimated) totals.estimated += 1;
+  if (isZeroUsage(a)) totals.zeroUsage += 1;
+  if (hasReportedUsage(a) && a.usageEstimated) totals.estimated += 1;
 }
 
 /**
@@ -415,7 +730,7 @@ function addAttempt(
  */
 function addSegment(
   totals: RunningGroup,
-  a: InsightAttemptRow,
+  a: InsightUsageRow,
   segment: UsageSegment,
   cost: ResolvedCost,
   priced: boolean,
@@ -423,6 +738,18 @@ function addSegment(
 ): void {
   const tokens = segmentTotalTokens(segment);
   totals.attempts += 1;
+  if (a.deliveryUnverified) totals.deliveryUnverified += 1;
+  if (a.usageSuspect) {
+    totals.suspect += 1;
+    totals.suspectTokens += tokens;
+    totals.suspectDurationMs += executionOnlyMs(a);
+    if (cost.costUsd != null) {
+      totals.suspectCostUsd += cost.costUsd;
+      totals.suspectCostKnown = true;
+    }
+    if (shared) totals.sharedAttempts = (totals.sharedAttempts ?? 0) + 1;
+    return;
+  }
   totals.tokens += tokens;
   addDurations(totals, a);
   if (cost.costUsd != null) totals.costUsd += cost.costUsd;
@@ -434,7 +761,8 @@ function addSegment(
     totals.unpricedTokens += tokens;
   }
   if (!hasReportedUsage(a)) totals.missing += 1;
-  else if (a.usageEstimated) totals.estimated += 1;
+  if (isZeroUsage(a)) totals.zeroUsage += 1;
+  if (hasReportedUsage(a) && a.usageEstimated) totals.estimated += 1;
   if (shared) totals.sharedAttempts = (totals.sharedAttempts ?? 0) + 1;
 }
 
@@ -445,10 +773,18 @@ function addSegment(
  */
 function sealTotals<T extends RunningTotals>(
   totals: T,
-): Omit<T, "costUsd"> & { costUsd: number | null } {
+): Omit<T, "costUsd" | "suspectCostUsd" | "suspectCostKnown"> & {
+  costUsd: number | null;
+  suspectCostUsd: number | null;
+} {
   const established =
     totals.costComputed + totals.costReported + totals.costEstimated;
-  return { ...totals, costUsd: established > 0 ? totals.costUsd : null };
+  const { suspectCostKnown, costUsd, suspectCostUsd, ...rest } = totals;
+  return {
+    ...rest,
+    costUsd: established > 0 ? costUsd : null,
+    suspectCostUsd: suspectCostKnown ? suspectCostUsd : null,
+  };
 }
 
 /** Groups sort by what they cost; a group with no figure sorts below a real $0. */
@@ -459,6 +795,118 @@ function sortGroups(groups: GroupInsight[]): GroupInsight[] {
       b.tokens - a.tokens ||
       b.attempts - a.attempts,
   );
+}
+
+function attemptResult(
+  row: Pick<InsightUsageRow, "result"> & { status?: string | null },
+): "success" | "abandoned" | null {
+  if (row.result === "success") return "success";
+  if (row.result === "abandoned") return "abandoned";
+  if (row.result != null) return null;
+  if (row.status === "sucesso" || row.status === "success") return "success";
+  if (row.status === "abandonado" || row.status === "abandoned") {
+    return "abandoned";
+  }
+  return null;
+}
+
+function combineTotals(a: UsageTotals, b: UsageTotals): UsageTotals {
+  const costUsd =
+    a.costUsd == null
+      ? b.costUsd
+      : b.costUsd == null
+        ? a.costUsd
+        : a.costUsd + b.costUsd;
+  return {
+    costUsd,
+    costComputed: a.costComputed + b.costComputed,
+    costReported: a.costReported + b.costReported,
+    costEstimated: a.costEstimated + b.costEstimated,
+    costUnpriced: a.costUnpriced + b.costUnpriced,
+    unpricedTokens: a.unpricedTokens + b.unpricedTokens,
+    tokens: a.tokens + b.tokens,
+    durationMs: a.durationMs + b.durationMs,
+    elapsedMs: a.elapsedMs + b.elapsedMs,
+    elapsedOnly: a.elapsedOnly + b.elapsedOnly,
+    attempts: a.attempts + b.attempts,
+    estimated: a.estimated + b.estimated,
+    missing: a.missing + b.missing,
+    zeroUsage: a.zeroUsage + b.zeroUsage,
+    suspect: a.suspect + b.suspect,
+    suspectTokens: a.suspectTokens + b.suspectTokens,
+    suspectDurationMs: a.suspectDurationMs + b.suspectDurationMs,
+    suspectCostUsd:
+      a.suspectCostUsd == null
+        ? b.suspectCostUsd
+        : b.suspectCostUsd == null
+          ? a.suspectCostUsd
+          : a.suspectCostUsd + b.suspectCostUsd,
+    deliveryUnverified: a.deliveryUnverified + b.deliveryUnverified,
+  };
+}
+
+function emptyGroup(key: string, label: string | null): GroupInsight {
+  return { key, label, ...sealTotals(emptyTotals()) };
+}
+
+function mergeGroups(
+  key: string,
+  label: string | null,
+  execution: GroupInsight,
+  orchestration: GroupInsight,
+): GroupInsight {
+  const total = combineTotals(execution, orchestration);
+  const sharedAttempts =
+    (execution.sharedAttempts ?? 0) + (orchestration.sharedAttempts ?? 0);
+  return {
+    key,
+    label,
+    ...total,
+    ...(sharedAttempts > 0 ? { sharedAttempts } : {}),
+  };
+}
+
+function combinedDimension(
+  execution: GroupInsight[],
+  orchestration: GroupInsight[],
+): CombinedGroupInsight[] {
+  const executionByKey = new Map(execution.map((row) => [row.key, row]));
+  const orchestrationByKey = new Map(
+    orchestration.map((row) => [row.key, row]),
+  );
+  const keys = new Set([...executionByKey.keys(), ...orchestrationByKey.keys()]);
+  return [...keys]
+    .map((key) => {
+      const executionRow = executionByKey.get(key) ?? null;
+      const orchestrationRow = orchestrationByKey.get(key) ?? null;
+      const label = executionRow?.label ?? orchestrationRow?.label ?? null;
+      const executionLine = executionRow ?? emptyGroup(key, label);
+      const orchestrationLine = orchestrationRow ?? emptyGroup(key, label);
+      return {
+        key,
+        label,
+        execution: executionLine,
+        orchestration: orchestrationLine,
+        total: mergeGroups(key, label, executionLine, orchestrationLine),
+      };
+    })
+    .sort(
+      (a, b) =>
+        (b.total.costUsd ?? -1) - (a.total.costUsd ?? -1) ||
+        b.total.tokens - a.total.tokens ||
+        b.total.attempts - a.total.attempts,
+    );
+}
+
+function buildCombinedGroups(
+  execution: InsightGroupSet,
+  orchestration: InsightGroupSet,
+): CombinedGroupSet {
+  return {
+    byProject: combinedDimension(execution.byProject, orchestration.byProject),
+    byMission: combinedDimension(execution.byMission, orchestration.byMission),
+    byModel: combinedDimension(execution.byModel, orchestration.byModel),
+  };
 }
 
 /**
@@ -472,13 +920,29 @@ export function computeInsights(
   rows: InsightAttemptRow[],
   reopens: ReopenRow[],
   prices: readonly ModelPrice[] = [],
+  missionAttemptRows: MissionAttemptInsightRow[] = [],
 ): Insights {
   const finished = rows.filter((r) => !r.taskIsExample && r.finishedAt != null);
+  const successful = finished.filter((r) => attemptResult(r) === "success");
+  const abandoned = finished.filter(
+    (r) => attemptResult(r) === "abandoned" && r.taskStatus === "descartado",
+  );
+  const finishedMissionAttempts = missionAttemptRows.filter(
+    (r) => r.finishedAt != null,
+  );
+  const successfulMissionAttempts = finishedMissionAttempts.filter(
+    (r) => attemptResult(r) === "success",
+  );
+  const abandonedMissionAttempts = finishedMissionAttempts.filter(
+    (r) => attemptResult(r) === "abandoned",
+  );
 
   const totals = emptyTotals();
   let switchedRuns = 0;
   const byProject = new Map<string, RunningGroup>();
   const byMission = new Map<string, RunningGroup>();
+  const byRelease = new Map<string, RunningGroup>();
+  const byExecutor = new Map<string, RunningGroup>();
   const byModel = new Map<string, RunningGroup>();
   const byCard = new Map<
     string,
@@ -488,6 +952,11 @@ export function computeInsights(
       sources: (CostSource | null)[];
     }
   >();
+
+  const orchestrationTotals = emptyTotals();
+  const orchestrationByProject = new Map<string, RunningGroup>();
+  const orchestrationByMission = new Map<string, RunningGroup>();
+  const orchestrationByModel = new Map<string, RunningGroup>();
 
   const group = (
     map: Map<string, RunningGroup>,
@@ -502,14 +971,44 @@ export function computeInsights(
     return entry;
   };
 
-  for (const a of finished) {
+  for (const a of successful) {
     const segments = attemptSegments(a);
     const cost = attemptCost(a, segments, prices);
-    const priced = areSegmentsPriced(segments, prices);
+    const priced = isAttemptPriced(a, segments, prices);
+    const frozenUnpriced = storedUnpricedModels(a);
+    const unpricedModels = frozenUnpriced ?? [
+      ...new Set(
+        segments
+          .filter(
+            (segment) =>
+              segmentTotalTokens(segment) > 0 &&
+              findModelPrice(prices, segment.model) == null,
+          )
+          .map((segment) =>
+            segment.model ? normalizeModelKey(segment.model) : "unknown",
+          ),
+      ),
+    ];
     addAttempt(totals, a, cost, priced);
     addAttempt(group(byProject, a.projectId, a.projectName), a, cost, priced);
     addAttempt(
       group(byMission, a.missionId ?? NO_MISSION, a.missionTitle),
+      a,
+      cost,
+      priced,
+    );
+    addAttempt(
+      group(byRelease, a.resolvedIn ?? NO_RELEASE, a.resolvedIn),
+      a,
+      cost,
+      priced,
+    );
+    addAttempt(
+      group(
+        byExecutor,
+        executorLabel(a.executor) ?? NO_MODEL,
+        executorLabel(a.executor),
+      ),
       a,
       cost,
       priced,
@@ -524,7 +1023,7 @@ export function computeInsights(
         a,
         segment,
         segmentCost(a, segment, prices, !shared),
-        findModelPrice(prices, segment.model) != null,
+        isSegmentPriced(a, segment, prices),
         shared,
       );
     }
@@ -538,30 +1037,54 @@ export function computeInsights(
         projectName: a.projectName,
         missionTitle: a.missionTitle,
         models: [],
+        modelOrigins: [],
         costUsd: 0,
         costSource: null,
         unpricedTokens: 0,
+        unpricedModels: [],
         tokens: 0,
         durationMs: 0,
         elapsedMs: 0,
         attempts: 0,
         estimated: false,
         missing: false,
+        zeroUsage: false,
+        suspect: false,
+        suspectTokens: 0,
+        suspectDurationMs: 0,
+        suspectCostUsd: null,
+        deliveryUnverified: false,
         hasCost: false,
         sources: [],
       };
       byCard.set(a.taskId, card);
     }
     card.attempts += 1;
-    card.tokens += attemptTokens(a);
-    card.durationMs += executionOnlyMs(a);
-    card.elapsedMs += elapsedOnlyMs(a);
+    if (a.deliveryUnverified) card.deliveryUnverified = true;
+    if (a.usageSuspect) {
+      card.suspect = true;
+      card.suspectTokens += attemptTokens(a);
+      card.suspectDurationMs += executionOnlyMs(a);
+      if (cost.costUsd != null) {
+        card.suspectCostUsd = (card.suspectCostUsd ?? 0) + cost.costUsd;
+      }
+    } else {
+      card.tokens += attemptTokens(a);
+      card.durationMs += executionOnlyMs(a);
+      card.elapsedMs += elapsedOnlyMs(a);
+    }
     // Tokens this card spent on a model nobody priced. Counted apart from the
     // dollars beside them, never folded in at zero.
-    for (const segment of segments) {
-      const spent = segmentTotalTokens(segment);
-      if (spent > 0 && findModelPrice(prices, segment.model) == null) {
-        card.unpricedTokens += spent;
+    if (!a.usageSuspect) {
+      for (const segment of segments) {
+        const spent = segmentTotalTokens(segment);
+        const model = segment.model ? normalizeModelKey(segment.model) : "unknown";
+        if (spent > 0 && unpricedModels.includes(model)) {
+          card.unpricedTokens += spent;
+        }
+      }
+      for (const model of unpricedModels) {
+        if (!card.unpricedModels.includes(model)) card.unpricedModels.push(model);
       }
     }
     // Every model the card ran, in the order it ran them: the footer reads
@@ -571,13 +1094,63 @@ export function computeInsights(
         card.models.push(segment.model);
       }
     }
-    if (cost.costUsd != null) {
+    if (a.model && a.modelSource) {
+      const model = normalizeModelKey(a.model);
+      if (
+        model &&
+        !card.modelOrigins.some(
+          (origin) => origin.model === model && origin.source === a.modelSource,
+        )
+      ) {
+        card.modelOrigins.push({ model, source: a.modelSource });
+      }
+    }
+    if (!a.usageSuspect && cost.costUsd != null) {
       card.hasCost = true;
       card.costUsd = (card.costUsd ?? 0) + cost.costUsd;
       card.sources.push(cost.source);
     }
-    if (!hasReportedUsage(a)) card.missing = true;
-    else if (a.usageEstimated) card.estimated = true;
+    if (!a.usageSuspect) {
+      if (!hasReportedUsage(a)) card.missing = true;
+      if (isZeroUsage(a)) card.zeroUsage = true;
+      if (hasReportedUsage(a) && a.usageEstimated) card.estimated = true;
+    }
+  }
+
+  // Mission attempts are a second source, never a synthetic card. They use
+  // the same pricing, duration and honesty helpers, but only their final
+  // successful snapshot enters the trusted orchestration subtotal.
+  for (const a of successfulMissionAttempts) {
+    const segments = attemptSegments(a);
+    const cost = attemptCost(a, segments, prices);
+    const priced = isAttemptPriced(a, segments, prices);
+    addAttempt(orchestrationTotals, a, cost, priced);
+    const projectKey = a.projectId ?? CROSS_PROJECT;
+    const projectLabel = a.projectName ?? "cross-project";
+    addAttempt(
+      group(orchestrationByProject, projectKey, projectLabel),
+      a,
+      cost,
+      priced,
+    );
+    addAttempt(
+      group(orchestrationByMission, a.missionId ?? NO_MISSION, a.missionTitle),
+      a,
+      cost,
+      priced,
+    );
+    const shared = segments.length > 1;
+    if (shared) switchedRuns += 1;
+    for (const segment of segments) {
+      addSegment(
+        group(orchestrationByModel, segment.model ?? NO_MODEL, segment.model),
+        a,
+        segment,
+        segmentCost(a, segment, prices, !shared),
+        isSegmentPriced(a, segment, prices),
+        shared,
+      );
+    }
   }
 
   // Reopened rate: a delivery counts as reopened when a human comment landed
@@ -589,7 +1162,7 @@ export function computeInsights(
     reopensByTask.set(r.taskId, list);
   }
   const reopenAgg = new Map<string, ModelReopenInsight>();
-  for (const a of finished) {
+  for (const a of successful) {
     if (a.result !== "success" || !a.finishedAt) continue;
     // A delivery a run produced with two models counts for both: neither can
     // be cleared of a reopen the pair earned together.
@@ -623,12 +1196,83 @@ export function computeInsights(
   const seal = (map: Map<string, RunningGroup>): GroupInsight[] =>
     sortGroups([...map.values()].map(sealTotals));
 
-  return {
-    totals: sealTotals(totals),
-    switchedRuns,
+  const discardedTotals = emptyTotals();
+  const discardedByExecutor = new Map<string, RunningGroup>();
+  const discardedByMission = new Map<string, RunningGroup>();
+  const discardedByModel = new Map<string, RunningGroup>();
+  const discardedOrchestrationTotals = emptyTotals();
+  for (const a of abandoned) {
+    const segments = attemptSegments(a);
+    const cost = attemptCost(a, segments, prices);
+    const priced = isAttemptPriced(a, segments, prices);
+    addAttempt(discardedTotals, a, cost, priced);
+    addAttempt(
+      group(
+        discardedByExecutor,
+        executorLabel(a.executor) ?? NO_MODEL,
+        executorLabel(a.executor),
+      ),
+      a,
+      cost,
+      priced,
+    );
+    addAttempt(
+      group(discardedByMission, a.missionId ?? NO_MISSION, a.missionTitle),
+      a,
+      cost,
+      priced,
+    );
+    for (const segment of segments) {
+      addSegment(
+        group(discardedByModel, segment.model ?? NO_MODEL, segment.model),
+        a,
+        segment,
+        segmentCost(a, segment, prices, segments.length === 1),
+        isSegmentPriced(a, segment, prices),
+        segments.length > 1,
+      );
+    }
+  }
+
+  for (const a of abandonedMissionAttempts) {
+    const segments = attemptSegments(a);
+    const cost = attemptCost(a, segments, prices);
+    const priced = isAttemptPriced(a, segments, prices);
+    addAttempt(discardedOrchestrationTotals, a, cost, priced);
+  }
+
+  const executionTotals = sealTotals(totals);
+  const orchestrationTotalsSealed = sealTotals(orchestrationTotals);
+  const executionGroups: InsightGroupSet = {
     byProject: seal(byProject),
     byMission: seal(byMission),
     byModel: seal(byModel),
+  };
+  const orchestrationGroups: InsightGroupSet = {
+    byProject: seal(orchestrationByProject),
+    byMission: seal(orchestrationByMission),
+    byModel: seal(orchestrationByModel),
+  };
+
+  return {
+    executionTotals,
+    orchestrationTotals: orchestrationTotalsSealed,
+    totals: combineTotals(executionTotals, orchestrationTotalsSealed),
+    discarded: {
+      totals: sealTotals(discardedTotals),
+      byExecutor: seal(discardedByExecutor),
+      byMission: seal(discardedByMission),
+      byModel: seal(discardedByModel),
+      orchestration: sealTotals(discardedOrchestrationTotals),
+    },
+    switchedRuns,
+    byProject: executionGroups.byProject,
+    byMission: executionGroups.byMission,
+    byRelease: seal(byRelease),
+    byExecutor: seal(byExecutor),
+    byModel: executionGroups.byModel,
+    orchestrationGroups,
+    combinedGroups: buildCombinedGroups(executionGroups, orchestrationGroups),
     reopensByModel,
     perCard,
   };

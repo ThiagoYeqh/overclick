@@ -16,6 +16,12 @@ const totals: UsageTotals = {
   attempts: 6,
   estimated: 2,
   missing: 1,
+  zeroUsage: 1,
+  suspect: 1,
+  suspectTokens: 5_000_000,
+  suspectDurationMs: 60_000,
+  suspectCostUsd: 99,
+  deliveryUnverified: 0,
 };
 
 describe("the total the topbar carries", () => {
@@ -39,6 +45,8 @@ describe("the total the topbar carries", () => {
     const view = toBoardTotals(totals, true);
     expect(view.estimated).toBe(2);
     expect(view.missing).toBe(1);
+    expect(view.suspect).toBe(1);
+    expect(view.suspectTokens).toBe(5_000_000);
     expect(view.costUnpriced).toBe(2);
     expect(isApproxTotal(view)).toBe(true);
     expect(isApproxTotal({ ...view, estimated: 0 })).toBe(false);

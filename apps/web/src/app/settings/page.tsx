@@ -8,34 +8,77 @@ import {
   findModelPrice,
   mcpToken,
   project,
+  recipeCoverage,
   task,
 } from "@agent-board/db";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
-import { isPairInConfig, selectionFromConfig } from "../../lib/executors";
+import {
+  EXECUTOR_CATALOG,
+  selectionFromConfig,
+} from "../../lib/executors";
 import { loadModelPrices } from "../../lib/prices";
 import { loadUsageRecipes } from "../../lib/recipes";
 import { detectRuntime } from "../../lib/runtime";
+import { detectDeployMode } from "../../lib/deploy-mode";
 import {
   SOURCE_UPDATE_COMMAND,
-  UPDATE_COMMAND,
-  UPDATER_ENABLE_COMMAND,
+  updateCommand,
+  updaterEnableCommand,
 } from "../../lib/update-commands";
 import { APP_VERSION, readUpdaterState } from "../../lib/updates";
 import { SettingsClient } from "./settings-client";
+import {
+  isExecutorPairConfigured,
+  normalizeObservedExecutor,
+} from "../../mcp/executor-identity";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+/** The tabs the client knows, so a link can land on one (OCL-20). */
+const SETTINGS_TABS = new Set([
+  "exec",
+  "projects",
+  "policy",
+  "prices",
+  "recipes",
+  "tokens",
+  "claims",
+  "language",
+  "updates",
+]);
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  // The topbar's unpriced-model warning links here straight to the price
+  // table; an unknown tab is the same as no tab.
+  const tabParam = (await searchParams).tab;
+  const initialTab =
+    typeof tabParam === "string" && SETTINGS_TABS.has(tabParam)
+      ? tabParam
+      : "exec";
 
   const ws = await db().query.workspace.findFirst();
   if (!ws) redirect("/setup");
   const projects = await db().query.project.findMany({
     where: eq(project.workspaceId, ws.id),
     orderBy: asc(project.createdAt),
+    columns: {
+      id: true,
+      name: true,
+      idPrefix: true,
+      context: true,
+      currentVersion: true,
+      contextSource: true,
+    },
   });
+  const proj = projects[0];
 
   const entries = await db()
     .select()
@@ -47,10 +90,14 @@ export default async function SettingsPage() {
   const stored = new Map(entries.map((e) => [e.activityType, e]));
   const cardapioRows = factoryCardapioPolicy().map((f) => {
     const row = stored.get(f.type);
+    // A row saved before chains existed keeps its single model, which reads as
+    // a line of succession one deep. That is what it always was.
+    const chain = row ? (row.chain ?? (row.model ? [row.model] : [])) : (f.chain ?? []);
     return {
       activityType: f.type,
       cli: row ? row.cli : f.cli,
       model: row ? row.model : f.model,
+      chain: [...chain],
       effort: row ? row.effort : f.effort,
       updatedBy: row?.updatedBy ?? null,
       updatedAt: row ? row.updatedAt.toISOString() : null,
@@ -73,10 +120,27 @@ export default async function SettingsPage() {
 
   const prices = await loadModelPrices(db(), ws.id);
   const recipes = await loadUsageRecipes(db(), ws.id);
+  const selection = selectionFromConfig(ws.executors);
+  // Coverage is computed here and not in the client component: importing
+  // the helper there would pull the db package's postgres client into the
+  // browser bundle. Executors learned from real connections carry their
+  // own label, catalog ones take the catalog's.
+  const coverage = recipeCoverage(
+    recipes,
+    ws.executors
+      .filter((row) => row.enabled)
+      .map((row) => ({
+        id: row.id,
+        label:
+          row.label ||
+          EXECUTOR_CATALOG.find((d) => d.id === row.id)?.label ||
+          row.id,
+      })),
+  );
 
-  // Models this board has actually run, or is configured to run, that the
-  // price table cannot price yet. Offered in Settings so nobody has to guess
-  // which name to type.
+  // Models this board has actually run, and all models shown by the
+  // executor catalog. If one lacks a price yet, Settings shows it with a
+  // warning so nobody has to guess which name to type.
   // Both the model recorded at claim and every model the run actually
   // switched to: a segment nobody priced spends just as much as the first one.
   const attemptModels = await db()
@@ -92,6 +156,11 @@ export default async function SettingsPage() {
     row.model,
     ...(row.segments ?? []).map((segment) => segment.model),
   ]);
+  const catalogModels = Object.values(selection.models).flatMap((list) => list);
+  const normalizedSeen = ws.seenExecutors.flatMap((row) => {
+    const identity = normalizeObservedExecutor(row);
+    return identity ? [{ ...row, ...identity }] : [];
+  });
   const clean = (models: (string | null)[]) =>
     models
       .map((model) => model?.trim())
@@ -106,12 +175,19 @@ export default async function SettingsPage() {
   const unpricedModels = unpriced(
     clean([
       ...ranModels,
-      ...ws.executors.flatMap((row) => row.models),
-      ...ws.seenExecutors.map((row) => row.model),
+      ...catalogModels,
+      ...normalizedSeen.map((row) => row.model),
     ]),
   );
 
-  const host = (await headers()).get("host") ?? "<your-host>";
+  const h = await headers();
+  // A TLS instance sits behind a proxy that terminates it, so the scheme comes
+  // from the forwarded header. Never hardcode http: the commands we print carry
+  // a bearer token.
+  const host = h.get("host") ?? "<your-host>";
+  const proto = h.get("x-forwarded-proto")?.split(",")[0].trim()
+    ?? (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+  const origin = `${proto}://${host}`;
 
   // Read on the server, from the volume the sidecar shares: a mounted trigger
   // directory says nothing, only a fresh heartbeat means somebody can pull.
@@ -120,10 +196,14 @@ export default async function SettingsPage() {
   // Which update advice can possibly apply here: a container can be recreated,
   // a checkout can only be pulled and restarted.
   const runtime = detectRuntime();
+  // Hosted vs quickstart (OCL-73): picks the command that matches the compose
+  // project this instance actually runs under, so a hosted instance is never
+  // shown the quickstart's raw docker compose command.
+  const deployMode = detectDeployMode();
 
   // Pairs observed on real connections that the config still does not cover.
-  const seenSuggestions = ws.seenExecutors
-    .filter((s) => !isPairInConfig(ws.executors, s.cli, s.model))
+  const seenSuggestions = normalizedSeen
+    .filter((s) => !isExecutorPairConfigured(ws.executors, s.cli, s.model))
     .map((s) => ({
       cli: s.cli,
       model: s.model,
@@ -135,24 +215,32 @@ export default async function SettingsPage() {
     <div className="nb nebula-surface">
       <SettingsClient
         host={host}
+        origin={origin}
         workspaceName={ws.name}
-        projectName={projects[0]?.name ?? ws.name}
-        projects={projects.map((item) => ({
-          id: item.id,
-          name: item.name,
-          repoUrl: item.repoUrl ?? "",
-          prefix: item.idPrefix,
-          nextNumber: item.nextNumber,
+        projectName={proj?.name ?? ws.name}
+        projects={projects.map((row) => ({
+          id: row.id,
+          name: row.name,
+          idPrefix: row.idPrefix,
+          context: row.context ?? "",
+          currentVersion: row.currentVersion ?? "",
+          contextSource: row.contextSource
+            ? {
+                releasesRepo: row.contextSource.releasesRepo,
+                contextFile: row.contextSource.contextFile,
+                refresh: row.contextSource.refresh,
+              }
+            : null,
         }))}
-        executors={selectionFromConfig(ws.executors)}
+        executors={selection}
         lang={ws.language}
         updateMode={ws.updateMode}
         updateLog={ws.updateLog}
         version={APP_VERSION}
         runtime={runtime}
         updater={updater}
-        enableCommand={UPDATER_ENABLE_COMMAND}
-        manualCommand={UPDATE_COMMAND}
+        enableCommand={updaterEnableCommand(deployMode)}
+        manualCommand={updateCommand(deployMode)}
         sourceCommand={SOURCE_UPDATE_COMMAND}
         seenSuggestions={seenSuggestions}
         cardapio={cardapioRows}
@@ -160,7 +248,10 @@ export default async function SettingsPage() {
         unpricedModels={unpricedModels}
         unpricedRanModels={unpricedRanModels}
         recipes={recipes}
+        coverage={coverage}
         pricingEnabled={ws.pricingEnabled}
+        claimTimeoutMinutes={ws.claimTimeoutMinutes}
+        initialTab={initialTab}
         tokens={tokens.map((t) => ({
           id: t.id,
           label: t.label,

@@ -1,5 +1,8 @@
+# LOCAL QUICKSTART ONLY — NEVER use this file for a hosted instance.
+# Hosted deploys must use ./deploy/deploy.sh, which pins COMPOSE_FILE to deploy/.
 # One command: docker compose up --build
 # Data stays in this compose project. Nothing phones home.
+name: overclick-quickstart
 
 services:
   postgres:
@@ -25,10 +28,23 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://agentboard:agentboard@postgres:5432/agentboard
-      AUTH_SECRET: local-dev-only-change-me-32chars-min
+      # Required for every installation. Generate it before first boot with:
+      #   export AUTH_SECRET="$(openssl rand -base64 32)"
+      AUTH_SECRET: "${AUTH_SECRET:?AUTH_SECRET is required; generate one per installation with openssl rand -base64 32}"
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_ENV: production
       UPDATE_TRIGGER_DIR: /update-trigger
+      # OCL-73: tells the update banner/panel which command to show. Never
+      # "hosted" here — that value is reserved for deploy/docker-compose.cloud.yml.
+      OVERCLICK_DEPLOY_MODE: quickstart
+      # GHSA-hccf: the pairing endpoint charges wrong guesses to the origin
+      # they came from, and the only way it learns one is from a proxy that
+      # APPENDS the peer to x-forwarded-for. Off here because this file
+      # publishes port 3000 directly, and a caller that reaches the app
+      # itself would just be naming itself. Turn it on only when something
+      # of yours sits in front:
+      #   OVERCLICK_TRUSTED_PROXY=1 docker compose up
+      OVERCLICK_TRUSTED_PROXY: "${OVERCLICK_TRUSTED_PROXY:-0}"
     volumes:
       - update-trigger:/update-trigger
     ports:

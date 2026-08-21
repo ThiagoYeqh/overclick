@@ -1,4 +1,12 @@
-import { boolean, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { DEFAULT_CARDAPIO, KNOWN_EXECUTORS } from "../defaults";
 import type {
   AutoUpdateRecord,
@@ -24,6 +32,8 @@ export const workspace = pgTable("workspace", {
    * shows it so an update nobody watched still leaves a record.
    */
   updateLog: jsonb("update_log").$type<AutoUpdateRecord>(),
+  /** Optional GitHub token used only for project-context source refreshes. */
+  githubToken: text("github_token"),
   /**
    * Opt-in money layer. OFF by default: tokens and time are facts on every
    * plan, while a dollar figure is fiction on a flat subscription and a price
@@ -31,6 +41,14 @@ export const workspace = pgTable("workspace", {
    * clearly labeled approximate cost next to the numbers it measured.
    */
   pricingEnabled: boolean("pricing_enabled").notNull().default(false),
+  /**
+   * How long a claim may go without task_update/task_heartbeat before another
+   * executor may reclaim it. Kept per workspace so a long-running team can
+   * widen the lease without weakening every installation.
+   */
+  claimTimeoutMinutes: integer("claim_timeout_minutes")
+    .notNull()
+    .default(60),
   executors: jsonb("executors")
     .$type<ExecutorConfig[]>()
     .notNull()

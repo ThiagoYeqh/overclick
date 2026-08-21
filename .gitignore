@@ -44,3 +44,9 @@ pnpm-debug.log*
 # drizzle journal is committed; kit cache is not
 packages/db/drizzle/*.sql.bak
 .internal/
+deploy/.env
+.worktrees/
+
+# python bytecode (docs/design/logo-variants/tools)
+__pycache__/
+*.pyc

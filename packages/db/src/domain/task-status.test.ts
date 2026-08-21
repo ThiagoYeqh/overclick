@@ -6,12 +6,13 @@ import {
 } from "./task-status";
 
 describe("task status machine (spec §3.1)", () => {
-  it("lists the four statuses in order", () => {
+  it("lists workflow statuses including discarded", () => {
     expect(TASK_STATUSES).toEqual([
       "aberto",
       "em_execucao",
       "feito",
       "validado",
+      "descartado",
     ]);
   });
 
@@ -57,6 +58,11 @@ describe("task status machine (spec §3.1)", () => {
     expect(canTransition("aberto", "validado", "human")).toBe(false);
     expect(canTransition("em_execucao", "validado", "human")).toBe(false);
     expect(canTransition("validado", "aberto", "human")).toBe(false);
+  });
+
+  it("allows human-only desvalidation: validado → feito, agent cannot move it back in silence", () => {
+    expect(canTransition("validado", "feito", "human")).toBe(true);
+    expect(canTransition("validado", "feito", "agent")).toBe(false);
   });
 
   it("treats revisado as a flag on feito, not a status", () => {

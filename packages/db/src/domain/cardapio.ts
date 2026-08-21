@@ -6,6 +6,7 @@ export function factoryCardapioPolicy(): CardapioPolicyEntry[] {
     type: row.type,
     cli: row.cli,
     model: row.model,
+    chain: row.chain ? [...row.chain] : null,
     effort: row.effort,
   }));
 }

@@ -5,6 +5,7 @@ export const taskStatusEnum = pgEnum("task_status", [
   "em_execucao",
   "feito",
   "validado",
+  "descartado",
 ]);
 
 export const taskTypeEnum = pgEnum("task_type", ["feature", "bug", "rfc"]);
@@ -29,3 +30,14 @@ export const missionStatusEnum = pgEnum("mission_status", [
   "pausada",
   "concluida",
 ]);
+
+export const missionAttemptStatusEnum = pgEnum("mission_attempt_status", [
+  "aberto",
+  "sucesso",
+  "abandonado",
+]);
+
+export const missionAttemptCheckpointEnum = pgEnum(
+  "mission_attempt_checkpoint",
+  ["rodada", "final"],
+);

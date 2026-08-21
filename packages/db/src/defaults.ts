@@ -6,7 +6,11 @@ const mid: Harness = {
   effort: "medium",
 };
 
-/** Legacy jsonb default on workspace.cardapio (MCP policy lives in cardapio_entry). */
+/**
+ * Legacy jsonb default on workspace.cardapio (MCP policy lives in
+ * cardapio_entry). Only the three card types a board can carry, on purpose:
+ * the full twenty-activity routing table is FACTORY_CARDAPIO_POLICY.
+ */
 export const DEFAULT_CARDAPIO: Cardapio = {
   bug: { ...mid },
   feature: { ...mid },

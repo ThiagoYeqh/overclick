@@ -1,21 +1,26 @@
 import {
-  TaskDeliverOutputSchema,
+  TaskDeliverFullOutputSchema as TaskDeliverOutputSchema,
   HarnessRecommendOutputSchema,
   MissionCreateOutputSchema,
+  MissionDeleteOutputSchema,
   MissionGetOutputSchema,
   MissionListOutputSchema,
+  MissionUpdateFullOutputSchema as MissionUpdateOutputSchema,
   TaskClaimOutputSchema,
-  TaskCreateOutputSchema,
+  TaskCreateOutputSchema as TaskCreateAckOutputSchema,
+  TaskCreateFullOutputSchema as TaskCreateOutputSchema,
   TaskDeleteOutputSchema,
   TaskGetOutputSchema,
   TaskListOutputSchema,
-  TaskUpdateOutputSchema,
+  TaskUpdateOutputSchema as TaskUpdateAckOutputSchema,
+  TaskUpdateFullOutputSchema as TaskUpdateOutputSchema,
 } from "@agent-board/mcp-core";
 import {
   executionAttempt,
   handoff,
   mcpToken,
   mission,
+  user,
   project,
   task,
   taskComment,
@@ -25,7 +30,8 @@ import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
 import { generateTokenSecret, hashToken } from "./token";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
+import { invokeTool as invokeMcpTool } from "./tools";
 
 const origem = {
   session_id: "sess_torre",
@@ -46,6 +52,50 @@ describe("MCP tool edge cases against a test db", () => {
       tokenLabel: "test",
     };
   }
+
+  it("returns a compact write acknowledgement by default and the full card on request", async () => {
+    world = await createTestWorld();
+    const created = await invokeMcpTool(world.db, ctx(), "task_create", {
+      mission: world.missionId,
+      project_id: world.projectId,
+      title: "ACK compacto",
+      type: "bug",
+      o_que: "A escrita não repete o contrato inteiro.",
+      por_que: "Respostas menores preservam contexto.",
+      como_confirmo: [{ step: "chama a tool", expected: "recebe ACK" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    const ack = TaskCreateAckOutputSchema.parse(created.value);
+    if ("task" in ack) throw new Error("expected the compact task_create acknowledgement");
+    expect(ack.short_id).toBe("OC-1");
+    expect(ack.changed).toMatchObject({ project_id: world.projectId, mode: "solo" });
+    expect(created.value).not.toHaveProperty("task");
+
+    const updated = await invokeMcpTool(world.db, ctx(), "task_update", {
+      task_id: ack.short_id,
+      harness: { model: "opus-5", effort: "high" },
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const updateAck = TaskUpdateAckOutputSchema.parse(updated.value);
+    if ("task" in updateAck) throw new Error("expected the compact task_update acknowledgement");
+    expect(updateAck.changed).toMatchObject({
+      harness: { model: "opus-5", effort: "high" },
+    });
+    expect(updated.value).not.toHaveProperty("task");
+
+    const full = await invokeMcpTool(world.db, ctx(), "task_update", {
+      task_id: ack.short_id,
+      progress: "Full solicitado.",
+      return: "full",
+    });
+    expect(full.ok).toBe(true);
+    if (!full.ok) return;
+    expect(TaskUpdateOutputSchema.parse(full.value).task.short_id).toBe(ack.short_id);
+  });
 
   it("creates a team card with scoped subtasks and recommended harness", async () => {
     world = await createTestWorld();
@@ -80,7 +130,260 @@ describe("MCP tool edge cases against a test db", () => {
     expect(out.task.o_que).toContain("## Plano");
     expect(out.subtasks).toHaveLength(2);
     expect(out.subtasks[0]?.short_id).toBe(`${out.task.short_id}.1`);
-    expect(out.task.harness?.model).toBe("opus-4-8");
+    expect(out.task.harness?.model).toBe("opus-5");
+  });
+
+  it("uses the harness model when Codex claims with generic gpt-5", async () => {
+    world = await createTestWorld();
+    const [card] = await world.db
+      .insert(task)
+      .values({
+        projectId: world.projectId,
+        shortId: "OC-90",
+        title: "Generic Codex claim",
+        harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+      })
+      .returning();
+    if (!card) throw new Error("failed to create card");
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "Codex CLI", model: "gpt-5" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.attempt.executor).toMatchObject({
+      cli: "codex",
+      model: "gpt-5-6-sol",
+      model_source: "harness",
+    });
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt).toMatchObject({
+      model: "gpt-5-6-sol",
+      modelSource: "harness",
+    });
+  });
+
+  it("keeps an exact Codex model declared on claim", async () => {
+    world = await createTestWorld();
+    const [card] = await world.db
+      .insert(task)
+      .values({
+        projectId: world.projectId,
+        shortId: "OC-91",
+        title: "Exact Codex claim",
+        harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+      })
+      .returning();
+    if (!card) throw new Error("failed to create card");
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "codex", model: "gpt-5.6-luna" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    expect(TaskClaimOutputSchema.parse(claimed.value).attempt.executor).toMatchObject({
+      cli: "codex",
+      model: "gpt-5-6-luna",
+      model_source: "declared",
+    });
+  });
+
+  it("updates the attempt model and timeline when measured segments diverge", async () => {
+    world = await createTestWorld();
+    const [card] = await world.db
+      .insert(task)
+      .values({
+        projectId: world.projectId,
+        shortId: "OC-92",
+        title: "Measured Codex model",
+        harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+      })
+      .returning();
+    if (!card) throw new Error("failed to create card");
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "codex", model: "gpt-5" },
+    });
+    const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "measured",
+      usage: {
+        segments: [{ model: "gpt-5.6-terra", input: 100, output: 20 }],
+      },
+    });
+    expect(delivered.ok).toBe(true);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt).toMatchObject({
+      model: "gpt-5-6-terra",
+      modelSource: "measured",
+    });
+    const [note] = await world.db
+      .select()
+      .from(taskComment)
+      .where(eq(taskComment.taskId, card.id));
+    expect(note).toMatchObject({
+      kind: "executor_swap",
+      body: "declarou gpt-5-6-sol, mediu gpt-5-6-terra",
+    });
+  });
+
+  it("atomically supersedes a running card, preserves usage and inherits its contract", async () => {
+    world = await createTestWorld();
+    const first = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Original",
+      type: "feature",
+      o_que: "Keep this contract.",
+      por_que: "The work still matters.",
+      como_confirmo: [{ step: "run it", expected: "it works" }],
+      origem,
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const original = TaskCreateOutputSchema.parse(first.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: original.id,
+      executor: { cli: "codex", model: "spark" },
+    });
+    const usage = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: original.id,
+      usage: { tokens_in: 120, tokens_out: 30, duration_ms: 5000 },
+    });
+    expect(usage.ok).toBe(true);
+
+    const continued = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Continuation",
+      type: "feature",
+      supersedes: original.short_id,
+      inherit: true,
+      origem,
+    });
+    expect(continued.ok).toBe(true);
+    if (!continued.ok) return;
+    const replacement = TaskCreateOutputSchema.parse(continued.value).task;
+    expect(replacement.supersedes).toBe(original.id);
+    expect(replacement.o_que).toBe(original.o_que);
+    expect(replacement.por_que).toBe(original.por_que);
+    expect(replacement.como_confirmo).toEqual(original.como_confirmo);
+
+    const old = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: original.id,
+    });
+    expect(old.ok).toBe(true);
+    if (!old.ok) return;
+    const oldCard = TaskGetOutputSchema.parse(old.value).task;
+    expect(oldCard.status).toBe("descartado");
+    expect(oldCard.superseded_by).toBe(replacement.id);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, original.id));
+    expect(attempt?.result).toBe("abandoned");
+    expect(attempt?.resultNote).toBe(`superseded by ${replacement.short_id}`);
+    expect(attempt?.tokensIn).toBe(120);
+    expect(attempt?.tokensOut).toBe(30);
+
+    const corrected = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: original.id,
+      usage: { tokens_in: 200, tokens_out: 40, duration_ms: 6000 },
+    });
+    expect(corrected.ok).toBe(true);
+    const [afterCorrection] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, original.id));
+    expect(afterCorrection?.result).toBe("abandoned");
+    expect(afterCorrection?.tokensIn).toBe(200);
+    expect(afterCorrection?.tokensOut).toBe(40);
+  });
+
+  it("rejects superseding a delivered card", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Already delivered",
+      type: "bug",
+      o_que: "Fix it.",
+      por_que: "It broke.",
+      como_confirmo: [{ step: "check", expected: "fixed" }],
+      origem,
+    });
+    if (!created.ok) throw new Error("create failed");
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "done",
+      usage: { tokens_in: 1, estimated: true },
+    });
+
+    const refused = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Should not exist",
+      type: "bug",
+      supersedes: card.id,
+      inherit: true,
+      origem,
+    });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("INVALID_ARGUMENT");
+  });
+
+  it("lets a managed token link an existing continuation while discarding", async () => {
+    world = await createTestWorld();
+    const make = async (title: string) => {
+      const made = await invokeTool(world.db, ctx(), "task_create", {
+        project_id: world.projectId,
+        title,
+        type: "feature",
+        o_que: title,
+        por_que: "needed",
+        como_confirmo: [{ step: "check", expected: "ok" }],
+        origem,
+      });
+      if (!made.ok) throw new Error("create failed");
+      return TaskCreateOutputSchema.parse(made.value).task;
+    };
+    const original = await make("Old");
+    const continuation = await make("New");
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: original.id });
+
+    const updated = await invokeTool(
+      world.db,
+      { ...ctx(), canManage: true },
+      "task_update",
+      {
+        task_id: original.id,
+        status: "descartado",
+        superseded_by: continuation.id,
+      },
+    );
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const out = TaskUpdateOutputSchema.parse(updated.value).task;
+    expect(out.status).toBe("descartado");
+    expect(out.superseded_by).toBe(continuation.id);
+    const next = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: continuation.id,
+    });
+    expect(next.ok && TaskGetOutputSchema.parse(next.value).task.supersedes).toBe(
+      original.id,
+    );
   });
 
   it("accepts handoff without usage and marks telemetry incomplete", async () => {
@@ -229,10 +532,60 @@ describe("MCP tool edge cases against a test db", () => {
     expect(payload.briefing_markdown).toContain("(no command for this CLI yet)");
 
     // task_get keeps handing the same recipe: the card knows who claimed it.
-    const got = await invokeTool(world.db, ctx(), "task_get", { task_id: card.id });
+    const got = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      view: "briefing",
+    });
     expect(got.ok).toBe(true);
     if (!got.ok) return;
     expect(TaskGetOutputSchema.parse(got.value).usage_recipe?.cli).toBe("generic");
+  });
+
+  it("pins the Codex recipe to the claim session and harness model", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Receita Codex exata",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "O rollout precisa pertencer ao claim.",
+      como_confirmo: [{ step: "existe", expected: "ok" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: {
+        cli: "codex",
+        model: "gpt-5.6-sol",
+        session_id: "codex-session-with-'quote",
+      },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const payload = TaskClaimOutputSchema.parse(claimed.value);
+
+    expect(payload.usage_recipe?.command).toContain(
+      `CODEX_SESSION_ID='codex-session-with-'"'"'quote'`,
+    );
+    expect(payload.usage_recipe?.command).toContain(
+      "CODEX_HARNESS_MODEL='gpt-5-6-sol'",
+    );
+    expect(payload.usage_recipe?.command).toContain(
+      `OVERCLICK_CLAIMED_AT='${payload.attempt.started_at}'`,
+    );
+    expect(payload.briefing_markdown).toContain(
+      `claimed_at: \`${payload.attempt.started_at}\``,
+    );
+    expect(payload.briefing_markdown).toContain(
+      "work before the claim",
+    );
+    expect(payload.briefing_markdown).toContain(
+      "CODEX_HARNESS_MODEL='gpt-5-6-sol'",
+    );
   });
 
   it("turns the claim session id into a transcript reference the delivery completes", async () => {
@@ -374,6 +727,115 @@ describe("MCP tool edge cases against a test db", () => {
     expect(attempt?.tokensIn).toBe(1300);
     expect(attempt?.tokensOut).toBe(1100);
     expect(attempt?.tokensCache).toBe(5100);
+    expect(Number(attempt?.reportedCostUsd)).toBeCloseTo(0.4);
+    expect(Number(attempt?.costUsd)).toBeCloseTo(0.03155);
+    expect(attempt?.costSource).toBe("computed");
+    expect(attempt?.costStatus).toBe("computed");
+    expect(attempt?.costUnpricedModels).toEqual([]);
+    expect(attempt?.costBreakdown).toHaveLength(2);
+  });
+
+  it("normalizes a Spark segment and freezes its computed cost on deliver", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Spark com alias",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "O slug da CLI precisa encontrar o preço.",
+      como_confirmo: [{ step: "entrega", expected: "custo calculado" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entregue",
+      usage: {
+        segments: [
+          { model: "gpt-5.3-codex-spark", input: 100_000, output: 20_000 },
+        ],
+        duration_ms: 1_000,
+        turns: 1,
+      },
+    });
+    expect(submitted.ok).toBe(true);
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.usageSegments?.[0]?.model).toBe("gpt-5-3-codex-spark");
+    expect(Number(attempt?.costUsd)).toBeCloseTo(0.455);
+    expect(attempt?.costSource).toBe("computed");
+    expect(attempt?.costStatus).toBe("computed");
+    const fetched = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(fetched.ok).toBe(true);
+    if (fetched.ok) {
+      expect(TaskGetOutputSchema.parse(fetched.value)).toMatchObject({
+        cost_usd: 0.455,
+        cost_source: "computed",
+        cost_status: "computed",
+      });
+      expect(TaskGetOutputSchema.parse(fetched.value)).not.toHaveProperty(
+        "cost_unpriced_models",
+      );
+    }
+  });
+
+  it("stores the missing price reason instead of a zero cost", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Modelo futuro",
+      type: "feature",
+      o_que: "Um card.",
+      por_que: "Preço desconhecido precisa ficar explícito.",
+      como_confirmo: [{ step: "entrega", expected: "sem preço" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entregue",
+      usage: {
+        segments: [{ model: "future-model", input: 100_000, output: 20_000 }],
+        duration_ms: 1_000,
+        turns: 1,
+      },
+    });
+
+    const [attempt] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, card.id));
+    expect(attempt?.costUsd).toBeNull();
+    expect(attempt?.costSource).toBeNull();
+    expect(attempt?.costStatus).toBe("unpriced");
+    expect(attempt?.costUnpricedModels).toEqual(["future-model"]);
+    const fetched = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(fetched.ok).toBe(true);
+    if (fetched.ok) {
+      expect(TaskGetOutputSchema.parse(fetched.value)).toMatchObject({
+        cost_status: "unpriced",
+        cost_unpriced_models: ["future-model"],
+      });
+      expect(TaskGetOutputSchema.parse(fetched.value)).not.toHaveProperty("cost_usd");
+      expect(TaskGetOutputSchema.parse(fetched.value)).not.toHaveProperty(
+        "cost_source",
+      );
+    }
   });
 
   it("stores a flat usage block as one segment for the claimed model", async () => {
@@ -519,6 +981,128 @@ describe("MCP tool edge cases against a test db", () => {
 
     const [ho] = await world.db.select().from(handoff).where(eq(handoff.taskId, card.id));
     expect(ho?.usage?.tokens_in).toBe(5000);
+
+    const suspectCorrection = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      usage: {
+        tokens_out: 5_000_000,
+        duration_ms: 60_000,
+        turns: 7,
+      },
+    });
+    expect(suspectCorrection.ok).toBe(true);
+    if (!suspectCorrection.ok) return;
+    expect(TaskUpdateOutputSchema.parse(suspectCorrection.value)).toMatchObject({
+      usage_recorded: true,
+      usage_suspect: true,
+    });
+  });
+
+  it("accepts an impossible usage report but marks it suspect on deliver and task_get", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Usage de sessao inteira",
+      type: "bug",
+      o_que: "O board aceita e sinaliza o valor.",
+      por_que: "A entrega nao pode se perder.",
+      como_confirmo: [{ step: "entrega", expected: "flag suspeita" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: {
+        cli: "claude",
+        model: "sonnet-5",
+        session_id: "impossible-window-session",
+      },
+    });
+    const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entrega aceita",
+      usage: {
+        tokens_out: 5_000_000,
+        duration_ms: 60_000,
+        turns: 5,
+      },
+    });
+    expect(submitted.ok).toBe(true);
+    if (!submitted.ok) return;
+    const delivered = TaskDeliverOutputSchema.parse(submitted.value);
+    expect(delivered.task.status).toBe("feito");
+    expect(delivered.usage_suspect).toBe(true);
+    expect(delivered.usage_suspect_reason).toContain("claim_window_exceeded");
+
+    const got = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(TaskGetOutputSchema.parse(got.value)).toMatchObject({
+      usage_suspect: true,
+      usage_suspect_reason: "claim_window_exceeded",
+    });
+  });
+
+  it("keeps plausible usage trusted and flags a second card reusing its session", async () => {
+    world = await createTestWorld();
+    const createCard = async (title: string) => {
+      const created = await invokeTool(world.db, ctx(), "task_create", {
+        project_id: world.projectId,
+        title,
+        type: "feature",
+        o_que: "Um card pequeno.",
+        por_que: "Cobrir a guarda de sessao.",
+        como_confirmo: [{ step: "entrega", expected: "usage classificado" }],
+        origem,
+      });
+      if (!created.ok) throw new Error(created.error.message);
+      return TaskCreateOutputSchema.parse(created.value).task;
+    };
+    const first = await createCard("Primeiro card da sessao");
+    const second = await createCard("Segundo card da sessao");
+    const sessionId = "reused-executor-session";
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: first.id,
+      executor: { cli: "codex", model: "gpt-5.6-sol", session_id: sessionId },
+    });
+    const firstDelivery = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: first.id,
+      summary: "primeiro",
+      usage: { tokens_in: 2_000, tokens_out: 500, duration_ms: 60_000, turns: 3 },
+    });
+    expect(firstDelivery.ok).toBe(true);
+    if (!firstDelivery.ok) return;
+    expect(TaskDeliverOutputSchema.parse(firstDelivery.value).usage_suspect).toBe(
+      false,
+    );
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: second.id,
+      executor: { cli: "codex", model: "gpt-5.6-sol", session_id: sessionId },
+    });
+    const secondDelivery = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: second.id,
+      summary: "segundo",
+      usage: { tokens_in: 1_000, tokens_out: 200, duration_ms: 60_000, turns: 2 },
+    });
+    expect(secondDelivery.ok).toBe(true);
+    if (!secondDelivery.ok) return;
+    const out = TaskDeliverOutputSchema.parse(secondDelivery.value);
+    expect(out.usage_suspect).toBe(true);
+    expect(out.usage_suspect_reason).toContain("session_reused");
+
+    const [stored] = await world.db
+      .select()
+      .from(executionAttempt)
+      .where(eq(executionAttempt.taskId, second.id));
+    expect(stored?.sessionId).toBe(sessionId);
+    expect(stored?.usageSuspect).toBe(true);
   });
 
   it("persists how_to_verify on the handoff and restarts validation ticks", async () => {
@@ -602,33 +1186,36 @@ describe("MCP tool edge cases against a test db", () => {
     });
     expect(await seen()).toEqual([]);
 
-    // Unknown model: learned on claim, bumped on a second claim and on deliver.
+    // A confirmed alias resolves to the configured model and is not learned.
     const a = await mkCard("Unknown pair A");
     await invokeTool(world.db, ctx(), "task_claim", {
       task_id: a.id,
       executor: { cli: "claude", model: "claude-fable-5" },
     });
-    let rows = await seen();
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ cli: "claude", model: "claude-fable-5", count: 1 });
+    expect(await seen()).toEqual([]);
 
+    // A genuinely unknown model is learned, bumped on a second claim and on deliver.
     const b = await mkCard("Unknown pair B");
     await invokeTool(world.db, ctx(), "task_claim", {
       task_id: b.id,
-      executor: { cli: "claude", model: "claude-fable-5" },
+      executor: { cli: "claude", model: "claude-future-model" },
     });
-    rows = await seen();
+    let rows = await seen();
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.count).toBe(2);
+    expect(rows[0]).toMatchObject({
+      cli: "claude-code",
+      model: "future-model",
+      count: 1,
+    });
 
     const submitted = await invokeTool(world.db, ctx(), "task_deliver", {
-      task_id: a.id,
+      task_id: b.id,
       summary: "done",
     });
     expect(submitted.ok).toBe(true);
     rows = await seen();
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.count).toBe(3);
+    expect(rows[0]?.count).toBe(2);
   });
 
   it("rejects handoff from aberto via the state machine", async () => {
@@ -683,6 +1270,7 @@ describe("MCP tool edge cases against a test db", () => {
 
     const fetched = await invokeTool(world.db, ctx(), "mission_get", {
       mission_id: miss.id,
+      view: "briefing",
     });
     expect(fetched.ok).toBe(true);
     if (!fetched.ok) return;
@@ -707,6 +1295,7 @@ describe("MCP tool edge cases against a test db", () => {
 
     const got = await invokeTool(world.db, ctx(), "task_get", {
       task_id: taskOut.id,
+      view: "briefing",
     });
     expect(got.ok).toBe(true);
     if (!got.ok) return;
@@ -727,6 +1316,134 @@ describe("MCP tool edge cases against a test db", () => {
     expect(claimOut.briefing_markdown).toContain(
       "Agents must inherit this context in the briefing.",
     );
+  });
+
+  it("partially updates a mission and scopes edits to the token workspace", async () => {
+    world = await createTestWorld();
+
+    const updated = await invokeTool(world.db, ctx(), "mission_update", {
+      mission_id: world.missionId,
+      title: "  New mission north  ",
+      context: "## Convention\n\nOne round only.",
+      status: "pausada",
+    });
+    expect(updated.ok).toBe(true);
+    if (!updated.ok) return;
+    const miss = MissionUpdateOutputSchema.parse(updated.value).mission;
+    expect(miss.title).toBe("New mission north");
+    expect(miss.context).toBe("## Convention\n\nOne round only.");
+    expect(miss.objective).toBe("Fechar o loop MCP do MVP.");
+    expect(miss.status).toBe("pausada");
+
+    const granular = await invokeTool(world.db, ctx(), "mission_update", {
+      mission_id: world.missionId,
+      context_ops: [
+        {
+          op: "replace_section",
+          heading: "Convention",
+          text: "Two rounds only.",
+        },
+      ],
+      objective_ops: [
+        {
+          op: "append_section",
+          heading: "Success",
+          text: "The board stays consistent.",
+        },
+      ],
+    });
+    expect(granular.ok).toBe(true);
+    if (!granular.ok) return;
+    const granularMission = MissionUpdateOutputSchema.parse(granular.value).mission;
+    expect(granularMission.context).toContain("Two rounds only.");
+    expect(granularMission.objective).toContain(
+      "## Success\n\nThe board stays consistent.",
+    );
+
+    const invalid = await invokeTool(world.db, ctx(), "mission_update", {
+      mission_id: world.missionId,
+      status: "archived",
+    });
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.error.code).toBe("INVALID_ARGUMENT");
+
+    const [otherWs] = await world.db
+      .insert(workspace)
+      .values({ name: "Other mission workspace", executors: [] })
+      .returning({ id: workspace.id });
+    if (!otherWs) throw new Error("failed to insert other workspace");
+    const [otherMission] = await world.db
+      .insert(mission)
+      .values({
+        workspaceId: otherWs.id,
+        title: "Other mission",
+        objective: "Out of scope.",
+      })
+      .returning({ id: mission.id });
+    if (!otherMission) throw new Error("failed to insert other mission");
+
+    const refused = await invokeTool(world.db, ctx(), "mission_update", {
+      mission_id: otherMission.id,
+      title: "Must not change",
+    });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe("NOT_FOUND");
+  });
+
+  it("deletes empty missions, refuses occupied ones, and detaches cards under force", async () => {
+    world = await createTestWorld();
+
+    const empty = await invokeTool(world.db, ctx(), "mission_create", {
+      title: "Empty shell",
+    });
+    if (!empty.ok) throw new Error("mission_create failed");
+    const emptyMission = MissionCreateOutputSchema.parse(empty.value).mission;
+    const deleted = await invokeTool(world.db, ctx(), "mission_delete", {
+      mission_id: emptyMission.id,
+    });
+    expect(deleted.ok).toBe(true);
+    if (!deleted.ok) return;
+    expect(MissionDeleteOutputSchema.parse(deleted.value)).toMatchObject({
+      mission_id: emptyMission.id,
+      tasks_detached: 0,
+    });
+
+    const card = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      mission: world.missionId,
+      title: "Card keeps living",
+      type: "feature",
+      o_que: "Detach on forced mission deletion.",
+      por_que: "A mission is grouping, not ownership.",
+      como_confirmo: [{ step: "list card", expected: "mission is null" }],
+      origem,
+    });
+    if (!card.ok) throw new Error("task_create failed");
+    const createdCard = TaskCreateOutputSchema.parse(card.value).task;
+
+    const refused = await invokeTool(world.db, ctx(), "mission_delete", {
+      mission_id: world.missionId,
+    });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) {
+      expect(refused.error.code).toBe("INVALID_ARGUMENT");
+      expect(refused.error.message).toContain("1 card");
+      expect(refused.error.message).toContain("force: true");
+    }
+
+    const forced = await invokeTool(world.db, ctx(), "mission_delete", {
+      mission_id: world.missionId,
+      force: true,
+    });
+    expect(forced.ok).toBe(true);
+    if (!forced.ok) return;
+    expect(MissionDeleteOutputSchema.parse(forced.value).tasks_detached).toBe(1);
+
+    const [stillThere] = await world.db
+      .select({ missionId: task.missionId })
+      .from(task)
+      .where(eq(task.id, createdCard.id));
+    expect(stillThere?.missionId).toBeNull();
   });
 
   async function createPlainCard(title: string) {
@@ -821,6 +1538,304 @@ describe("MCP tool edge cases against a test db", () => {
     expect(out.briefing_markdown).not.toContain("kimi-cli exited 127");
   });
 
+  it("counts report comments and keeps them out of reopen hints", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Report no reabre");
+
+    await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    const reported = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "Usuário não abre mais o fluxo, mas o report veio.",
+      comment_kind: "report",
+    });
+    expect(reported.ok).toBe(true);
+    if (!reported.ok) return;
+    expect(TaskUpdateOutputSchema.parse(reported.value).task.reports_count).toBe(1);
+
+    const rows = await world.db
+      .select()
+      .from(taskComment)
+      .where(eq(taskComment.taskId, card.id));
+    expect(rows.filter((row) => row.kind === "report")).toHaveLength(1);
+    expect(rows.filter((row) => row.kind === "comment")).toHaveLength(0);
+
+    const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "done",
+    });
+    expect(delivered.ok).toBe(true);
+
+    await world.db
+      .update(task)
+      .set({ status: "aberto", claimedByTokenId: null, claimedAt: null })
+      .where(eq(task.id, card.id));
+
+    const got = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(TaskGetOutputSchema.parse(got.value).task.reports_count).toBe(1);
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.task.reopen_comment).toBeNull();
+    // reopen_comment stays narrow (latest human comment after the handoff),
+    // but every comment/report is still a live part of the contract: the new
+    // claim's briefing must surface it in "## Comentários do card".
+    expect(out.briefing_markdown).toContain("## Comentários do card");
+    expect(out.briefing_markdown).toContain("Usuário não abre mais o fluxo");
+  });
+
+  it("ignores agent comments on an open card when there is no reopen handoff", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Apenas nota para timeline");
+
+    await world.db.insert(taskComment).values({
+      taskId: card.id,
+      authorAgentRef: "agent://cli/overclock",
+      kind: "comment",
+      body: "nota interna fora da abertura",
+    });
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    expect(TaskClaimOutputSchema.parse(claimed.value).task.reopen_comment).toBeNull();
+  });
+
+  it("carries every comment on the card into the claim briefing, oldest first", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Contrato corrigido via comentário");
+
+    const first = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "cadência: publica um post por dia, não por hora",
+    });
+    expect(first.ok).toBe(true);
+    const second = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "remove o card parcial do carrossel",
+    });
+    expect(second.ok).toBe(true);
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+
+    const section = out.briefing_markdown.slice(
+      out.briefing_markdown.indexOf("## Comentários do card"),
+    );
+    expect(section).toContain(
+      "comentários abaixo alteram/refinam o contrato acima",
+    );
+    expect(section).toContain("comentário mais recente vence");
+    const firstAt = section.indexOf("cadência: publica um post por dia");
+    const secondAt = section.indexOf("remove o card parcial do carrossel");
+    expect(firstAt).toBeGreaterThan(-1);
+    expect(secondAt).toBeGreaterThan(firstAt);
+    // The section sits right after the contract it refines, before ## Harness.
+    expect(out.briefing_markdown.indexOf("## Comentários do card")).toBeLessThan(
+      out.briefing_markdown.indexOf("## Harness"),
+    );
+  });
+
+  it("adds no empty comments section to the briefing of a card with none", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Sem comentário nenhum");
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.briefing_markdown).not.toContain("## Comentários do card");
+  });
+
+  it("exposes comments via task_get include only when asked, matching the briefing's list", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Comentários via include");
+
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "primeiro ajuste",
+    });
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "segundo ajuste",
+      comment_kind: "report",
+    });
+
+    const lean = await invokeTool(world.db, ctx(), "task_get", { task_id: card.id });
+    expect(lean.ok).toBe(true);
+    if (!lean.ok) return;
+    const leanPayload = TaskGetOutputSchema.parse(lean.value);
+    expect(leanPayload).not.toHaveProperty("comments");
+
+    const withComments = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      include: ["comments"],
+    });
+    expect(withComments.ok).toBe(true);
+    if (!withComments.ok) return;
+    const payload = TaskGetOutputSchema.parse(withComments.value);
+    expect(payload.comments).toHaveLength(2);
+    expect(payload.comments?.[0]).toMatchObject({
+      kind: "comment",
+      body: "primeiro ajuste",
+    });
+    expect(payload.comments?.[1]).toMatchObject({
+      kind: "report",
+      body: "segundo ajuste",
+    });
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const claimOut = TaskClaimOutputSchema.parse(claimed.value);
+    expect(claimOut.briefing_markdown).toContain("primeiro ajuste");
+    expect(claimOut.briefing_markdown).toContain("segundo ajuste");
+  });
+
+  it("returns no comments for a card that has none, without a fake empty section", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Card limpo");
+
+    const withComments = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      include: ["comments"],
+    });
+    expect(withComments.ok).toBe(true);
+    if (!withComments.ok) return;
+    const payload = TaskGetOutputSchema.parse(withComments.value);
+    expect(payload.comments).toEqual([]);
+  });
+
+  it("uses the user comment as reopen comment only after the latest handoff", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Reaberto com comentário humano");
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "entrega sem comentário",
+    });
+
+    const [reviewer] = await world.db
+      .insert(user)
+      .values({ email: "owner@local.test", passwordHash: "x" })
+      .returning({ id: user.id });
+    if (!reviewer) throw new Error("failed to insert user");
+
+    await world.db
+      .update(task)
+      .set({ status: "aberto", claimedByTokenId: null, claimedAt: null })
+      .where(eq(task.id, card.id));
+    await world.db.insert(taskComment).values({
+      taskId: card.id,
+      authorUserId: reviewer.id,
+      kind: "comment",
+      body: "falhou o cenário de borda",
+    });
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const out = TaskClaimOutputSchema.parse(claimed.value);
+    expect(out.task.reopen_comment).toBe("falhou o cenário de borda");
+    expect(out.briefing_markdown).toContain("falhou o cenário de borda");
+  });
+
+  it("rejects task_update comment_kind report without a comment body", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Invalid report kind");
+
+    const bad = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment_kind: "report",
+    });
+    expect(bad.ok).toBe(false);
+    if (bad.ok) return;
+    expect(bad.error.code).toBe("INVALID_ARGUMENT");
+
+    const rows = await world.db
+      .select()
+      .from(taskComment)
+      .where(eq(taskComment.taskId, card.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("stores resolved_in on deliver, lets task_update fill or clear it, and returns it on get", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Ships in a release");
+    expect(card.resolved_in).toBeNull();
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      executor: { cli: "claude-code", model: "opus-5", session_id: "sess_rel" },
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+
+    const delivered = await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "done",
+      resolved_in: "1.4.0",
+      usage: { tokens_in: 10, tokens_out: 5, estimated: true },
+    });
+    expect(delivered.ok).toBe(true);
+    if (!delivered.ok) return;
+    expect(TaskDeliverOutputSchema.parse(delivered.value).task.resolved_in).toBe(
+      "1.4.0",
+    );
+
+    const got = await invokeTool(world.db, ctx(), "task_get", { task_id: card.short_id });
+    expect(got.ok).toBe(true);
+    if (!got.ok) return;
+    expect(TaskGetOutputSchema.parse(got.value).task.resolved_in).toBe("1.4.0");
+
+    // Corrected after the fact: a later release carried the fix.
+    const corrected = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      resolved_in: "1.4.1",
+    });
+    expect(corrected.ok).toBe(true);
+    if (!corrected.ok) return;
+    expect(TaskUpdateOutputSchema.parse(corrected.value).task.resolved_in).toBe(
+      "1.4.1",
+    );
+
+    // null clears it.
+    const cleared = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      resolved_in: null,
+    });
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) return;
+    expect(TaskUpdateOutputSchema.parse(cleared.value).task.resolved_in).toBeNull();
+  });
+
+  it("refuses an empty resolved_in string on task_update", async () => {
+    world = await createTestWorld();
+    const card = await createPlainCard("Empty release tag");
+    const bad = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      resolved_in: "",
+    });
+    expect(bad.ok).toBe(false);
+    if (bad.ok) {
+      expect(bad.value).toBeUndefined();
+    } else {
+      expect(bad.error.code).toBe("INVALID_ARGUMENT");
+    }
+  });
+
   it("returns a typed NOT_FOUND for task_create with an invalid project, never raw SQL", async () => {
     world = await createTestWorld();
     for (const bogus of ["proj-nope", "00000000-0000-4000-8000-00000000dead"]) {
@@ -834,11 +1849,14 @@ describe("MCP tool edge cases against a test db", () => {
         origem,
       });
       expect(created.ok).toBe(false);
-      if (created.ok) return;
-      expect(created.error.code).toBe("NOT_FOUND");
-      expect(created.error.message).toMatch(/not found/i);
-      expect(created.error.message).toMatch(/project_list|task_list|board/i);
-      expect(created.error.message).not.toMatch(/failed query|select |sql/i);
+      if (created.ok) {
+        expect(created.value).toBeUndefined();
+      } else {
+        expect(created.error.code).toBe("NOT_FOUND");
+        expect(created.error.message).toMatch(/not found/i);
+        expect(created.error.message).toMatch(/project_list|task_list|board/i);
+        expect(created.error.message).not.toMatch(/failed query|select |sql/i);
+      }
     }
   });
 
@@ -857,6 +1875,278 @@ describe("MCP tool edge cases against a test db", () => {
       awaiting_review_by: "sess_torre",
     });
     expect(byAgent.ok).toBe(true);
+  });
+
+  it("cuts task_list to a limit and says when the board holds more", async () => {
+    world = await createTestWorld();
+    // The seeded world already holds a card, so this makes the board bigger
+    // than the limit under test either way.
+    for (let i = 0; i < 4; i++) {
+      const made = await invokeTool(world.db, ctx(), "task_create", {
+        project_id: world.projectId,
+        title: `Card number ${i}`,
+        type: "feature",
+        o_que: "x",
+        por_que: "y",
+        como_confirmo: [{ step: "a", expected: "b" }],
+        origem: { session_id: "sess_limit", cli: "overclock" },
+      });
+      expect(made.ok).toBe(true);
+    }
+
+    const cut = await invokeTool(world.db, ctx(), "task_list", { limit: 2 });
+    expect(cut.ok).toBe(true);
+    if (!cut.ok) return;
+    const cutOut = TaskListOutputSchema.parse(cut.value);
+    expect(cutOut.tasks).toHaveLength(2);
+    expect(cutOut.limit).toBe(2);
+    // The point of the flag: two cards is not the board.
+    expect(cutOut.truncated).toBe(true);
+
+    const whole = await invokeTool(world.db, ctx(), "task_list", { limit: 200 });
+    expect(whole.ok).toBe(true);
+    if (!whole.ok) return;
+    const wholeOut = TaskListOutputSchema.parse(whole.value);
+    expect(wholeOut.truncated).toBe(false);
+    expect(wholeOut.tasks.length).toBeGreaterThan(2);
+
+    // Oldest first still holds, so a limit takes the head of the queue and
+    // not an arbitrary slice of it.
+    expect(cutOut.tasks.map((t) => t.short_id)).toEqual(
+      wholeOut.tasks.slice(0, 2).map((t) => t.short_id),
+    );
+  });
+
+  it("filters task_list to claims owned by the caller token", async () => {
+    world = await createTestWorld();
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Claim owned by this token",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const mine = TaskCreateOutputSchema.parse(created.value).task;
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: mine.id,
+      executor: { cli: "codex", model: "gpt-5.6-sol" },
+    });
+    expect(claimed.ok).toBe(true);
+
+    const listed = await invokeTool(world.db, ctx(), "task_list", {
+      status: "em_execucao",
+      claimed_by: "me",
+    });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    expect(TaskListOutputSchema.parse(listed.value).tasks).toEqual([
+      expect.objectContaining({ short_id: mine.short_id, status: "em_execucao" }),
+    ]);
+  });
+
+  it("keeps reads compact and exposes heavy content only by request", async () => {
+    world = await createTestWorld();
+    const context = "# Mission context\n\n" + "convention ".repeat(300);
+    const updatedProject = await invokeTool(world.db, ctx(), "project_update", {
+      project_id: world.projectId,
+      context,
+      current_version: "2.0.0",
+    });
+    expect(updatedProject.ok).toBe(true);
+
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      mission: world.missionId,
+      project_id: world.projectId,
+      title: "Read this card in layers",
+      type: "feature",
+      o_que: "The contract stays available in the compact task response.",
+      por_que: "A queue read must not spend its context on a briefing.",
+      como_confirmo: [{ step: "call the read", expected: "the requested layer is present" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    const listed = await invokeTool(world.db, ctx(), "task_list", { limit: 10 });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    const listPayload = TaskListOutputSchema.parse(listed.value);
+    const listRow = listPayload.tasks.find((row) => row.short_id === card.short_id);
+    // The default row is the operational minimum: no uuid, no harness, no
+    // delivery detail — every tool already accepts short_id.
+    expect(listRow).toMatchObject({ short_id: card.short_id, title: card.title });
+    expect(listRow).not.toHaveProperty("id");
+    expect(listRow).not.toHaveProperty("project_id");
+    expect(listRow).not.toHaveProperty("mission_id");
+    expect(listRow).not.toHaveProperty("revisado");
+    expect(listRow).not.toHaveProperty("devolve_para");
+    expect(listRow).not.toHaveProperty("harness");
+    expect(listRow).not.toHaveProperty("claimed_by");
+    expect(listRow).not.toHaveProperty("branch");
+    expect(listRow).not.toHaveProperty("cost_usd");
+    expect(listRow).not.toHaveProperty("workspace_id");
+    expect(Object.values(listRow ?? {})).not.toContain(null);
+    expect(listRow).not.toHaveProperty("o_que");
+    expect(listRow).not.toHaveProperty("como_confirmo");
+    expect(listRow).not.toHaveProperty("briefing_markdown");
+
+    // include: ["all"] reproduces the pre-OCL-96 full row.
+    const listedAll = await invokeTool(world.db, ctx(), "task_list", {
+      limit: 10,
+      include: ["all"],
+    });
+    expect(listedAll.ok).toBe(true);
+    if (!listedAll.ok) return;
+    const allRow = TaskListOutputSchema.parse(listedAll.value).tasks.find(
+      (row) => row.short_id === card.short_id,
+    );
+    expect(allRow).toMatchObject({
+      id: card.id,
+      short_id: card.short_id,
+      mission_id: world.missionId,
+      harness: card.harness,
+    });
+
+    // include: ["harness"] alone is what dispatch needs from this one call.
+    const listedForDispatch = await invokeTool(world.db, ctx(), "task_list", {
+      limit: 10,
+      include: ["harness"],
+    });
+    expect(listedForDispatch.ok).toBe(true);
+    if (!listedForDispatch.ok) return;
+    const dispatchRow = TaskListOutputSchema.parse(listedForDispatch.value).tasks.find(
+      (row) => row.short_id === card.short_id,
+    );
+    expect(dispatchRow).toMatchObject({ harness: card.harness });
+    expect(dispatchRow).not.toHaveProperty("id");
+    expect(dispatchRow).not.toHaveProperty("mission_id");
+
+    const compact = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+    });
+    const briefing = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      view: "briefing",
+    });
+    expect(compact.ok).toBe(true);
+    expect(briefing.ok).toBe(true);
+    if (!compact.ok || !briefing.ok) return;
+    const compactPayload = TaskGetOutputSchema.parse(compact.value);
+    const briefingPayload = TaskGetOutputSchema.parse(briefing.value);
+    expect(compactPayload.task.o_que).toContain("contract stays available");
+    expect(compactPayload.task).not.toHaveProperty("workspace_id");
+    expect(compactPayload.task).not.toHaveProperty("commit");
+    expect(compactPayload.task).not.toHaveProperty("previous_short_ids");
+    expect(compactPayload.task).not.toHaveProperty("parent_id");
+    expect(compactPayload.task).not.toHaveProperty("supersedes");
+    expect(compactPayload.task).not.toHaveProperty("branch");
+    expect(compactPayload.task).not.toHaveProperty("claimed_by");
+    expect(compactPayload.task).not.toHaveProperty("reopen_comment");
+    expect(Object.values(compactPayload.task)).not.toContain(null);
+    expect(Object.values(compactPayload)).not.toContain(null);
+    expect(compactPayload).not.toHaveProperty("briefing_markdown");
+    expect(compactPayload).not.toHaveProperty("usage_recipe");
+    expect(compactPayload).not.toHaveProperty("mission");
+    expect(briefingPayload.briefing_markdown).toContain("Mission context");
+    expect(briefingPayload.usage_recipe).toBeDefined();
+    expect(briefingPayload.mission?.id).toBe(world.missionId);
+    expect(JSON.stringify(compactPayload).length).toBeLessThan(
+      JSON.stringify(briefingPayload).length,
+    );
+
+    const missionCompact = await invokeTool(world.db, ctx(), "mission_get", {
+      mission_id: world.missionId,
+    });
+    const missionFull = await invokeTool(world.db, ctx(), "mission_get", {
+      mission_id: world.missionId,
+      view: "briefing",
+    });
+    expect(missionCompact.ok).toBe(true);
+    expect(missionFull.ok).toBe(true);
+    if (!missionCompact.ok || !missionFull.ok) return;
+    expect(MissionGetOutputSchema.parse(missionCompact.value).mission).not.toHaveProperty(
+      "context",
+    );
+    expect(MissionGetOutputSchema.parse(missionFull.value).mission.context).toContain(
+      "Fechar o loop MCP",
+    );
+
+    const projectCompact = await invokeTool(world.db, ctx(), "project_get", {
+      project_id: world.projectId,
+    });
+    const projectFull = await invokeTool(world.db, ctx(), "project_get", {
+      project_id: world.projectId,
+      view: "briefing",
+    });
+    expect(projectCompact.ok).toBe(true);
+    expect(projectFull.ok).toBe(true);
+    if (!projectCompact.ok || !projectFull.ok) return;
+    const compactProject = (projectCompact.value as { project: Record<string, unknown> }).project;
+    const fullProject = (projectFull.value as { project: Record<string, unknown> }).project;
+    expect(compactProject).not.toHaveProperty("context");
+    expect(fullProject.context).toBe(context);
+
+    const missionOnly = await invokeTool(world.db, ctx(), "task_get", {
+      task_id: card.id,
+      include: ["mission"],
+    });
+    expect(missionOnly.ok).toBe(true);
+    if (!missionOnly.ok) return;
+    const missionOnlyPayload = TaskGetOutputSchema.parse(missionOnly.value);
+    expect(missionOnlyPayload.mission?.id).toBe(world.missionId);
+    expect(missionOnlyPayload).not.toHaveProperty("briefing_markdown");
+    expect(missionOnlyPayload).not.toHaveProperty("usage_recipe");
+
+    const claimed = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+    });
+    expect(claimed.ok).toBe(true);
+    if (!claimed.ok) return;
+    const claimPayload = TaskClaimOutputSchema.parse(claimed.value);
+    expect(claimPayload.briefing_markdown).toContain("Mission context");
+    expect(claimPayload.usage_recipe).toBeDefined();
+  });
+
+  it("filters task_list by an exact release and returns an empty list for a missing one", async () => {
+    world = await createTestWorld();
+    const released = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Released card",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(released.ok).toBe(true);
+    if (!released.ok) return;
+    const releasedTask = TaskCreateOutputSchema.parse(released.value).task;
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: releasedTask.id,
+      resolved_in: "v1.2.0",
+    });
+
+    const listed = await invokeTool(world.db, ctx(), "task_list", {
+      resolved_in: "v1.2.0",
+    });
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    expect(TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.short_id)).toEqual([
+      releasedTask.short_id,
+    ]);
+
+    const missing = await invokeTool(world.db, ctx(), "task_list", {
+      resolved_in: "v9.9.9",
+    });
+    expect(missing.ok).toBe(true);
+    if (!missing.ok) return;
+    expect(TaskListOutputSchema.parse(missing.value).tasks).toEqual([]);
   });
 
   it("tells the agent to claim before delivering an open card", async () => {
@@ -935,7 +2225,7 @@ describe("MCP tool edge cases against a test db", () => {
     expect(rec.ok).toBe(true);
     if (!rec.ok) return;
     expect(HarnessRecommendOutputSchema.parse(rec.value).harness.model).toBe(
-      "sonnet-5",
+      "fable-5",
     );
 
     const created = await invokeTool(world.db, ctx(), "task_create", {
@@ -1011,6 +2301,7 @@ describe("MCP tool edge cases against a test db", () => {
 
     const listed = await invokeTool(world.db, ctx(), "task_list", {
       mission_id: secondMission.id,
+      include: ["refs"],
     });
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
@@ -1123,14 +2414,14 @@ describe("MCP tool edge cases against a test db", () => {
 
     const updated = await invokeTool(world.db, ctx(), "task_update", {
       task_id: card.id,
-      harness: { cli: "claude-code", model: "haiku-4", effort: "low" },
+      harness: { cli: "claude-code", model: "haiku-4-5", effort: "low" },
     });
     expect(updated.ok).toBe(true);
     if (!updated.ok) return;
     const out = TaskUpdateOutputSchema.parse(updated.value);
     expect(out.task.harness).toEqual({
       cli: "claude-code",
-      model: "haiku-4",
+      model: "haiku-4-5",
       effort: "low",
     });
 
@@ -1142,7 +2433,7 @@ describe("MCP tool edge cases against a test db", () => {
     const got = fetched.value as { task: { harness: unknown } };
     expect(got.task.harness).toEqual({
       cli: "claude-code",
-      model: "haiku-4",
+      model: "haiku-4-5",
       effort: "low",
     });
   });
@@ -1171,10 +2462,56 @@ describe("MCP tool edge cases against a test db", () => {
 
     const badCli = await invokeTool(world.db, ctx(), "task_update", {
       task_id: card.id,
-      harness: { cli: "codex", model: "haiku-4", effort: "low" },
+      harness: { cli: "codex", model: "haiku-4-5", effort: "low" },
     });
     expect(badCli.ok).toBe(false);
     if (!badCli.ok) expect(badCli.error.code).toBe("INVALID_ARGUMENT");
+  });
+
+  it("rejects a harness naming a disabled executor's model instead of blocking (OCL-77, refines OCL-75)", async () => {
+    world = await createTestWorld();
+    const off = await invokeTool(world.db, { ...ctx(), canManage: true }, "executors_update", {
+      cli: "claude-code",
+      enabled: false,
+      return: "ack",
+    });
+    expect(off.ok).toBe(true);
+
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title: "Harness num executor desligado",
+      type: "feature",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const card = TaskCreateOutputSchema.parse(created.value).task;
+
+    // haiku-4-5 exists on claude-code, but claude-code is off: the write is
+    // a typed rejection, not a silent accept with a warning.
+    const updated = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      harness: { cli: "claude-code", model: "haiku-4-5", effort: "low" },
+    });
+    expect(updated.ok).toBe(false);
+    if (updated.ok) return;
+    expect(updated.error.code).toBe("INVALID_ARGUMENT");
+    expect(updated.error.message).toContain("claude-code");
+    expect(updated.error.message).toContain("disabled");
+
+    // The card's harness is untouched by the rejected write, and other
+    // fields on it stay editable (OCL-77 item 4).
+    const reread = await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      comment: "still editable without touching the harness",
+    });
+    expect(reread.ok).toBe(true);
+    if (!reread.ok) return;
+    const out = TaskUpdateOutputSchema.parse(reread.value);
+    expect(out.task.harness).toEqual(card.harness);
   });
 
   it("returns NOT_FOUND when deleting a card that does not exist", async () => {
@@ -1186,6 +2523,123 @@ describe("MCP tool edge cases against a test db", () => {
     if (!deleted.ok) {
       expect(deleted.error.code).toBe("NOT_FOUND");
     }
+  });
+});
+
+describe("a rejected delivery comes back one link down the chain", () => {
+  let world: TestWorld;
+
+  afterEach(async () => {
+    if (world) await closeTestWorld(world);
+  });
+
+  function ctx() {
+    return {
+      tokenId: world.tokenId,
+      workspaceId: world.workspaceId,
+      tokenLabel: "test",
+    };
+  }
+
+  /** What the board UI does on reopen, which has no MCP tool of its own. */
+  async function reopen(taskId: string) {
+    await world.db
+      .update(task)
+      .set({ status: "aberto", claimedByTokenId: null, claimedAt: null })
+      .where(eq(task.id, taskId));
+  }
+
+  async function newCard(title: string) {
+    const created = await invokeTool(world.db, ctx(), "task_create", {
+      project_id: world.projectId,
+      title,
+      type: "bug",
+      o_que: "x",
+      por_que: "y",
+      como_confirmo: [{ step: "a", expected: "b" }],
+      origem,
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error("card not created");
+    return TaskCreateOutputSchema.parse(created.value).task;
+  }
+
+  it("climbs the chain once per rejected delivery and stops at the last link", async () => {
+    world = await createTestWorld();
+    const card = await newCard("Card que volta");
+
+    // bug ships as fable-5 → opus-5 → gpt-5.6-sol. Only the first two are on
+    // this workspace, so the line runs out after the second try.
+    expect(card.harness?.model).toBe("fable-5");
+
+    const first = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(TaskClaimOutputSchema.parse(first.value).task.harness?.model).toBe("fable-5");
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "primeira tentativa",
+    });
+
+    await reopen(card.id);
+    const second = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    const retried = TaskClaimOutputSchema.parse(second.value);
+    expect(retried.task.harness?.model).toBe("opus-5");
+    // And the worker is told why, plus the whole line it sits on.
+    expect(retried.briefing_markdown).toContain("fable-5 → opus-5 → gpt-5.6-sol");
+    expect(retried.briefing_markdown).toContain("tentativa 2");
+
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "segunda tentativa",
+    });
+    await reopen(card.id);
+    const third = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(third.ok).toBe(true);
+    if (!third.ok) return;
+    // gpt-5.6-sol is the next link but no executor offers it, so the card holds
+    // at the best it can still run instead of stalling or wrapping around.
+    expect(TaskClaimOutputSchema.parse(third.value).task.harness?.model).toBe("opus-5");
+  });
+
+  it("does not escalate a pane that was merely abandoned", async () => {
+    world = await createTestWorld();
+    const card = await newCard("Pane morto");
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    // force ends the open attempt as abandoned: a restart, not a verdict.
+    const again = await invokeTool(world.db, ctx(), "task_claim", {
+      task_id: card.id,
+      force: true,
+    });
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(TaskClaimOutputSchema.parse(again.value).task.harness?.model).toBe("fable-5");
+  });
+
+  it("leaves a hand-pinned harness where the human put it", async () => {
+    world = await createTestWorld();
+    const card = await newCard("Fixado na mao");
+    await invokeTool(world.db, ctx(), "task_update", {
+      task_id: card.id,
+      harness: { cli: "claude-code", model: "opus-4-8", effort: "high" },
+    });
+
+    await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    await invokeTool(world.db, ctx(), "task_deliver", {
+      task_id: card.id,
+      summary: "reprovada",
+    });
+    await reopen(card.id);
+
+    const retry = await invokeTool(world.db, ctx(), "task_claim", { task_id: card.id });
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    // opus-4-8 is off the bug chain, so it was a deliberate choice. The board
+    // does not get to escalate somebody else's decision.
+    expect(TaskClaimOutputSchema.parse(retry.value).task.harness?.model).toBe("opus-4-8");
   });
 });
 
@@ -1429,12 +2883,13 @@ describe("a card joins or leaves a mission after creation", () => {
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
     expect(
-      TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.id),
-    ).toContain(card.id);
+      TaskListOutputSchema.parse(listed.value).tasks.map((row) => row.short_id),
+    ).toContain(card.short_id);
 
     // The briefing the next executor reads now carries the mission context.
     const briefed = await invokeTool(world.db, ctx(), "task_get", {
       task_id: card.id,
+      view: "briefing",
     });
     expect(briefed.ok).toBe(true);
     if (!briefed.ok) return;
@@ -1480,8 +2935,8 @@ describe("a card joins or leaves a mission after creation", () => {
     expect(stillListed.ok).toBe(true);
     if (!stillListed.ok) return;
     expect(
-      TaskListOutputSchema.parse(stillListed.value).tasks.map((row) => row.id),
-    ).not.toContain(card.id);
+      TaskListOutputSchema.parse(stillListed.value).tasks.map((row) => row.short_id),
+    ).not.toContain(card.short_id);
   });
 
   it("moves the subtasks of a team card with their parent", async () => {

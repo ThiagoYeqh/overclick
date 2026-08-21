@@ -6,7 +6,10 @@ import {
   handoff,
   mcpToken,
   mission,
+  missionAttempt,
+  missionAttemptReport,
   project,
+  projectContextAudit,
   task,
   taskComment,
   user,
@@ -22,7 +25,10 @@ describe("complete schema from spec §3", () => {
     expect(getTableName(workspace)).toBe("workspace");
     expect(getTableName(user)).toBe("user");
     expect(getTableName(mission)).toBe("mission");
+    expect(getTableName(missionAttempt)).toBe("mission_attempt");
+    expect(getTableName(missionAttemptReport)).toBe("mission_attempt_report");
     expect(getTableName(project)).toBe("project");
+    expect(getTableName(projectContextAudit)).toBe("project_context_audit");
     expect(getTableName(task)).toBe("task");
     expect(getTableName(executionAttempt)).toBe("execution_attempt");
     expect(getTableName(handoff)).toBe("handoff");
@@ -45,9 +51,21 @@ describe("complete schema from spec §3", () => {
     expect(columnNames(cardapioEntry)).not.toContain("skills");
   });
 
+  it("keeps effort provider-specific by storing it as text", () => {
+    expect(getTableColumns(cardapioEntry).effort.getSQLType()).toBe("text");
+  });
+
   it("workspace holds name, executor config and cardápio", () => {
     expect(columnNames(workspace)).toEqual(
-      expect.arrayContaining(["id", "name", "executors", "cardapio", "createdAt", "updatedAt"]),
+      expect.arrayContaining([
+        "id",
+        "name",
+        "executors",
+        "cardapio",
+        "claimTimeoutMinutes",
+        "createdAt",
+        "updatedAt",
+      ]),
     );
   });
 
@@ -58,8 +76,11 @@ describe("complete schema from spec §3", () => {
         "id",
         "email",
         "passwordHash",
+        "active",
+        "sessionVersion",
         "boardProjectId",
         "boardMissionId",
+        "boardResolvedIn",
         "createdAt",
       ]),
     );
@@ -92,10 +113,28 @@ describe("complete schema from spec §3", () => {
         "workspaceId",
         "name",
         "repoUrl",
+        "contextSource",
+        "latestPrerelease",
+        "contextUpdatedAt",
         "idPrefix",
         "nextNumber",
         "createdAt",
         "updatedAt",
+      ]),
+    );
+  });
+
+  it("project context audit keeps source, actor and idempotency reference", () => {
+    expect(columnNames(projectContextAudit)).toEqual(
+      expect.arrayContaining([
+        "projectId",
+        "source",
+        "sourceRef",
+        "version",
+        "prerelease",
+        "summary",
+        "actor",
+        "createdAt",
       ]),
     );
   });
@@ -122,6 +161,10 @@ describe("complete schema from spec §3", () => {
         "harness",
         "branch",
         "prUrl",
+        "commitHash",
+        "deliveryUnverified",
+        "deliveryVerification",
+        "deliveryWarning",
         "origin",
         "mode",
         "telemetryIncomplete",
@@ -143,14 +186,86 @@ describe("complete schema from spec §3", () => {
         "taskId",
         "executor",
         "model",
+        "modelSource",
+        "sessionId",
         "startedAt",
+        "lastActivityAt",
         "finishedAt",
         "tokensIn",
         "tokensOut",
         "tokensCache",
+        "reportedCostUsd",
         "costUsd",
+        "costSource",
+        "costStatus",
+        "costUnpricedModels",
+        "costBreakdown",
         "durationMs",
         "turns",
+        "usageSuspect",
+        "usageSuspectReason",
+        "deliveryUnverified",
+        "deliveryVerification",
+        "deliveryWarning",
+        "result",
+        "resultNote",
+      ]),
+    );
+  });
+
+  it("mission_attempt stores the orchestration lifecycle and frozen cost snapshot", () => {
+    expect(columnNames(missionAttempt)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "missionId",
+        "projectId",
+        "executor",
+        "model",
+        "modelSource",
+        "sessionId",
+        "transcript",
+        "status",
+        "startedAt",
+        "lastActivityAt",
+        "finishedAt",
+        "usageSegments",
+        "tokensIn",
+        "tokensOut",
+        "tokensCache",
+        "durationMs",
+        "serverDurationMs",
+        "turns",
+        "usageEstimated",
+        "reportedCostUsd",
+        "costUsd",
+        "costSource",
+        "costStatus",
+        "costUnpricedModels",
+        "costBreakdown",
+        "usageSuspect",
+        "usageSuspectReason",
+        "result",
+        "resultNote",
+        "lastReportSequence",
+      ]),
+    );
+  });
+
+  it("mission_attempt_report stores cumulative checkpoints and derived totals", () => {
+    expect(columnNames(missionAttemptReport)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "missionAttemptId",
+        "sequence",
+        "capturedAt",
+        "checkpoint",
+        "usageSegments",
+        "tokensIn",
+        "tokensOut",
+        "tokensCache",
+        "durationMs",
+        "turns",
+        "estimated",
         "result",
         "resultNote",
       ]),
@@ -168,6 +283,10 @@ describe("complete schema from spec §3", () => {
         "artifacts",
         "branch",
         "prUrl",
+        "commitHash",
+        "deliveryUnverified",
+        "deliveryVerification",
+        "deliveryWarning",
         "usage",
         "createdAt",
       ]),

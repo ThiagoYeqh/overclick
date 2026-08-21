@@ -1,5 +1,6 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type {
+  DeliveryVerification,
   HandoffArtifact,
   HandoffEvidence,
   UsageReport,
@@ -29,6 +30,10 @@ export const handoff = pgTable(
   howToVerify: text("how_to_verify"),
   branch: text("branch"),
   prUrl: text("pr_url"),
+  commitHash: text("commit_hash"),
+  deliveryUnverified: boolean("delivery_unverified").notNull().default(false),
+  deliveryVerification: text("delivery_verification").$type<DeliveryVerification>(),
+  deliveryWarning: text("delivery_warning"),
   usage: jsonb("usage").$type<UsageReport>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

@@ -8,7 +8,12 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { Harness, TaskOrigin, ValidationTick } from "../types";
+import type {
+  DeliveryVerification,
+  Harness,
+  TaskOrigin,
+  ValidationTick,
+} from "../types";
 import {
   executionModeEnum,
   reviewerKindEnum,
@@ -34,7 +39,26 @@ export const task = pgTable(
   parentId: uuid("parent_id").references((): AnyPgColumn => task.id, {
     onDelete: "cascade",
   }),
+  /** Card this one continues after an executor was abandoned. */
+  supersedesId: uuid("supersedes_id").references((): AnyPgColumn => task.id, {
+    onDelete: "set null",
+  }),
+  /** Replacement card that made this card obsolete. */
+  supersededById: uuid("superseded_by_id").references(
+    (): AnyPgColumn => task.id,
+    { onDelete: "set null" },
+  ),
   shortId: text("short_id").notNull().unique(),
+  /**
+   * Short ids this card carried before, oldest first. Moving a card to another
+   * project restamps `shortId` with the destination prefix, and the id that
+   * external references (branches, commits, PRs) already point at is kept here
+   * instead of disappearing.
+   */
+  previousShortIds: jsonb("previous_short_ids")
+    .$type<string[]>()
+    .notNull()
+    .default([]),
   title: text("title").notNull(),
   oQue: text("o_que").notNull().default(""),
   porQue: text("por_que").notNull().default(""),
@@ -53,6 +77,19 @@ export const task = pgTable(
   harness: jsonb("harness").$type<Harness>(),
   branch: text("branch"),
   prUrl: text("pr_url"),
+  /** Commit hash reported by the executor at delivery time. */
+  commitHash: text("commit_hash"),
+  /** True when the commit/branch could not be verified on the project remote. */
+  deliveryUnverified: boolean("delivery_unverified").notNull().default(false),
+  deliveryVerification: text("delivery_verification").$type<DeliveryVerification>(),
+  deliveryWarning: text("delivery_warning"),
+  /**
+   * Version, tag or release in which this card was resolved, as free text
+   * ("1.4.0", "v2026.08", a release name). Null until someone says so:
+   * task_deliver sets it on the way out, task_update fills or corrects it
+   * later, and it can be cleared with null.
+   */
+  resolvedIn: text("resolved_in"),
   origin: jsonb("origin").$type<TaskOrigin>(),
   mode: executionModeEnum("mode").notNull().default("solo"),
   telemetryIncomplete: boolean("telemetry_incomplete").notNull().default(false),
@@ -81,5 +118,7 @@ export const task = pgTable(
     index("task_project_idx").on(table.projectId),
     index("task_status_idx").on(table.status),
     index("task_parent_idx").on(table.parentId),
+    index("task_supersedes_idx").on(table.supersedesId),
+    index("task_superseded_by_idx").on(table.supersededById),
   ],
 );

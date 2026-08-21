@@ -10,6 +10,19 @@ export async function hashPassword(password: string): Promise<string> {
   return `scrypt:${salt}:${buf.toString("hex")}`;
 }
 
+/**
+ * A well-formed record no password can match, for the branches where there
+ * is no account to check against. Verifying against it costs the same scrypt
+ * call a real account costs, so the answer takes the same time either way.
+ *
+ * It has to stay well formed: verifyPassword returns early on a record it
+ * cannot parse, and an early return here would spend nothing and leave the
+ * gap exactly where it was. The tests hold it to that shape.
+ */
+export const ABSENT_USER_HASH = `scrypt:${"0".repeat(32)}:${"0".repeat(
+  KEYLEN * 2,
+)}`;
+
 export async function verifyPassword(
   password: string,
   stored: string,

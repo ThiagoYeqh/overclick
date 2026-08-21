@@ -33,8 +33,13 @@ time, because those are facts on every plan. Money is an optional layer, off by 
 
 ```bash
 git clone https://github.com/ustoppble/overclick && cd overclick
+export AUTH_SECRET="$(openssl rand -base64 32)"
 docker compose up --build
 ```
+
+The signing key is mandatory and must be unique to each installation. Compose
+stops with an explanatory error when `AUTH_SECRET` is missing; keep the generated
+value in your deployment's protected environment so restarts use the same key.
 
 Open `http://localhost:3000`, create the local admin account (e-mail + password, stored in
 your own Postgres, used only for login), and follow the 3-step onboarding: project,
@@ -59,15 +64,41 @@ codex mcp add overclick --url http://<your-host>/mcp \
 
 Then, in your terminal: *"grab the next task from the board."* Watch the example card move.
 
+### Install the plugin (Claude Code)
+
+The MCP server above is enough to claim and deliver cards. The plugin adds the rest of
+the workflow — the canonical `OVERCLICK.md`, the `/overclick:*` commands, and the
+lifecycle hooks — from this repository's own marketplace:
+
+```bash
+claude plugin marketplace add ustoppble/overclick
+claude plugin install overclick@overclick
+```
+
+Verify it materialized rather than trusting the success message — `claude plugin list`
+must report the version and `claude plugin details overclick` must list the components:
+
+```bash
+claude plugin list          # overclick@overclick, enabled
+claude plugin details overclick
+```
+
+`claude plugin update overclick@overclick` picks up later releases. For the other CLIs, or
+to have the installer write the MCP server and your token into each CLI's native config in
+one pass, use `install.sh` instead — see [docs/design/plugin.md](docs/design/plugin.md).
+
 ## What makes it different
 
 - **Cards are contracts.** *What / Why / How to confirm*, written before the work, so
   review is a script instead of a vibe. `Done != Validated`: merge is the machine's
   opinion, validation is yours.
 - **Harness policy, not model roulette.** You declare which CLIs/models your team has and
-  map activity types to executors: bugs go to a mid model, architecture and RFCs to a top
-  model on high effort, mechanical chores to a cheap one. Agents read the policy over MCP
-  (`harness_list`) and every card is born with the right harness recommended.
+  map twenty activity types to executors: a dictated tweak and a repo-wide migration are
+  both "code" and belong nowhere near each other in a routing table. Every line is a chain,
+  not a single name: first choice, escalation, floor. The board claims the first link it can
+  actually run, so switching an executor off degrades the policy instead of voiding it.
+  Agents read it over MCP (`harness_list`) and every card is born with the right harness
+  recommended.
 - **Three roles per card.** Who requested it, who executed it, and who it returns to for
   review. The person who delegates isn't always the person who checks.
 - **RFCs as cards.** Big decisions become `rfc` cards whose deliverable is a document;
@@ -86,12 +117,15 @@ Then, in your terminal: *"grab the next task from the board."* Watch the example
 
 ## MCP surface
 
-18 tools: `project_list` · `project_create` · `mission_list` · `mission_get` · `mission_create` ·
-`task_list` · `task_get` · `task_create` · `task_claim` · `task_update` · `task_deliver` ·
+26 tools: `project_list` · `project_get` · `project_create` · `project_update` · `project_delete` ·
+`mission_list` · `mission_get` · `mission_create` · `mission_update` · `mission_delete` ·
+`task_list` · `task_get` · `task_create` · `task_search` · `task_claim` · `task_release` ·
+`task_heartbeat` · `task_update` · `task_deliver` ·
 `task_delete` · `branch_register` · `harness_recommend` · `harness_list` · `harness_set` ·
 `executors_update` · `insights_query`. Streamable HTTP, bearer tokens, atomic claims, typed errors. The
 configuration tools sit behind a per-token manage flag, off by default. See
-[`docs/mcp.md`](docs/mcp.md).
+[`docs/mcp.md`](docs/mcp.md), and [`docs/harness-routing.md`](docs/harness-routing.md) for
+the full shipped MCP surface and why each one routes the way it does.
 
 Works with any MCP-capable agent. Built to shine with
 [Overclock](https://overclock.sh): squads, visible panes, and precise per-card telemetry.

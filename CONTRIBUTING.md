@@ -18,7 +18,8 @@ coding agent to a board over MCP and let it claim a card. Both are described bel
 apps/web           Next.js app — board UI, auth, and the /mcp HTTP endpoint
 packages/mcp-core  Pure TypeScript: contracts, card state machine, harness policy
 packages/db        Drizzle ORM schema, migrations, seed
-docs/              getting-started.md, mcp.md (the 11-tool MCP surface)
+docs/              getting-started.md, mcp.md (the MCP surface),
+                   harness-routing.md, rfcs/
 ```
 
 ## Quick smoke test (no local toolchain)
@@ -128,6 +129,62 @@ Postgres via `@electric-sql/pglite` — no running database required. Remember t
 `apps/web` tests import `@agent-board/mcp-core` from `dist/`, so re-run the `mcp-core`
 build (step 2) after touching that package.
 
+## The one-line check on the top bar
+
+The top bar holds one rule: no label in it ever breaks across two lines. A control that
+runs out of room shrinks, truncates with an ellipsis while the whole value stays reachable
+on its title or in the panel it opens, or moves behind the menu button. It never wraps.
+
+`scripts/topbar-one-line.mjs` checks that rule at several widths in headless Chrome. It
+drives the browser over the DevTools protocol with no extra dependency, and it measures
+the text the browser actually painted: for every control on the bar it counts the line
+boxes under it, and it fails if any control paints two. It also fails when the bar's
+content is wider than the bar, since a control pushed past the edge is a control nobody
+can reach.
+
+It needs a board running and a session, so it is not part of `pnpm test`. Run it by hand
+against a dev server:
+
+```bash
+BOARD_COOKIE=<value of the ab_session cookie> pnpm check:topbar
+```
+
+Useful switches: `--url` for another page that uses the same bar (`/insights`,
+`/settings`), `--widths 1440,1024,390` to narrow the sweep, `--shots ./out` to write one
+screenshot per width, and `VERBOSE=1` to print the width every control ended up with.
+The default sweep is 1440, 1280, 1024, 768, 390 and 320, on purpose: the regression that
+this check was written for was visible at 1440 and invisible on a phone.
+
+## The sheet check on the card detail
+
+Below the mobile breakpoint the card detail is not a window floating over the board: it
+is a sheet. It takes the whole viewport with no strip of the list left at the edges, it is
+opaque from the very first frame of its entrance, the way out stays on screen without
+scrolling, the board behind it never moves, and closing it puts the list back exactly
+where it was. Above the breakpoint the detail stays the centred panel it has always been.
+
+`scripts/detail-sheet.mjs` checks that rule. A screenshot of the settled panel cannot see
+what this guards against, because the overlap it was written for lasted a fifth of a
+second, so the guard freezes the entrance instead of racing it: it pauses every animation
+before the card opens, seeks them to seven points of their own duration, and at each point
+captures the frame twice, once with the board list rendered and once with it hidden.
+Identical frames are the proof that at that instant the sheet was the only thing painted;
+a single pixel of difference fails the run. It then scrolls the sheet to its end to check
+the way out is still on screen, pushes the page behind it to check it does not move, and
+closes it to check the list came back at the offset it was left on. Last it opens the same
+card at 1440 and fails if the detail stopped being centred with the board around it.
+
+Like the top bar check it needs a board running and a session, so it is not part of
+`pnpm test`:
+
+```bash
+BOARD_COOKIE=<value of the ab_session cookie> pnpm check:sheet
+```
+
+Useful switches: `--widths 390` to narrow the phone sweep, `--url` for another page that
+opens the same detail, and `--shots ./out` to write every captured frame, which is the
+fastest way to see what a failing frame actually looked like.
+
 ## Branch and commit convention
 
 Every change maps to a card on the board, and the card ID drives the Git convention:
@@ -158,16 +215,18 @@ or any MCP client) execute them.
 
 3. In your agent's terminal: *"grab the next task from the board."* The agent calls
    `task_claim`, receives a self-contained briefing (contract + harness + branch
-   convention), does the work, and reports back with `handoff_submit` — summary,
+   convention), does the work, and reports back with `task_deliver` — summary,
    evidence, and real usage telemetry (tokens, duration, cost).
 4. A human reviews the card against its *How to confirm* script and validates or reopens
    it. `Done ≠ Validated` — only humans stamp *Validated*.
 
-The full MCP surface (11 tools) is documented in [`docs/mcp.md`](docs/mcp.md).
+The full MCP surface is documented in [`docs/mcp.md`](docs/mcp.md).
 
 ## Pull request checklist
 
 - [ ] `pnpm test` passes from the repo root
+- [ ] Touched the top bar or its labels? `pnpm check:topbar` is green at every width
+- [ ] Touched the card detail or its overlay? `pnpm check:sheet` is green at every width
 - [ ] Branch and commits follow the card-ID convention above
 - [ ] New schema changes ship with generated migrations (`pnpm db:generate`)
 - [ ] No telemetry, analytics, or phone-home of any kind — this is a hard project rule
@@ -176,3 +235,11 @@ The full MCP surface (11 tools) is documented in [`docs/mcp.md`](docs/mcp.md).
 
 By contributing, you agree that your contributions are licensed under the
 [MIT License](LICENSE).
+
+## Every change lands through a pull request
+
+`main` is protected: pull request + owner review (CODEOWNERS) + green `ci / test`.
+This applies to community contributors AND to the project's own worker agents —
+workers push their card branch and deliver with the `pull_request_url`; the
+orchestrator merges after the owner's approval. The repository owner can bypass
+consciously (admin), which is the documented exception, not the norm.

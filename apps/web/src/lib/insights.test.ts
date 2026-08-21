@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeInsights,
+  type MissionAttemptInsightRow,
   type InsightAttemptRow,
   type ReopenRow,
 } from "./insights";
@@ -15,11 +16,17 @@ function attempt(overrides: Partial<InsightAttemptRow> = {}): InsightAttemptRow 
     taskShortId: "OC-1",
     taskTitle: "First card",
     taskIsExample: false,
+    taskStatus: "feito",
+    tipo: "feature",
+    priority: "media",
     projectId: "proj-1",
     projectName: "OverClick",
     missionId: null,
     missionTitle: null,
+    resolvedIn: null,
     model: "sonnet-5",
+    executor: "codex",
+    modelSource: null,
     result: "success",
     finishedAt: new Date("2026-08-10T12:00:00Z"),
     usageSegments: null,
@@ -27,10 +34,49 @@ function attempt(overrides: Partial<InsightAttemptRow> = {}): InsightAttemptRow 
     tokensOut: 500,
     tokensCache: 0,
     costUsd: "1.50",
+    costSource: null,
+    costStatus: null,
+    costUnpricedModels: null,
+    costBreakdown: null,
     durationMs: 60_000,
     serverDurationMs: 65_000,
     turns: 10,
     usageEstimated: false,
+    usageSuspect: false,
+    ...overrides,
+  };
+}
+
+function missionAttempt(
+  overrides: Partial<MissionAttemptInsightRow> = {},
+): MissionAttemptInsightRow {
+  seq += 1;
+  return {
+    attemptId: `mission-attempt-${seq}`,
+    projectId: "proj-1",
+    projectName: "OverClick",
+    missionId: "mission-1",
+    missionTitle: "Reliability",
+    model: "sonnet-5",
+    executor: "codex",
+    modelSource: null,
+    status: "sucesso",
+    result: null,
+    finishedAt: new Date("2026-08-10T12:00:00Z"),
+    usageSegments: null,
+    tokensIn: 300,
+    tokensOut: 100,
+    tokensCache: 0,
+    costUsd: "0.50",
+    costSource: null,
+    costStatus: null,
+    costUnpricedModels: null,
+    costBreakdown: null,
+    durationMs: 30_000,
+    serverDurationMs: 35_000,
+    turns: 3,
+    usageEstimated: false,
+    usageSuspect: false,
     ...overrides,
   };
 }
@@ -40,6 +86,108 @@ function reopen(taskId: string, at: string): ReopenRow {
 }
 
 describe("computeInsights totals", () => {
+  it("keeps execution and orchestration subtotals and combines them once", () => {
+    const result = computeInsights(
+      [attempt({ costUsd: "1.50", tokensIn: 1000, tokensOut: 500 })],
+      [],
+      [],
+      [missionAttempt({ costUsd: "0.50", tokensIn: 300, tokensOut: 100 })],
+    );
+
+    expect(result.executionTotals).toMatchObject({
+      attempts: 1,
+      tokens: 1500,
+      costUsd: 1.5,
+    });
+    expect(result.orchestrationTotals).toMatchObject({
+      attempts: 1,
+      tokens: 400,
+      costUsd: 0.5,
+    });
+    expect(result.totals).toMatchObject({
+      attempts: 2,
+      tokens: 1900,
+      costUsd: 2,
+    });
+
+    const project = result.combinedGroups.byProject.find(
+      (row) => row.label === "OverClick",
+    );
+    expect(project?.execution.attempts).toBe(1);
+    expect(project?.orchestration.attempts).toBe(1);
+    expect(project?.total.tokens).toBe(1900);
+  });
+
+  it("keeps open, abandoned and suspect mission attempts outside the trusted subtotal", () => {
+    const result = computeInsights(
+      [],
+      [],
+      [],
+      [
+        missionAttempt({ finishedAt: null }),
+        missionAttempt({ status: "abandonado", result: "abandoned" }),
+        missionAttempt({ usageSuspect: true, costUsd: "9.00" }),
+      ],
+    );
+
+    expect(result.orchestrationTotals.attempts).toBe(1);
+    expect(result.orchestrationTotals.suspect).toBe(1);
+    expect(result.orchestrationTotals.tokens).toBe(0);
+    expect(result.discarded.orchestration.attempts).toBe(1);
+    expect(result.discarded.orchestration.tokens).toBe(400);
+  });
+
+  it("keeps a cross-project orchestration line instead of allocating it", () => {
+    const result = computeInsights(
+      [],
+      [],
+      [],
+      [missionAttempt({ projectId: null, projectName: null })],
+    );
+
+    const project = result.orchestrationGroups.byProject[0];
+    expect(project).toMatchObject({
+      key: "__cross_project__",
+      label: "cross-project",
+      attempts: 1,
+    });
+  });
+
+  it("keeps abandoned discarded cost outside successful totals", () => {
+    const result = computeInsights(
+      [
+        attempt({
+          result: "success",
+          costUsd: "2.00",
+          tokensIn: 200,
+          tokensOut: 0,
+          tokensCache: 0,
+        }),
+        attempt({
+          result: "abandoned",
+          taskStatus: "descartado",
+          costUsd: "0.75",
+          tokensIn: 75,
+          tokensOut: 0,
+          tokensCache: 0,
+          missionId: "mission-1",
+          missionTitle: "Reliability",
+          model: "spark",
+          executor: "codex",
+        }),
+      ],
+      [],
+    );
+
+    expect(result.totals.attempts).toBe(1);
+    expect(result.totals.tokens).toBe(200);
+    expect(result.discarded.totals.attempts).toBe(1);
+    expect(result.discarded.totals.tokens).toBe(75);
+    expect(result.discarded.byModel[0]?.label).toBe("spark");
+    expect(result.discarded.byMission[0]?.label).toBe("Reliability");
+    expect(result.discarded.byExecutor[0]?.label).toBe("codex");
+  });
+
   it("sums cost, tokens and time across finished attempts", () => {
     const result = computeInsights(
       [
@@ -95,6 +243,58 @@ describe("computeInsights totals", () => {
     expect(result.totals.estimated).toBe(1);
     expect(result.totals.missing).toBe(1);
     expect(result.totals.attempts).toBe(3);
+  });
+
+  it("keeps suspect usage outside trusted totals and exposes its own bucket", () => {
+    const result = computeInsights(
+      [
+        attempt(),
+        attempt({
+          taskId: "task-2",
+          taskShortId: "OC-2",
+          tokensIn: 4_000_000,
+          tokensOut: 1_000_000,
+          costUsd: "99.00",
+          durationMs: 60_000,
+          usageSuspect: true,
+        }),
+      ],
+      [],
+    );
+
+    expect(result.totals.tokens).toBe(1_500);
+    expect(result.totals.costUsd).toBeCloseTo(1.5);
+    expect(result.totals.durationMs).toBe(60_000);
+    expect(result.totals.suspect).toBe(1);
+    expect(result.totals.suspectTokens).toBe(5_000_000);
+    expect(result.totals.suspectCostUsd).toBeCloseTo(99);
+    expect(result.perCard.find((card) => card.shortId === "OC-2")).toMatchObject({
+      tokens: 0,
+      suspect: true,
+      suspectTokens: 5_000_000,
+    });
+  });
+
+  it("counts unverified deliveries by executor and model without hiding the run", () => {
+    const result = computeInsights(
+      [
+        attempt({
+          deliveryUnverified: true,
+          executor: JSON.stringify({ cli: "codex" }),
+        }),
+      ],
+      [],
+    );
+
+    expect(result.totals.deliveryUnverified).toBe(1);
+    expect(result.byExecutor[0]).toMatchObject({
+      label: "codex",
+      deliveryUnverified: 1,
+    });
+    expect(result.byModel[0]).toMatchObject({
+      label: "sonnet-5",
+      deliveryUnverified: 1,
+    });
   });
 
   it("counts the server-measured time as elapsed, never as execution", () => {
@@ -171,6 +371,39 @@ describe("computeInsights groups", () => {
     expect(result.byModel).toHaveLength(1);
     expect(result.byModel[0]?.label).toBeNull();
     expect(result.byModel[0]?.attempts).toBe(1);
+  });
+
+  it("groups attempts by exact release and keeps unreleased cards separate", () => {
+    const result = computeInsights(
+      [
+        attempt({ resolvedIn: "v1.2.0", costUsd: "2.00" }),
+        attempt({
+          taskId: "task-2",
+          taskShortId: "OC-2",
+          resolvedIn: "v1.2.0",
+          costUsd: "1.00",
+        }),
+        attempt({
+          taskId: "task-3",
+          taskShortId: "OC-3",
+          resolvedIn: null,
+          costUsd: "0.50",
+        }),
+      ],
+      [],
+    );
+
+    expect(result.byRelease).toHaveLength(2);
+    expect(result.byRelease.find((row) => row.label === "v1.2.0")).toMatchObject({
+      attempts: 2,
+      tokens: 3000,
+      costUsd: 3,
+    });
+    expect(result.byRelease.find((row) => row.label === null)).toMatchObject({
+      attempts: 1,
+      tokens: 1500,
+      costUsd: 0.5,
+    });
   });
 });
 
@@ -321,12 +554,41 @@ describe("cost from the price table", () => {
     expect(result.perCard[0]?.costUsd).toBeCloseTo(4);
   });
 
-  it("recomputes when the price changes, with no new attempt data", () => {
+  it("recomputes a legacy attempt until the persisted backfill reaches it", () => {
     const rows = [attempt({ tokensIn: 1_000_000, tokensOut: 0, tokensCache: 0 })];
     const cheap = computeInsights(rows, [], prices);
     const dear = computeInsights(rows, [], [{ ...prices[0]!, inputPerMtok: 6 }]);
     expect(cheap.totals.costUsd).toBeCloseTo(3);
     expect(dear.totals.costUsd).toBeCloseTo(6);
+  });
+
+  it("reads the stored snapshot instead of changing history with today's price", () => {
+    const rows = [
+      attempt({
+        tokensIn: 1_000_000,
+        tokensOut: 0,
+        tokensCache: 0,
+        costUsd: "3.000000",
+        costSource: "computed",
+        costStatus: "computed",
+        costUnpricedModels: [],
+        costBreakdown: [
+          {
+            model: "sonnet-5",
+            input: 1_000_000,
+            output: 0,
+            cache: 0,
+            cost_usd: 3,
+            priced: true,
+          },
+        ],
+      }),
+    ];
+    const result = computeInsights(rows, [], [
+      { ...prices[0]!, inputPerMtok: 99 },
+    ]);
+    expect(result.totals.costUsd).toBeCloseTo(3);
+    expect(result.perCard[0]?.costUsd).toBeCloseTo(3);
   });
 });
 
@@ -370,6 +632,17 @@ describe("usage in segments per model", () => {
   it("names every model the card ran, in order", () => {
     const result = computeInsights([switched()], [], prices);
     expect(result.perCard[0]?.models).toEqual(["sonnet-5", "opus-5"]);
+  });
+
+  it("keeps the harness origin beside an inferred model", () => {
+    const result = computeInsights(
+      [attempt({ model: "gpt-5.6-sol", modelSource: "harness" })],
+      [],
+      prices,
+    );
+    expect(result.perCard[0]?.modelOrigins).toEqual([
+      { model: "gpt-5-6-sol", source: "harness" },
+    ]);
   });
 
   it("counts a delivery from a switched run against both models", () => {

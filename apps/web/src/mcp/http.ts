@@ -20,7 +20,7 @@ export async function handleMcpRequest(
     );
   }
 
-  const server = createOverclickMcpServer({ db: database, ctx: auth.ctx });
+  const server = await createOverclickMcpServer({ db: database, ctx: auth.ctx });
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

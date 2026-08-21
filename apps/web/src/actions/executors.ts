@@ -1,6 +1,7 @@
 "use server";
 
 import { workspace, type ExecutorConfig } from "@agent-board/db";
+import { seededEffortSpec } from "@agent-board/mcp-core";
 import { eq } from "drizzle-orm";
 import type { ActionResult } from "../lib/action-result";
 import { getSession } from "../lib/cookies";
@@ -29,12 +30,34 @@ export async function saveExecutorsAction(
         (sel.models?.[d.id] ?? d.models).map((m) => m.trim()).filter(Boolean),
       ),
     ];
+    const efforts = Object.fromEntries(
+      Object.entries(sel.efforts ?? {}).filter(([model]) =>
+        catalog.some(
+          (candidate) =>
+            candidate.trim().toLowerCase().replace(/\./g, "-") ===
+            model.trim().toLowerCase().replace(/\./g, "-"),
+        ),
+      ),
+    );
+    const effortSources = Object.fromEntries(
+      Object.entries(sel.effortSources ?? {}).filter(([model]) =>
+        Object.keys(efforts).some(
+          (candidate) =>
+            candidate.trim().toLowerCase().replace(/\./g, "-") ===
+            model.trim().toLowerCase().replace(/\./g, "-"),
+        ),
+      ),
+    );
     return {
       id: d.id,
       label: d.label,
       enabled: d.id in sel.enabled,
       models: (sel.enabled[d.id] ?? []).filter((m) => catalog.includes(m)),
       catalog,
+      ...(Object.keys(efforts).length > 0 ? { efforts } : {}),
+      ...(Object.keys(effortSources).length > 0
+        ? { effortSources }
+        : {}),
     };
   });
   // Executors learned from real connections live outside the built-in
@@ -52,6 +75,12 @@ export async function saveExecutorsAction(
       enabled: id in sel.enabled,
       models: (sel.enabled[id] ?? []).filter((m) => catalog.includes(m)),
       catalog,
+      ...(Object.keys(sel.efforts ?? {}).length > 0
+        ? { efforts: { ...sel.efforts } }
+        : {}),
+      ...(Object.keys(sel.effortSources ?? {}).length > 0
+        ? { effortSources: { ...sel.effortSources } }
+        : {}),
     });
   }
   config.push({
@@ -86,7 +115,19 @@ export async function addSeenExecutorAction(
   }
 
   const targetId = resolveCatalogCli(cleanCli) ?? cleanCli.toLowerCase();
-  const config: ExecutorConfig[] = ws.executors.map((row) => ({ ...row }));
+  const config: ExecutorConfig[] = ws.executors.map((row) => ({
+    ...row,
+    models: [...row.models],
+    ...(row.catalog ? { catalog: [...row.catalog] } : {}),
+    ...(row.efforts
+      ? {
+          efforts: Object.fromEntries(
+            Object.entries(row.efforts).map(([key, values]) => [key, [...values]]),
+          ),
+        }
+      : {}),
+    ...(row.effortSources ? { effortSources: { ...row.effortSources } } : {}),
+  }));
   const existing = config.find((row) => row.id === targetId);
   if (existing) {
     existing.enabled = true;
@@ -99,13 +140,30 @@ export async function addSeenExecutorAction(
     if (!catalog.includes(cleanModel)) catalog.push(cleanModel);
     existing.catalog = catalog;
     if (!existing.models.includes(cleanModel)) existing.models.push(cleanModel);
+    const spec = seededEffortSpec(targetId, cleanModel);
+    const existingEffort = Object.keys(existing.efforts ?? {}).find(
+      (key) => key.trim().toLowerCase().replace(/\./g, "-") === cleanModel.toLowerCase().replace(/\./g, "-"),
+    );
+    if (!existingEffort && spec) {
+      existing.efforts ??= {};
+      existing.efforts[cleanModel] = [...spec.efforts];
+      existing.effortSources ??= {};
+      existing.effortSources[cleanModel] = spec.source;
+    }
   } else {
+    const spec = seededEffortSpec(targetId, cleanModel);
     config.push({
       id: targetId,
       label: EXECUTOR_CATALOG.find((d) => d.id === targetId)?.label ?? cleanCli,
       enabled: true,
       models: [cleanModel],
       catalog: [cleanModel],
+      ...(spec
+        ? {
+            efforts: { [cleanModel]: [...spec.efforts] },
+            effortSources: { [cleanModel]: spec.source },
+          }
+        : {}),
     });
   }
 

@@ -3,7 +3,9 @@ import { filterBoardCards, type BoardFilter } from "./board-filter";
 import { toBoardTotals, type BoardTotals } from "./board-totals";
 import {
   computeInsights,
+  filterMissionAttempts,
   loadInsightAttemptRows,
+  loadMissionAttemptRows,
   type InsightsDb,
 } from "./insights";
 
@@ -20,9 +22,17 @@ export async function loadBoardTotals(
   prices: readonly ModelPrice[],
   filter: BoardFilter,
 ): Promise<BoardTotals> {
-  const rows = await loadInsightAttemptRows(db, workspaceId);
+  const [rows, missionAttemptRows] = await Promise.all([
+    loadInsightAttemptRows(db, workspaceId),
+    loadMissionAttemptRows(db, workspaceId),
+  ]);
   // Attempt rows carry the project and mission of their card, which is what
   // the board filters on, so the board's own filter narrows them unchanged.
-  const insights = computeInsights(filterBoardCards(rows, filter), [], prices);
+  const insights = computeInsights(
+    filterBoardCards(rows, filter),
+    [],
+    prices,
+    filterMissionAttempts(missionAttemptRows, filter),
+  );
   return toBoardTotals(insights.totals, pricingEnabled);
 }

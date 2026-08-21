@@ -16,7 +16,7 @@ import {
 } from "../lib/insights";
 import { loadModelPrices } from "../lib/prices";
 import { closeTestWorld, createTestWorld, type TestWorld } from "./test-db";
-import { invokeTool } from "./tools";
+import { invokeToolForTests as invokeTool } from "./test-tools";
 
 /**
  * The card's How-to-confirm is "the numbers match the Insights page". The page
@@ -73,6 +73,7 @@ describe("insights_query answers what the Insights page answers", () => {
         shortId: "OC-1",
         title: "Card with full usage",
         status: "feito",
+        resolvedIn: "v1.2.0",
       })
       .returning({ id: task.id });
     const [estimated] = await world.db
@@ -186,6 +187,12 @@ describe("insights_query answers what the Insights page answers", () => {
       attempts: page.totals.attempts,
       estimated: page.totals.estimated,
       missing: page.totals.missing,
+      zero_usage: page.totals.zeroUsage,
+      suspect: page.totals.suspect,
+      suspect_tokens: page.totals.suspectTokens,
+      suspect_duration_ms: page.totals.suspectDurationMs,
+      suspect_cost_usd: page.totals.suspectCostUsd,
+      delivery_unverified: page.totals.deliveryUnverified,
     });
     // Three finished attempts on real cards; the example card's $99 is out.
     expect(out.totals.attempts).toBe(3);
@@ -212,6 +219,7 @@ describe("insights_query answers what the Insights page answers", () => {
       ["mission", page.byMission],
       ["project", page.byProject],
       ["model", page.byModel],
+      ["executor", page.byExecutor],
     ] as const) {
       const queried = await invokeTool(world.db, ctx(), "insights_query", {
         group_by: groupBy,
@@ -235,6 +243,12 @@ describe("insights_query answers what the Insights page answers", () => {
           attempts: row.attempts,
           estimated: row.estimated,
           missing: row.missing,
+          zero_usage: row.zeroUsage,
+          suspect: row.suspect,
+          suspect_tokens: row.suspectTokens,
+          suspect_duration_ms: row.suspectDurationMs,
+          suspect_cost_usd: row.suspectCostUsd,
+          delivery_unverified: row.deliveryUnverified,
         })),
       );
     }
@@ -250,6 +264,30 @@ describe("insights_query answers what the Insights page answers", () => {
     ).toBeCloseTo(0.0105);
     // The loose card's group carries a null label, never an invented one.
     expect(missions?.find((row) => row.label === null)?.attempts).toBe(2);
+  });
+
+  it("groups by release, with null as the unreleased bucket", async () => {
+    const queried = await invokeTool(world.db, ctx(), "insights_query", {
+      group_by: "release",
+    });
+    expect(queried.ok).toBe(true);
+    if (!queried.ok) return;
+    const out = InsightsQueryOutputSchema.parse(queried.value);
+    const page = await pageInsights();
+
+    expect(out.groups).toEqual(
+      page.byRelease.map((row) =>
+        expect.objectContaining({
+          key: row.key,
+          label: row.label,
+          cost_usd: row.costUsd,
+          tokens: row.tokens,
+          attempts: row.attempts,
+        }),
+      ),
+    );
+    expect(out.groups?.find((row) => row.label === "v1.2.0")?.attempts).toBe(1);
+    expect(out.groups?.find((row) => row.label === null)?.attempts).toBe(2);
   });
 
   it("reports the reopened rate per model, highest first", async () => {
@@ -347,7 +385,7 @@ describe("insights_query answers what the Insights page answers", () => {
     expect(queried.error.message).toContain("inverted");
   });
 
-  it("recomputes the aggregates when a price changes in Settings", async () => {
+  it("recomputes legacy rows with no snapshot until the backfill reaches them", async () => {
     // Same edit the Settings price table writes: sonnet-5 at twice the price.
     await world.db.insert(modelPrice).values({
       workspaceId: world.workspaceId,

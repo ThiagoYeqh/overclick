@@ -12,7 +12,21 @@ permissions:
   packages: write
 
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  verify-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The tag never diverges from the manifests it publishes: OCL-73 turned
+      # yesterday's incident (a tag pushed without a version bump, so the
+      # deployed instance's own APP_VERSION read as older than the release it
+      # already ran) into a release-time failure instead of a runtime banner.
+      - run: scripts/verify-release-version.sh
+
   publish:
+    needs: [verify, verify-version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

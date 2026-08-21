@@ -1,26 +1,74 @@
 import { describe, expect, it } from "vitest";
 import {
   TaskDeliverInputSchema,
+  TaskCreateOutputSchema,
+  TaskUpdateInputSchema,
   MCP_TOOL_NAMES,
   MissionCreateInputSchema,
+  MissionDeleteInputSchema,
+  MissionUpdateInputSchema,
+  PROJECT_CONTEXT_MAX_CHARS,
   ProjectCreateInputSchema,
+  ProjectUpdateInputSchema,
   TaskCreateInputSchema,
+  TaskListInputSchema,
+  TaskListItemSchema,
+  TaskReadSchema,
+  TaskSearchInputSchema,
+  TaskSearchHitSchema,
+  TaskClaimInputSchema,
+  ListIncludeSchema,
+  WriteAckSchema,
+  ExecutorsUpdateInputSchema,
   isTelemetryIncomplete,
+  MissionAttemptStartInputSchema,
+  MissionReportUsageInputSchema,
   toolContracts,
+  HarnessSchema,
+  ConfiguredExecutorSchema,
+  CardapioPolicyEntrySchema,
+  HarnessSetInputSchema,
 } from "../src/index.js";
 
+describe("model-specific efforts", () => {
+  it("accepts provider values beyond the old low/medium/high enum", () => {
+    const claim = TaskClaimInputSchema.parse({
+      task_id: "OCL-51",
+      executor: { cli: "codex", model: "gpt-5.6-sol", effort: "max" },
+    });
+    expect(claim.executor?.effort).toBe("max");
+
+    const update = ExecutorsUpdateInputSchema.parse({
+      cli: "codex",
+      efforts: { "gpt-5.6-sol": ["minimal", "low", "medium", "high", "xhigh", "max"] },
+    });
+    expect(update.efforts?.["gpt-5.6-sol"]).toContain("max");
+  });
+});
+
 describe("MCP tool contracts", () => {
-  it("exports input and output schemas for all 18 tools", () => {
+  it("exports input and output schemas for all 29 tools", () => {
     expect(MCP_TOOL_NAMES).toEqual([
       "project_list",
+      "project_get",
       "project_create",
+      "project_update",
+      "project_context_refresh",
+      "project_delete",
       "mission_list",
       "mission_get",
       "mission_create",
+      "mission_update",
+      "mission_delete",
+      "mission_attempt_start",
+      "mission_report_usage",
       "task_list",
       "task_get",
+      "task_search",
       "task_create",
       "task_claim",
+      "task_release",
+      "task_heartbeat",
       "task_update",
       "task_deliver",
       "task_delete",
@@ -35,6 +83,276 @@ describe("MCP tool contracts", () => {
       expect(toolContracts[name].input).toBeDefined();
       expect(toolContracts[name].output).toBeDefined();
     }
+  });
+
+  it("requires a session and cumulative final result on mission telemetry", () => {
+    expect(
+      MissionAttemptStartInputSchema.safeParse({
+        mission_id: "mission-1",
+        executor: { cli: "codex" },
+      }).success,
+    ).toBe(false);
+    expect(
+      MissionReportUsageInputSchema.safeParse({
+        mission_id: "mission-1",
+        attempt_id: "attempt-1",
+        sequence: 1,
+        checkpoint: "final",
+        usage: {},
+      }).success,
+    ).toBe(false);
+    expect(
+      MissionReportUsageInputSchema.parse({
+        mission_id: "mission-1",
+        attempt_id: "attempt-1",
+        sequence: 1,
+        checkpoint: "final",
+        usage: { segments: [{ model: "gpt-5-6-luna", input: 10 }] },
+        result: "success",
+      }).sequence,
+    ).toBe(1);
+  });
+
+  it("keeps write responses compact by default with an explicit full opt-in", () => {
+    const create = {
+      project_id: "OC",
+      title: "Card",
+      type: "bug" as const,
+      o_que: "O comportamento muda.",
+      por_que: "O fluxo atual falha.",
+      como_confirmo: [{ step: "executa o teste", expected: "passa" }],
+      origem: { cli: "codex", session_id: "sess" },
+    };
+
+    expect(TaskCreateInputSchema.parse(create).return).toBeUndefined();
+    expect(TaskCreateInputSchema.parse({ ...create, return: "full" }).return).toBe(
+      "full",
+    );
+    expect(
+      TaskUpdateInputSchema.parse({
+        task_id: "OC-1",
+        progress: "feito",
+        return: "ack",
+      }).return,
+    ).toBe("ack");
+    expect(
+      TaskClaimInputSchema.safeParse({ task_id: "OC-1", return: "full" }).success,
+    ).toBe(false);
+
+    const ack = TaskCreateOutputSchema.parse({
+      short_id: "OC-1",
+      updated_at: "2026-08-19T12:00:00.000Z",
+      status: "aberto",
+      changed: { mode: "solo" },
+    });
+    expect(ack).toMatchObject({ short_id: "OC-1", status: "aberto" });
+    expect(WriteAckSchema.parse(ack).changed).toEqual({ mode: "solo" });
+  });
+});
+
+describe("task_list", () => {
+  it("accepts only the caller shorthand for claimed cards", () => {
+    expect(TaskListInputSchema.parse({ claimed_by: "me" })).toEqual({
+      claimed_by: "me",
+    });
+    expect(
+      TaskListInputSchema.safeParse({ claimed_by: "another-token" }).success,
+    ).toBe(false);
+  });
+
+  it("models compact read rows with an optional harness and absent fields", () => {
+    const task = TaskReadSchema.parse({
+      id: "task-1",
+      short_id: "OC-1",
+      title: "Compact read",
+      type: "feature",
+      status: "aberto",
+      revisado: false,
+      priority: "media",
+      project_id: "project-1",
+      devolve_para: { kind: "workspace_queue" },
+      delivery_unverified: false,
+      o_que: "The contract is available.",
+      por_que: "The queue stays cheap.",
+      como_confirmo: [{ step: "read", expected: "compact" }],
+      harness: { cli: "codex", model: "model-1", effort: "medium" },
+      origem: { cli: "codex" },
+      mode: "solo",
+      created_at: "2026-08-19T12:00:00.000Z",
+      updated_at: "2026-08-19T12:00:00.000Z",
+      workspace_id: "must-not-cross-the-wire",
+    });
+
+    expect(task.harness).toEqual({
+      cli: "codex",
+      model: "model-1",
+      effort: "medium",
+    });
+    expect(task).not.toHaveProperty("workspace_id");
+    expect(TaskReadSchema.safeParse({ ...task, commit: null }).success).toBe(false);
+
+    const row = TaskListItemSchema.parse({
+      ...task,
+      cost_usd: 0.25,
+    });
+    expect(row.cost_usd).toBe(0.25);
+    expect(row).not.toHaveProperty("workspace_id");
+    expect(TaskListItemSchema.safeParse({ ...row, cost_usd: null }).success).toBe(
+      false,
+    );
+  });
+
+  it("accepts the operational-minimum row with no id, refs, delivery or harness", () => {
+    const minimal = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "Lean by default",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+    });
+    expect(minimal).toEqual({
+      short_id: "OC-1",
+      title: "Lean by default",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+    });
+    expect(minimal).not.toHaveProperty("id");
+    expect(minimal).not.toHaveProperty("project_id");
+    expect(minimal).not.toHaveProperty("mission_id");
+    expect(minimal).not.toHaveProperty("revisado");
+    expect(minimal).not.toHaveProperty("devolve_para");
+    expect(minimal).not.toHaveProperty("harness");
+    expect(minimal).not.toHaveProperty("delivery_unverified");
+  });
+
+  it("accepts each include group additively on the same row", () => {
+    const withIds = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "t",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+      id: "task-1",
+    });
+    expect(withIds.id).toBe("task-1");
+
+    const withRefs = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "t",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+      project_id: "project-1",
+      mission_id: "mission-1",
+      branch: "ocl-1-x",
+      claimed_by: "token-1",
+    });
+    expect(withRefs).toMatchObject({
+      project_id: "project-1",
+      mission_id: "mission-1",
+      branch: "ocl-1-x",
+      claimed_by: "token-1",
+    });
+
+    const withDelivery = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "t",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+      revisado: true,
+      devolve_para: { kind: "workspace_queue" },
+      commit: "abc123",
+      delivery_verification: "verified",
+      reports_count: 2,
+    });
+    expect(withDelivery).toMatchObject({
+      revisado: true,
+      commit: "abc123",
+      delivery_verification: "verified",
+      reports_count: 2,
+    });
+
+    const withHarness = TaskListItemSchema.parse({
+      short_id: "OC-1",
+      title: "t",
+      type: "feature",
+      status: "aberto",
+      priority: "alta",
+      harness: { cli: "codex", model: "model-1", effort: "medium" },
+    });
+    expect(withHarness.harness).toEqual({
+      cli: "codex",
+      model: "model-1",
+      effort: "medium",
+    });
+  });
+
+  it("takes include as one of the five named groups", () => {
+    expect(ListIncludeSchema.options).toEqual([
+      "harness",
+      "ids",
+      "delivery",
+      "refs",
+      "all",
+    ]);
+    expect(TaskListInputSchema.parse({ include: ["harness"] }).include).toEqual([
+      "harness",
+    ]);
+    expect(TaskListInputSchema.safeParse({ include: ["nope"] }).success).toBe(false);
+    expect(TaskListInputSchema.safeParse({ include: [] }).success).toBe(false);
+  });
+});
+
+describe("task_search", () => {
+  it("takes the same include groups as task_list", () => {
+    expect(
+      TaskSearchInputSchema.parse({ q: "x", include: ["ids", "refs"] }).include,
+    ).toEqual(["ids", "refs"]);
+    expect(
+      TaskSearchInputSchema.safeParse({ q: "x", include: ["harness"] }).success,
+    ).toBe(true);
+  });
+
+  it("accepts the operational-minimum hit with no id, resolved_in or counts", () => {
+    const minimal = TaskSearchHitSchema.parse({
+      short_id: "OC-1",
+      title: "Lean hit",
+      type: "feature",
+      status: "aberto",
+      o_que: "x",
+    });
+    expect(minimal).toEqual({
+      short_id: "OC-1",
+      title: "Lean hit",
+      type: "feature",
+      status: "aberto",
+      o_que: "x",
+    });
+    expect(minimal).not.toHaveProperty("id");
+    expect(minimal).not.toHaveProperty("resolved_in");
+    expect(minimal).not.toHaveProperty("comments_count");
+    expect(minimal).not.toHaveProperty("reports_count");
+    expect(minimal).not.toHaveProperty("updated_at");
+  });
+
+  it("accepts every field at once, matching the pre-OCL-96 hit", () => {
+    const full = TaskSearchHitSchema.parse({
+      short_id: "OC-1",
+      title: "Full hit",
+      type: "feature",
+      status: "aberto",
+      o_que: "x",
+      id: "task-1",
+      resolved_in: "v1.0.0",
+      comments_count: 3,
+      reports_count: 1,
+      updated_at: "2026-08-19T12:00:00.000Z",
+    });
+    expect(full.id).toBe("task-1");
+    expect(full.resolved_in).toBe("v1.0.0");
+    expect(full.comments_count).toBe(3);
   });
 });
 
@@ -51,6 +369,22 @@ describe("project_create", () => {
     expect(
       ProjectCreateInputSchema.safeParse({ name: "Board", repo_url: "github" })
         .success,
+    ).toBe(false);
+  });
+
+  it("accepts context and current_version up to the documented limit", () => {
+    const parsed = ProjectCreateInputSchema.parse({
+      name: "Agent Board",
+      context: "# Architecture\n\nApp and database.",
+      current_version: "1.3.5",
+    });
+    expect(parsed.context).toContain("Architecture");
+    expect(parsed.current_version).toBe("1.3.5");
+    expect(
+      ProjectCreateInputSchema.safeParse({
+        name: "Too much",
+        context: "x".repeat(PROJECT_CONTEXT_MAX_CHARS + 1),
+      }).success,
     ).toBe(false);
   });
 });
@@ -77,6 +411,73 @@ describe("mission_create", () => {
 
   it("rejects an empty title", () => {
     expect(MissionCreateInputSchema.safeParse({ title: "" }).success).toBe(false);
+  });
+});
+
+describe("mission_update and mission_delete", () => {
+  it("accepts partial mission edits and trims the title", () => {
+    expect(
+      MissionUpdateInputSchema.parse({
+        mission_id: "mission-1",
+        title: "  New north  ",
+        status: "pausada",
+      }),
+    ).toEqual({
+      mission_id: "mission-1",
+      title: "New north",
+      status: "pausada",
+    });
+  });
+
+  it("accepts granular context edits and rejects a blob plus its delta", () => {
+    const mission = MissionUpdateInputSchema.parse({
+      mission_id: "mission-1",
+      context_ops: [
+        { op: "replace_section", heading: "Rules", text: "new rules" },
+      ],
+      expected_hash: "a".repeat(64),
+    });
+    expect(mission.context_ops?.[0]?.op).toBe("replace_section");
+
+    expect(
+      MissionUpdateInputSchema.safeParse({
+        mission_id: "mission-1",
+        context: "whole blob",
+        context_ops: [{ op: "append_line", heading: "Rules", text: "- one" }],
+      }).success,
+    ).toBe(false);
+
+    const project = ProjectUpdateInputSchema.parse({
+      project_id: "OC",
+      context_ops: [{ op: "append_section", heading: "Rules", text: "- one" }],
+      expected_len: 12,
+    });
+    expect(project.expected_len).toBe(12);
+  });
+
+  it("rejects blank or oversized titles and invalid statuses", () => {
+    expect(
+      MissionUpdateInputSchema.safeParse({ mission_id: "mission-1", title: "  " })
+        .success,
+    ).toBe(false);
+    expect(
+      MissionUpdateInputSchema.safeParse({
+        mission_id: "mission-1",
+        title: "x".repeat(201),
+      }).success,
+    ).toBe(false);
+    expect(
+      MissionUpdateInputSchema.safeParse({
+        mission_id: "mission-1",
+        status: "archived",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps force optional on mission_delete", () => {
+    expect(
+      MissionDeleteInputSchema.parse({ mission_id: "mission-1" }),
+    ).toEqual({ mission_id: "mission-1" });
   });
 });
 
@@ -195,6 +596,8 @@ describe("task_create canonical flow", () => {
     for (const name of [
       "task_get",
       "task_claim",
+      "task_release",
+      "task_heartbeat",
       "task_update",
       "task_deliver",
       "task_delete",
@@ -203,12 +606,47 @@ describe("task_create canonical flow", () => {
       expect(
         toolContracts[name].input.parse({
           task_id: "AGB-5",
+          ...(name === "task_release" ? { reason: "executor stopped" } : {}),
           ...(name === "task_update" ? { comment: "ok" } : {}),
           ...(name === "task_deliver" ? { summary: "ok" } : {}),
           ...(name === "branch_register" ? { branch: "agb-5-x" } : {}),
         }).task_id,
       ).toBe("AGB-5");
     }
+  });
+
+  it("supports compact and explicit full-content read modes", () => {
+    const taskGet = toolContracts.task_get.input;
+    expect(taskGet.parse({ task_id: "OCL-52" })).toEqual({
+      task_id: "OCL-52",
+    });
+    expect(
+      taskGet.parse({
+        task_id: "OCL-52",
+        view: "briefing",
+      }).view,
+    ).toBe("briefing");
+    expect(
+      taskGet.parse({
+        task_id: "OCL-52",
+        include: ["briefing", "usage_recipe", "mission"],
+      }).include,
+    ).toEqual(["briefing", "usage_recipe", "mission"]);
+    expect(
+      toolContracts.mission_get.input.parse({
+        mission_id: "mission_1",
+        view: "full",
+      }).view,
+    ).toBe("full");
+    expect(
+      toolContracts.project_get.input.parse({
+        project_id: "OC",
+        include: ["context"],
+      }).include,
+    ).toEqual(["context"]);
+    expect(
+      taskGet.safeParse({ task_id: "OCL-52", briefing: true }).success,
+    ).toBe(false);
   });
 
   it("requires origem identity from the caller", () => {
@@ -273,6 +711,7 @@ describe("task_deliver usage and artifacts", () => {
       summary: "corrigido",
       evidence: [{ url: "https://example.com/pr/12" }],
       branch: "oc-1-corrige-login",
+      commit: "0123456789abcdef0123456789abcdef01234567",
       pull_request_url: "https://example.com/pr/12",
       usage: {
         tokens_in: 12000,
@@ -291,6 +730,7 @@ describe("task_deliver usage and artifacts", () => {
       duration_ms: 34 * 60 * 1000,
       turns: 11,
     });
+    expect(parsed.commit).toBe("0123456789abcdef0123456789abcdef01234567");
   });
 
   it("accepts estimated usage and a usage-only task_update", () => {
@@ -349,6 +789,200 @@ describe("task_deliver usage and artifacts", () => {
     ).toBe(false);
     expect(
       isTelemetryIncomplete({ tokens_in: 10, tokens_out: 20, turns: 2 }),
+    ).toBe(true);
+  });
+
+  it("refuses an unknown key instead of dropping it", () => {
+    // The historical case: docs/mcp.md called the flag "reviewed" while the
+    // field is "revisado". Without strict the key vanished, the card was
+    // never marked, and nothing anywhere said so.
+    const typo = TaskUpdateInputSchema.safeParse({
+      task_id: "AGB-1",
+      reviewed: true,
+    });
+    expect(typo.success).toBe(false);
+
+    // The same shape with the real field is accepted, so strict costs the
+    // caller nothing when the caller is right.
+    const correct = TaskUpdateInputSchema.safeParse({
+      task_id: "AGB-1",
+      revisado: true,
+    });
+    expect(correct.success).toBe(true);
+  });
+
+  it("keeps every tool contract strict, so no surface drifts back", () => {
+    for (const name of MCP_TOOL_NAMES) {
+      // A schema can carry several refinements, and each one wraps the
+      // last, so unwrap until the object itself shows up. That is where
+      // strict lives.
+      let object: unknown = toolContracts[name].input;
+      while ((object as { _def?: { schema?: unknown } })._def?.schema) {
+        object = (object as { _def: { schema: unknown } })._def.schema;
+      }
+      expect(
+        (object as { _def: { unknownKeys?: string } })._def.unknownKeys,
+        `${name} must be strict`,
+      ).toBe("strict");
+    }
+  });
+});
+
+describe("harness account/provider wire contract (OCL-108)", () => {
+  it("keeps account optional so a card built before this feature still parses", () => {
+    const parsed = HarnessSchema.parse({ model: "sonnet-5", effort: "high" });
+    expect(parsed.account).toBeUndefined();
+    expect(parsed).not.toHaveProperty("cli");
+  });
+
+  it("accepts task_create.harness.account, retrocompatibly optional", () => {
+    const withAccount = TaskCreateInputSchema.parse({
+      project_id: "AGB",
+      title: "test",
+      type: "feature",
+      o_que: "x",
+      por_que: "x",
+      como_confirmo: [{ step: "s", expected: "e" }],
+      origem: { agent: "test" },
+      harness: { cli: "claude-code", model: "sonnet-5", effort: "high", account: "claude-oauth-acc-2" },
+    });
+    expect(withAccount.harness?.account).toBe("claude-oauth-acc-2");
+
+    const withoutAccount = TaskCreateInputSchema.parse({
+      project_id: "AGB",
+      title: "test",
+      type: "feature",
+      o_que: "x",
+      por_que: "x",
+      como_confirmo: [{ step: "s", expected: "e" }],
+      origem: { agent: "test" },
+      harness: { cli: "claude-code", model: "sonnet-5", effort: "high" },
+    });
+    expect(withoutAccount.harness?.account).toBeUndefined();
+  });
+
+  it("lets task_update.harness carry an account too", () => {
+    const parsed = TaskUpdateInputSchema.parse({
+      task_id: "AGB-1",
+      harness: { model: "sonnet-5", effort: "high", account: "claude-oauth" },
+    });
+    expect(parsed.harness?.account).toBe("claude-oauth");
+  });
+
+  it("lets a cardápio policy row carry a preferred account", () => {
+    const parsed = CardapioPolicyEntrySchema.parse({
+      type: "feature",
+      cli: "claude-code",
+      model: "sonnet-5",
+      effort: "high",
+      account: "claude-oauth-acc-2",
+    });
+    expect(parsed.account).toBe("claude-oauth-acc-2");
+  });
+
+  it("lets harness_set declare a preferred account", () => {
+    const parsed = HarnessSetInputSchema.parse({
+      type: "feature",
+      model: "sonnet-5",
+      effort: "high",
+      account: "claude-oauth-acc-2",
+    });
+    expect(parsed.account).toBe("claude-oauth-acc-2");
+  });
+
+  it("exposes the accounts available for a cli, each independently enabled", () => {
+    const parsed = ConfiguredExecutorSchema.parse({
+      id: "claude-code",
+      label: "Claude Code",
+      enabled: true,
+      models: ["sonnet-5"],
+      efforts: {},
+      accounts: [
+        { id: "claude-oauth", label: "Conta 1", enabled: true },
+        { id: "claude-oauth-acc-2", label: "Conta 2", enabled: false },
+      ],
+    });
+    expect(parsed.accounts).toHaveLength(2);
+    expect(parsed.accounts?.[1]).toEqual({
+      id: "claude-oauth-acc-2",
+      label: "Conta 2",
+      enabled: false,
+    });
+  });
+
+  it("parses without accounts at all, retrocompatibly", () => {
+    const parsed = ConfiguredExecutorSchema.parse({
+      id: "codex",
+      label: "Codex",
+      enabled: true,
+      models: ["gpt-5.6-sol"],
+      efforts: {},
+    });
+    expect(parsed.accounts).toBeUndefined();
+  });
+
+  it("disables one account without touching the rest of the executor (refines OCL-75)", () => {
+    const parsed = ExecutorsUpdateInputSchema.parse({
+      cli: "claude-code",
+      set_account: { id: "claude-oauth", enabled: false },
+    });
+    expect(parsed.set_account).toEqual({ id: "claude-oauth", enabled: false });
+  });
+
+  it("still refuses an executors_update with nothing to change", () => {
+    const empty = ExecutorsUpdateInputSchema.safeParse({ cli: "claude-code" });
+    expect(empty.success).toBe(false);
+  });
+
+  it("refuses set_account combined with remove, same as the other fields", () => {
+    const invalid = ExecutorsUpdateInputSchema.safeParse({
+      cli: "claude-code",
+      remove: true,
+      set_account: { id: "claude-oauth", enabled: false },
+    });
+    expect(invalid.success).toBe(false);
+  });
+});
+
+/**
+ * OCL-128: `resolved_in` is the release, and only the release. A delivery
+ * that put a branch name there leaked it onto the board's RELEASE filter.
+ */
+describe("resolved_in only takes a release version", () => {
+  const branch = "ovka-78-bug-selecao-de-texto-no-pane-anda-com-o-scroll-f@68218bba";
+
+  function deliver(resolved_in: string) {
+    return TaskDeliverInputSchema.safeParse({
+      task_id: "OC-1",
+      summary: "done",
+      resolved_in,
+    });
+  }
+
+  it("task_deliver keeps taking a version tag", () => {
+    for (const value of ["v1.4.0", "1.4.0", "v1.0.0-rc.1"]) {
+      expect(deliver(value).success, value).toBe(true);
+    }
+  });
+
+  it("task_deliver refuses a branch name, a commit and free text", () => {
+    for (const value of [branch, "main", "feature/ocl-128", "68218bba"]) {
+      expect(deliver(value).success, value).toBe(false);
+    }
+  });
+
+  it("task_update refuses a branch name but still clears with null", () => {
+    expect(
+      TaskUpdateInputSchema.safeParse({ task_id: "OC-1", resolved_in: branch })
+        .success,
+    ).toBe(false);
+    expect(
+      TaskUpdateInputSchema.safeParse({ task_id: "OC-1", resolved_in: "v2.0.0" })
+        .success,
+    ).toBe(true);
+    expect(
+      TaskUpdateInputSchema.safeParse({ task_id: "OC-1", resolved_in: null })
+        .success,
     ).toBe(true);
   });
 });

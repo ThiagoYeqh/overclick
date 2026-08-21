@@ -1,6 +1,6 @@
 {
   "name": "@agent-board/db",
-  "version": "0.1.10",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,6 +12,7 @@
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
     "seed": "tsx src/seed.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

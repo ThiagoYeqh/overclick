@@ -32,7 +32,14 @@ export default async function OnboardingPage({
   const proj = await db().query.project.findFirst({
     where: eq(project.workspaceId, ws.id),
   });
-  const host = (await headers()).get("host") ?? "<your-host>";
+  const h = await headers();
+  // A TLS instance sits behind a proxy that terminates it, so the scheme comes
+  // from the forwarded header. Never hardcode http: the commands we print carry
+  // a bearer token.
+  const host = h.get("host") ?? "<your-host>";
+  const proto = h.get("x-forwarded-proto")?.split(",")[0].trim()
+    ?? (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+  const origin = `${proto}://${host}`;
 
   const rawStep = Number(Array.isArray(sp.step) ? sp.step[0] : sp.step);
   const initialStep = rawStep >= 1 && rawStep <= 3 ? Math.floor(rawStep) : 1;
@@ -41,6 +48,7 @@ export default async function OnboardingPage({
     <div className="nb nebula-surface nb-center">
       <Wizard
         host={host}
+        origin={origin}
         initialStep={initialStep}
         project={
           proj

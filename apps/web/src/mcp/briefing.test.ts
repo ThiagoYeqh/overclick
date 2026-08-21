@@ -13,8 +13,16 @@ const task: Task = {
   priority: "alta",
   project_id: "proj_1",
   mission_id: "miss_1",
+  commit: null,
+  delivery_unverified: false,
+  delivery_verification: null,
+  delivery_warning: null,
   workspace_id: "ws_1",
+  previous_short_ids: [],
   parent_id: null,
+  supersedes: null,
+  superseded_by: null,
+  reports_count: 0,
   o_que: "O login volta a autenticar.",
   por_que: "Ninguém entra.",
   como_confirmo: [{ step: "abre /login", expected: "entra na home" }],
@@ -24,6 +32,7 @@ const task: Task = {
   devolve_para: { kind: "workspace_queue" },
   branch: null,
   pull_request_url: null,
+  resolved_in: null,
   reopen_comment: "faltou o teste do login",
   claimed_by: null,
   created_at: "2026-08-14T12:00:00.000Z",
@@ -59,6 +68,26 @@ describe("self-contained briefing markdown", () => {
     expect(md).toContain("faltou o teste do login");
   });
 
+  it("teaches the mission orchestration usage cycle", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const md = renderBriefingMarkdown({ task, mission, branchConvention: convention });
+
+    expect(md).toContain("## Mission orchestration telemetry");
+    expect(md).toContain("mission_attempt_start");
+    expect(md).toContain("mission_report_usage");
+    expect(md).toContain('checkpoint: \"rodada\"');
+    expect(md).toContain('checkpoint: \"final\"');
+    expect(md).toContain("cumulative snapshot since the attempt started");
+    expect(md).toContain('"attempt_id": "<attempt>"');
+    expect(md).toContain("server's attempt start as the usage boundary");
+    expect(md).toContain("never send zero to mean unknown");
+    expect(md).toContain('"segments": [{"model": "gpt-5.6-sol"');
+    expect(md).toContain("estimated: true");
+    expect(md).toContain("unpriced` means the model has no price");
+    expect(md).toContain("OCL-11 marks overlapping usage");
+    expect(md).toContain("marks overlapping usage `suspect`");
+  });
+
   it("ends with the executor contract so agents know to deliver with usage", () => {
     const convention = branchConvention(task.short_id, task.title);
     const md = renderBriefingMarkdown({ task, mission, branchConvention: convention });
@@ -66,10 +95,12 @@ describe("self-contained briefing markdown", () => {
     const contractAt = md.indexOf("## Executor contract");
     expect(contractAt).toBeGreaterThan(-1);
     expect(md.slice(contractAt)).toContain(
-      "When done, call `task_deliver` with summary, evidence, branch and usage",
+      "Before `task_deliver`, create the commit and push it to the remote",
     );
+    expect(md.slice(contractAt)).toContain("summary, evidence, commit, branch and usage");
     expect(md.slice(contractAt)).toContain("segments");
     expect(md.slice(contractAt)).toContain("estimated: true");
+    expect(md.slice(contractAt)).toContain("never replace a missing model");
     // Nothing after the contract: it must be the last thing the agent reads.
     expect(md.indexOf("## ", contractAt + 1)).toBe(-1);
   });
@@ -94,6 +125,38 @@ describe("self-contained briefing markdown", () => {
     expect(md.slice(recipeAt, contractAt)).toContain("```bash");
   });
 
+  it("names the claim boundary and excludes earlier session work", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const claimedAt = "2026-08-18T12:34:56.000Z";
+    const md = renderBriefingMarkdown({
+      task,
+      mission,
+      branchConvention: convention,
+      claimedAt,
+    });
+
+    expect(md).toContain(`claimed_at: \`${claimedAt}\``);
+    expect(md).toContain("Count only work recorded at or after claimed_at");
+    expect(md).toContain("work before the claim");
+  });
+
+  it("tells a stale-claim successor to disclose the takeover on deliver", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const md = renderBriefingMarkdown({
+      task,
+      mission,
+      branchConvention: convention,
+      reclaimedStale: true,
+    });
+
+    expect(md).toContain("## Expired claim takeover");
+    expect(md).toContain("claim expired");
+    expect(md).toContain("explicitly in `task_deliver`");
+    expect(md.indexOf("## Expired claim takeover")).toBeLessThan(
+      md.indexOf("## Executor contract"),
+    );
+  });
+
   it("falls back to the generic recipe for a CLI nobody wrote one for", () => {
     const convention = branchConvention(task.short_id, task.title);
     const recipe = findUsageRecipe(factoryUsageRecipes(), "some-new-cli");
@@ -107,5 +170,69 @@ describe("self-contained briefing markdown", () => {
     // Nothing to run, so the briefing says so instead of showing an empty block.
     expect(md).toContain("(no command for this CLI yet)");
     expect(md).toContain("estimated: true");
+  });
+
+  it("lists every comment chronologically right after the contract, with the most-recent-wins rule", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const md = renderBriefingMarkdown({
+      task,
+      mission,
+      branchConvention: convention,
+      comments: [
+        {
+          author: "dono@board",
+          kind: "comment",
+          body: "cadência: 1 post por dia",
+          created_at: "2026-08-19T10:00:00.000Z",
+        },
+        {
+          author: "dono@board",
+          kind: "report",
+          body: "remove o card parcial",
+          created_at: "2026-08-19T11:00:00.000Z",
+        },
+      ],
+    });
+
+    const sectionAt = md.indexOf("## Comentários do card");
+    expect(sectionAt).toBeGreaterThan(-1);
+    expect(md).toContain(
+      "comentários abaixo alteram/refinam o contrato acima",
+    );
+    expect(md).toContain("comentário mais recente vence");
+    const firstAt = md.indexOf("cadência: 1 post por dia");
+    const secondAt = md.indexOf("remove o card parcial");
+    expect(firstAt).toBeGreaterThan(sectionAt);
+    expect(secondAt).toBeGreaterThan(firstAt);
+    expect(md.indexOf("## Comentários do card")).toBeLessThan(
+      md.indexOf("## Harness"),
+    );
+  });
+
+  it("adds no comments section when the card has none", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const md = renderBriefingMarkdown({ task, mission, branchConvention: convention, comments: [] });
+
+    expect(md).not.toContain("## Comentários do card");
+  });
+
+  it("renders the Codex measurement fallback without invented model defaults", () => {
+    const convention = branchConvention(task.short_id, task.title);
+    const recipe = findUsageRecipe(factoryUsageRecipes(), "codex");
+    const md = renderBriefingMarkdown({
+      task: {
+        ...task,
+        harness: { cli: "codex", model: "gpt-5.6-sol", effort: "high" },
+      },
+      mission,
+      branchConvention: convention,
+      recipe,
+    });
+
+    expect(md).toContain("CODEX_HARNESS_MODEL");
+    expect(md).toContain(
+      "Only a missing or unreadable rollout returns estimated: true",
+    );
+    expect(md).not.toContain('model = "unknown"');
   });
 });

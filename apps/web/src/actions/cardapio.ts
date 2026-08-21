@@ -11,10 +11,24 @@ export type CardapioInput = {
   activityType: string;
   cli: string | null;
   model: string | null;
+  /** Line of succession, best first, `model` as its head. */
+  chain?: string[] | null;
   effort: string;
 };
 
 const EFFORTS = new Set(["low", "medium", "high"]);
+
+/** The declared line, best first, without repeats and without blanks. */
+function declaredChain(entry: CardapioInput): string[] {
+  const out: string[] = [];
+  for (const name of [entry.model, ...(entry.chain ?? [])]) {
+    const trimmed = name?.trim();
+    if (!trimmed) continue;
+    if (out.some((seen) => seen.toLowerCase() === trimmed.toLowerCase())) continue;
+    out.push(trimmed);
+  }
+  return out;
+}
 
 /** Upsert of the real policy (cardapio_entry) by activity type. */
 export async function saveCardapioAction(entries: CardapioInput[]): Promise<ActionResult> {
@@ -34,13 +48,18 @@ export async function saveCardapioAction(entries: CardapioInput[]): Promise<Acti
   // when. Settings shows it next to the row.
   const updatedAt = new Date();
   for (const e of entries) {
+    const chain = declaredChain(e);
+    // One model is not a chain: null keeps the column meaningful and the row
+    // identical to what every pre-chain writer produced.
+    const stored = chain.length > 1 ? chain : null;
     await db()
       .insert(cardapioEntry)
       .values({
         workspaceId: ws.id,
         activityType: e.activityType,
         cli: e.cli || null,
-        model: e.model || null,
+        model: chain[0] ?? null,
+        chain: stored,
         effort: e.effort,
         updatedBy: session.email,
         updatedAt,
@@ -49,7 +68,8 @@ export async function saveCardapioAction(entries: CardapioInput[]): Promise<Acti
         target: [cardapioEntry.workspaceId, cardapioEntry.activityType],
         set: {
           cli: e.cli || null,
-          model: e.model || null,
+          model: chain[0] ?? null,
+          chain: stored,
           effort: e.effort,
           updatedBy: session.email,
           updatedAt,

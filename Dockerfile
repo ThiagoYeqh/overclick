@@ -24,6 +24,7 @@ RUN pnpm install --no-frozen-lockfile --filter @agent-board/web...
 COPY apps/web apps/web
 COPY packages/db packages/db
 COPY packages/mcp-core packages/mcp-core
+COPY install.sh install.sh
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

@@ -1,6 +1,7 @@
+import type React from "react";
 import type { GroupInsight } from "../../lib/insights";
 import type { InsightsCopy } from "./copy";
-import { fmtCostUsd, fmtTokens } from "./format";
+import { formatMoney, formatTokens } from "../../lib/format";
 import { trendValue, type DailyTrend } from "./trend";
 
 /**
@@ -16,7 +17,8 @@ export function TrendChart({
   t: InsightsCopy;
 }) {
   const { points, metric } = trend;
-  const fmt = metric === "cost" ? fmtCostUsd : fmtTokens;
+  const fmt =
+    metric === "cost" ? (v: number) => formatMoney(v, t.lang) : formatTokens;
   if (points.length === 0) return null;
   const first = points[0];
   const last = points[points.length - 1];
@@ -26,6 +28,7 @@ export function TrendChart({
         className="ins-trend-bars"
         role="img"
         aria-label={metric === "cost" ? t.trendCostTitle : t.trendTokensTitle}
+        style={{ "--ins-points": points.length } as React.CSSProperties}
       >
         {points.map((p) => {
           const v = trendValue(p, metric);
@@ -69,7 +72,8 @@ export function ShareBars({
   // it must not push everyone else's percentage up either.
   const value = (r: GroupInsight): number | null =>
     pricingEnabled ? r.costUsd : r.tokens;
-  const fmt = pricingEnabled ? fmtCostUsd : fmtTokens;
+  const fmt =
+    pricingEnabled ? (v: number) => formatMoney(v, t.lang) : formatTokens;
   const sum = rows.reduce((acc, r) => acc + (value(r) ?? 0), 0);
   const max = rows.reduce((acc, r) => Math.max(acc, value(r) ?? 0), 0);
   return (
