@@ -35,6 +35,10 @@ export function canTransition(
     return actor === "human";
   }
 
+  if (from === "validado" && to === "feito") {
+    return actor === "human";
+  }
+
   return false;
 }
 

@@ -17,7 +17,7 @@ export const CARD_EVENTS = [
   "validate",
   "reopen",
   "mark_revisado",
-  "force_reopen",
+  "desvalidar",
 ] as const;
 
 export type CardEventType = (typeof CARD_EVENTS)[number];
@@ -29,7 +29,7 @@ export type CardEvent =
   | { type: "validate"; actor: "human" | "agent" }
   | { type: "reopen"; comment: string }
   | { type: "mark_revisado" }
-  | { type: "force_reopen" };
+  | { type: "desvalidar"; actor: "human" | "agent" };
 
 export type CardSnapshot = {
   status: CardStatus;
@@ -39,9 +39,9 @@ export type CardSnapshot = {
 
 const VALID_EVENTS: Record<CardStatus, readonly CardEventType[]> = {
   aberto: ["claim"],
-  em_execucao: ["handoff", "force_claim", "force_reopen"],
+  em_execucao: ["handoff", "force_claim"],
   feito: ["validate", "reopen", "mark_revisado"],
-  validado: [],
+  validado: ["desvalidar"],
   descartado: [],
 };
 
@@ -66,7 +66,7 @@ const NEXT_STEP: Record<CardEventType, string> = {
   validate: "validation by a human in the board UI",
   reopen: "reopen with a comment in the board UI",
   mark_revisado: "task_update with revisado: true",
-  force_reopen: "force reopen in the board UI",
+  desvalidar: "desvalidate by a human in the board UI",
 };
 
 function invalidTransitionMessage(
@@ -100,6 +100,9 @@ export function isValidTransition(
     return false;
   }
   if (event.type === "validate" && event.actor !== "human") {
+    return false;
+  }
+  if (event.type === "desvalidar" && event.actor !== "human") {
     return false;
   }
   return VALID_EVENTS[card.status].includes(event.type);
@@ -139,6 +142,14 @@ export function applyTransition(
     );
   }
 
+  if (event.type === "desvalidar" && event.actor !== "human") {
+    return err(
+      "DESVALIDATE_HUMAN_ONLY",
+      "Only a human in the board UI can desvalidate a validated card.",
+      { from: card.status, event: event.type, actor: event.actor },
+    );
+  }
+
   switch (event.type) {
     case "claim":
       return ok({ ...card, status: "em_execucao" });
@@ -162,7 +173,7 @@ export function applyTransition(
       });
     case "mark_revisado":
       return ok({ ...card, revisado: true });
-    case "force_reopen":
-      return ok({ ...card, status: "aberto", revisado: false });
+    case "desvalidar":
+      return ok({ ...card, status: "feito" });
   }
 }
