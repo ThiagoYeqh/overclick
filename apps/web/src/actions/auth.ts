@@ -13,6 +13,11 @@ import { db } from "../lib/db";
 import { dict } from "../lib/i18n";
 import { countUsers, ensureWorkspace } from "../lib/instance";
 import {
+  clearLoginBudget,
+  loginOrigin,
+  withinLoginBudget,
+} from "../lib/login-rate-limit";
+import {
   ABSENT_USER_HASH,
   hashPassword,
   verifyPassword,
@@ -89,6 +94,17 @@ export async function loginAction(
     return { error: (await authCopy()).errCredentials };
   }
 
+  // Charged before anything below looks at whether the account exists, and
+  // by the email as submitted rather than a user id, so the refusal cannot
+  // become a second oracle for account existence on top of the one OCL-99
+  // closed. Over budget, the answer is the exact same generic message and
+  // skips verifyPassword entirely — that is the point: a drained budget
+  // must not pay for scrypt either.
+  const origin = await loginOrigin();
+  if (!(await withinLoginBudget(db(), email, origin))) {
+    return { error: (await authCopy()).errCredentials };
+  }
+
   const [found] = await db()
     .select()
     .from(user)
@@ -107,6 +123,7 @@ export async function loginAction(
     return { error: (await authCopy()).errCredentials };
   }
 
+  await clearLoginBudget(db(), email, origin);
   await setSession({
     userId: found.id,
     sessionVersion: found.sessionVersion,

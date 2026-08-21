@@ -1,6 +1,7 @@
 import { createHash, randomInt } from "node:crypto";
 import { mcpToken, pairingCode, pairingFailure } from "@agent-board/db";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
+import { clearBudget, spendBudget, spendBudgetStatement } from "./attempt-budget";
 import { generateTokenSecret, hashToken } from "../mcp/token";
 import type { McpDatabase } from "../mcp/types";
 
@@ -93,33 +94,16 @@ export function spendAttemptStatement(
   scope: string,
   now: Date,
 ) {
-  const windowFloor = new Date(now.getTime() - PAIRING_CODE_TTL_MS);
-  const floorParam = sql`${windowFloor.toISOString()}::timestamptz`;
-  const nowParam = sql`${now.toISOString()}::timestamptz`;
-
-  return db
-    .insert(pairingFailure)
-    .values({ id: scope, count: 1, windowStartedAt: now })
-    .onConflictDoUpdate({
-      target: pairingFailure.id,
-      set: {
-        count: sql`case when ${pairingFailure.windowStartedAt} < ${floorParam}
-          then 1 else ${pairingFailure.count} + 1 end`,
-        windowStartedAt: sql`case when ${pairingFailure.windowStartedAt} < ${floorParam}
-          then ${nowParam} else ${pairingFailure.windowStartedAt} end`,
-      },
-    })
-    .returning({ count: pairingFailure.count });
+  return spendBudgetStatement(db, pairingFailure, scope, now, PAIRING_CODE_TTL_MS);
 }
 
 async function spendAttempt(db: McpDatabase, scope: string): Promise<boolean> {
-  const [row] = await spendAttemptStatement(db, scope, new Date());
-  return (row?.count ?? 1) <= MAX_PAIRING_FAILURES;
+  return spendBudget(db, pairingFailure, scope, MAX_PAIRING_FAILURES, PAIRING_CODE_TTL_MS);
 }
 
 /** A successful pairing clears the budget: nobody there was guessing. */
 async function clearAttempts(db: McpDatabase, scope: string): Promise<void> {
-  await db.delete(pairingFailure).where(eq(pairingFailure.id, scope));
+  await clearBudget(db, pairingFailure, scope);
 }
 
 export async function createPairingCode(
