@@ -19,7 +19,10 @@ import {
 } from "@agent-board/db";
 import { NebulaAtmosphere } from "../../components/nebula-atmosphere";
 import { UpdateBanner } from "../../components/update-banner";
-import { resolveBoardFilter } from "../../lib/board-filter";
+import {
+  releaseValueOptions,
+  resolveBoardFilter,
+} from "../../lib/board-filter";
 import { loadBoardTotals } from "../../lib/board-totals-query";
 import { getSession } from "../../lib/cookies";
 import { db } from "../../lib/db";
@@ -657,8 +660,10 @@ export default async function HomePage() {
       and(eq(project.workspaceId, ws.id), isNotNull(task.resolvedIn)),
     )
     .orderBy(desc(task.resolvedIn));
-  const releases = releaseRows.flatMap((row) =>
-    row.value ? [{ value: row.value }] : [],
+  // Only the values that name a release. A delivery that stamped resolved_in
+  // with its branch used to hand that branch to the RELEASE filter (OCL-128).
+  const releases = releaseValueOptions(
+    releaseRows.flatMap((row) => (row.value ? [{ value: row.value }] : [])),
   );
 
   const [me] = await db()
