@@ -688,14 +688,12 @@ function CopyButton({ label, value, t }: { label: string; value: string; t: Dict
 }
 
 /**
- * A section title of the detail panel, with the mark of what the section
- * holds (AGB-73).
+ * A section title of the detail panel.
  *
  * Ten sections stacked in one panel all announced themselves in the same
- * ten-pixel uppercase mono, which meant finding the branch was reading every
- * title in order. The mark gives each one a silhouette, so the eye jumps
- * instead of reading. It is decorative by construction: the word next to it
- * is the section's name and a reader hearing both would hear it twice.
+ * ten-pixel uppercase mono. The spec (ux-v2 §3) now makes them 11px/600
+ * uppercase text-3: the hierarchy comes from weight and colour, not from
+ * decorative marks.
  *
  * `right` is what the title line carries on its far side, which today is the
  * validation progress and nothing else.
@@ -711,10 +709,7 @@ function SectionLabel({
 }) {
   return (
     <div className="lbl">
-      <span className="lbl-name">
-        <Icon name={icon} label={null} size={13} className="icon-muted" />
-        <span>{text}</span>
-      </span>
+      <span className="lbl-name">{text}</span>
       {right}
     </div>
   );
@@ -1112,7 +1107,7 @@ function Detail({
   return (
     <div className="ov" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div
-        className="detail nebula-glass nebula-corners"
+        className="detail nebula-glass"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
