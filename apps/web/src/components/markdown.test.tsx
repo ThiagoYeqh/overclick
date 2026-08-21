@@ -5,7 +5,7 @@ import { Markdown } from "./markdown";
 describe("markdown renderer", () => {
   it("renders bold", () => {
     const html = renderToStaticMarkup(<Markdown text="A **negrito** simples" />);
-    expect(html).toContain("<strong>negrito</strong>");
+    expect(html).toContain("<strong class=\"md-strong\">negrito</strong>");
     expect(html).not.toContain("**");
   });
 
@@ -19,7 +19,7 @@ describe("markdown renderer", () => {
     const html = renderToStaticMarkup(
       <Markdown text={"- primeiro\n- segundo"} />,
     );
-    expect(html).toContain("<ul>");
+    expect(html).toContain("<ul class=\"md-list\">");
     expect(html).toContain("<li>primeiro</li>");
     expect(html).toContain("<li>segundo</li>");
   });

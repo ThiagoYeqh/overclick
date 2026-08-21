@@ -73,6 +73,7 @@ export const KNOWN_TYPE_RAMP_EXCEPTIONS: { file: string; selector: string; value
   { file: "styles/nebula.css", selector: ".nb .d-verify-lbl", value: "9.5px" },
   { file: "styles/nebula.css", selector: ".nb .detail h3", value: "18px" },
   { file: "styles/nebula.css", selector: ".nb .detail h3", value: "20px" },
+  { file: "styles/nebula.css", selector: ".nb .sk-detail h3", value: "20px" },
   { file: "styles/nebula.css", selector: ".nb .empty-col", value: "11.5px" },
   { file: "styles/nebula.css", selector: ".nb .exec .check", value: "10px" },
   { file: "styles/nebula.css", selector: ".nb .exec .logo", value: "10px" },
