@@ -425,17 +425,24 @@ export function HomeShell({
                 {t.board.clearFilters}
               </button>
             ) : null}
-            <button
-              className={`btn-ghost move-btn${picking ? " on" : ""}`}
-              type="button"
-              onClick={() => {
-                setFiltersOpen(false);
-                if (picking) stopPicking();
-                else setPicking(true);
-              }}
-            >
-              {picking ? t.board.cancelSelection : t.board.moveToMission}
-            </button>
+            {/* ux-v2 §3: "Mover para missão" appears only with cards
+                selected, right-aligned — an impossible action with nothing
+                picked has no reason to sit on the bar (OCL-86). The trigger
+                for entering picking mode is a separate concern outside this
+                card's scope; `selected` is the real precondition. */}
+            {selected.length > 0 ? (
+              <button
+                className={`btn-ghost move-btn${picking ? " on" : ""}`}
+                type="button"
+                onClick={() => {
+                  setFiltersOpen(false);
+                  if (picking) stopPicking();
+                  else setPicking(true);
+                }}
+              >
+                {picking ? t.board.cancelSelection : t.board.moveToMission}
+              </button>
+            ) : null}
           </div>
           <button
             className="filters-btn"

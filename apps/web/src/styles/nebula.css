@@ -868,7 +868,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .topbar-l1 .state-chip,
 .nb .topbar-l1 .am-trigger,
 .nb .topbar-l2 .pf-trigger,
-.nb .topbar-l2 .mf-chip,
+.nb .topbar-l2 .mf-trigger,
 .nb .topbar-l2 .ff-trigger,
 .nb .topbar-l2 .filters-btn,
 .nb .topbar-l2 .btn-ghost {
@@ -888,7 +888,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .topbar-l1 .state-chip:hover,
 .nb .topbar-l1 .am-trigger:hover,
 .nb .topbar-l2 .pf-trigger:hover,
-.nb .topbar-l2 .mf-chip:hover,
+.nb .topbar-l2 .mf-trigger:hover,
 .nb .topbar-l2 .ff-trigger:hover,
 .nb .topbar-l2 .filters-btn:hover,
 .nb .topbar-l2 .btn-ghost:hover {
@@ -916,8 +916,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 /* an applied filter reads as text-1 with the count badge, never as a
    colour of its own */
-.nb .topbar-l2 .ff-trigger.on,
-.nb .topbar-l2 .mf-chip.on { color: var(--nebula-text-primary); }
+.nb .topbar-l2 .ff-trigger.on { color: var(--nebula-text-primary); }
 .nb .topbar-l2 .badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
@@ -928,11 +927,21 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .topbar-l2 .ff-query-badge {
   max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* the mission chip is the bordered control; the trigger inside it stays
-   bare so the whole chip is the hit area */
-.nb .topbar-l2 .mf-trigger, .nb .topbar-l2 .mf-clear {
-  font: inherit; letter-spacing: inherit; color: inherit;
+/* the trigger itself is the bordered control (ux-v2 §3, OCL-86): the chip
+   div is a bare flex wrapper so trigger and clear sit side by side without
+   drawing a second box around the anatomy above. */
+.nb .topbar-l2 .mf-chip {
+  border: 0; border-radius: 0; padding: 0; background: transparent;
 }
+.nb .topbar-l2 .mf-chip.on .mf-trigger,
+.nb .topbar-l2 .mf-chip.on .mf-clear {
+  color: var(--nebula-text-primary);
+}
+.nb .topbar-l2 .mf-chip.on .mf-trigger {
+  border-color: var(--oc-border-strong);
+  background: var(--oc-surface-hover);
+}
+.nb .topbar-l2 .mf-clear { color: var(--nebula-text-secondary); }
 .nb .topbar-l2 .pf-trigger svg,
 .nb .topbar-l2 .mf-trigger svg,
 .nb .topbar-l2 .ff-trigger svg { flex: none; }
