@@ -222,10 +222,15 @@ def at_or_after_claim(entry):
     if value is None:
         return False
     try:
-        at = datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         claim = datetime.datetime.fromisoformat(claimed_at.replace("Z", "+00:00"))
+        # Grok's own "timestamp" is epoch seconds, not ISO text like the
+        # other CLIs; only strings go through fromisoformat.
+        if isinstance(value, (int, float)):
+            at = datetime.datetime.fromtimestamp(value, tz=datetime.timezone.utc)
+        else:
+            at = datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         return at >= claim
-    except ValueError:
+    except (ValueError, OSError, OverflowError):
         return False
 
 seg, turns = collections.defaultdict(collections.Counter), 0
@@ -297,14 +302,25 @@ logs = sorted(glob.glob(os.path.join(path, "agents", "*", "wire.jsonl")))
 def at_or_after_claim(entry):
     if not claimed_at:
         return True
-    value = entry.get("timestamp") or entry.get("created_at") or entry.get("createdAt")
+    # Kimi's wire.jsonl stamps every record with "time", not "timestamp" or
+    # any of the other CLIs' created_at/createdAt spellings.
+    value = (
+        entry.get("timestamp")
+        or entry.get("created_at")
+        or entry.get("createdAt")
+        or entry.get("time")
+    )
     if value is None:
         return False
     try:
-        at = datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         claim = datetime.datetime.fromisoformat(claimed_at.replace("Z", "+00:00"))
+        # "time" is epoch milliseconds, not ISO text like the other fields.
+        if isinstance(value, (int, float)):
+            at = datetime.datetime.fromtimestamp(value / 1000, tz=datetime.timezone.utc)
+        else:
+            at = datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         return at >= claim
-    except ValueError:
+    except (ValueError, OSError, OverflowError):
         return False
 
 seg, turns = collections.defaultdict(collections.Counter), 0
