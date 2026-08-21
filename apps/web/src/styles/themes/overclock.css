@@ -199,6 +199,10 @@
   --oc-btn-account-border: var(--oc-border);
   --oc-btn-account-blur: 12px;
 
+  /* ---------- touch ---------- */
+  --oc-tap: 44px;
+  --oc-tap-min: 24px;
+
   /* ---------- focus ---------- */
   --oc-focus-ring: 0 0 0 2px rgb(var(--oc-accent-rgb) / 0.65);
   --oc-focus-ring-offset: 0 0 0 4px rgb(var(--oc-black-rgb) / 0.55), var(--oc-focus-ring);

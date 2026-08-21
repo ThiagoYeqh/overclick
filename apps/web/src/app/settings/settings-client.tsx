@@ -541,7 +541,7 @@ export function SettingsClient({
                       <b>{s.cli}</b> · {s.model}
                       <small>{t.settings.connections(s.count)}</small>
                       <button
-                        className="seen-add"
+                        className="seen-add oc-tappable"
                         disabled={pending}
                         onClick={() => addSeen(s)}
                       >
@@ -684,7 +684,7 @@ export function SettingsClient({
                 {pendingRanModels.map((model) => (
                   <span key={model} className="seen-chip">
                     <b>{model}</b>
-                    <button className="seen-add" onClick={() => addPriceRow(model)}>
+                    <button className="seen-add oc-tappable" onClick={() => addPriceRow(model)}>
                       {t.settings.add}
                     </button>
                   </span>
@@ -756,7 +756,7 @@ export function SettingsClient({
                       </>
                     )}
                     {addedModels.includes(row.label) ? (
-                      <button className="seen-add" onClick={() => removePriceRow(i)}>
+                      <button className="seen-add oc-tappable" onClick={() => removePriceRow(i)}>
                         {t.settings.priceRemove}
                       </button>
                     ) : null}
@@ -777,7 +777,7 @@ export function SettingsClient({
                   .map((model) => (
                     <span key={model} className="seen-chip">
                       <b>{model}</b>
-                      <button className="seen-add" onClick={() => addPriceRow(model)}>
+                      <button className="seen-add oc-tappable" onClick={() => addPriceRow(model)}>
                         {t.settings.add}
                       </button>
                     </span>

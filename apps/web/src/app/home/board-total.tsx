@@ -174,7 +174,7 @@ export function BoardTotal({
 
   if (totals.attempts === 0) {
     return (
-      <a className="board-total" href={parts.href} title={parts.title}>
+      <a className="board-total oc-tappable" href={parts.href} title={parts.title}>
         <span className="bt-none">{t.board.totalNone}</span>
       </a>
     );
@@ -184,7 +184,7 @@ export function BoardTotal({
     <div className="board-total-wrap" ref={root}>
       <button
         type="button"
-        className="board-total"
+        className="board-total oc-tappable"
         title={parts.title}
         aria-haspopup="dialog"
         aria-expanded={open}

@@ -75,10 +75,10 @@ export function UpdateBanner({
           </a>
         )}
         <div className="spacer" />
-        <button className="btn-ghost" onClick={() => setHidden(true)}>
+        <button className="btn-ghost oc-tappable" onClick={() => setHidden(true)}>
           {t.updates.dismiss}
         </button>
-        <button className="btn-new" disabled={pending || requested} onClick={onUpdate}>
+        <button className="btn-new oc-tappable" disabled={pending || requested} onClick={onUpdate}>
           {t.updates.updateBtn}
         </button>
       </div>

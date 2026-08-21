@@ -178,6 +178,10 @@
   --oc-btn-account-border: var(--oc-border);
   --oc-btn-account-blur: 0px;
 
+  /* ---------- touch ---------- */
+  --oc-tap: 44px;
+  --oc-tap-min: 24px;
+
   /* ---------- focus ----------
      Doctrine §1: the focus ring keeps its current values. It is the one
      thing that must not get quieter. */

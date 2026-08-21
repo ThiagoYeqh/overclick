@@ -918,7 +918,7 @@ function DetailActions({
             {card.claimStale ? ` · ${t.detail.claimExpired}` : ""}
           </span>
           <button
-            className="d-btn-sec"
+            className="d-btn-sec oc-tappable"
             disabled={pending}
             onClick={release}
             title={t.detail.releaseClaimTitle}
@@ -967,10 +967,10 @@ function DetailActions({
         />
         {err ? <p className="d-err">{err}</p> : null}
         <div className="d-actions-row">
-          <button className="d-btn-sec" disabled={pending} onClick={() => { setReopening(false); setErr(null); }}>
+          <button className="d-btn-sec oc-tappable" disabled={pending} onClick={() => { setReopening(false); setErr(null); }}>
             {t.detail.cancel}
           </button>
-          <button className="d-btn-pri" disabled={pending || !comment.trim()} onClick={reopen}>
+          <button className="d-btn-pri oc-tappable" disabled={pending || !comment.trim()} onClick={reopen}>
             {pending ? t.detail.reopening : t.detail.reopen}
           </button>
         </div>
@@ -984,7 +984,7 @@ function DetailActions({
       <div className="d-actions-row">
         {!allTicked ? (
           <button
-            className="d-btn-ghost"
+            className="d-btn-ghost oc-tappable"
             disabled={pending}
             onClick={() => validate(true)}
             title={t.detail.validateAnywayTitle}
@@ -992,11 +992,11 @@ function DetailActions({
             {t.detail.validateAnyway}
           </button>
         ) : null}
-        <button className="d-btn-sec" disabled={pending} onClick={() => setReopening(true)}>
+        <button className="d-btn-sec oc-tappable" disabled={pending} onClick={() => setReopening(true)}>
           {t.detail.reopenWithComment}
         </button>
         <button
-          className="d-btn-pri"
+          className="d-btn-pri oc-tappable"
           disabled={pending || !allTicked}
           title={allTicked ? undefined : t.detail.validateDisabledTitle}
           onClick={() => validate(false)}

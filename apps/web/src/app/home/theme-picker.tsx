@@ -49,7 +49,7 @@ export function ThemePicker({ t }: { t: Dict }) {
             type="button"
             role="menuitemradio"
             aria-checked={theme === value}
-            className={theme === value ? "am-theme-opt on" : "am-theme-opt"}
+            className={theme === value ? "am-theme-opt on oc-tappable" : "am-theme-opt oc-tappable"}
             onClick={() => choose(value)}
           >
             {t.board.themeName[value]}

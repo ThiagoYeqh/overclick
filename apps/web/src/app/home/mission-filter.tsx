@@ -137,7 +137,7 @@ export function MissionFilter({
       <div className={`filter-chip mf-chip${value ? " on" : ""}`}>
         <button
           type="button"
-          className="mf-trigger"
+          className="mf-trigger oc-tappable"
           aria-label={t.board.missionFilter}
           aria-haspopup="listbox"
           aria-expanded={open}
