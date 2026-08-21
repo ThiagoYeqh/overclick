@@ -14,6 +14,11 @@
    moves a box, so switching to it changes zero layout (checklist item 14).
    ============================================================ */
 
+/*
+   EXEMPTIONS — Tier-2 divergences declared per A2 (OCL-88, docs/design/amendments.md).
+   - none: xai is the reference implementation and passes every Tier-2 rule.
+*/
+
 [data-theme="xai"] {
   /* ---------- colour families ----------
      One accent, and it is white. `--oc-ok` and `--oc-danger` are the

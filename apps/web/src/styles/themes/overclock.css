@@ -25,7 +25,8 @@
      --oc-border-hover    ← --color-faint     #4b5563
      --oc-border-strong   ← --border-brand-2  rgba(239,68,68,0.40)
      --oc-ok              ← --status-online   #22c55e
-     --oc-danger          ← --status-error    #ef4444
+     --oc-danger-rgb      ← promoted from --oc-danger-deep-rgb 127 29 29
+                            (was --status-error #ef4444; U1 requires accent ≠ danger)
      --oc-warn            ← --status-warn     #facc15
      --oc-warn-pip        ← --status-busy     #eab308
      --oc-star-far        ← --status-idle     #6b7280
@@ -50,13 +51,44 @@
    that moves a box (checklist item 14).
    ============================================================ */
 
+/*
+   EXEMPTIONS — Tier-2 divergences declared per A2 (OCL-88, docs/design/amendments.md).
+   These values are intentionally not the xai reference implementation;
+   they are the product identity of the Overclock app.
+   - --oc-radius-pill: 999px
+        → Tier-2 rule: radius family including pills
+        → source: overclock-app --r-pill
+   - --oc-font-label: var(--oc-font-data)
+        → Tier-2 rule: label face (mono as the UI voice)
+        → source: overclock-app body { font-family: var(--font-mono) };
+          bundle header says "Mono only"
+   - --oc-tag-feature-fg: #22d3ee
+        → Tier-2 rule: tag foreground colours
+        → source: overclock-app --agent-scout
+   - --oc-tag-rfc-fg: #8b5cf6
+        → Tier-2 rule: tag foreground colours
+        → source: overclock-app --agent-reviewer
+   - --oc-plan-glow: red atmospheric haze
+        → Tier-2 rule: decorative glow
+        → source: overclock-app --glow-red-sm
+   - --oc-warn: #facc15
+        → Tier-2 rule: extra semantic colours
+        → source: overclock-app --status-warn
+   - --oc-info: #06b6d4
+        → Tier-2 rule: extra semantic colours
+        → source: overclock-app --info
+   - gray ladder carries blue-slate hue (#1f2937, #4b5563, #6b7280, #9ca3af)
+        → Tier-2 rule: hue of the gray ladder
+        → source: overclock-app slate grays
+*/
+
 [data-theme="overclock"] {
   /* ---------- colour families ---------- */
   --oc-black-rgb: 0 0 0;
   --oc-white-rgb: 255 255 255;
   --oc-accent-rgb: 239 68 68;
   --oc-ok-rgb: 34 197 94;
-  --oc-danger-rgb: 239 68 68;
+  --oc-danger-rgb: 127 29 29;
   --oc-danger-deep-rgb: 127 29 29;
   --oc-info-rgb: 6 182 212;
   --oc-warn-rgb: 250 204 21;
@@ -92,7 +124,7 @@
   /* ---------- borders ---------- */
   --oc-border: #1f2937;
   --oc-border-hover: #4b5563;
-  --oc-border-strong: rgb(var(--oc-accent-rgb) / 0.4);
+  --oc-border-strong: #4b5563;
   --oc-border-dashed: #1f2937;
   --oc-divider: rgb(var(--oc-white-rgb) / 0.05);
 
@@ -116,7 +148,7 @@
 
   /* ---------- status ---------- */
   --oc-ok: #22c55e;
-  --oc-danger: #ef4444;
+  --oc-danger: rgb(var(--oc-danger-rgb));
   --oc-info: #06b6d4;
   --oc-warn: #facc15;
   --oc-warn-pip: #eab308;
@@ -200,7 +232,7 @@
   --oc-btn-account-blur: 12px;
 
   /* ---------- focus ---------- */
-  --oc-focus-ring: 0 0 0 2px rgb(var(--oc-accent-rgb) / 0.65);
+  --oc-focus-ring: 0 0 0 2px rgb(209 217 235 / 0.55);
   --oc-focus-ring-offset: 0 0 0 4px rgb(var(--oc-black-rgb) / 0.55), var(--oc-focus-ring);
-  --oc-focus-ring-inset: inset 0 0 0 2px rgb(var(--oc-accent-rgb) / 0.65);
+  --oc-focus-ring-inset: inset 0 0 0 2px rgb(209 217 235 / 0.55);
 }
