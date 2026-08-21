@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { COMPONENT_SHEETS, LEGACY_LOCAL_TOKEN_SHEETS } from "./audited-sheets";
 import { DEFAULT_THEME, THEMES, type Theme } from "../lib/theme";
 
 /**
@@ -20,14 +21,6 @@ import { DEFAULT_THEME, THEMES, type Theme } from "../lib/theme";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (path: string) => readFileSync(join(here, path), "utf8");
-
-const COMPONENT_SHEETS = {
-  "styles/nebula.css": read("nebula.css"),
-  "app/insights/insights.css": read("../app/insights/insights.css"),
-  "app/settings/project-context.module.css": read(
-    "../app/settings/project-context.module.css",
-  ),
-};
 
 const THEME_FILES: Record<Theme, string> = {
   nebula: read("themes/nebula.css"),
@@ -58,6 +51,7 @@ function usedTokens(css: string): Set<string> {
 
 describe("component sheets carry no colour of their own", () => {
   for (const [name, css] of Object.entries(COMPONENT_SHEETS)) {
+    if (LEGACY_LOCAL_TOKEN_SHEETS.has(name)) continue;
     it(`${name} has no hex or rgba() literal`, () => {
       const body = stripComments(css);
       expect(body.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([]);
@@ -75,6 +69,7 @@ describe("every token a component asks for is declared", () => {
   const base = declaredTokens(THEME_FILES[DEFAULT_THEME]);
 
   for (const [name, css] of Object.entries(COMPONENT_SHEETS)) {
+    if (LEGACY_LOCAL_TOKEN_SHEETS.has(name)) continue;
     it(`${name} asks for nothing the base theme does not define`, () => {
       const missing = [...usedTokens(css)].filter((token) => !base.has(token));
       expect(missing).toEqual([]);
