@@ -20,6 +20,7 @@ export const KNOWN_TYPE_RAMP_EXCEPTIONS: { file: string; selector: string; value
   { file: "app/globals.css", selector: "h1", value: "28px" },
   // app/insights/insights.css
   { file: "app/insights/insights.css", selector: ".nb .ins-cap-note", value: "10px" },
+  { file: "app/insights/insights.css", selector: ".nb .ins-legend", value: "10px" },
   { file: "app/insights/insights.css", selector: ".nb .ins-cid", value: "10.5px" },
   { file: "app/insights/insights.css", selector: ".nb .ins-empty-title", value: "15px" },
   { file: "app/insights/insights.css", selector: ".nb .ins-foot", value: "10px" },

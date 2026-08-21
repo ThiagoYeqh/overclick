@@ -79,7 +79,7 @@ export function ExecutorsGrid({
               {models.map((m) => (
                 <span
                   key={m}
-                  className={`mchip${selected.includes(m) ? " on" : ""}`}
+                  className={`mchip${selected.includes(m) ? " on" : ""} oc-tappable`}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleModel(def.id, m);

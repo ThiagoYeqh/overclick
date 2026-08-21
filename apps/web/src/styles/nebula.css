@@ -141,8 +141,9 @@
   --nebula-focus-ring-offset: var(--oc-focus-ring-offset);
 
   /* ---------- Alvo de toque ----------
-     44px is the floor for anything a thumb has to hit. Density is bought
-     from padding and font size, never from the target. */
+     44px is the coarse-pointer hit floor; 24px is the universal minimum
+     (WCAG 2.2 SC 2.5.8). Neither is a visual height — the .oc-tappable
+     utility grows the hit area without moving the box (ux-v2 §3, A1). */
   --nebula-tap: var(--oc-tap);
 
   /* ---------- Motion ---------- */
@@ -173,6 +174,75 @@
   letter-spacing: var(--nebula-tracking-wide);
   color: var(--nebula-text-secondary);
 }
+.nebula-cursor {
+  display: inline-block;
+  width: 0.6em;
+}
+
+/* ---------- touch floor utility (A1) ----------
+   Grows the hit target without growing the drawn box. The pseudo-element
+   paints nothing; it inherits pointer-events from the control it rides on,
+   so a tap on the expanded area is a tap on the control.
+
+   The expanded selector list covers controls whose markup cannot easily
+   carry the utility class; components that can add it explicitly do so. */
+.oc-tappable,
+.nb .btn-back,
+.nb .btn-next,
+.nb .btn-new,
+.nb .btn-ghost,
+.nb .btn-rev,
+.nb .skip,
+.nb .settabs button,
+.nb .ff-search-clear,
+.nb .d-close,
+.nb .upd-toggle,
+.nb .ins-empty-cta,
+.nb-auth .btn-next {
+  position: relative;
+}
+
+.oc-tappable::after,
+.nb .btn-back::after,
+.nb .btn-next::after,
+.nb .btn-new::after,
+.nb .btn-ghost::after,
+.nb .btn-rev::after,
+.nb .skip::after,
+.nb .settabs button::after,
+.nb .ff-search-clear::after,
+.nb .d-close::after,
+.nb .upd-toggle::after,
+.nb .ins-empty-cta::after,
+.nb-auth .btn-next::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: max(100%, var(--oc-tap-min));
+  height: max(100%, var(--oc-tap-min));
+}
+
+@media (pointer: coarse) {
+  .oc-tappable::after,
+  .nb .btn-back::after,
+  .nb .btn-next::after,
+  .nb .btn-new::after,
+  .nb .btn-ghost::after,
+  .nb .btn-rev::after,
+  .nb .skip::after,
+  .nb .settabs button::after,
+  .nb .ff-search-clear::after,
+  .nb .d-close::after,
+  .nb .upd-toggle::after,
+  .nb .ins-empty-cta::after,
+  .nb-auth .btn-next::after {
+    width: max(100%, var(--oc-tap));
+    height: max(100%, var(--oc-tap));
+  }
+}
+
 .nebula-cursor {
   display: inline-block;
   width: 0.6em;
@@ -778,6 +848,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    a second line. Each option follows the Control anatomy (32px, 8px radius,
    13px UI face) so the picker reads as part of the same control family. */
 .nb .am-theme-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+@media (pointer: coarse) {
+  .nb .am-theme-opts { gap: var(--oc-space-2); }
+}
 .nb .am-theme-opt {
   display: flex; align-items: center; justify-content: center;
   min-height: 32px; padding: 0 8px;
@@ -1881,7 +1954,19 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb .exec.on .check { background: var(--nebula-mist-glow); border-color: var(--nebula-mist-glow); color: var(--oc-accent-contrast); }
 .nb .exec .models { max-height: 0; overflow: hidden; transition: max-height .2s ease-out, margin .2s; display: flex; gap: 6px; flex-wrap: wrap; }
 .nb .exec.on .models { max-height: 90px; margin-top: 10px; }
-.nb .mchip { font-family: var(--nebula-font-label); font-size: 10px; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); padding: 3px 9px; color: var(--nebula-text-secondary); cursor: pointer; transition: all .15s; }
+@media (pointer: coarse) {
+  .nb .exec.on .models { max-height: 160px; }
+  .nb .exec .models { gap: var(--oc-space-2); }
+}
+.nb .mchip {
+  font-family: var(--nebula-font-label); font-size: 10px; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); padding: 3px 9px; color: var(--nebula-text-secondary); cursor: pointer; transition: all .15s;
+  /* A1 exception: the chip lives inside .models, which clips for the
+     max-height animation, so the control itself grows to the floor. */
+  min-height: var(--oc-tap-min);
+}
+@media (pointer: coarse) {
+  .nb .mchip { min-height: var(--oc-tap); }
+}
 .nb .mchip.on { background: rgb(var(--oc-accent-rgb) / .14); border-color: var(--oc-border-strong); color: var(--nebula-mist-glow); }
 .nb .mchip .x { margin-left: 6px; opacity: .5; transition: opacity .15s; }
 .nb .mchip .x:hover { opacity: 1; }
@@ -1984,8 +2069,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 }
 .nb .wbtns-end { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .nb .btn-back, .nb .btn-next, .nb .skip {
-  /* the three actions of the screen: each one a thumb-sized target */
-  min-height: var(--nebula-tap);
+  /* the three actions of the screen: hit area grows via the A1 utility */
   display: inline-flex; align-items: center; justify-content: center;
 }
 .nb .btn-back { background: none; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-pill); color: var(--nebula-text-secondary); font-size: 12.5px; padding: 8px 18px; cursor: pointer; white-space: nowrap; }
@@ -2029,9 +2113,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   font-family: var(--nebula-font-label); font-size: 11px;
   letter-spacing: .08em; text-transform: uppercase;
   color: var(--nebula-text-tertiary);
-  /* the target is the whole tab, not the glyphs: 44px tall on a phone,
-     bought back from the strip's own height on the desktop */
-  min-height: var(--nebula-tap);
+  /* the target is the whole tab; the A1 utility grows it on a phone */
   padding: 0 0 9px; border-bottom: 1px solid transparent; margin-bottom: -1px;
   white-space: nowrap; cursor: pointer;
   transition: color .15s, border-color .15s;
@@ -2482,14 +2564,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   /* the one button level 2 keeps for the filters that left it; the panel
      hangs off the level, which sits inside the sticky wrap */
   .nb .filters-btn { display: inline-flex; }
-  /* On a phone every remaining control is hit with a thumb, so the 32px of
-     the Control anatomy gives way to the 44px floor (ux-v2 checklist 12).
-     There are three of them left at this width — Filtros, the stat and the
-     account menu — and the height is bought back from the level's own
-     padding, never from the target. */
-  .nb .topbar-l2 .filters-btn,
-  .nb .topbar-l1 .am-trigger,
-  .nb .topbar-l1 .board-total { min-height: var(--nebula-tap); height: auto; }
+  /* On a phone the remaining controls keep the Control anatomy (32px drawn)
+     and the A1 utility grows their hit area to 44px without moving the box. */
   .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: var(--oc-z-backdrop); }
   /* the panel behind the button: same controls, same order, one per row */
   .nb .topbar-more { display: none; }
@@ -2506,9 +2582,6 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .topbar-more .crumb { align-self: stretch; }
   .nb .topbar-more .pf-label { max-width: none; }
   .nb .topbar-more .btn-ghost { display: flex; align-items: center; width: 100%; text-align: left; }
-  .nb .topbar-more.open .filter-chip,
-  .nb .topbar-more.open .pf-trigger,
-  .nb .topbar-more.open .btn-ghost { min-height: var(--nebula-tap); }
   .nb .topbar-more .mission-filter { max-width: none; }
   .nb .topbar-more .mf-label { max-width: none; }
   .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
@@ -2521,9 +2594,9 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     padding: 16px 16px max(16px, env(safe-area-inset-bottom));
     border-radius: var(--oc-radius-sheet) var(--oc-radius-sheet) 0 0;
   }
-  .nb .ff-search-row { min-height: var(--nebula-tap); }
-  .nb .ff-search { min-height: calc(var(--nebula-tap) - 2px); }
-  .nb .ff-search-clear { width: var(--nebula-tap); height: var(--nebula-tap); }
+  .nb .ff-search-row { min-height: 44px; }
+  .nb .ff-search { min-height: 42px; }
+  .nb .ff-search-clear { width: 44px; height: 44px; }
   .nb .topbar-more .filter-result { align-self: flex-start; }
   /* the state chips are gone at this width — they folded into the account
      menu at 1100px — so there is nothing left here to shrink */
@@ -2728,7 +2801,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
     position: fixed; z-index: var(--oc-z-content);
     top: calc(12px + env(safe-area-inset-top, 0px));
     right: calc(12px + env(safe-area-inset-right, 0px));
-    width: var(--nebula-tap, 44px); height: var(--nebula-tap, 44px);
+    width: 44px; height: 44px;
     font-size: 15px;
     background: var(--nebula-panel-solid);
   }
@@ -2736,11 +2809,11 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   /* stacked and full width, the deciding button last where the thumb is */
   .nb .d-actions-row { flex-direction: column; align-items: stretch; }
   .nb .d-btn-pri, .nb .d-btn-sec, .nb .d-btn-ghost {
-    min-height: var(--nebula-tap, 44px); text-align: center; margin-right: 0;
+    text-align: center; margin-right: 0;
   }
   .nb .d-copy { min-height: 38px; display: inline-flex; align-items: center; }
   /* the column switcher is a control a thumb hits, so it takes the floor */
-  .nb .ml-head { min-height: var(--nebula-tap, 44px); }
+  .nb .ml-head { min-height: 44px; }
   .nb .ml-row .card-pick { width: 20px; height: 20px; }
 }
 
@@ -2873,7 +2946,6 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 .nb-auth .field:last-of-type { margin-bottom: 4px; }
 .nb-auth .btn-next {
   width: 100%; margin-top: 14px;
-  min-height: var(--nebula-tap);
 }
 /* An error belongs beside the thing that failed, not at the bottom of the
    screen, and it keeps its own line so the button never shifts under a
@@ -2958,21 +3030,20 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .tok { flex-wrap: wrap; gap: 2px 12px; padding: 10px 14px; }
   .nb .tok .meta { flex: 1 1 100%; }
   .nb .tok .val { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nb .btn-rev { flex: none; min-height: var(--nebula-tap); padding: 5px 16px; }
+  .nb .btn-rev { flex: none; padding: 5px 16px; }
 
   /* the generate row is a column: a 320px input in a 358px screen leaves no
      room for the two buttons beside it */
   .nb .gen-row { flex-wrap: wrap; }
   .nb .gen-row .input { flex: 1 1 100%; max-width: none !important; }
-  .nb .gen-row .btn-new { flex: 1 1 auto; min-height: var(--nebula-tap); }
-  .nb .save-row .btn-new { min-height: var(--nebula-tap); }
+  .nb .gen-row .btn-new { flex: 1 1 auto; }
+  .nb .save-row .btn-new { }
 
   /* the suggestion chip becomes the row it always wanted to be, which is
      what buys its button the full target without inflating the desktop */
   .nb .seen-row { flex-direction: column; align-items: stretch; }
   .nb .seen-chip { justify-content: space-between; padding: 8px 8px 8px 14px; }
-  .nb .seen-chip .seen-add { min-height: var(--nebula-tap); }
-  .nb .seen-row > .btn-new { min-height: var(--nebula-tap); }
+  .nb .seen-row > .btn-new { }
 
   /* the executors grid: three cards across a phone is three cards nobody can
      read the name of */
@@ -3004,7 +3075,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
 
 /* Checkbox and radio rows are controls, not paragraphs: the whole row is the
    target, at every width, and the box itself carries the system's accent. */
-.nb .upd-toggle { min-height: var(--nebula-tap); padding: 4px 0; }
+.nb .upd-toggle { padding: 4px 0; }
 .nb .upd-toggle input { width: 16px; height: 16px; margin-top: 2px; }
 .nb .upd-toggle input:focus-visible { outline: none; box-shadow: var(--nebula-focus-ring-offset); border-radius: var(--oc-radius-control-sm); }
 

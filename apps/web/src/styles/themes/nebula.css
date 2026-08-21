@@ -257,6 +257,7 @@
      44px is the floor for anything a thumb has to hit. Density is bought
      from padding and font size, never from the target. */
   --oc-tap: 44px;
+  --oc-tap-min: 24px;
 
   /* ---------- layers (OCL-59) ----------
      The one ladder the board stacks on. Before this, every panel picked its
