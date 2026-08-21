@@ -2406,33 +2406,13 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    ============================================================ */
 
 /* ============================================================
-   THE COLUMNS UNDER PRESSURE (OCL-24)
+   THE COLUMNS UNDER PRESSURE (OCL-24 / OCL-124)
 
-   One step between the full four-column board and the phone list, in step
-   with the bar: the moment the controls move behind the menu button
-   (1199px), four fluid columns can no longer hold a card's smallest reading
-   width, and squeezing them further would trade the title for an ellipsis.
-   So the columns stop shrinking and the board itself scrolls sideways: each
-   column keeps a floor it can be read at, the snap lands the scroll on a
-   column instead of between two, and the column head rides with its column,
-   so the review column is always one gesture away instead of clipped off
-   the edge. At 769px the phone list takes over, so no width between the two
-   layouts is left without one. The scrollbar stays visible on purpose: it is
-   the only sign that there is a fourth column to reach.
+   Between the full desktop board and the phone list the columns stay fluid:
+   five proportional columns shrink to fit the viewport instead of forcing a
+   horizontal scroll. The phone list takes over at 768px, so every width above
+   that sees all columns at once — no snap-scroll, no overflow-x.
    ============================================================ */
-@media (min-width: 769px) and (max-width: 1199px) {
-  .nb .board {
-    /* 4×232px + 3 gaps fits the widest width of this band without scroll;
-       below it the overflow is what the scroll is for */
-    grid-template-columns: repeat(5, minmax(232px, 1fr));
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    /* the room the scrollbar needs, so it never overlaps a card */
-    padding-bottom: var(--nebula-space-3);
-  }
-  .nb .board > div { scroll-snap-align: start; }
-}
 
 /* Step one: the supporting numbers beside the total step aside, so that the
    names people typed print whole. The figure they support is the one the bar
@@ -2463,31 +2443,6 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   }
 }
 
-/* At the narrow desktop width the board still keeps its four columns, but
-   level 2 collapses behind the same Filters control used on phones. This
-   prevents the level from clipping while preserving the desktop board. */
-@media (min-width: 769px) and (max-width: 1050px) {
-  /* level 2 is the origin the collapsed panel hangs off, so it is positioned
-     here; the rung it rides is the wrap's, stated once in the base rule */
-  .nb .topbar-l2 { position: relative; }
-  .nb .filters-btn { display: inline-flex; }
-  .nb .menu-backdrop { display: block; position: fixed; inset: 0; z-index: var(--oc-z-backdrop); }
-  .nb .topbar-more { display: none; }
-  .nb .topbar-more.open {
-    display: flex; flex-direction: column; align-items: stretch; gap: 8px;
-    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: var(--oc-z-menu);
-    padding: 12px; border: 1px solid var(--nebula-glass-border); border-radius: var(--oc-radius-panel);
-    background: var(--nebula-panel-solid);
-  }
-  .nb .topbar-more .crumb { align-self: stretch; }
-  .nb .topbar-more .pf-label, .nb .topbar-more .mf-label { max-width: none; }
-  .nb .topbar-more .mission-filter { max-width: none; }
-  .nb .topbar-more .filter-chip { display: flex; width: 100%; max-width: none; }
-  .nb .topbar-more .facet-filters, .nb .topbar-more .ff-trigger { width: 100%; }
-  .nb .topbar-more .ff-trigger { text-align: left; }
-  .nb .topbar-more .filter-result { align-self: flex-start; }
-  .nb .topbar-more .btn-ghost { display: flex; align-items: center; width: 100%; text-align: left; }
-}
 
 @media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
   .nb { padding: 16px 16px 48px; }
@@ -2789,7 +2744,7 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
   .nb .ml-row .card-pick { width: 20px; height: 20px; }
 }
 
-/* ---------- OCL-82: one row of chrome once the bar collapses ----------
+/* ---------- OCL-82 / OCL-124: one row of chrome once the bar collapses ----------
    The two levels of §3 are a desktop idea. Where level 2 has already folded
    into the Filtros button there is nothing left on it but that button, and
    the board was spending a whole rung — plus the air around it — on one
@@ -2805,9 +2760,8 @@ body:has(.nb) { display: block; padding: 0; background: var(--nebula-void); }
    wrap with it: one line of chrome, one line under it.
 
    The condition is exactly where `.filters-btn` shows, and not one pixel
-   wider: a level 2 still carrying its own filters has more than a row's worth
-   of controls, and merging it would be the squeeze the bar was split to end. */
-@media (max-width: 1050px), (orientation: landscape) and (max-height: 500px) {
+   wider: level 2 only folds below 768px, so the merged row starts there. */
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
   .nb .topbar-wrap {
     display: flex; align-items: center; flex-wrap: nowrap;
     gap: var(--nebula-space-2);
