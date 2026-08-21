@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RELEASE_VERSION_PATTERN } from "../release.js";
 
 export const CardStatusSchema = z.enum([
   "aberto",
@@ -9,6 +10,26 @@ export const CardStatusSchema = z.enum([
 ]);
 
 export const TaskTypeSchema = z.enum(["feature", "bug", "rfc"]);
+
+/**
+ * The release a card shipped in, as it is written (OCL-128). A delivery that
+ * put its branch there ("ovka-78-...-f@68218bba") turned the branch into an
+ * option on the board's RELEASE filter, beside v0.2.2 and with no cards under
+ * it. A delivery already carries `branch` and `commit`; this field is the
+ * release, so it takes a version and says so when it does not get one.
+ *
+ * Only the write paths use it. Reading filters (task_list, task_search) stay
+ * permissive, so cards stamped before this guard remain findable by the exact
+ * value they carry.
+ */
+export const ReleaseVersionSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .regex(
+    RELEASE_VERSION_PATTERN,
+    "resolved_in is a release version (v1.4.0, 1.4.0, v1.0.0-rc.1); send a branch name in branch and a commit in commit",
+  );
 
 /** Keep in step with CARDAPIO_TASK_TYPES: the routing table is the source. */
 export const CardapioTaskTypeSchema = z.enum([

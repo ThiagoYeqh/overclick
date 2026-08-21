@@ -1,3 +1,5 @@
+export { RELEASE_VERSION_PATTERN, isReleaseVersion } from "./release.js";
+
 export {
   ERROR_CODES,
   McpCoreError,
@@ -117,6 +119,7 @@ export {
   TaskSchema,
   TaskListItemSchema,
   TaskSummarySchema,
+  ReleaseVersionSchema,
   TaskTypeSchema,
   TranscriptRefSchema,
   UsageSchema,

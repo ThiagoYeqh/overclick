@@ -943,3 +943,46 @@ describe("harness account/provider wire contract (OCL-108)", () => {
     expect(invalid.success).toBe(false);
   });
 });
+
+/**
+ * OCL-128: `resolved_in` is the release, and only the release. A delivery
+ * that put a branch name there leaked it onto the board's RELEASE filter.
+ */
+describe("resolved_in only takes a release version", () => {
+  const branch = "ovka-78-bug-selecao-de-texto-no-pane-anda-com-o-scroll-f@68218bba";
+
+  function deliver(resolved_in: string) {
+    return TaskDeliverInputSchema.safeParse({
+      task_id: "OC-1",
+      summary: "done",
+      resolved_in,
+    });
+  }
+
+  it("task_deliver keeps taking a version tag", () => {
+    for (const value of ["v1.4.0", "1.4.0", "v1.0.0-rc.1"]) {
+      expect(deliver(value).success, value).toBe(true);
+    }
+  });
+
+  it("task_deliver refuses a branch name, a commit and free text", () => {
+    for (const value of [branch, "main", "feature/ocl-128", "68218bba"]) {
+      expect(deliver(value).success, value).toBe(false);
+    }
+  });
+
+  it("task_update refuses a branch name but still clears with null", () => {
+    expect(
+      TaskUpdateInputSchema.safeParse({ task_id: "OC-1", resolved_in: branch })
+        .success,
+    ).toBe(false);
+    expect(
+      TaskUpdateInputSchema.safeParse({ task_id: "OC-1", resolved_in: "v2.0.0" })
+        .success,
+    ).toBe(true);
+    expect(
+      TaskUpdateInputSchema.safeParse({ task_id: "OC-1", resolved_in: null })
+        .success,
+    ).toBe(true);
+  });
+});

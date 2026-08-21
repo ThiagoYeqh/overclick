@@ -2,6 +2,7 @@
 
 import { and, eq, inArray } from "drizzle-orm";
 import { mission, project, task, user } from "@agent-board/db";
+import { isReleaseVersion } from "@agent-board/mcp-core";
 import {
   NO_MISSION,
   encodeFacetSelection,
@@ -51,6 +52,11 @@ export async function setBoardFilterAction(
     return { ok: false, error: "Task priority not found." };
   }
   if (typeof input.resolvedIn === "string") {
+    // The filter offers releases only, so only a release can be stored as
+    // one — a branch name in resolved_in is not a selection (OCL-128).
+    if (!isReleaseVersion(input.resolvedIn)) {
+      return { ok: false, error: "Release not found." };
+    }
     const ws = await db().query.workspace.findFirst({ columns: { id: true } });
     if (!ws) return { ok: false, error: "Workspace not found." };
     const [release] = await db()

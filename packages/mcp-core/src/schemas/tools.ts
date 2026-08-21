@@ -22,6 +22,7 @@ import {
   MissionSummarySchema,
   OrigemSchema,
   PrioritySchema,
+  ReleaseVersionSchema,
   ProjectContextSourceSchema,
   ProjectDetailSchema,
   ProjectSchema,
@@ -815,7 +816,7 @@ export const TaskUpdateInputSchema = z
      * what the delivery said (a fix that only shipped in a later release);
      * null clears it. Empty string is refused: send null to clear.
      */
-    resolved_in: z.string().min(1).nullable().optional(),
+    resolved_in: ReleaseVersionSchema.nullable().optional(),
     /** Discard an in-execution card, optionally linking its existing continuation. */
     status: z.literal("descartado").optional(),
     superseded_by: TaskIdSchema.optional(),
@@ -910,9 +911,9 @@ export const TaskDeliverInputSchema = z.object({
   /**
    * Version, tag or release this delivery lands in, when the agent knows it
    * ("1.4.0"). Stored on the card as resolved_in; task_update can fill or
-   * correct it later.
+   * correct it later. A version, not a branch: OCL-128.
    */
-  resolved_in: z.string().min(1).optional(),
+  resolved_in: ReleaseVersionSchema.optional(),
   /** Mutations are compact by default; request the complete handoff explicitly. */
   return: WriteReturnSchema.optional(),
   /**

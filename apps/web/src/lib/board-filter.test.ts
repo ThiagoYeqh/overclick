@@ -12,6 +12,7 @@ import {
   missionFilterOptions,
   projectFilterOptions,
   releaseFilterOptions,
+  releaseValueOptions,
   resolveBoardFilter,
   resolveReleaseSelection,
   resolveProjectSelection,
@@ -410,5 +411,63 @@ describe("the missions the filter offers", () => {
     expect(searchMissions(options, "ONBOARD").map((o) => o.id)).toEqual(["m1"]);
     expect(searchMissions(options, "  ").map((o) => o.id)).toEqual(["m1", "m2"]);
     expect(searchMissions(options, "nothing")).toEqual([]);
+  });
+});
+
+/**
+ * OCL-128: a delivery stamped `resolved_in` with its branch name, and the
+ * RELEASE filter listed the raw value beside v0.2.2 with a count of zero.
+ */
+describe("the release filter only offers releases", () => {
+  const branch =
+    "ovka-78-bug-selecao-de-texto-no-pane-anda-com-o-scroll-f@68218bba";
+
+  it("drops a value that is not a version from the options", () => {
+    expect(
+      releaseFilterOptions(
+        cards,
+        [{ value: "v1.2.0" }, { value: branch }, { value: "v1.1.0" }],
+        boardFilter({}),
+      ),
+    ).toEqual([
+      { value: "v1.2.0", count: 1 },
+      { value: "v1.1.0", count: 1 },
+      { value: null, count: 1 },
+    ]);
+  });
+
+  it("keeps the no-release bucket counting cards whose release was dropped", () => {
+    const stamped = [
+      ...cards,
+      {
+        id: "d",
+        projectId: "p1",
+        missionId: null,
+        tipo: "bug" as const,
+        priority: "baixa" as const,
+        resolvedIn: branch,
+      },
+    ];
+    const options = releaseFilterOptions(
+      stamped,
+      [{ value: "v1.2.0" }, { value: branch }],
+      boardFilter({}),
+    );
+    expect(options.map((option) => option.value)).toEqual(["v1.2.0", null]);
+  });
+
+  it("narrows a raw list to the releases worth offering", () => {
+    expect(
+      releaseValueOptions([
+        { value: "v1.2.0" },
+        { value: branch },
+        { value: "main" },
+        { value: "1.1" },
+      ]),
+    ).toEqual([{ value: "v1.2.0" }, { value: "1.1" }]);
+  });
+
+  it("refuses to restore a stored selection that is not a release", () => {
+    expect(resolveReleaseSelection(branch, [{ value: branch }])).toBeUndefined();
   });
 });

@@ -1,4 +1,5 @@
 import type { TaskPriority, TaskType } from "@agent-board/db";
+import { isReleaseVersion } from "@agent-board/mcp-core";
 
 export const ALL_PROJECTS = "all";
 /**
@@ -89,6 +90,10 @@ export function resolveReleaseSelection(
 ): string | null | undefined {
   if (stored == null || stored.length === 0) return undefined;
   if (stored === NO_RELEASE) return null;
+  // A stored value the filter would not offer is no longer a selection: a
+  // release that was deleted, and since OCL-128 also a branch name that some
+  // delivery wrote into resolved_in.
+  if (!isReleaseVersion(stored)) return undefined;
   if (releases && !releases.some((release) => release.value === stored)) {
     return undefined;
   }
@@ -381,6 +386,23 @@ export function missionFilterOptions<T extends FilterableCard>(
 /** A release the filter can offer, with the count left by every other dimension. */
 export type ReleaseCount = { value: string | null; count: number };
 
+/**
+ * The releases worth putting on the filter (OCL-128).
+ *
+ * `resolved_in` is a free-text column, and a delivery that wrote its branch
+ * name there ("ovka-78-...-f@68218bba") became an option on the RELEASE
+ * filter, next to v0.2.2 and holding no cards. The write path refuses that
+ * value now; this is the reading end, so the rows already stamped stop
+ * polluting the menu. The cards themselves are not hidden: they stay under
+ * "all releases", which is where a card whose release this filter cannot
+ * read belongs.
+ */
+export function releaseValueOptions(
+  releases: { value: string }[],
+): { value: string }[] {
+  return releases.filter((release) => isReleaseVersion(release.value));
+}
+
 export function releaseFilterOptions<T extends FilterableCard>(
   cards: T[],
   releases: { value: string }[],
@@ -394,7 +416,7 @@ export function releaseFilterOptions<T extends FilterableCard>(
     counts.set(card.resolvedIn, (counts.get(card.resolvedIn) ?? 0) + 1);
   }
   return [
-    ...releases.map((release) => ({
+    ...releaseValueOptions(releases).map((release) => ({
       value: release.value,
       count: counts.get(release.value) ?? 0,
     })),
