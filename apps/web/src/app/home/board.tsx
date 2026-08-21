@@ -29,6 +29,7 @@ import { CliMark } from "../../components/cli-mark";
 import { Markdown } from "../../components/markdown";
 import { Icon, type IconName } from "../../components/icon";
 import { BoardMobileList } from "./board-mobile-list";
+import { DetailSkeleton } from "./detail-skeleton";
 
 export type BoardMissionOption = {
   id: string;
@@ -1380,6 +1381,7 @@ export function Board({
   const t = dict(lang);
   const colLabel = columnLabels(t);
   const [open, setOpen] = useState<BoardCard | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const picked = new Set(selectedIds);
 
   const onKey = useCallback((e: KeyboardEvent) => {
@@ -1390,13 +1392,23 @@ export function Board({
     return () => document.removeEventListener("keydown", onKey);
   }, [onKey]);
 
+  // A short loading beat when opening a card lets the modal show a skeleton
+  // instead of popping straight into content, matching the loading states of
+  // the other three surfaces without changing how the card data is fetched.
+  const openCard = useCallback((card: BoardCard) => {
+    setOpen(card);
+    setDetailLoading(true);
+    const timer = window.setTimeout(() => setDetailLoading(false), 180);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // The same card in both layouts: the phone list is a different arrangement
   // of this board, never a second version of it.
   const renderCard = (card: BoardCard) => (
     <Card
       key={card.id}
       card={card}
-      onOpen={setOpen}
+      onOpen={openCard}
       showProject={showProject}
       selectable={selectable}
       selected={picked.has(card.id)}
@@ -1411,7 +1423,7 @@ export function Board({
     <CardRow
       key={card.id}
       card={card}
-      onOpen={setOpen}
+      onOpen={openCard}
       showProject={showProject}
       selectable={selectable}
       selected={picked.has(card.id)}
@@ -1459,7 +1471,8 @@ export function Board({
         renderEmpty={(status) => <EmptyState status={status} t={t} />}
         t={t}
       />
-      {open ? (
+      {open && detailLoading ? <DetailSkeleton /> : null}
+      {open && !detailLoading ? (
         <Detail
           card={open}
           missions={missions}
