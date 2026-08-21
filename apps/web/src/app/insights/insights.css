@@ -15,6 +15,24 @@
   --ins-measure: 68ch;
   max-width: 1320px;
 }
+/* The chrome speaks the same language as the board: two flat levels on the
+   canvas, one 1px line under the second. No floating glass panel. */
+.nb .ins-topbar-wrap {
+  position: relative;
+  z-index: var(--oc-z-chrome);
+  margin-bottom: var(--ins-rhythm);
+}
+.nb .ins-topbar-l1 {
+  display: flex; align-items: center; gap: var(--nebula-space-4);
+  padding: 10px 0;
+}
+.nb .ins-topbar-l1 .spacer { flex: 1; }
+.nb .ins-topbar-l2 {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--nebula-space-3);
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--nebula-glass-border);
+}
 /* The heading block is one group with one gap, so the filter line can appear
    and disappear without any margin having to be corrected against another. */
 .nb .ins-head {
@@ -74,9 +92,10 @@
    lengths still show their four figures on one line */
 .nb .ins-tile .ins-note:first-of-type { margin-top: auto; padding-top: 6px; }
 .nb .ins-tile .ins-lbl {
-  font-family: var(--nebula-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-family: var(--nebula-font-label);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--nebula-text-tertiary);
   margin-bottom: 8px;
@@ -105,9 +124,10 @@
   justify-content: space-between;
   gap: var(--nebula-space-3);
   margin-bottom: 12px;
-  font-family: var(--nebula-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-family: var(--nebula-font-label);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--nebula-text-tertiary);
 }
@@ -142,6 +162,7 @@
 .nb .ins-trend-bars {
   display: flex;
   align-items: flex-end;
+  justify-content: flex-start;
   gap: 5px;
   flex: 1;
   /* the plot answers the width it was given: on a wide page a 120px band of
@@ -149,12 +170,9 @@
   min-height: clamp(120px, 11vw, 168px);
 }
 .nb .ins-trend-col {
-  /* share the width instead of claiming a fixed 26px and leaving the rest of
-     the panel empty; a bar still never grows wider than it reads well at */
-  /* The columns span exactly the plot, because the axis under them labels the
-     first and the last one: a capped bar left the last column short of the
-     date that names it, which is the same misalignment as before, moved. */
-  flex: 1 1 0;
+  /* with few data points bars stay narrow and aligned; with many they share
+     the width without ever becoming slabs that overpower the panel. */
+  flex: 0 0 clamp(18px, calc((100% - (var(--ins-points, 1) - 1) * 5px) / var(--ins-points, 1)), 48px);
   min-width: 0;
   height: 100%;
   display: flex;
@@ -164,7 +182,7 @@
   width: 100%;
   min-height: 3px;
   border-radius: 3px 3px 1px 1px;
-  background: linear-gradient(180deg, rgb(var(--oc-accent-rgb) / 0.75), rgb(var(--oc-mist-rgb) / 0.35));
+  background: var(--nebula-text-tertiary);
   transition: filter 0.15s;
 }
 .nb .ins-trend-col:hover .ins-bar { filter: brightness(1.35); }
@@ -279,14 +297,14 @@
 .nb .ins-col-deliveries { width: 88px; }
 .nb .ins-col-rate { width: 64px; }
 .nb .ins-table th {
-  font-family: var(--nebula-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-family: var(--nebula-font-label);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--nebula-text-tertiary);
   text-align: left;
   padding: 0 12px 10px 0;
-  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -362,6 +380,16 @@
   font-size: 10px;
   color: var(--nebula-text-tertiary);
   cursor: help;
+}
+/* A visible key for the symbols used in every table: the reader never has to
+   leave the panel to know what ⌀, !, +, ≈, 0 and ○ mean. */
+.nb .ins-legend {
+  margin: 12px 0 0;
+  font-family: var(--nebula-font-label);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+  color: var(--nebula-text-tertiary);
 }
 /* The footnote is where every qualifier on the table above is spelled out. As
    one run-on paragraph it grew to the full width of the page and became the
